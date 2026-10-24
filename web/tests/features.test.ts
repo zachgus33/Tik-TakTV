@@ -1,0 +1,266 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createGuideParser, xmltvTime } from "../src/guide-parser";
+import {
+  addonUrls,
+  parseCollections,
+  parseTransfer,
+  mergeCollections,
+} from "../src/collections";
+import { quality, rankedStreams, seeders } from "../src/stream-selection";
+import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
+
+afterEach(() => vi.restoreAllMocks());
+describe("automatic Xtream XMLTV guide", () => {
+  it("converts explicit positive and negative timezones to UTC", () => {
+    expect(xmltvTime("20261023183000 +0200")).toBe(
+      Date.UTC(2026, 9, 23, 16, 30),
+    );
+    expect(xmltvTime("20261023183000 -0400")).toBe(
+      Date.UTC(2026, 9, 23, 22, 30),
+    );
+    expect(Number.isNaN(xmltvTime("bad"))).toBe(true);
+  });
+  it("parses split chunks, XML entities and only the current/next day", () => {
+    const parser = createGuideParser(Date.UTC(2026, 9, 23, 18));
+    parser.write(
+      '<?xml version="1.0"?><tv><programme channel="news" start="20261023173000 +0000" stop="20261023183000 +0000"><ti',
+    );
+    parser.write(
+      'tle>News &amp; weather</title><desc><![CDATA[Today’s headlines]]></desc></programme><programme channel="news" start="20261021173000 +0000" stop="20261021183000 +0000"><title>Old</title></programme></tv>',
+    );
+    expect(parser.finish().news).toEqual([
+      {
+        id: `news:${Date.UTC(2026, 9, 23, 17, 30)}`,
+        start: Date.UTC(2026, 9, 23, 17, 30),
+        end: Date.UTC(2026, 9, 23, 18, 30),
+        title: "News & weather",
+        description: "Today’s headlines",
+      },
+    ]);
+  });
+  it("rejects malformed XML instead of treating it as a valid guide", () => {
+    const parser = createGuideParser();
+    expect(() => {
+      parser.write("<html>not xmltv");
+      parser.finish();
+    }).toThrow();
+  });
+});
+describe("Nuvio collections and add-on transfer", () => {
+  const collection = {
+    id: "a",
+    title: "Cinema",
+    pinToTop: true,
+    folders: [
+      {
+        id: "f",
+        title: "Movies",
+        sources: [
+          {
+            provider: "addon",
+            addonId: "com.linvo.cinemeta",
+            type: "movie",
+            catalogId: "top",
+            genre: "Drama",
+          },
+        ],
+        coverEmoji: "🎬",
+      },
+    ],
+  };
+  it("preserves native folder sources and presentation fields", () => {
+    expect(parseCollections([collection])[0]).toMatchObject(collection);
+  });
+  it("merges imports without deleting unrelated local collections", () => {
+    expect(
+      mergeCollections(
+        [{ id: "b", title: "Local", folders: [] }],
+        [collection],
+      ),
+    ).toHaveLength(2);
+  });
+  it("rejects duplicate identities and malformed lists", () => {
+    expect(() => parseCollections([collection, collection])).toThrow("unique");
+    expect(() => parseCollections({ theme: "violet" })).toThrow("array");
+  });
+  it("accepts configured addon URLs and native managed add-on records", () => {
+    expect(
+      addonUrls(
+        "stremio://addon.example/torbox=private/manifest.json\nhttps://second.example/manifest.json",
+      ),
+    ).toHaveLength(2);
+    expect(
+      addonUrls(
+        JSON.stringify([
+          { manifestUrl: "https://addon.example/config/manifest.json" },
+        ]),
+      ),
+    ).toEqual(["https://addon.example/config/manifest.json"]);
+  });
+  it("rejects arbitrary schemes and native settings backups with an explanation", () => {
+    expect(() => addonUrls("javascript:alert(1)")).toThrow("manifest");
+    expect(() => parseTransfer('{"theme":"dark"}')).toThrow(
+      "Native Enhanced settings",
+    );
+  });
+});
+describe("720p+ preference and safe episode matching", () => {
+  it("keeps low quality, unrelated movies and unmatched episodes in the picker", () => {
+    expect(
+      selectTorboxFile([{ id: 1, name: "Movie.480p.mp4" }], { name: "1080p" }),
+    ).toBeUndefined();
+    expect(
+      selectTorboxFile(
+        [
+          { id: 1, name: "Movie A.1080p.mp4" },
+          { id: 2, name: "Movie B.2160p.mp4" },
+        ],
+        {},
+      ),
+    ).toBeUndefined();
+    expect(
+      selectTorboxFile(
+        [{ id: 1, name: "Show.S01E03.1080p.mp4" }],
+        {},
+        { id: "ep", name: "Episode", season: 1, episode: 2 },
+      ),
+    ).toBeUndefined();
+    expect(
+      selectTorboxFile(
+        [
+          { id: 1, name: "Movie.720p.mp4" },
+          { id: 2, name: "Movie.1080p.mp4" },
+        ],
+        {},
+      )?.id,
+    ).toBe(2);
+  });
+  it("recognizes resolution aliases", () => {
+    expect(quality("2160p HDR")).toBe(2160);
+    expect(quality("4K UHD")).toBe(2160);
+    expect(quality("WEB-DL 720p")).toBe(720);
+    expect(quality("CAM")).toBe(0);
+  });
+  it("ranks seeders first, excludes SD and unknown quality", () => {
+    const streams = [
+      { name: "2160p", title: "👤 12", url: "https://cdn.example/4k.mp4" },
+      { name: "720p", title: "👤 300", url: "https://cdn.example/720.mp4" },
+      { name: "480p", seeders: 900, url: "https://cdn.example/sd.mp4" },
+      {
+        name: "Unknown",
+        seeders: 9000,
+        url: "https://cdn.example/unknown.mp4",
+      },
+    ];
+    expect(rankedStreams(streams, false).map((s) => s.name)).toEqual([
+      "720p",
+      "2160p",
+    ]);
+    expect(seeders({ title: "Seeders: 1,200" })).toBe(1200);
+  });
+  it("only enables raw torrents when TorBox is connected", () => {
+    expect(
+      rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], false),
+    ).toHaveLength(0);
+    expect(
+      rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
+    ).toHaveLength(1);
+  });
+  it("matches S01E02 without choosing S01E020 or another episode", () => {
+    const files = [
+      { id: 1, name: "Show.S01E020.2160p.mkv" },
+      { id: 2, name: "Show.S01E02.1080p.mkv" },
+      { id: 3, name: "Show.S01E03.720p.mkv" },
+    ];
+    expect(
+      selectTorboxFile(
+        files,
+        {},
+        { id: "ep", name: "Episode", season: 1, episode: 2 },
+      )?.id,
+    ).toBe(2);
+  });
+  it("does not mistake a TorBox file id for the Stremio file index", () => {
+    expect(
+      selectTorboxFile(
+        [
+          { id: 0, name: "Movie A.mp4" },
+          { id: 1, name: "Movie B.mp4" },
+        ],
+        { fileIdx: 0 },
+      ),
+    ).toBeUndefined();
+  });
+  it("picks an exact addon filename and a matching 1080p variant", () => {
+    expect(
+      selectTorboxFile(
+        [
+          { id: 8, name: "folder/movie.mp4" },
+          { id: 2, name: "other.mp4" },
+        ],
+        { name: "1080p", behaviorHints: { filename: "movie.mp4" } },
+      )?.id,
+    ).toBe(8);
+    expect(
+      selectTorboxFile(
+        [
+          { id: 8, name: "Show.S01E02.480p.mkv" },
+          { id: 2, name: "Show.S01E02.1080p.mkv" },
+        ],
+        {},
+        { id: "ep", name: "Episode", season: 1, episode: 2 },
+      )?.id,
+    ).toBe(2);
+  });
+});
+describe("TorBox cached torrent flow", () => {
+  it("only requests cached additions, then obtains the selected video link", async () => {
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ success: true, data: { torrent_id: 12 } }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: [{ id: 12, files: [{ id: 4, name: "Movie.1080p.mp4" }] }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: "https://cdn.example/movie.mp4",
+          }),
+        ),
+      );
+    const prepared = await prepareTorbox("fake-key", {
+      infoHash: "a".repeat(40),
+      name: "1080p",
+    });
+    const form = mock.mock.calls[0][1]?.body as FormData;
+    expect(form.get("add_only_if_cached")).toBe("true");
+    expect(prepared.selected?.id).toBe(4);
+    expect(await torboxLink("fake-key", 12, 4)).toBe(
+      "https://cdn.example/movie.mp4",
+    );
+    expect(
+      new URL(String(mock.mock.calls[2][0])).searchParams.get("file_id"),
+    ).toBe("4");
+  });
+  it("does not retry an uncached torrent as a new download", async () => {
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ success: false, error: "NOT_CACHED" })),
+      );
+    await expect(
+      prepareTorbox("fake-key", { infoHash: "a".repeat(40) }),
+    ).rejects.toThrow("not cached");
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+});

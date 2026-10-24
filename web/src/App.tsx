@@ -1,0 +1,1636 @@
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  ArrowRight,
+  Bookmark,
+  Check,
+  ChevronRight,
+  Clapperboard,
+  Compass,
+  Film,
+  Heart,
+  Home,
+  Library,
+  Play,
+  Plus,
+  Radio,
+  RefreshCw,
+  Search,
+  Settings2,
+  Signal,
+  Sparkles,
+  Star,
+  Tv,
+  X,
+} from "lucide-react";
+import {
+  addonDetail,
+  addonStreams,
+  catalog,
+  categories,
+  defaultAddon,
+  epg,
+  providerDetail,
+  providerItems,
+  safeUrl,
+  streamUrl,
+} from "./api";
+import { cleanItem, getProvider, read, useStored } from "./storage";
+import {
+  itemKey,
+  type Addon,
+  type Category,
+  type Episode,
+  type Item,
+  type Kind,
+  type Programme,
+  type Progress,
+  type Provider,
+  type Stream,
+} from "./types";
+import type { Playback } from "./Player";
+import { useGuide } from "./useGuide";
+import {
+  type Collection,
+  type Transfer,
+  mergeCollections,
+  mergeItems,
+} from "./collections";
+import { installMany, mergeAddons } from "./addon-import";
+import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
+import {
+  directStream,
+  rankedStreams,
+  streamQuality,
+  seeders,
+} from "./stream-selection";
+import { save } from "./storage";
+
+const Player = lazy(() => import("./Player"));
+const Settings = lazy(() => import("./Settings"));
+const CollectionsView = lazy(() => import("./CollectionsView"));
+type Page = "home" | "discover" | "live" | "library" | "settings";
+const nav = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "discover", label: "Discover", icon: Compass },
+  { id: "live", label: "Live TV", icon: Radio },
+  { id: "library", label: "My library", icon: Library },
+  { id: "settings", label: "Settings", icon: Settings2 },
+] as const;
+const message = (e: unknown) =>
+  e instanceof Error ? e.message : "The source could not be loaded.";
+
+function Art({
+  item,
+  wide = false,
+  priority = false,
+}: {
+  item: Item;
+  wide?: boolean;
+  priority?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const src = wide ? (item.background ?? item.poster) : item.poster;
+  return src && !failed ? (
+    <img
+      src={src}
+      alt=""
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : "auto"}
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <div className="art-fallback" aria-hidden="true">
+      <Film />
+      <span>{item.name}</span>
+    </div>
+  );
+}
+function Card({
+  item,
+  onOpen,
+  progress,
+}: {
+  item: Item;
+  onOpen: (item: Item) => void;
+  progress?: Progress;
+}) {
+  return (
+    <button
+      className={`media-card ${progress ? "continue-card" : ""}`}
+      onClick={() => onOpen(item)}
+    >
+      <div className="poster">
+        <Art item={item} wide={!!progress} />
+        <span className="play-hover">
+          <Play fill="currentColor" />
+        </span>
+        {item.rating && (
+          <span className="rating">
+            <Star size={11} fill="currentColor" />
+            {Number(item.rating).toFixed(1)}
+          </span>
+        )}
+        {progress && (
+          <span className="progress-track">
+            <span
+              style={{
+                width: `${Math.min(100, (progress.seconds / progress.duration) * 100)}%`,
+              }}
+            />
+          </span>
+        )}
+      </div>
+      <strong>{item.name}</strong>
+      <span className="card-meta">
+        {progress
+          ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
+          : [
+              item.year,
+              item.type === "series"
+                ? "Series"
+                : item.type === "live"
+                  ? "Live TV"
+                  : "Movie",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+      </span>
+    </button>
+  );
+}
+function Empty({
+  title,
+  text,
+  action,
+  onAction,
+}: {
+  title: string;
+  text: string;
+  action?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className="empty">
+      <div className="empty-icon">
+        <Clapperboard />
+      </div>
+      <h2>{title}</h2>
+      <p>{text}</p>
+      {action && (
+        <button className="primary" onClick={onAction}>
+          <Plus size={18} />
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+function Loading() {
+  return (
+    <div className="loading" role="status">
+      <span className="spinner" />
+      Loading your library…
+    </div>
+  );
+}
+function Detail({
+  initial,
+  provider,
+  addons,
+  saved,
+  toggleSave,
+  onClose,
+  onPlay,
+  resume,
+  torboxKey,
+  autoplay,
+}: {
+  initial: Item;
+  provider: Provider | null;
+  addons: Addon[];
+  saved: boolean;
+  toggleSave: (item: Item) => void;
+  onClose: () => void;
+  onPlay: (p: Playback) => void;
+  resume?: Progress;
+  torboxKey: string;
+  autoplay: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [item, setItem] = useState(initial);
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [season, setSeason] = useState<number | null>(null);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [episode, setEpisode] = useState<Episode>();
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [streamsLoaded, setStreamsLoaded] = useState(false);
+  const [files, setFiles] = useState<{
+    torrentId: number;
+    files: TorboxFile[];
+    episode?: Episode;
+  } | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    ref.current?.showModal();
+    const c = new AbortController();
+    const request =
+      initial.source === "addon"
+        ? addonDetail(initial, c.signal)
+        : provider && provider.scope === initial.provider
+          ? providerDetail(provider, initial, c.signal)
+          : Promise.resolve({ item: initial, episodes: [] });
+    request
+      .then((result) => {
+        setItem(result.item);
+        setEpisodes(result.episodes);
+        setSeason(result.episodes[0]?.season ?? null);
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) setError(message(e));
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setBusy(false);
+      });
+    return () => {
+      c.abort();
+      controller.current?.abort();
+    };
+  }, [initial, provider]);
+  async function chooseStream(
+    stream: Stream,
+    ep?: Episode,
+    signal?: AbortSignal,
+  ) {
+    setFiles(null);
+    const position =
+      resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
+    if (directStream(stream)) {
+      onPlay({ item, episode: ep, url: stream.url!, resume: position });
+      return;
+    }
+    if (!torboxKey)
+      throw new Error(
+        "Connect TorBox in Settings, or install your Torrentio manifest already configured with TorBox.",
+      );
+    const prepared = await prepareTorbox(torboxKey, stream, ep, signal);
+    if (signal?.aborted) return;
+    if (!prepared.selected) {
+      setFiles({ ...prepared, episode: ep });
+      return;
+    }
+    const url = await torboxLink(
+      torboxKey,
+      prepared.torrentId,
+      prepared.selected.id,
+      signal,
+    );
+    if (!signal?.aborted) onPlay({ item, episode: ep, url, resume: position });
+  }
+  async function manualStream(stream: Stream) {
+    controller.current?.abort();
+    const c = new AbortController();
+    controller.current = c;
+    setBusy(true);
+    setError("");
+    try {
+      await chooseStream(stream, episode, c.signal);
+    } catch (e) {
+      if (!c.signal.aborted) setError(message(e));
+    } finally {
+      if (!c.signal.aborted) setBusy(false);
+    }
+  }
+  async function play(ep?: Episode, auto = autoplay) {
+    setEpisode(ep);
+    setError("");
+    setStreams([]);
+    setStreamsLoaded(false);
+    setFiles(null);
+    const position =
+      resume && resume.episode?.id === ep?.id ? resume?.seconds : undefined;
+    if (item.source === "xtream") {
+      if (!provider || provider.scope !== item.provider) {
+        setError("Connect the IPTV account for this title in Settings.");
+        return;
+      }
+      onPlay({
+        item,
+        episode: ep,
+        resume: position,
+        url: streamUrl(
+          provider,
+          item.type,
+          ep?.id ?? item.id,
+          ep?.extension ?? item.extension,
+        ),
+      });
+      return;
+    }
+    controller.current?.abort();
+    const c = new AbortController();
+    controller.current = c;
+    setBusy(true);
+    try {
+      const result = await addonStreams(
+        addons,
+        item,
+        ep?.id ?? item.id,
+        c.signal,
+      );
+      if (c.signal.aborted) return;
+      setStreams(result.streams);
+      setStreamsLoaded(true);
+      const ranked = rankedStreams(result.streams, !!torboxKey);
+      if (auto && ranked.length) await chooseStream(ranked[0], ep, c.signal);
+      if (!result.count)
+        setError(
+          "Install a streaming add-on in Settings. Cinemeta provides information about titles, not video streams.",
+        );
+      else if (result.failed)
+        setError(
+          `${result.failed} add-on${result.failed === 1 ? "" : "s"} could not be reached. Other results are shown below.`,
+        );
+    } catch (e) {
+      if (!c.signal.aborted) setError(message(e));
+    } finally {
+      if (!c.signal.aborted) setBusy(false);
+    }
+  }
+  const seasons = [...new Set(episodes.map((e) => e.season))];
+  return (
+    <dialog ref={ref} className="detail-dialog" onCancel={onClose}>
+      <button
+        autoFocus
+        className="icon-button close-detail"
+        onClick={onClose}
+        aria-label="Close details"
+      >
+        <X />
+      </button>
+      <div className="detail-art">
+        <Art item={item} wide />
+      </div>
+      <div className="detail-content">
+        <span className="eyebrow">
+          {item.source === "xtream"
+            ? "YOUR IPTV COLLECTION"
+            : "DISCOVER SOMETHING GREAT"}
+        </span>
+        <h1>{item.name}</h1>
+        <div className="metadata">
+          {item.rating && (
+            <span className="gold">
+              <Star size={15} />
+              {item.rating}
+            </span>
+          )}
+          <span>{item.year}</span>
+          <span>{item.type === "series" ? "Series" : "Movie"}</span>
+          <span>{item.runtime}</span>
+        </div>
+        <p className="description">
+          {item.description || "No synopsis is available for this title."}
+        </p>
+        <div className="chips">
+          {item.genres?.map((g) => (
+            <span key={g}>{g}</span>
+          ))}
+        </div>
+        <div className="actions">
+          {item.type !== "series" && (
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => void play()}
+            >
+              <Play size={18} fill="currentColor" />
+              {resume
+                ? "Resume"
+                : autoplay
+                  ? "Play best stream"
+                  : "Find streams"}
+            </button>
+          )}
+          {resume?.episode && (
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => void play(resume.episode)}
+            >
+              <Play size={18} />
+              Resume S{resume.episode.season} E{resume.episode.episode}
+            </button>
+          )}
+          {autoplay && item.source === "addon" && item.type === "movie" && (
+            <button disabled={busy} onClick={() => void play(undefined, false)}>
+              Find streams
+            </button>
+          )}
+          <button onClick={() => toggleSave(item)}>
+            {saved ? <Check size={18} /> : <Plus size={18} />}{" "}
+            {saved ? "In my library" : "My library"}
+          </button>
+        </div>
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        {busy && <Loading />}
+        {files && (
+          <div className="stream-results">
+            <h2>Choose the video file</h2>
+            <p className="muted">
+              No unambiguous automatic match was found. Select the movie or
+              episode you want.
+            </p>
+            {files.files
+              .filter(
+                (f) =>
+                  f.mimetype?.startsWith("video/") ||
+                  /\.(mp4|mkv|m4v|webm|avi|mov|ts)$/i.test(f.name),
+              )
+              .map((file) => (
+                <button
+                  key={file.id}
+                  disabled={busy}
+                  onClick={async () => {
+                    controller.current?.abort();
+                    const c = new AbortController();
+                    controller.current = c;
+                    setBusy(true);
+                    setError("");
+                    try {
+                      const url = await torboxLink(
+                        torboxKey,
+                        files.torrentId,
+                        file.id,
+                        c.signal,
+                      );
+                      if (!c.signal.aborted)
+                        onPlay({
+                          item,
+                          episode: files.episode,
+                          url,
+                          resume:
+                            resume?.episode?.id === files.episode?.id
+                              ? resume?.seconds
+                              : undefined,
+                        });
+                    } catch (e) {
+                      if (!c.signal.aborted) setError(message(e));
+                    } finally {
+                      if (!c.signal.aborted) setBusy(false);
+                    }
+                  }}
+                >
+                  <Play size={18} />
+                  <span>{file.short_name ?? file.name}</span>
+                </button>
+              ))}
+          </div>
+        )}
+        {item.type === "series" && episodes.length > 0 && (
+          <div className="episode-section">
+            <div className="row-heading">
+              <h2>Episodes</h2>
+              <select
+                aria-label="Season"
+                value={season ?? ""}
+                onChange={(e) => setSeason(Number(e.target.value))}
+              >
+                {seasons.map((s) => (
+                  <option key={s} value={s}>
+                    Season {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="episodes">
+              {episodes
+                .filter((e) => e.season === season)
+                .map((ep) => (
+                  <button
+                    key={ep.id}
+                    disabled={busy}
+                    onClick={() => void play(ep)}
+                  >
+                    <span className="episode-number">{ep.episode}</span>
+                    <span>{ep.name}</span>
+                    <Play size={18} />
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
+        {!busy && item.type === "series" && !episodes.length && (
+          <p className="muted">No episodes were returned by this source.</p>
+        )}
+        {streamsLoaded && (
+          <div className="stream-results">
+            <h2>
+              Choose a stream{episode ? ` · Episode ${episode.episode}` : ""}
+            </h2>
+            {streams.length === 0 && (
+              <p className="muted">No streams found. Try another source.</p>
+            )}
+            {streams.map((s, i) => {
+              const playable = directStream(s) || (!!s.infoHash && !!torboxKey);
+              return (
+                <button
+                  key={i}
+                  disabled={!playable || busy}
+                  onClick={() => void manualStream(s)}
+                >
+                  <Play size={20} />
+                  <span>
+                    <strong>{s.name ?? "Stream"}</strong>
+                    <small>
+                      {streamQuality(s)
+                        ? `${streamQuality(s)}p`
+                        : "Quality not reported"}
+                      {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
+                      {s.infoHash ? " · TorBox" : ""}
+                    </small>
+                    <span>
+                      {s.title ??
+                        (playable
+                          ? "HTTPS video"
+                          : s.infoHash
+                            ? "Torrent source — requires a separate streaming server"
+                            : "Not directly playable in a browser")}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </dialog>
+  );
+}
+
+export default function App() {
+  const route = (): Page =>
+    nav.some((n) => n.id === location.hash.slice(1))
+      ? (location.hash.slice(1) as Page)
+      : "home";
+  const [page, setPage] = useState<Page>(route);
+  const [provider, setProvider] = useState<Provider | null>(getProvider);
+  const [addons, setAddons] = useStored<Addon[]>("addons", [defaultAddon]);
+  const [library, setLibrary] = useStored<Item[]>("library", []);
+  const [accent, setAccent] = useStored("accent", "#9b5cff");
+  const [collections, setCollections] = useStored<Collection[]>(
+    "collections",
+    [],
+  );
+  const [autoplay, setAutoplay] = useStored("autoplay", true);
+  const [torboxKey, setTorboxKey] = useState<string>(() =>
+    read("torbox-key", read("torbox-key", ""), sessionStorage),
+  );
+  const [progress, setProgress] = useState<Progress[]>(() =>
+    read("progress", []),
+  );
+  const [playlist, setPlaylist] = useState<Item[]>([]);
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const [kind, setKind] = useState<Kind>("movie");
+  const [source, setSource] = useState("catalogs");
+  const [selectedCatalog, setSelectedCatalog] = useState("");
+  const [category, setCategory] = useState("");
+  const [categoryList, setCategoryList] = useState<Category[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [limit, setLimit] = useState(60);
+  const [detail, setDetail] = useState<Item | null>(null);
+  const [playback, setPlayback] = useState<Playback | null>(null);
+  const [activeChannel, setActiveChannel] = useState<Item | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [toast, setToast] = useState("");
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [update, setUpdate] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const navigate = (next: Page) => {
+    location.hash = next;
+    setQuery("");
+    setCategory("");
+    setFavoritesOnly(false);
+  };
+  useEffect(() => {
+    const handler = () => {
+      setPage(route());
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", handler);
+    return () => window.removeEventListener("hashchange", handler);
+  }, []);
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accent);
+  }, [accent]);
+  useEffect(() => {
+    const online = () => setOffline(!navigator.onLine);
+    const storage = () =>
+      setToast(
+        "Browser storage is full. Recent changes may not survive a reload.",
+      );
+    const updated = () => setUpdate(true);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", online);
+    window.addEventListener("storage-full", storage);
+    window.addEventListener("app-update", updated);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", online);
+      window.removeEventListener("storage-full", storage);
+      window.removeEventListener("app-update", updated);
+    };
+  }, []);
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(""), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+  useEffect(() => {
+    setLimit(60);
+  }, [page, deferredQuery, category, kind, source, favoritesOnly]);
+  const catalogs = addons.flatMap((a) =>
+    (a.manifest.catalogs ?? [])
+      .filter(
+        (c) =>
+          c.type === kind &&
+          !c.extra?.some((e) => e.isRequired && e.name !== "search"),
+      )
+      .map((c) => ({
+        addon: a,
+        catalog: c,
+        key: `${a.base}|${c.type}|${c.id}`,
+      })),
+  );
+  useEffect(() => {
+    if (page !== "home") return;
+    const c = new AbortController();
+    setLoading(true);
+    setError("");
+    const entries = addons
+      .flatMap((a) =>
+        (a.manifest.catalogs ?? [])
+          .filter(
+            (cat) =>
+              ["movie", "series"].includes(cat.type) &&
+              !cat.extra?.some((e) => e.isRequired),
+          )
+          .slice(0, 2)
+          .map((cat) => ({ a, cat })),
+      )
+      .slice(0, 4);
+    void Promise.allSettled(
+      entries.map(async ({ a, cat }) => ({
+        title:
+          cat.name ??
+          `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
+        items: await catalog(a, cat.type, cat.id, "", c.signal),
+      })),
+    ).then((results) => {
+      if (c.signal.aborted) return;
+      setHomeRows(
+        results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+      );
+      const rejected = results.find((r) => r.status === "rejected");
+      if (rejected?.status === "rejected") setError(message(rejected.reason));
+      setLoading(false);
+    });
+    return () => c.abort();
+  }, [page, addons, revision]);
+  useEffect(() => {
+    if (
+      !(page === "live" || (page === "discover" && source === "xtream")) ||
+      !provider
+    ) {
+      setCategoryList([]);
+      return;
+    }
+    const c = new AbortController();
+    void categories(provider, page === "live" ? "live" : kind, c.signal)
+      .then(setCategoryList)
+      .catch((e) => {
+        if (!c.signal.aborted) setError(message(e));
+      });
+    return () => c.abort();
+  }, [page, source, provider, kind, revision]);
+  useEffect(() => {
+    if (page !== "discover" && page !== "live") return;
+    const c = new AbortController();
+    setLoading(true);
+    setError("");
+    setItems([]);
+    async function load() {
+      try {
+        let result: Item[] = [];
+        if (page === "live" || source === "xtream") {
+          if (provider)
+            result = await providerItems(
+              provider,
+              page === "live" ? "live" : kind,
+              category,
+              c.signal,
+            );
+          if (page === "live")
+            result = [
+              ...result,
+              ...playlist.filter((i) => !category || i.category === category),
+            ];
+        } else {
+          const chosen =
+            catalogs.find((x) => x.key === selectedCatalog) ?? catalogs[0];
+          if (chosen)
+            result = await catalog(
+              chosen.addon,
+              kind,
+              chosen.catalog.id,
+              chosen.catalog.extra?.some((e) => e.name === "search")
+                ? deferredQuery
+                : "",
+              c.signal,
+            );
+        }
+        if (!c.signal.aborted) setItems(result);
+      } catch (e) {
+        if (!c.signal.aborted) setError(message(e));
+      } finally {
+        if (!c.signal.aborted) setLoading(false);
+      }
+    }
+    const timer = setTimeout(
+      () => void load(),
+      page === "discover" && source === "catalogs" && deferredQuery ? 350 : 0,
+    );
+    return () => {
+      clearTimeout(timer);
+      c.abort();
+    };
+    // Catalog query depends on installed manifests, not the freshly mapped array.
+  }, [
+    page,
+    source,
+    provider,
+    kind,
+    category,
+    selectedCatalog,
+    addons,
+    playlist,
+    revision,
+    page === "discover" && source === "catalogs" ? deferredQuery : "",
+  ]);
+  const saved = (item: Item) =>
+    library.some((i) => itemKey(i) === itemKey(item));
+  const toggleSave = (item: Item) =>
+    setLibrary((old) =>
+      old.some((i) => itemKey(i) === itemKey(item))
+        ? old.filter((i) => itemKey(i) !== itemKey(item))
+        : [...old, cleanItem(item)],
+    );
+  const open = (item: Item) => {
+    if (item.type === "live") {
+      if (item.source === "playlist") {
+        const current = playlist.find((p) => itemKey(p) === itemKey(item));
+        if (!current) {
+          setToast("Import this playlist again to play its channels.");
+          return;
+        }
+        setActiveChannel(current);
+      } else setActiveChannel(item);
+      navigate("live");
+    } else setDetail(item);
+  };
+  const hero =
+    homeRows[0]?.items.find((i) => i.background) ?? homeRows[0]?.items[0];
+  const filtered = (page === "library" ? library : items).filter(
+    (i) =>
+      (!deferredQuery ||
+        i.name
+          .toLocaleLowerCase()
+          .includes(deferredQuery.toLocaleLowerCase())) &&
+      (!favoritesOnly || saved(i)),
+  );
+  const guideState = useGuide(
+    provider,
+    page === "live" ? filtered.slice(0, limit) : [],
+    activeChannel,
+    revision,
+  );
+  const guide = activeChannel ? guideState.get(activeChannel) : [];
+  const guideError = activeChannel
+    ? guideState.failed(activeChannel.id)
+    : false;
+  const guideLoading =
+    !!activeChannel &&
+    activeChannel.source === "xtream" &&
+    !guideState.loaded(activeChannel) &&
+    !guideError;
+  const allCategories = [
+    ...categoryList,
+    ...Array.from(new Set(playlist.map((i) => i.category ?? "Other"))).map(
+      (id) => ({ id, name: id }),
+    ),
+  ];
+  function playChannel(item: Item) {
+    if (item.source === "xtream") {
+      if (!provider || provider.scope !== item.provider) {
+        setToast("Connect this channel’s IPTV account in Settings.");
+        return;
+      }
+      setPlayback({ item, url: streamUrl(provider, "live", item.id) });
+    } else if (item.url) setPlayback({ item, url: item.url });
+  }
+  async function restoreSetup(transfer: Transfer) {
+    const installed = await installMany(transfer.addons);
+    setAddons((previous) => mergeAddons(previous, installed.addons));
+    setCollections((previous) =>
+      mergeCollections(previous, transfer.collections),
+    );
+    setLibrary((previous) => mergeItems(previous, transfer.library));
+    const mergedProgress = [
+      ...new Map(
+        [...progress, ...transfer.progress]
+          .sort((a, b) => a.at - b.at)
+          .map((p) => [itemKey(p.item), p]),
+      ).values(),
+    ]
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 100);
+    save("progress", mergedProgress);
+    setProgress(mergedProgress);
+    return `Restored ${installed.addons.length} add-ons, ${transfer.collections.length} collections and ${transfer.library.length} saved titles.${installed.failed ? ` ${installed.failed} add-ons could not be reached; reinstall those URLs separately.` : ""}`;
+  }
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#home" aria-label="Nuvio home">
+          <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />
+          <span>
+            nuvio<span className="brand-dot">.</span>
+            <small>ENHANCED</small>
+          </span>
+        </a>
+        <div className="nav-label">YOUR SPACE</div>
+        <nav>
+          {nav.map((n) => (
+            <a
+              key={n.id}
+              href={`#${n.id}`}
+              className={page === n.id ? "active" : ""}
+              onClick={() => {
+                setQuery("");
+                setCategory("");
+              }}
+              aria-current={page === n.id ? "page" : undefined}
+            >
+              <n.icon size={21} />
+              <span>{n.label}</span>
+              {n.id === "live" && <span className="live-dot" />}
+            </a>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="connection-status">
+            <span
+              className={provider ? "status-dot connected-dot" : "status-dot"}
+            />
+            <span>
+              {provider
+                ? provider.name || "IPTV connected"
+                : "Your screen. Your sources."}
+            </span>
+          </div>
+          <span className="version">Nuvio Enhanced · Web edition</span>
+        </div>
+      </aside>
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="breadcrumb">
+            Your entertainment<span>/</span>
+            <strong>{nav.find((n) => n.id === page)?.label}</strong>
+          </div>
+          <form
+            className="search-box"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (page === "home") location.hash = "discover";
+            }}
+          >
+            <Search size={18} />
+            <input
+              ref={searchRef}
+              aria-label="Search titles or channels"
+              placeholder={
+                page === "live" ? "Search channels…" : "Search movies, series…"
+              }
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (page === "home") location.hash = "discover";
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </form>
+          <button
+            className="profile-button"
+            onClick={() => navigate("settings")}
+            aria-label="Open settings"
+          >
+            N
+          </button>
+        </header>
+        {offline && (
+          <div className="banner" role="status">
+            You’re offline. Your saved library is available; streaming needs a
+            connection.
+          </div>
+        )}
+        {update && (
+          <div className="banner">
+            An update is ready. Close all Nuvio tabs and reopen to install it
+            safely after playback.
+            <button
+              onClick={() => setUpdate(false)}
+              aria-label="Dismiss update"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        <main id="main-content">
+          {page === "home" && (
+            <>
+              {hero ? (
+                <section className="hero">
+                  <div className="hero-image">
+                    <Art item={hero} wide priority />
+                  </div>
+                  <div className="hero-content">
+                    <span className="hero-tag">
+                      <Sparkles size={14} /> YOUR NEXT GREAT WATCH
+                    </span>
+                    <h1>{hero.name}</h1>
+                    <div className="metadata">
+                      {hero.rating && (
+                        <span className="gold">
+                          <Star size={15} fill="currentColor" />
+                          {hero.rating}
+                        </span>
+                      )}
+                      <span>{hero.year}</span>
+                      <span>{hero.type === "series" ? "Series" : "Movie"}</span>
+                      <span className="badge">DISCOVER</span>
+                    </div>
+                    <p>
+                      {hero.description ||
+                        "Find a new favorite. Explore the details and discover streams from your connected sources."}
+                    </p>
+                    <div className="actions">
+                      <button
+                        className="primary"
+                        onClick={() => setDetail(hero)}
+                      >
+                        <Play size={19} fill="currentColor" /> Explore title
+                      </button>
+                      <button
+                        className="glass"
+                        onClick={() => toggleSave(hero)}
+                      >
+                        {saved(hero) ? <Check size={18} /> : <Plus size={18} />}
+                        My library
+                      </button>
+                    </div>
+                  </div>
+                  <div className="hero-footer">
+                    <span>CURATED BY YOUR ADD-ONS</span>
+                    <span>
+                      01 <span className="hero-line" />{" "}
+                      {String(homeRows[0]?.items.length ?? 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                </section>
+              ) : loading ? (
+                <div className="hero skeleton">
+                  <Loading />
+                </div>
+              ) : (
+                <section className="welcome">
+                  <span className="eyebrow">WELCOME TO NUVIO</span>
+                  <h1>
+                    A little less searching.
+                    <br />A lot more watching.
+                  </h1>
+                  <p>
+                    Movies, series, and live television. All your sources, in
+                    one place.
+                  </p>
+                  <button
+                    className="primary"
+                    onClick={() => navigate("settings")}
+                  >
+                    <Plus size={18} />
+                    Connect your sources
+                  </button>
+                </section>
+              )}
+              <div className="home-content">
+                <section className="quick-strip">
+                  <div>
+                    <span className="quick-icon">
+                      <Radio />
+                    </span>
+                    <div>
+                      <strong>Your world, live.</strong>
+                      <p>
+                        {provider
+                          ? "Your channels are ready when you are."
+                          : "Connect your IPTV provider and tune in."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate(provider ? "live" : "settings")}
+                  >
+                    {provider ? "Watch Live TV" : "Connect IPTV"}
+                    <ArrowRight size={17} />
+                  </button>
+                </section>
+                {error && (
+                  <div className="error" role="alert">
+                    {error}
+                    <button onClick={() => setRevision((v) => v + 1)}>
+                      Retry catalogs
+                    </button>
+                  </div>
+                )}
+                {progress.length > 0 && (
+                  <section className="media-row">
+                    <div className="row-heading">
+                      <h2>Pick up where you left off</h2>
+                      <button onClick={() => navigate("library")}>
+                        My library
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                    <div className="rail">
+                      {progress.slice(0, 12).map((p) => (
+                        <Card
+                          key={itemKey(p.item)}
+                          item={p.item}
+                          progress={p}
+                          onOpen={open}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {homeRows.map((row, i) => (
+                  <section className="media-row" key={i}>
+                    <div className="row-heading">
+                      <h2>{row.title}</h2>
+                      <button
+                        onClick={() => {
+                          setKind(
+                            row.items[0]?.type === "series"
+                              ? "series"
+                              : "movie",
+                          );
+                          navigate("discover");
+                        }}
+                      >
+                        Explore all
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                    <div className="rail">
+                      {row.items.slice(0, 18).map((item) => (
+                        <Card key={itemKey(item)} item={item} onOpen={open} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                <footer className="app-footer">
+                  <span>Made for your next great watch.</span>
+                  <button onClick={() => navigate("settings")}>
+                    Manage sources
+                    <ArrowRight size={14} />
+                  </button>
+                </footer>
+              </div>
+            </>
+          )}
+          {(page === "discover" || page === "library") && (
+            <div className="page-content">
+              <div className="section-title">
+                <div>
+                  <span className="eyebrow">
+                    {page === "library"
+                      ? "KEEP THE GOOD ONES CLOSE"
+                      : "SOMETHING FOR EVERY MOOD"}
+                  </span>
+                  <h1>{page === "library" ? "My library" : "Discover"}</h1>
+                  <p>
+                    {page === "library"
+                      ? "Your favorites, saved on this device."
+                      : "Find your next movie night. Or your next obsession."}
+                  </p>
+                </div>
+                {page === "library" ? (
+                  <Bookmark className="section-icon" />
+                ) : (
+                  <Compass className="section-icon" />
+                )}
+              </div>
+              {page === "library" && (
+                <Suspense fallback={<Loading />}>
+                  <CollectionsView
+                    collections={collections}
+                    onChange={setCollections}
+                    addons={addons}
+                    library={library}
+                    onOpen={open}
+                  />
+                </Suspense>
+              )}
+              {page === "discover" && (
+                <div className="filter-toolbar">
+                  <div className="tabs">
+                    <button
+                      className={kind === "movie" ? "selected" : ""}
+                      onClick={() => {
+                        setKind("movie");
+                        setCategory("");
+                      }}
+                    >
+                      <Film size={16} />
+                      Movies
+                    </button>
+                    <button
+                      className={kind === "series" ? "selected" : ""}
+                      onClick={() => {
+                        setKind("series");
+                        setCategory("");
+                      }}
+                    >
+                      <Tv size={16} />
+                      Series
+                    </button>
+                  </div>
+                  <select
+                    aria-label="Content source"
+                    value={source}
+                    onChange={(e) => {
+                      setSource(e.target.value);
+                      setCategory("");
+                    }}
+                  >
+                    <option value="catalogs">Add-on catalogs</option>
+                    <option value="xtream">My IPTV collection</option>
+                  </select>
+                  {source === "xtream" ? (
+                    <select
+                      aria-label="Category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="">All categories</option>
+                      {categoryList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      aria-label="Catalog"
+                      value={
+                        catalogs.some((c) => c.key === selectedCatalog)
+                          ? selectedCatalog
+                          : (catalogs[0]?.key ?? "")
+                      }
+                      onChange={(e) => setSelectedCatalog(e.target.value)}
+                    >
+                      {catalogs.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.catalog.name ?? c.addon.manifest.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+              {page === "library" && progress.length > 0 && (
+                <section className="media-row">
+                  <div className="row-heading">
+                    <h2>Continue watching</h2>
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("nuvio:progress");
+                        setProgress([]);
+                      }}
+                    >
+                      Clear history
+                    </button>
+                  </div>
+                  <div className="rail">
+                    {progress.map((p) => (
+                      <Card
+                        key={itemKey(p.item)}
+                        item={p.item}
+                        progress={p}
+                        onOpen={open}
+                      />
+                    ))}
+                  </div>
+                  <h2>Saved titles & channels</h2>
+                </section>
+              )}
+              {error && page === "discover" && (
+                <div className="error" role="alert">
+                  {error}
+                  <button onClick={() => setRevision((v) => v + 1)}>
+                    Retry
+                  </button>
+                </div>
+              )}
+              {loading && page === "discover" ? (
+                <Loading />
+              ) : !filtered.length ? (
+                <Empty
+                  title={
+                    query
+                      ? "Nothing found this time"
+                      : page === "library"
+                        ? "Your favorites belong here"
+                        : source === "xtream" && !provider
+                          ? "Connect your IPTV collection"
+                          : "No titles to show"
+                  }
+                  text={
+                    query
+                      ? "Try another title or search a different catalog or category."
+                      : page === "library"
+                        ? "Tap My library on a title, or the heart on a channel, to keep it here."
+                        : "Add a source in Settings to start exploring."
+                  }
+                  action={
+                    !query && page !== "library" ? "Manage sources" : undefined
+                  }
+                  onAction={() => navigate("settings")}
+                />
+              ) : (
+                <>
+                  <p className="results-count">
+                    {filtered.length.toLocaleString()}{" "}
+                    {page === "library" ? "saved items" : "titles"}
+                  </p>
+                  <div className="media-grid">
+                    {filtered.slice(0, limit).map((item) => (
+                      <Card key={itemKey(item)} item={item} onOpen={open} />
+                    ))}
+                  </div>
+                  {filtered.length > limit && (
+                    <button
+                      className="load-more"
+                      onClick={() => setLimit((v) => v + 60)}
+                    >
+                      Show 60 more
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {page === "live" && (
+            <div className="page-content">
+              <div className="section-title">
+                <div>
+                  <span className="eyebrow">
+                    <span className="live-dot" /> HAPPENING RIGHT NOW
+                  </span>
+                  <h1>Live TV</h1>
+                  <p>A front-row seat to your world.</p>
+                </div>
+                <button
+                  className="icon-button"
+                  onClick={() => setRevision((v) => v + 1)}
+                  aria-label="Refresh channels"
+                >
+                  <RefreshCw size={19} />
+                </button>
+              </div>
+              {!provider && !playlist.length ? (
+                <Empty
+                  title="Your channels, all together"
+                  text="Connect an Xtream account or import an M3U playlist to watch live television."
+                  action="Connect a source"
+                  onAction={() => navigate("settings")}
+                />
+              ) : (
+                <>
+                  <div className="filter-toolbar">
+                    <button
+                      className={favoritesOnly ? "selected" : ""}
+                      onClick={() => setFavoritesOnly((v) => !v)}
+                    >
+                      <Heart
+                        size={16}
+                        fill={favoritesOnly ? "currentColor" : "none"}
+                      />
+                      Favorites
+                    </button>
+                    <select
+                      aria-label="Channel category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="">All channels</option>
+                      {allCategories.map((c, i) => (
+                        <option key={`${c.id}-${i}`} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="results-count">
+                      {filtered.length.toLocaleString()} channels
+                    </span>
+                  </div>
+                  <p className="guide-status" role="status">
+                    {guideState.loading
+                      ? "Loading your Xtream guide automatically..."
+                      : guideState.count
+                        ? `Guide ready - ${guideState.count.toLocaleString()} channel guides`
+                        : "Loading available channel guides..."}
+                    {guideState.fallback
+                      ? " - Using per-channel guide data"
+                      : ""}
+                  </p>
+                  {error && (
+                    <div className="error" role="alert">
+                      {error}
+                    </div>
+                  )}
+                  <div
+                    className={`live-layout ${activeChannel ? "has-guide" : ""}`}
+                  >
+                    <div>
+                      {loading ? (
+                        <Loading />
+                      ) : filtered.length ? (
+                        <div className="channel-grid">
+                          {filtered.slice(0, limit).map((item) => (
+                            <div
+                              className={`channel ${activeChannel && itemKey(item) === itemKey(activeChannel) ? "selected" : ""}`}
+                              key={itemKey(item)}
+                            >
+                              <button
+                                className="channel-main"
+                                onClick={() => setActiveChannel(item)}
+                              >
+                                <div className="channel-logo">
+                                  <Art item={item} />
+                                </div>
+                                <span>
+                                  <strong>{item.name}</strong>
+                                  <small>
+                                    {categoryList.find(
+                                      (c) => c.id === item.category,
+                                    )?.name ??
+                                      item.category ??
+                                      "Live television"}
+                                  </small>
+                                  <small className="channel-programme">
+                                    {guideState
+                                      .get(item)
+                                      .find((p) => p.start <= guideState.now)
+                                      ?.title ??
+                                      (guideState.loaded(item) ||
+                                      guideState.failed(item.id)
+                                        ? "No programme information"
+                                        : "Loading guide...")}
+                                  </small>
+                                  {guideState
+                                    .get(item)
+                                    .find((p) => p.start > guideState.now) && (
+                                    <small className="channel-next">
+                                      Next:{" "}
+                                      {
+                                        guideState
+                                          .get(item)
+                                          .find((p) => p.start > guideState.now)
+                                          ?.title
+                                      }
+                                    </small>
+                                  )}
+                                </span>
+                                <Signal size={16} />
+                              </button>
+                              <button
+                                className="favorite-button"
+                                aria-label={`${saved(item) ? "Unfavorite" : "Favorite"} ${item.name}`}
+                                onClick={() => toggleSave(item)}
+                              >
+                                <Heart
+                                  size={17}
+                                  fill={saved(item) ? "currentColor" : "none"}
+                                />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty
+                          title="No channels found"
+                          text="Try another category or clear your search."
+                        />
+                      )}
+                      {filtered.length > limit && (
+                        <button
+                          className="load-more"
+                          onClick={() => setLimit((v) => v + 60)}
+                        >
+                          Show 60 more channels
+                        </button>
+                      )}
+                    </div>
+                    {activeChannel && (
+                      <aside className="guide">
+                        <button
+                          className="icon-button guide-close"
+                          onClick={() => setActiveChannel(null)}
+                          aria-label="Close channel guide"
+                        >
+                          <X size={18} />
+                        </button>
+                        <div className="guide-logo">
+                          <Art item={activeChannel} />
+                        </div>
+                        <span className="eyebrow">LIVE CHANNEL</span>
+                        <h2>{activeChannel.name}</h2>
+                        <button
+                          className="primary"
+                          onClick={() => playChannel(activeChannel)}
+                        >
+                          <Play size={18} fill="currentColor" />
+                          Watch channel
+                        </button>
+                        <h3>On the guide</h3>
+                        {guideLoading ? (
+                          <Loading />
+                        ) : guideError ? (
+                          <p className="muted">
+                            Guide unavailable. You can still try playing this
+                            channel.
+                          </p>
+                        ) : !guide.length ? (
+                          <p className="muted">
+                            No programme information supplied.
+                          </p>
+                        ) : (
+                          guide.map((p) => (
+                            <div className="programme" key={p.id}>
+                              <span>
+                                {new Date(p.start).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                                {p.start <= Date.now() &&
+                                  p.end > Date.now() && <b>ON NOW</b>}
+                              </span>
+                              <strong>{p.title}</strong>
+                              {p.description && <p>{p.description}</p>}
+                            </div>
+                          ))
+                        )}
+                      </aside>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {page === "settings" && (
+            <div className="page-content">
+              <Suspense fallback={<Loading />}>
+                <Settings
+                  provider={provider}
+                  onProvider={(p) => {
+                    setProvider(p);
+                    setCategory("");
+                    setActiveChannel(null);
+                  }}
+                  addons={addons}
+                  onAddons={setAddons}
+                  onPlaylist={setPlaylist}
+                  onStream={(url) =>
+                    setPlayback({
+                      url,
+                      item: {
+                        id: crypto.randomUUID(),
+                        name: "Direct stream",
+                        type: /\.m3u8(?:[?#]|$)/i.test(url) ? "live" : "movie",
+                        source: "playlist",
+                        url,
+                      },
+                    })
+                  }
+                  accent={accent}
+                  onAccent={setAccent}
+                  collections={collections}
+                  onCollections={setCollections}
+                  library={library}
+                  onRestore={restoreSetup}
+                  torboxKey={torboxKey}
+                  onTorboxKey={setTorboxKey}
+                  autoplay={autoplay}
+                  onAutoplay={setAutoplay}
+                />
+              </Suspense>
+            </div>
+          )}
+        </main>
+      </div>
+      <nav className="bottom-nav" aria-label="Mobile navigation">
+        {nav.map((n) => (
+          <a
+            key={n.id}
+            href={`#${n.id}`}
+            onClick={() => {
+              setQuery("");
+              setCategory("");
+            }}
+            className={page === n.id ? "active" : ""}
+            aria-current={page === n.id ? "page" : undefined}
+          >
+            <n.icon size={22} />
+            <span>{n.label === "My library" ? "Library" : n.label}</span>
+          </a>
+        ))}
+      </nav>
+      {detail && (
+        <Detail
+          key={itemKey(detail)}
+          initial={detail}
+          provider={provider}
+          addons={addons}
+          torboxKey={torboxKey}
+          autoplay={autoplay}
+          saved={saved(detail)}
+          toggleSave={toggleSave}
+          onClose={() => setDetail(null)}
+          onPlay={setPlayback}
+          resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
+        />
+      )}
+      {playback && (
+        <Suspense
+          fallback={
+            <div className="player-loading">
+              <Loading />
+            </div>
+          }
+        >
+          <Player
+            playback={playback}
+            onClose={() => {
+              setPlayback(null);
+              setProgress(read("progress", []));
+            }}
+          />
+        </Suspense>
+      )}
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}

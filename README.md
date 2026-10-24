@@ -1,3 +1,7 @@
+## Web edition
+
+This branch adds a browser-native Nuvio Enhanced app for desktop, iPhone and iPad, including Xtream IPTV. See the [web app README](./web/README.md) for local setup and the [deployment guide](./web/DEPLOYMENT.md) for GitHub Pages and a custom domain. Native source code and its documentation follow below.
+
 <div align="center">
 
   <img src="https://github.com/tapframe/NuvioTV/blob/main/assets/brand/app_logo_wordmark.png" alt="NuvioMobile Enhanced" width="320" />
