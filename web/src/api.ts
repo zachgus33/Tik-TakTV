@@ -92,7 +92,9 @@ export function streamUrl(
 ) {
   const ext =
     type === "live"
-      ? "m3u8"
+      ? /^[a-z0-9]+$/i.test(extension ?? "")
+        ? extension
+        : "ts"
       : /^[a-z0-9]+$/i.test(extension ?? "")
         ? extension
         : "mp4";

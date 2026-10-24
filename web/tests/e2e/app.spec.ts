@@ -189,6 +189,42 @@ test("bad credentials show a useful error and are never saved", async ({
     await page.evaluate(() => sessionStorage.getItem("nuvio:provider")),
   ).toBeNull();
 });
+test("live TV sends the provider transport stream through Pi HLS remux", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  let prepared: any;
+  await page.route("https://playback.example/prepare", async (route) => {
+    prepared = route.request().postDataJSON();
+    await route.fulfill({
+      json: { path: "/media/live/index.m3u8", hls: true },
+    });
+  });
+  await page.route("https://playback.example/media/live/index.m3u8", (route) =>
+    route.fulfill({
+      contentType: "application/vnd.apple.mpegurl",
+      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+    }),
+  );
+  await connect(page);
+  await page.goto("/#live");
+  await page
+    .getByRole("button", { name: "Test News News", exact: false })
+    .click();
+  await page.getByRole("button", { name: "Watch channel" }).click();
+  await expect.poll(() => prepared).toBeTruthy();
+  expect(prepared.mode).toBe("remux");
+  expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
+});
 test("large channel lists render in bounded batches and search locally", async ({
   page,
 }) => {

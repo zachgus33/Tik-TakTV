@@ -13,6 +13,7 @@ export type Playback = {
   resume?: number;
   requestHeaders?: Record<string, string>;
   hls?: boolean;
+  mode?: "direct" | "remux" | "transcode";
 };
 function VideoPlayer({
   playback,
@@ -330,7 +331,12 @@ export default function Player({
     const c = new AbortController();
     setReady(null);
     setError("");
-    void prepareMedia(playback.url, playback.requestHeaders, c.signal).then(
+    void prepareMedia(
+      playback.url,
+      playback.requestHeaders,
+      c.signal,
+      playback.mode,
+    ).then(
       (url) => {
         if (!c.signal.aborted)
           setReady({
@@ -338,6 +344,8 @@ export default function Player({
             url,
             hls:
               playback.hls ||
+              playback.mode === "remux" ||
+              playback.mode === "transcode" ||
               getService()?.mode === "remux" ||
               getService()?.mode === "transcode" ||
               /\.m3u8(?:[?#]|$)/i.test(playback.url),

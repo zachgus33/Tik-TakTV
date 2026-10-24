@@ -38,7 +38,7 @@ describe("provider URLs and data", () => {
     expect(api.searchParams.get("password")).toBe(provider.password);
     expect(api.searchParams.get("username")).toBe(provider.username);
     expect(streamUrl(provider, "live", "5", "ts")).toBe(
-      "https://provider.example/live/a%20user%2F%40/p%26%3F%23%2F%C3%A9/5.m3u8",
+      "https://provider.example/live/a%20user%2F%40/p%26%3F%23%2F%C3%A9/5.ts",
     );
     expect(streamUrl(provider, "movie", "6", "mkv")).toContain("/6.mkv");
     expect(streamUrl(provider, "movie", "6", "../../x")).toContain("/6.mp4");

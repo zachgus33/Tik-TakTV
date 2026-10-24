@@ -43,6 +43,9 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
         (directStream(s) || (!!s.infoHash && hasTorbox)),
     )
     .sort(
-      (a, b) => seeders(b) - seeders(a) || streamQuality(b) - streamQuality(a),
+      (a, b) =>
+        Number(directStream(b)) - Number(directStream(a)) ||
+        seeders(b) - seeders(a) ||
+        streamQuality(b) - streamQuality(a),
     );
 }

@@ -88,12 +88,13 @@ export async function prepareMedia(
   url: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
+  mode?: PlaybackService["mode"],
 ) {
   const config = getService();
   if (!config) return url;
   const response = await serviceRequest(
     "/prepare",
-    { url, headers, mode: config.mode ?? "direct" },
+    { url, headers, mode: mode ?? config.mode ?? "direct" },
     signal,
     config,
   );

@@ -167,6 +167,19 @@ describe("720p+ preference and safe episode matching", () => {
       rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
     ).toHaveLength(1);
   });
+  it("prefers a cached direct stream over a higher-seeded raw torrent", () => {
+    const direct = {
+      name: "[TB+] Torrentio 1080p",
+      title: "Movie.1080p 👤 215",
+      url: "https://cdn.example/cached.mp4",
+    };
+    const raw = {
+      name: "TorrentsDB 1080p",
+      title: "Movie.1080p 👤 2000",
+      infoHash: "a".repeat(40),
+    };
+    expect(rankedStreams([raw, direct], true)[0]).toBe(direct);
+  });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [
       { id: 1, name: "Show.S01E020.2160p.mkv" },

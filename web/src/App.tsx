@@ -340,11 +340,15 @@ function Detail({
         item,
         episode: ep,
         resume: position,
+        mode: item.type === "live" && getService() ? "remux" : undefined,
+        hls: item.type === "live",
         url: streamUrl(
           provider,
           item.type,
           ep?.id ?? item.id,
-          ep?.extension ?? item.extension,
+          item.type === "live" && !getService()
+            ? "m3u8"
+            : (ep?.extension ?? item.extension),
         ),
       });
       return;
@@ -902,11 +906,23 @@ export default function App() {
         item,
         url:
           item.url ??
-          streamUrl(provider, "live", item.id, item.extension ?? "ts"),
+          streamUrl(
+            provider,
+            "live",
+            item.id,
+            getService() ? (item.extension ?? "ts") : "m3u8",
+          ),
         requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
-        hls: item.extension?.toLowerCase() === "m3u8",
+        mode: getService() ? "remux" : undefined,
+        hls: true,
       });
-    } else if (item.url) setPlayback({ item, url: item.url });
+    } else if (item.url)
+      setPlayback({
+        item,
+        url: item.url,
+        mode: getService() ? "remux" : undefined,
+        hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
+      });
   }
   async function restoreSetup(transfer: Transfer) {
     const installed = await installMany(transfer.addons);
