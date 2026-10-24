@@ -1182,6 +1182,15 @@ export default function App() {
                     </div>
                   </section>
                 )}
+                <Suspense fallback={null}>
+                  <HomeCollections
+                    collections={collections}
+                    onChange={setCollections}
+                    addons={addons}
+                    library={library}
+                    onOpen={open}
+                  />
+                </Suspense>
                 {homeRows.map((row, i) => (
                   <section className="media-row" key={i}>
                     <div className="row-heading">
@@ -1207,15 +1216,6 @@ export default function App() {
                     </div>
                   </section>
                 ))}
-                <Suspense fallback={null}>
-                  <HomeCollections
-                    collections={collections}
-                    onChange={setCollections}
-                    addons={addons}
-                    library={library}
-                    onOpen={open}
-                  />
-                </Suspense>
                 <footer className="app-footer">
                   <span>Made for your next great watch.</span>
                   <button onClick={() => navigate("settings")}>
