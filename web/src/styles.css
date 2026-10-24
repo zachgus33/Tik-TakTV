@@ -179,6 +179,33 @@ textarea {
   height: 100%;
   object-fit: contain;
 }
+.tv-guide-channel-art .channel-art-fallback,
+.channel-logo .channel-art-fallback {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  color: #c7a8e8;
+  background: linear-gradient(145deg, #362347, #211728);
+}
+.tv-guide-channel-art .channel-art-fallback svg,
+.channel-logo .channel-art-fallback svg {
+  width: 17px;
+  height: 17px;
+}
+.tv-guide-channel-art .channel-art-fallback span,
+.channel-logo .channel-art-fallback span {
+  display: block;
+  max-width: 100%;
+  color: #d8c2ef;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+}
 .tv-guide-channel strong {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1888,7 +1915,7 @@ dialog,
 .channel-logo .art-fallback {
   padding: 10px;
 }
-.channel-logo .art-fallback span {
+.channel-logo .art-fallback:not(.channel-art-fallback) span {
   display: none;
 }
 .favorite-button {

@@ -93,6 +93,23 @@ describe("provider URLs and data", () => {
       "category_id=4",
     );
   });
+  it("upgrades provider channel icons to HTTPS and resolves relative logos", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            stream_id: 1,
+            name: "News",
+            stream_icon: "http://img.example/news.png",
+          },
+          { stream_id: 2, name: "Sports", stream_icon: "/logos/sports.png" },
+        ]),
+      ),
+    );
+    const items = await providerItems(provider, "live", "");
+    expect(items[0].poster).toBe("https://img.example/news.png");
+    expect(items[1].poster).toBe("https://provider.example/logos/sports.png");
+  });
   it("sorts series episodes numerically and preserves container format", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -194,11 +211,13 @@ describe("playlists and addons", () => {
     expect(addon.base).toBe("https://addon.example/config");
   });
   it("accepts Nuvio's stored add-on base URL", async () => {
-    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ id: "test", name: "Test", resources: ["stream"] }),
-      ),
-    );
+    const request = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ id: "test", name: "Test", resources: ["stream"] }),
+        ),
+      );
     const addon = await installAddon("https://addon.example/config");
     expect(request).toHaveBeenCalledWith(
       "https://addon.example/config/manifest.json",

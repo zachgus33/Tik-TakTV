@@ -22,6 +22,17 @@ export function safeUrl(value: unknown): string | undefined {
     return undefined;
   }
 }
+function safeArtwork(value: unknown, base: string): string | undefined {
+  try {
+    const url = new URL(String(value ?? ""), `${base.replace(/\/$/, "")}/`);
+    if (url.protocol === "http:") url.protocol = "https:";
+    return url.protocol === "https:" && !url.username && !url.password
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 export function normalizeServer(value: string): string {
   const url = safeUrl(value.trim());
   if (!url)
@@ -170,7 +181,7 @@ export async function providerItems(
       type,
       source: "xtream",
       provider: p.scope,
-      poster: safeUrl(x.stream_icon ?? x.cover),
+      poster: safeArtwork(x.stream_icon ?? x.cover, p.server),
       background: safeUrl(
         Array.isArray(x.backdrop_path) ? x.backdrop_path[0] : x.backdrop_path,
       ),
@@ -297,9 +308,7 @@ export const defaultAddon: Addon = {
 export async function installAddon(input: string): Promise<Addon> {
   const normalized = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
   if (!normalized)
-    throw new Error(
-      "Enter the HTTPS add-on URL supplied by your add-on.",
-    );
+    throw new Error("Enter the HTTPS add-on URL supplied by your add-on.");
   const parsed = new URL(normalized);
   if (!parsed.pathname.endsWith("/manifest.json"))
     parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/manifest.json`;

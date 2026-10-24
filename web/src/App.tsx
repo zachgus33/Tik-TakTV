@@ -332,9 +332,23 @@ function Art({
       onError={() => setFailed(true)}
     />
   ) : (
-    <div className="art-fallback" aria-hidden="true">
-      <Film />
-      <span>{item.name}</span>
+    <div
+      className={`art-fallback ${item.type === "live" ? "channel-art-fallback" : ""}`}
+      aria-hidden="true"
+    >
+      {item.type === "live" ? <Tv /> : <Film />}
+      <span>
+        {item.type === "live"
+          ? item.name
+              .replace(/^\s*[^|]+\|\s*/, "")
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((word) => word[0])
+              .join("")
+              .toUpperCase()
+          : item.name}
+      </span>
     </div>
   );
 }
