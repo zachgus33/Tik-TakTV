@@ -487,7 +487,18 @@ test.describe("authenticated integrations", () => {
       else if (url.pathname.endsWith("/sync_pull_collections"))
         data = [{ collections_json: [collection] }];
       else if (url.pathname.endsWith("/sync_pull_profile_settings_blob"))
-        data = [{ settings_json: { unrelatedSetting: "preserve" } }];
+        data = [{
+          settings_json: {
+            unrelatedSetting: "preserve",
+            tikTakWebV1: {
+              playbackService: {
+                url: "https://playback.example",
+                token: "fake-private-key-for-browser-sync",
+                mode: "direct",
+              },
+            },
+          },
+        }];
       else if (url.pathname.includes("/sync_push_")) {
         pushes.push({
           path: url.pathname,
@@ -517,9 +528,14 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByRole("option", { name: "Home", exact: true }),
     ).toHaveCount(1);
-    await page.getByRole("button", { name: "Load Nuvio profile" }).click();
     await expect(
       page.getByText("Nuvio profile loaded.", { exact: false }),
+    ).toBeVisible();
+    await expect.poll(() =>
+      page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
+    ).toContain("playback.example");
+    await expect(
+      page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
     await page.goto("/#home");
     await page
@@ -542,7 +558,7 @@ test.describe("authenticated integrations", () => {
       page.getByText("Saved to your Nuvio account.", { exact: true }),
     ).toBeVisible();
     expect(pushes.some((p) => p.path.endsWith("sync_push_addons"))).toBe(false);
-    const saved = pushes.find((p) =>
+    const saved = [...pushes].reverse().find((p) =>
       p.path.endsWith("sync_push_profile_settings_blob"),
     )!;
     expect(saved.body.p_settings_json.unrelatedSetting).toBe("preserve");

@@ -624,6 +624,8 @@ export default function App() {
         "nuvio:playback-service",
         JSON.stringify(s.playbackService),
       );
+    if (s.playbackService)
+      window.dispatchEvent(new Event("connections-changed"));
     if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
     setAddons(s.addons);
     setCollections(s.collections);
@@ -1640,6 +1642,7 @@ export default function App() {
                   onTorboxKey={setTorboxKey}
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
+                  playbackConnected={!!getService()}
                 />
               </Suspense>
             </div>

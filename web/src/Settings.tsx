@@ -34,6 +34,7 @@ type Props = {
   onTorboxKey: (key: string) => void;
   autoplay: boolean;
   onAutoplay: (value: boolean) => void;
+  playbackConnected: boolean;
 };
 export default function Settings(props: Props) {
   const [busy, setBusy] = useState("");
@@ -75,7 +76,7 @@ export default function Settings(props: Props) {
           {success}
         </div>
       )}
-      <ConnectionPanel />
+      <ConnectionPanel restored={props.playbackConnected} />
       <section className="settings-card">
         <h2>Torrentio & TorBox playback</h2>
         <p>

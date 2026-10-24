@@ -1,9 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getService, serviceUrl, serviceRequest } from "./connection";
-export default function ConnectionPanel() {
+export default function ConnectionPanel({
+  restored = false,
+}: {
+  restored?: boolean;
+}) {
   const [connected, setConnected] = useState(!!getService());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    const update = () => setConnected(!!getService());
+    window.addEventListener("connections-changed", update);
+    // Account restoration can complete while this lazy settings panel is
+    // mounting. Reconcile briefly-used browser storage as well as app events.
+    const timer = window.setInterval(update, 250);
+    return () => {
+      window.removeEventListener("connections-changed", update);
+      window.clearInterval(timer);
+    };
+  }, []);
+  useEffect(() => {
+    if (restored) setConnected(!!getService());
+  }, [restored]);
   return (
     <section className="settings-card">
       <h2>Playback service</h2>
