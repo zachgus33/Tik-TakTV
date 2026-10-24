@@ -180,6 +180,19 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(rankedStreams([raw, direct], true)[0]).toBe(direct);
   });
+  it("prefers cached Torrentio playback over download aggregators", () => {
+    const torrentio = {
+      name: "[TB+] Torrentio 1080p",
+      title: "Movie 1080p seeders: 215",
+      url: "https://torrentio.strem.fun/play",
+    };
+    const download = {
+      name: "[TB download] TorrentsDB 1080p",
+      title: "Movie 1080p seeders: 2199",
+      url: "https://torrentsdb.com/play.mkv",
+    };
+    expect(rankedStreams([download, torrentio], true)[0]).toBe(torrentio);
+  });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [
       { id: 1, name: "Show.S01E020.2160p.mkv" },

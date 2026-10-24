@@ -35,6 +35,14 @@ export function directStream(stream: Stream): boolean {
     (!!getService() || !Object.keys(headers?.request ?? {}).length)
   );
 }
+function sourcePriority(stream: Stream): number {
+  const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
+  if (/\[TB\+\].*torrentio/i.test(text)) return 3;
+  if (/torrentio/i.test(text)) return 2;
+  if (/\[TB\+\]/i.test(text)) return 1;
+  if (/\bdownload\b/i.test(text)) return -1;
+  return 0;
+}
 export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
   return streams
     .filter(
@@ -45,6 +53,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     .sort(
       (a, b) =>
         Number(directStream(b)) - Number(directStream(a)) ||
+        sourcePriority(b) - sourcePriority(a) ||
         seeders(b) - seeders(a) ||
         streamQuality(b) - streamQuality(a),
     );
