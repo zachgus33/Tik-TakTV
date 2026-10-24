@@ -1,6 +1,14 @@
 import { getService } from "./connection";
 import { storeProvider } from "./storage";
-import type { HomeCatalogSetting, Setup } from "./account";
+import {
+  account,
+  loadSetup,
+  profiles,
+  unlock,
+  type HomeCatalogSetting,
+  type Profile,
+  type Setup,
+} from "./account";
 import {
   lazy,
   Suspense,
@@ -78,6 +86,93 @@ import { save } from "./storage";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
+
+function ProfileGate({ onEnter }: { onEnter: (setup: Setup) => void }) {
+  const [list, setList] = useState<Profile[]>([]);
+  const [email, setEmail] = useState("");
+  const [pinProfile, setPinProfile] = useState<Profile | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  async function refresh() {
+    const { data } = await account.auth.getSession();
+    setEmail(data.session?.user.email ?? "");
+    setList(data.session ? await profiles() : []);
+  }
+  useEffect(() => {
+    void refresh().catch((e) => setError(e.message)).finally(() => setBusy(false));
+  }, []);
+  async function enter(profile: Profile, pin = "") {
+    setBusy(true);
+    setError("");
+    try {
+      await unlock(profile, pin);
+      const result = await loadSetup(profile);
+      const { data } = await account.auth.getSession();
+      if (data.session)
+        localStorage.setItem(`tiktak:profile:${data.session.user.id}`, String(profile.profile_index));
+      sessionStorage.setItem("tiktak:profile-active", "1");
+      onEnter(result.setup);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open this profile.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="profile-gate">
+      <div className="profile-gate-brand">nuvio.<small>ENHANCED</small></div>
+      <section>
+        <h1>{email ? "Who's watching?" : "Welcome to Nuvio"}</h1>
+        {error && <div className="error" role="alert">{error}</div>}
+        {busy && !list.length ? <Loading /> : email ? (
+          <>
+            <div className="profile-choices">
+              {list.map((profile, index) => (
+                <button
+                  key={profile.profile_index}
+                  onClick={() => profile.pin_enabled ? setPinProfile(profile) : void enter(profile)}
+                  disabled={busy}
+                >
+                  <span style={{ "--profile-hue": `${(index * 83 + 275) % 360}` } as React.CSSProperties}>
+                    {profile.name.trim().slice(0, 1).toUpperCase()}
+                  </span>
+                  <strong>{profile.name}</strong>
+                  {profile.pin_enabled && <small>PIN required</small>}
+                </button>
+              ))}
+            </div>
+            {pinProfile && (
+              <form className="profile-pin" onSubmit={(e) => {
+                e.preventDefault();
+                const pin = String(new FormData(e.currentTarget).get("pin") ?? "");
+                void enter(pinProfile, pin);
+              }}>
+                <label>Enter PIN for {pinProfile.name}<input autoFocus name="pin" type="password" inputMode="numeric" required /></label>
+                <button className="primary" disabled={busy}>Open profile</button>
+                <button type="button" onClick={() => setPinProfile(null)}>Cancel</button>
+              </form>
+            )}
+          </>
+        ) : (
+          <form className="profile-login" onSubmit={(e) => {
+            e.preventDefault();
+            const form = new FormData(e.currentTarget);
+            setBusy(true);
+            setError("");
+            void account.auth.signInWithPassword({ email: String(form.get("email") ?? "").trim(), password: String(form.get("password") ?? "") })
+              .then(({ error }) => { if (error) throw error; return refresh(); })
+              .catch((e) => setError(e.message))
+              .finally(() => setBusy(false));
+          }}>
+            <label>Email<input name="email" type="email" autoComplete="username" required /></label>
+            <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
+            <button className="primary" disabled={busy}>Sign in</button>
+          </form>
+        )}
+      </section>
+    </main>
+  );
+}
 const HomeCollections = lazy(() => import("./HomeCollections"));
 const AccountPanel = lazy(() => import("./AccountPanel"));
 type Page = "home" | "discover" | "live" | "library" | "settings";
@@ -648,6 +743,7 @@ export default function App() {
       ? (location.hash.slice(1) as Page)
       : "home";
   const [accountLoading, setAccountLoading] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
   const [addons, setAddons] = useStored<Addon[]>("addons", [defaultAddon]);
@@ -946,6 +1042,9 @@ export default function App() {
     revision,
   );
   const guide = activeChannel ? guideState.get(activeChannel) : [];
+  const guideChannels = filtered
+    .slice(0, limit)
+    .filter((channel) => guideState.get(channel).some((p) => p.end > guideState.now));
   const guideError = activeChannel
     ? guideState.failed(activeChannel.id)
     : false;
@@ -1008,6 +1107,17 @@ export default function App() {
     setProgress(mergedProgress);
     return `Restored ${installed.addons.length} add-ons, ${transfer.collections.length} collections and ${transfer.library.length} saved titles.${installed.failed ? ` ${installed.failed} add-ons could not be reached; reinstall those URLs separately.` : ""}`;
   }
+  if (!profileReady)
+    return (
+      <ProfileGate
+        onEnter={(setup) => {
+          loadAccountSetup(setup);
+          location.hash = "home";
+          setPage("home");
+          setProfileReady(true);
+        }}
+      />
+    );
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1544,8 +1654,12 @@ export default function App() {
                       ? " - Using per-channel guide data"
                       : ""}
                   </p>
-                  {!loading && filtered.length > 0 && guideState.count > 0 && (
+                  {!loading && guideChannels.length > 0 && (
                     <section className="tv-guide-grid" aria-label="Live TV schedule">
+                      <div className="tv-guide-heading">
+                        <div><span className="eyebrow">ON NOW</span><h2>Live guide</h2></div>
+                        <span>{guideChannels.length} channels with schedules</span>
+                      </div>
                       <div className="tv-guide-times">
                         <span>Channels</span>
                         {[0, 30, 60, 90].map((minutes) => (
@@ -1554,7 +1668,7 @@ export default function App() {
                           </time>
                         ))}
                       </div>
-                      {filtered.slice(0, 18).map((channel) => {
+                      {guideChannels.slice(0, 18).map((channel) => {
                         const shows = guideState.get(channel).filter((p) => p.end > guideState.now && p.start < guideState.now + 2 * 60 * 60_000);
                         return (
                           <div className="tv-guide-row" key={`guide-${itemKey(channel)}`}>
@@ -1585,6 +1699,10 @@ export default function App() {
                       {error}
                     </div>
                   )}
+                  <div className="live-list-heading">
+                    <div><span className="eyebrow">ALL CHANNELS</span><h2>Browse live TV</h2></div>
+                    <span>{filtered.length.toLocaleString()} available</span>
+                  </div>
                   <div
                     className={`live-layout ${activeChannel ? "has-guide" : ""}`}
                   >

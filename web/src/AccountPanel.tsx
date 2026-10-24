@@ -111,7 +111,13 @@ export default function AccountPanel({
     }
   }
   useEffect(() => {
-    if (!email || !list.length || selected || autoOpening.current) return;
+    if (
+      sessionStorage.getItem("tiktak:profile-active") !== "1" ||
+      !email ||
+      !list.length ||
+      selected ||
+      autoOpening.current
+    ) return;
     autoOpening.current = true;
     void account.auth.getSession().then(({ data }) => {
       if (data.session)

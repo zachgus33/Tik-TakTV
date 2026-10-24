@@ -71,8 +71,13 @@ textarea {
   font-size: 11px;
   color: #aa91c5;
 }
-.tv-guide-grid { margin: 1rem 0 1.5rem; border: 1px solid var(--border); border-radius: 14px; overflow: auto; background: #0e0c12; max-height: 620px; }
-.tv-guide-times, .tv-guide-row { display: grid; grid-template-columns: 150px minmax(720px, 1fr); min-width: 870px; }
+.tv-guide-grid { margin: 1rem 0 2rem; border: 1px solid var(--line); border-radius: 16px; overflow: auto; background: linear-gradient(145deg, #15121a, #0d0b10); max-height: 470px; box-shadow: 0 18px 50px #0004; }
+.tv-guide-heading, .live-list-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; }
+.tv-guide-heading { position: sticky; left: 0; padding: 1rem 1.15rem; min-width: 940px; background: #15121a; }
+.tv-guide-heading h2, .live-list-heading h2 { margin: .2rem 0 0; font-size: 1.25rem; }
+.tv-guide-heading > span, .live-list-heading > span { color: var(--muted); font-size: .75rem; }
+.live-list-heading { margin: 1.5rem 0 .85rem; }
+.tv-guide-times, .tv-guide-row { display: grid; grid-template-columns: 220px minmax(720px, 1fr); min-width: 940px; }
 .tv-guide-times { position: sticky; top: 0; z-index: 3; background: #111016; border-bottom: 1px solid var(--border); }
 .tv-guide-times > span { padding: .8rem; color: var(--muted); }
 .tv-guide-times time { grid-row: 1; padding: .8rem; color: var(--muted); }
@@ -80,8 +85,8 @@ textarea {
 .tv-guide-times time:nth-of-type(2) { grid-column: 2; justify-self: center; transform: translateX(-100%); }
 .tv-guide-times time:nth-of-type(3) { grid-column: 2; justify-self: center; }
 .tv-guide-times time:nth-of-type(4) { grid-column: 2; justify-self: end; transform: translateX(-100%); }
-.tv-guide-row { min-height: 70px; border-bottom: 1px solid var(--border); }
-.tv-guide-channel { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: .65rem; padding: .55rem; border: 0; border-radius: 0; background: #141119; text-align: left; overflow: hidden; }
+.tv-guide-row { min-height: 76px; border-bottom: 1px solid var(--line); }
+.tv-guide-channel { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: .75rem; padding: .65rem .8rem; border: 0; border-radius: 0; background: #17131c; text-align: left; overflow: hidden; }
 .tv-guide-channel-art { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; overflow: hidden; }
 .tv-guide-channel-art img { width: 100%; height: 100%; object-fit: contain; }
 .tv-guide-channel strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -134,6 +139,28 @@ html {
 body {
   margin: 0;
   font-size: 14px;
+}
+.profile-gate { min-height: 100dvh; display: grid; place-items: center; padding: 2rem; background: radial-gradient(circle at 50% 35%, #271638 0, #0e0c11 38%, #09090b 75%); }
+.profile-gate-brand { position: fixed; top: 28px; left: 34px; color: white; font-size: 1.65rem; font-weight: 850; letter-spacing: -.06em; }
+.profile-gate-brand small { display: block; color: #a46cff; font-size: .46rem; letter-spacing: .28em; margin-top: .15rem; }
+.profile-gate > section { width: min(780px, 100%); text-align: center; }
+.profile-gate h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 2.2rem; letter-spacing: -.04em; }
+.profile-choices { display: flex; justify-content: center; align-items: start; gap: clamp(1.2rem, 4vw, 3rem); flex-wrap: wrap; }
+.profile-choices button { width: 130px; padding: 0; border: 0; background: transparent; display: grid; justify-items: center; gap: .7rem; color: #eee; }
+.profile-choices button > span { width: 112px; height: 112px; display: grid; place-items: center; border-radius: 50%; font-size: 2.7rem; font-weight: 800; background: linear-gradient(145deg, hsl(var(--profile-hue) 75% 62%), hsl(var(--profile-hue) 65% 34%)); border: 4px solid #ffffff32; box-shadow: 0 12px 40px #0008; transition: transform .18s, border-color .18s; }
+.profile-choices button:hover > span, .profile-choices button:focus-visible > span { transform: scale(1.06); border-color: #fff; }
+.profile-choices strong { font-size: 1rem; }
+.profile-choices small { color: var(--muted); margin-top: -.5rem; }
+.profile-login, .profile-pin { width: min(390px, 100%); margin: auto; display: grid; gap: 1rem; text-align: left; padding: 1.5rem; border: 1px solid var(--line); background: #151219dd; border-radius: 16px; }
+.profile-pin { margin-top: 2rem; grid-template-columns: 1fr auto auto; align-items: end; }
+.profile-pin label { min-width: 0; }
+@media (max-width: 600px) {
+  .profile-gate { align-items: start; padding-top: 8rem; }
+  .profile-gate-brand { left: 22px; top: 20px; }
+  .profile-choices { gap: 1.5rem .8rem; }
+  .profile-choices button { width: 100px; }
+  .profile-choices button > span { width: 86px; height: 86px; font-size: 2rem; }
+  .profile-pin { grid-template-columns: 1fr; }
 }
 button,
 input,
@@ -1195,15 +1222,15 @@ button.selected {
 }
 .channel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 11px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
 }
 .channel {
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #151219;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #18141d, #121016);
   overflow: hidden;
 }
 .channel.selected {
@@ -1232,7 +1259,7 @@ button.selected {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: 13px;
 }
 .channel-main small {
   display: block;
