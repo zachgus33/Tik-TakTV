@@ -848,6 +848,7 @@ export default function App() {
     return () => window.removeEventListener("connections-changed", changed);
   }, []);
   const [limit, setLimit] = useState(60);
+  const [guideLimit, setGuideLimit] = useState(120);
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
@@ -1094,6 +1095,7 @@ export default function App() {
   const guideChannels = filtered.filter((channel) =>
     guideState.get(channel).some((p) => p.end > guideState.now),
   );
+  useEffect(() => setGuideLimit(120), [region, category, favoritesOnly, deferredQuery]);
   const guideError = activeChannel
     ? guideState.failed(activeChannel.id)
     : false;
@@ -1717,7 +1719,19 @@ export default function App() {
                       : ""}
                   </p>
                   {!loading && guideChannels.length > 0 && (
-                    <section className="tv-guide-grid" aria-label="Live TV schedule">
+                    <section
+                      className="tv-guide-grid"
+                      aria-label="Live TV schedule"
+                      onScroll={(event) => {
+                        const element = event.currentTarget;
+                        if (
+                          element.scrollHeight - element.scrollTop - element.clientHeight < 300
+                        )
+                          setGuideLimit((value) =>
+                            Math.min(value + 120, guideChannels.length),
+                          );
+                      }}
+                    >
                       <div className="tv-guide-heading">
                         <div><span className="eyebrow">ON NOW</span><h2>Live guide</h2></div>
                         <span>{guideChannels.length} channels with schedules</span>
@@ -1730,7 +1744,7 @@ export default function App() {
                           </time>
                         ))}
                       </div>
-                      {guideChannels.map((channel) => {
+                      {guideChannels.slice(0, guideLimit).map((channel) => {
                         const shows = guideState.get(channel).filter((p) => p.end > guideState.now && p.start < guideState.now + 2 * 60 * 60_000);
                         return (
                           <div className="tv-guide-row" key={`guide-${itemKey(channel)}`}>
