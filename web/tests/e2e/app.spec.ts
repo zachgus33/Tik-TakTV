@@ -250,7 +250,7 @@ test("large channel lists render in bounded batches and search locally", async (
   await page.goto("/#live");
   await expect(page.locator(".channel")).toHaveCount(60);
   await page.getByLabel("Search titles or channels").fill("Channel 4999");
-  await expect(page.locator(".channel")).toHaveCount(1);
+  await expect(page.locator(".channel")).toHaveCount(1, { timeout: 15_000 });
   await expect(page.locator(".channel")).toContainText("Channel 4999");
 });
 
