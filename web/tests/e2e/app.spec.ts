@@ -457,6 +457,89 @@ test("full XMLTV guide loads automatically from login before channel selection",
   );
 });
 
+test("relayed XMLTV preloads guide data beyond the rendered channel page", async ({
+  page,
+  context,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({ url: "https://playback.example", token: "test-key" }),
+    ),
+  );
+  await context.unroute("https://vpn.trx-pro-iptvstore.cc/xmltv.php**");
+  await context.route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
+    route.abort("failed"),
+  );
+  const stamp = (time: number) =>
+    new Date(time).toISOString().replace(/[-:T]/g, "").slice(0, 14) + " +0000";
+  const programmes = Array.from({ length: 61 }, (_, index) =>
+    `<programme channel="channel.${index + 1}" start="${stamp(Date.now() - 60000)}" stop="${stamp(Date.now() + 3600000)}"><title>Programme ${index + 1}</title></programme>`,
+  ).join("");
+  await page.route("https://playback.example/request", async (route) => {
+    expect(route.request().postDataJSON().url).toContain("/xmltv.php?");
+    await route.fulfill({
+      contentType: "application/xml",
+      body: `<tv>${programmes}</tv>`,
+    });
+  });
+  let shortGuideRequests = 0;
+  await page.unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
+  await page.route("https://vpn.trx-pro-iptvstore.cc/player_api.php**", (route) => {
+    const action = new URL(route.request().url()).searchParams.get("action");
+    if (action === "get_short_epg") shortGuideRequests++;
+    return route.fulfill({
+      json: !action
+        ? { user_info: { auth: 1, status: "Active" } }
+        : action === "get_short_epg"
+          ? { epg_listings: [] }
+          : action.endsWith("_categories")
+            ? [{ category_id: "1", category_name: "News" }]
+            : Array.from({ length: 61 }, (_, index) => ({
+                stream_id: index + 1,
+                name: `Channel ${index + 1}`,
+                category_id: "1",
+                epg_channel_id: `channel.${index + 1}`,
+              })),
+    });
+  });
+  await connect(page);
+  await page.goto("/#live");
+  await expect(page.getByText("Guide ready - 61 channel guides")).toBeVisible();
+  expect(shortGuideRequests).toBe(0);
+  await page.getByRole("button", { name: "Show 60 more channels" }).click();
+  await expect(page.locator(".channel").last()).toContainText("Programme 61");
+});
+
+test("country filter combines with Xtream channel categories", async ({ page }) => {
+  await page.unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
+  await page.route("https://vpn.trx-pro-iptvstore.cc/player_api.php**", (route) => {
+    const action = new URL(route.request().url()).searchParams.get("action");
+    return route.fulfill({
+      json: !action
+        ? { user_info: { auth: 1, status: "Active" } }
+        : action === "get_short_epg"
+          ? { epg_listings: [] }
+          : action.endsWith("_categories")
+            ? [
+                { category_id: "us", category_name: "US| NEWS NETWORK" },
+                { category_id: "uk", category_name: "UK| ENTERTAINMENT" },
+              ]
+            : [
+                { stream_id: 1, name: "American News", category_id: "us" },
+                { stream_id: 2, name: "British Entertainment", category_id: "uk" },
+              ],
+    });
+  });
+  await connect(page);
+  await page.goto("/#live");
+  await page.getByLabel("Country or region").selectOption("US");
+  await expect(page.locator(".channel")).toHaveCount(1);
+  await expect(page.locator(".channel")).toContainText("American News");
+  await page.getByLabel("Channel category").selectOption("us");
+  await expect(page.locator(".channel")).toHaveCount(1);
+});
+
 test.describe("authenticated integrations", () => {
   test.use({ serviceWorkers: "block" });
   test("Nuvio login loads shared addons and collection tiles, persists profile and saves edits", async ({

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { epg } from "./api";
+import { sourceFetch } from "./connection";
 import type { Item, Programme, Provider } from "./types";
 
 type State = {
@@ -97,7 +98,7 @@ export function useGuide(
     async function load() {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
-        const response = await fetch(`${provider!.server}/xmltv.php?${query}`, {
+        const response = await sourceFetch(`${provider!.server}/xmltv.php?${query}`, {
           signal: controller.signal,
           cache: "no-store",
           credentials: "omit",
@@ -158,7 +159,11 @@ export function useGuide(
   ];
   const signature = ids.map((i) => `${i.id}:${i.epgId ?? ""}`).join("|");
   useEffect(() => {
-    if (!provider) return;
+    if (
+      !provider ||
+      stateRef.current.scope !== provider.scope ||
+      stateRef.current.loading
+    ) return;
     const c = new AbortController();
     const queue = ids.filter(
       (i) =>
@@ -186,7 +191,7 @@ export function useGuide(
     // Only visible channels, at most three requests at once. The full feed loads in a worker.
     void Promise.all([consume(), consume(), consume()]);
     return () => c.abort();
-  }, [provider, signature, revision, refresh]);
+  }, [provider, signature, revision, refresh, state.loading, state.scope]);
   const valid = state.scope === provider?.scope ? state : empty;
   const get = (item: Item) =>
     (valid.xml[item.epgId ?? ""] ?? valid.channels[item.id] ?? []).filter(

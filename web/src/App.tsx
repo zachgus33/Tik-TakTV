@@ -87,6 +87,39 @@ import { save } from "./storage";
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
 
+const liveRegions = [
+  ["US", "🇺🇸", "United States", /^(US)\||UNITED STATES/i],
+  ["CA", "🇨🇦", "Canada", /^(CA)\||CANADA/i],
+  ["GB", "🇬🇧", "United Kingdom", /^(UK)\||UNITED KINGDOM/i],
+  ["IE", "🇮🇪", "Ireland", /^(IR)\|.*IRELAND|IRELAND/i],
+  ["FR", "🇫🇷", "France", /^(FR)\||FRANCE/i],
+  ["ES", "🇪🇸", "Spain", /^(ES)\||SPAIN|ESPAÑA/i],
+  ["DE", "🇩🇪", "Germany", /^(DE)\||GERMANY/i],
+  ["IT", "🇮🇹", "Italy", /^(IT)\||ITALY/i],
+  ["PT", "🇵🇹", "Portugal", /^(PT)\||PORTUGAL/i],
+  ["NL", "🇳🇱", "Netherlands", /^(NL)\||NETHERLAND/i],
+  ["BE", "🇧🇪", "Belgium", /^(BE)\||BELGIUM/i],
+  ["CH", "🇨🇭", "Switzerland", /^(CH)\||SWITZERLAND/i],
+  ["AT", "🇦🇹", "Austria", /^(AT)\||AUSTRIA/i],
+  ["PL", "🇵🇱", "Poland", /^(PL)\||POLAND/i],
+  ["GR", "🇬🇷", "Greece", /^(GR)\||GREECE/i],
+  ["CZ", "🇨🇿", "Czechia", /^(CZ)\||CZECH/i],
+  ["SE", "🇸🇪", "Sweden", /^SWEDEN|SWEDEN/i],
+  ["NO", "🇳🇴", "Norway", /^NORWAY|NORWAY/i],
+  ["DK", "🇩🇰", "Denmark", /^DENMARK|DENMARK/i],
+  ["FI", "🇫🇮", "Finland", /^(FI)\||FINLAND/i],
+  ["AU", "🇦🇺", "Australia", /^(AU)\||AUSTRALIA/i],
+  ["NZ", "🇳🇿", "New Zealand", /^(NZ)\||NEW ZEALAND/i],
+  ["BR", "🇧🇷", "Brazil", /^(BR)\||BRAZIL/i],
+  ["TR", "🇹🇷", "Türkiye", /^(TR)\||TURK/i],
+  ["IL", "🇮🇱", "Israel", /^(IS)\||ISRAEL/i],
+  ["IN", "🇮🇳", "India", /^ASIA\s*\|.*INDIA|INDIA/i],
+] as const;
+
+function liveRegion(name: string) {
+  return liveRegions.find(([, , , pattern]) => pattern.test(name))?.[0] ?? "";
+}
+
 function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; onGuest: () => void }) {
   const [list, setList] = useState<Profile[]>([]);
   const [email, setEmail] = useState("");
@@ -799,6 +832,7 @@ export default function App() {
   const [source, setSource] = useState("catalogs");
   const [selectedCatalog, setSelectedCatalog] = useState("");
   const [category, setCategory] = useState("");
+  const [region, setRegion] = useState("");
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
@@ -826,6 +860,7 @@ export default function App() {
     location.hash = next;
     setQuery("");
     setCategory("");
+    setRegion("");
     setFavoritesOnly(false);
   };
   useEffect(() => {
@@ -865,7 +900,7 @@ export default function App() {
   }, [toast]);
   useEffect(() => {
     setLimit(60);
-  }, [page, deferredQuery, category, kind, source, favoritesOnly]);
+  }, [page, deferredQuery, category, region, kind, source, favoritesOnly]);
   const catalogs = addons.flatMap((a) =>
     (a.manifest.catalogs ?? [])
       .filter(
@@ -1031,12 +1066,22 @@ export default function App() {
   };
   const hero =
     homeRows[0]?.items.find((i) => i.background) ?? homeRows[0]?.items[0];
+  const regionOf = (item: Item) =>
+    liveRegion(
+      categoryList.find((entry) => entry.id === item.category)?.name ??
+        item.category ??
+        item.name,
+    );
+  const availableRegions = liveRegions.filter(([code]) =>
+    items.some((item) => regionOf(item) === code),
+  );
   const filtered = (page === "library" ? library : items).filter(
     (i) =>
       (!deferredQuery ||
         i.name
           .toLocaleLowerCase()
           .includes(deferredQuery.toLocaleLowerCase())) &&
+      (!region || regionOf(i) === region) &&
       (!favoritesOnly || saved(i)),
   );
   const guideState = useGuide(
@@ -1633,6 +1678,18 @@ export default function App() {
                       />
                       Favorites
                     </button>
+                    <select
+                      aria-label="Country or region"
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                    >
+                      <option value="">🌐 All countries</option>
+                      {availableRegions.map(([code, flag, label]) => (
+                        <option key={code} value={code}>
+                          {flag} {label}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       aria-label="Channel category"
                       value={category}
