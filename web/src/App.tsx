@@ -53,6 +53,7 @@ import {
   safeUrl,
   streamUrl,
 } from "./api";
+import { readLiveCache, writeLiveCache } from "./live-cache";
 import { cleanItem, getProvider, read, useStored } from "./storage";
 import {
   itemKey,
@@ -1103,10 +1104,24 @@ export default function App() {
       return;
     }
     const c = new AbortController();
-    void categories(provider, page === "live" ? "live" : kind, c.signal)
-      .then(setCategoryList)
+    const type = page === "live" ? "live" : kind;
+    const key = `categories:${provider.scope}:${type}`;
+    let restored = false;
+    void readLiveCache<Category[]>(key).then((cached) => {
+      if (!c.signal.aborted && cached?.length) {
+        restored = true;
+        setCategoryList(cached);
+      }
+    });
+    void categories(provider, type, c.signal)
+      .then((result) => {
+        if (!c.signal.aborted) {
+          setCategoryList(result);
+          void writeLiveCache(key, result);
+        }
+      })
       .catch((e) => {
-        if (!c.signal.aborted) setError(message(e));
+        if (!c.signal.aborted && !restored) setError(message(e));
       });
     return () => c.abort();
   }, [page, source, provider, kind, revision]);
@@ -1115,18 +1130,47 @@ export default function App() {
     const c = new AbortController();
     setLoading(true);
     setError("");
-    setItems([]);
     async function load() {
+      const type = page === "live" ? "live" : kind;
+      const cacheKey = provider
+        ? `items:${provider.scope}:${type}:${category || "all"}`
+        : "";
+      let restored = false;
       try {
         let result: Item[] = [];
         if (page === "live" || source === "xtream") {
-          if (provider)
+          if (provider) {
+            const cached = await readLiveCache<Item[]>(cacheKey);
+            if (cached?.length && !c.signal.aborted) {
+              restored = true;
+              setItems(
+                page === "live"
+                  ? [
+                      ...cached,
+                      ...playlist.filter(
+                        (i) => !category || i.category === category,
+                      ),
+                    ]
+                  : cached,
+              );
+              setLoading(false);
+            } else if (!c.signal.aborted) {
+              setItems(
+                page === "live"
+                  ? playlist.filter(
+                      (i) => !category || i.category === category,
+                    )
+                  : [],
+              );
+            }
             result = await providerItems(
               provider,
-              page === "live" ? "live" : kind,
+              type,
               category,
               c.signal,
             );
+            if (!c.signal.aborted) void writeLiveCache(cacheKey, result);
+          }
           if (page === "live")
             result = [
               ...result,
@@ -1148,7 +1192,7 @@ export default function App() {
         }
         if (!c.signal.aborted) setItems(result);
       } catch (e) {
-        if (!c.signal.aborted) setError(message(e));
+        if (!c.signal.aborted && !restored) setError(message(e));
       } finally {
         if (!c.signal.aborted) setLoading(false);
       }

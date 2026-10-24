@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { epg } from "./api";
 import { getService, serviceRequest, sourceFetch } from "./connection";
+import { readLiveCache, writeLiveCache } from "./live-cache";
 import type { Item, Programme, Provider } from "./types";
 
 type State = {
@@ -51,6 +52,17 @@ export function useGuide(
     });
     let stopped = false;
     const controller = new AbortController();
+    const cacheKey = `guide:${provider.scope}`;
+    void readLiveCache<Pick<State, "xml" | "channels">>(cacheKey).then(
+      (cached) => {
+        if (!stopped && cached)
+          setState((s) =>
+            s.scope === provider.scope
+              ? { ...s, ...cached, loading: true }
+              : s,
+          );
+      },
+    );
     let acknowledge: (() => void) | undefined;
     const unavailable = () => {
       if (!stopped) setState((s) => ({ ...s, loading: false, fallback: true }));
@@ -69,13 +81,20 @@ export function useGuide(
       controller.abort();
       acknowledge?.();
       clearTimeout(timer);
-      if (!stopped)
+      if (!stopped) {
+        const xml = e.data.programmes ?? {};
         setState((s) => ({
           ...s,
-          xml: e.data.programmes ?? {},
+          xml,
           loading: false,
           fallback: !!e.data.error,
         }));
+        if (!e.data.error)
+          void writeLiveCache(cacheKey, {
+            xml,
+            channels: stateRef.current.channels,
+          });
+      }
       worker.terminate();
     };
     worker.onerror = () => {
@@ -192,6 +211,13 @@ export function useGuide(
           if (!c.signal.aborted)
             setState((s) => ({ ...s, failed: [...s.failed, item.id] }));
         }
+      }
+      if (!c.signal.aborted) {
+        const current = stateRef.current;
+        void writeLiveCache(`guide:${provider!.scope}`, {
+          xml: current.xml,
+          channels: current.channels,
+        });
       }
     }
     // Only visible channels, at most three requests at once. The full feed loads in a worker.
