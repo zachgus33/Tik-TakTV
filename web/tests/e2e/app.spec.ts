@@ -690,9 +690,14 @@ test.describe("authenticated integrations", () => {
     ).toBeVisible();
     await expect
       .poll(() =>
-        page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
+        page.evaluate(() => {
+          const raw = localStorage.getItem("nuvio:playback-service");
+          if (!raw) return false;
+          const service = JSON.parse(raw);
+          return /^https:\/\//.test(service.url) && !!service.token;
+        }),
       )
-      .toContain("playback.example");
+      .toBe(true);
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
