@@ -16,6 +16,8 @@ export type Item = {
   extension?: string;
   url?: string;
   runtime?: string;
+  cast?: string[];
+  directors?: string[];
 };
 export type Episode = {
   id: string;

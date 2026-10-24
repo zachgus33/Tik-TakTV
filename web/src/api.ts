@@ -324,6 +324,12 @@ export function fromMeta(meta: Record<string, unknown>, addon: Addon): Item {
     rating: meta.imdbRating ? String(meta.imdbRating) : undefined,
     genres: Array.isArray(meta.genres) ? meta.genres.map(String) : [],
     runtime: String(meta.runtime ?? ""),
+    cast: Array.isArray(meta.cast) ? meta.cast.map(String).slice(0, 12) : [],
+    directors: Array.isArray(meta.director)
+      ? meta.director.map(String)
+      : typeof meta.director === "string"
+        ? [meta.director]
+        : [],
   };
 }
 export async function catalog(

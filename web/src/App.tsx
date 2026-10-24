@@ -485,11 +485,14 @@ function Detail({
             {saved ? "In my library" : "My library"}
           </button>
         </div>
-        {credits.length > 0 && (
+        {(credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
           <section className="cast-section" aria-label="Cast">
             <h2>Starring</h2>
             <div className="cast-row">
-              {credits.map((person) => (
+              {(credits.length
+                ? credits
+                : (item.cast ?? []).map((name, index) => ({ id: index, name, role: "Cast", photo: undefined })))
+              .map((person) => (
                 <div className="cast-person" key={person.id}>
                   {person.photo ? <img src={person.photo} alt="" /> : <span>{person.name.slice(0, 1)}</span>}
                   <strong>{person.name}</strong>
