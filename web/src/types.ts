@@ -40,6 +40,12 @@ export type Stream = {
     filename?: string;
   };
 };
+export type Subtitle = {
+  id?: string;
+  url: string;
+  lang?: string;
+  name?: string;
+};
 export type Provider = {
   server: string;
   username: string;

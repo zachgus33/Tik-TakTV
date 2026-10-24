@@ -1,8 +1,8 @@
-import { getService, prepareMedia } from "./connection";
+import { getService, prepareMedia, sourceFetch } from "./connection";
 import { useEffect, useRef, useState } from "react";
 import { Airplay, Maximize, PictureInPicture2, X } from "lucide-react";
 import type Hls from "hls.js";
-import type { Episode, Item } from "./types";
+import type { Episode, Item, Subtitle } from "./types";
 import { safeUrl } from "./api";
 import { storeProgress } from "./storage";
 
@@ -14,7 +14,11 @@ export type Playback = {
   requestHeaders?: Record<string, string>;
   hls?: boolean;
   mode?: "direct" | "remux" | "transcode";
+  subtitles?: Subtitle[];
 };
+function srtToVtt(text: string) {
+  return `WEBVTT\n\n${text.replace(/^\uFEFF/, "").replace(/^(\d+)\s*$/gm, "").replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`;
+}
 function VideoPlayer({
   playback,
   onClose,
@@ -42,6 +46,30 @@ function VideoPlayer({
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
     };
   }, []);
+  useEffect(() => {
+    const c = new AbortController();
+    const candidate = playback.subtitles?.[0];
+    if (!candidate) return () => c.abort();
+    void sourceFetch(candidate.url, { signal: c.signal, cache: "force-cache" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error();
+        const raw = await r.text();
+        const text = raw.trimStart().startsWith("WEBVTT") ? raw : srtToVtt(raw);
+        if (c.signal.aborted) return;
+        setSubtitles((old) => {
+          for (const s of old) URL.revokeObjectURL(s.url);
+          return [{
+            url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
+            name: candidate.name ?? "English (OpenSubtitles)",
+          }];
+        });
+        setNotice("English subtitles loaded automatically.");
+      })
+      .catch(() => {
+        if (!c.signal.aborted) setNotice("Automatic English subtitles were unavailable for this stream.");
+      });
+    return () => c.abort();
+  }, [playback.subtitles]);
   useEffect(() => {
     const video = videoRef.current!;
     let disposed = false;

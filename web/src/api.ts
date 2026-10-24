@@ -9,6 +9,7 @@ import type {
   Programme,
   Provider,
   Stream,
+  Subtitle,
 } from "./types";
 
 export function safeUrl(value: unknown): string | undefined {
@@ -408,6 +409,34 @@ export async function addonStreams(
       ),
     ).length,
   };
+}
+export async function addonSubtitles(
+  addons: Addon[],
+  item: Item,
+  id: string,
+  signal?: AbortSignal,
+): Promise<Subtitle[]> {
+  const eligible = addons.filter((a) =>
+    a.manifest.resources?.some((r) =>
+      typeof r === "string"
+        ? r === "subtitles"
+        : r.name === "subtitles" &&
+          (!r.types?.length || r.types.includes(item.type)) &&
+          (!r.idPrefixes?.length || r.idPrefixes.some((p) => id.startsWith(p))),
+    ),
+  );
+  const results = await Promise.allSettled(
+    eligible.map(async (a) => {
+      const data = await json<{ subtitles?: Subtitle[] }>(
+        `${a.base}/subtitles/${item.type}/${encodeURIComponent(id)}.json`,
+        signal,
+      );
+      return (data.subtitles ?? []).filter(
+        (s) => !!safeUrl(s.url) && /^(en|eng|english)$/i.test(s.lang ?? ""),
+      );
+    }),
+  );
+  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 }
 export function parsePlaylist(text: string, scope: string): Item[] {
   if (!text.trim().startsWith("#EXTM3U"))

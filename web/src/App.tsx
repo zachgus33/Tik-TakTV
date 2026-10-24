@@ -35,6 +35,7 @@ import {
 import {
   addonDetail,
   addonStreams,
+  addonSubtitles,
   catalog,
   categories,
   defaultAddon,
@@ -238,6 +239,7 @@ function Detail({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
+  const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
   const [files, setFiles] = useState<{
     torrentId: number;
     files: TorboxFile[];
@@ -249,7 +251,18 @@ function Detail({
     const c = new AbortController();
     const request =
       initial.source === "addon"
-        ? addonDetail(initial, c.signal)
+        ? addonDetail(initial, c.signal).catch((error) => {
+            if (
+              c.signal.aborted ||
+              initial.provider === defaultAddon.base ||
+              !/^(?:tt\d+|tmdb:\d+)$/.test(initial.id)
+            )
+              throw error;
+            return addonDetail(
+              { ...initial, provider: defaultAddon.base },
+              c.signal,
+            );
+          })
         : provider && provider.scope === initial.provider
           ? providerDetail(provider, initial, c.signal)
           : Promise.resolve({ item: initial, episodes: [] });
@@ -258,6 +271,11 @@ function Detail({
         setItem(result.item);
         setEpisodes(result.episodes);
         setSeason(result.episodes[0]?.season ?? null);
+        if (result.item.type !== "live")
+          void import("./tmdb")
+            .then(({ titleCredits }) => titleCredits(result.item, c.signal))
+            .then((rows) => { if (!c.signal.aborted) setCredits(rows); })
+            .catch(() => undefined);
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(message(e));
@@ -275,10 +293,13 @@ function Detail({
     ep?: Episode,
     signal?: AbortSignal,
   ) {
+    setError("");
     setFiles(null);
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
+      const subtitleId = ep?.id ?? item.id;
+      const subtitles = await addonSubtitles(addons, item, subtitleId, signal);
       onPlay({
         item,
         episode: ep,
@@ -288,6 +309,7 @@ function Detail({
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
         )?.request,
+        subtitles,
       });
       return;
     }
@@ -307,7 +329,10 @@ function Detail({
       prepared.selected.id,
       signal,
     );
-    if (!signal?.aborted) onPlay({ item, episode: ep, url, resume: position });
+    if (!signal?.aborted) {
+      const subtitles = await addonSubtitles(addons, item, ep?.id ?? item.id, signal);
+      onPlay({ item, episode: ep, url, resume: position, subtitles });
+    }
   }
   async function manualStream(stream: Stream) {
     controller.current?.abort();
@@ -460,6 +485,20 @@ function Detail({
             {saved ? "In my library" : "My library"}
           </button>
         </div>
+        {credits.length > 0 && (
+          <section className="cast-section" aria-label="Cast">
+            <h2>Starring</h2>
+            <div className="cast-row">
+              {credits.map((person) => (
+                <div className="cast-person" key={person.id}>
+                  {person.photo ? <img src={person.photo} alt="" /> : <span>{person.name.slice(0, 1)}</span>}
+                  <strong>{person.name}</strong>
+                  <small>{person.role}</small>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         {error && (
           <div className="error" role="alert">
             {error}
@@ -1479,6 +1518,42 @@ export default function App() {
                       ? " - Using per-channel guide data"
                       : ""}
                   </p>
+                  {!loading && filtered.length > 0 && guideState.count > 0 && (
+                    <section className="tv-guide-grid" aria-label="Live TV schedule">
+                      <div className="tv-guide-times">
+                        <span>Channels</span>
+                        {[0, 30, 60, 90].map((minutes) => (
+                          <time key={minutes}>
+                            {new Date(guideState.now + minutes * 60_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          </time>
+                        ))}
+                      </div>
+                      {filtered.slice(0, 18).map((channel) => {
+                        const shows = guideState.get(channel).filter((p) => p.end > guideState.now && p.start < guideState.now + 2 * 60 * 60_000);
+                        return (
+                          <div className="tv-guide-row" key={`guide-${itemKey(channel)}`}>
+                            <button className="tv-guide-channel" onClick={() => setActiveChannel(channel)}>
+                              <span className="tv-guide-channel-art"><Art item={channel} /></span>
+                              <strong>{channel.name}</strong>
+                            </button>
+                            <div className="tv-guide-programmes">
+                              {shows.length ? shows.map((programme) => (
+                                <button
+                                  key={programme.id}
+                                  className={programme.start <= guideState.now && programme.end > guideState.now ? "on-now" : ""}
+                                  style={{ flexGrow: Math.max(15, (programme.end - Math.max(programme.start, guideState.now)) / 60_000) }}
+                                  onClick={() => setActiveChannel(channel)}
+                                >
+                                  <strong>{programme.title}</strong>
+                                  <small>{new Date(programme.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small>
+                                </button>
+                              )) : <span className="tv-guide-empty">No programme information</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </section>
+                  )}
                   {error && (
                     <div className="error" role="alert">
                       {error}

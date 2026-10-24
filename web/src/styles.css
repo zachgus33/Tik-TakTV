@@ -71,6 +71,26 @@ textarea {
   font-size: 11px;
   color: #aa91c5;
 }
+.tv-guide-grid { margin: 1rem 0 1.5rem; border: 1px solid var(--border); border-radius: 14px; overflow: auto; background: #0e0c12; max-height: 620px; }
+.tv-guide-times, .tv-guide-row { display: grid; grid-template-columns: 150px minmax(720px, 1fr); min-width: 870px; }
+.tv-guide-times { position: sticky; top: 0; z-index: 3; background: #111016; border-bottom: 1px solid var(--border); }
+.tv-guide-times > span { padding: .8rem; color: var(--muted); }
+.tv-guide-times time { grid-row: 1; padding: .8rem; color: var(--muted); }
+.tv-guide-times time:nth-of-type(1) { grid-column: 2; justify-self: start; }
+.tv-guide-times time:nth-of-type(2) { grid-column: 2; justify-self: center; transform: translateX(-100%); }
+.tv-guide-times time:nth-of-type(3) { grid-column: 2; justify-self: center; }
+.tv-guide-times time:nth-of-type(4) { grid-column: 2; justify-self: end; transform: translateX(-100%); }
+.tv-guide-row { min-height: 70px; border-bottom: 1px solid var(--border); }
+.tv-guide-channel { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: .65rem; padding: .55rem; border: 0; border-radius: 0; background: #141119; text-align: left; overflow: hidden; }
+.tv-guide-channel-art { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; overflow: hidden; }
+.tv-guide-channel-art img { width: 100%; height: 100%; object-fit: contain; }
+.tv-guide-channel strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-guide-programmes { display: flex; gap: 3px; padding: 3px; min-width: 720px; }
+.tv-guide-programmes button { min-width: 130px; max-width: 420px; border-radius: 7px; padding: .65rem .75rem; display: grid; align-content: center; text-align: left; background: #24222a; }
+.tv-guide-programmes button.on-now { background: #5c2694; box-shadow: inset 3px 0 #ff9d28; }
+.tv-guide-programmes strong, .tv-guide-programmes small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-guide-programmes small { color: var(--muted); margin-top: .25rem; }
+.tv-guide-empty { padding: 1.25rem; color: var(--muted); }
 .channel-main .channel-programme {
   color: #cbbbd8;
   font-size: 11px;
@@ -1396,6 +1416,13 @@ body:has(dialog[open]) {
   gap: 8px;
   flex-wrap: wrap;
 }
+.cast-section { margin-top: 1.4rem; }
+.cast-section h2 { font-size: 1rem; margin: 0 0 .8rem; }
+.cast-row { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: .5rem; scrollbar-width: thin; }
+.cast-person { flex: 0 0 76px; display: grid; gap: .25rem; text-align: center; min-width: 0; }
+.cast-person img, .cast-person > span { width: 62px; height: 62px; border-radius: 50%; object-fit: cover; margin: auto; background: #28242f; display: grid; place-items: center; }
+.cast-person strong, .cast-person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }
+.cast-person small { color: var(--muted); }
 .chips span {
   font-size: 10px;
   padding: 6px 10px;

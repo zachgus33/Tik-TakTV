@@ -114,3 +114,33 @@ export async function resolveTmdb(
     );
   return { ...item, id: data.imdb_id, provider: defaultAddon.base };
 }
+
+export type Credit = { id: number; name: string; role: string; photo?: string };
+export async function titleCredits(item: Item, signal?: AbortSignal): Promise<Credit[]> {
+  const media = item.type === "series" ? "tv" : "movie";
+  let id = item.id.startsWith("tmdb:") ? item.id.slice(5) : "";
+  if (!id && /^tt\d+$/.test(item.id)) {
+    const found = await get<{ movie_results?: { id: number }[]; tv_results?: { id: number }[] }>(
+      `find/${item.id}`,
+      { external_source: "imdb_id" },
+      signal,
+    );
+    const row = item.type === "series" ? found.tv_results?.[0] : found.movie_results?.[0];
+    if (!row) return [];
+    id = String(row.id);
+  }
+  if (!id) return [];
+  const data = await get<{ cast?: Record<string, unknown>[] }>(
+    `${media}/${id}/credits`,
+    { language: "en-US" },
+    signal,
+  );
+  return (data.cast ?? []).slice(0, 12).map((person) => ({
+    id: Number(person.id),
+    name: String(person.name ?? ""),
+    role: String(person.character ?? "Cast"),
+    photo: person.profile_path
+      ? safeUrl(`https://image.tmdb.org/t/p/w185${person.profile_path}`)
+      : undefined,
+  }));
+}
