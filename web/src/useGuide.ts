@@ -8,6 +8,7 @@ type State = {
   scope: string;
   xml: Record<string, Programme[]>;
   channels: Record<string, Programme[]>;
+  aliases: Record<string, string>;
   failed: string[];
   loading: boolean;
   fallback: boolean;
@@ -16,6 +17,7 @@ const empty: State = {
   scope: "",
   xml: {},
   channels: {},
+  aliases: {},
   failed: [],
   loading: false,
   fallback: false,
@@ -53,16 +55,14 @@ export function useGuide(
     let stopped = false;
     const controller = new AbortController();
     const cacheKey = `guide:${provider.scope}`;
-    void readLiveCache<Pick<State, "xml" | "channels">>(cacheKey).then(
-      (cached) => {
-        if (!stopped && cached)
-          setState((s) =>
-            s.scope === provider.scope
-              ? { ...s, ...cached, loading: true }
-              : s,
-          );
-      },
-    );
+    void readLiveCache<Pick<State, "xml" | "channels" | "aliases">>(
+      cacheKey,
+    ).then((cached) => {
+      if (!stopped && cached)
+        setState((s) =>
+          s.scope === provider.scope ? { ...s, ...cached, loading: true } : s,
+        );
+    });
     let acknowledge: (() => void) | undefined;
     const unavailable = () => {
       if (!stopped) setState((s) => ({ ...s, loading: false, fallback: true }));
@@ -71,6 +71,7 @@ export function useGuide(
       e: MessageEvent<{
         ready?: boolean;
         programmes?: Record<string, Programme[]>;
+        aliases?: Record<string, string>;
         error?: string;
       }>,
     ) => {
@@ -83,9 +84,11 @@ export function useGuide(
       clearTimeout(timer);
       if (!stopped) {
         const xml = e.data.programmes ?? {};
+        const aliases = e.data.aliases ?? {};
         setState((s) => ({
           ...s,
           xml,
+          aliases,
           loading: false,
           fallback: !!e.data.error,
         }));
@@ -93,6 +96,7 @@ export function useGuide(
           void writeLiveCache(cacheKey, {
             xml,
             channels: stateRef.current.channels,
+            aliases,
           });
       }
       worker.terminate();
@@ -124,10 +128,10 @@ export function useGuide(
           : undefined;
         if (!response || response.status === 404)
           response = await sourceFetch(url, {
-          signal: controller.signal,
-          cache: "no-store",
-          credentials: "omit",
-          referrerPolicy: "no-referrer",
+            signal: controller.signal,
+            cache: "no-store",
+            credentials: "omit",
+            referrerPolicy: "no-referrer",
           });
         if (
           !response.ok ||
@@ -188,7 +192,8 @@ export function useGuide(
       !provider ||
       stateRef.current.scope !== provider.scope ||
       stateRef.current.loading
-    ) return;
+    )
+      return;
     const c = new AbortController();
     const queue = ids.filter(
       (i) =>
@@ -217,6 +222,7 @@ export function useGuide(
         void writeLiveCache(`guide:${provider!.scope}`, {
           xml: current.xml,
           channels: current.channels,
+          aliases: current.aliases,
         });
       }
     }
@@ -225,8 +231,21 @@ export function useGuide(
     return () => c.abort();
   }, [provider, signature, revision, refresh, state.loading, state.scope]);
   const valid = state.scope === provider?.scope ? state : empty;
+  const normalize = (value: string) =>
+    value
+      .toLocaleLowerCase()
+      .replace(/^\s*[a-z]{2,3}\s*[|:\-]\s*/i, "")
+      .replace(/\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\b/gi, "")
+      .replace(/[^a-z0-9]+/g, "");
+  const aliasIndex = new Map<string, string>();
+  for (const [alias, id] of Object.entries(valid.aliases))
+    aliasIndex.set(normalize(alias), id);
+  const guideId = (item: Item) =>
+    (item.epgId && valid.xml[item.epgId] ? item.epgId : undefined) ??
+    aliasIndex.get(normalize(item.epgId ?? "")) ??
+    aliasIndex.get(normalize(item.name));
   const get = (item: Item) =>
-    (valid.xml[item.epgId ?? ""] ?? valid.channels[item.id] ?? []).filter(
+    (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).filter(
       (p) => p.end > now,
     );
   return {
@@ -236,7 +255,7 @@ export function useGuide(
     fallback: valid.fallback,
     failed: (id: string) => valid.failed.includes(id),
     loaded: (item: Item) =>
-      !!(valid.xml[item.epgId ?? ""] || valid.channels[item.id]),
+      !!(valid.xml[guideId(item) ?? ""] || valid.channels[item.id]),
     count: Object.keys(valid.xml).length || Object.keys(valid.channels).length,
   };
 }

@@ -24,7 +24,7 @@ describe("automatic Xtream XMLTV guide", () => {
   it("parses split chunks, XML entities and only the current/next day", () => {
     const parser = createGuideParser(Date.UTC(2026, 9, 23, 18));
     parser.write(
-      '<?xml version="1.0"?><tv><programme channel="news" start="20261023173000 +0000" stop="20261023183000 +0000"><ti',
+      '<?xml version="1.0"?><tv><channel id="news"><display-name>US| Test News HD</display-name></channel><programme channel="news" start="20261023173000 +0000" stop="20261023183000 +0000"><ti',
     );
     parser.write(
       'tle>News &amp; weather</title><desc><![CDATA[Today’s headlines]]></desc></programme><programme channel="news" start="20261021173000 +0000" stop="20261021183000 +0000"><title>Old</title></programme></tv>',
@@ -38,6 +38,7 @@ describe("automatic Xtream XMLTV guide", () => {
         description: "Today’s headlines",
       },
     ]);
+    expect(parser.aliases()["US| Test News HD"]).toBe("news");
   });
   it("rejects malformed XML instead of treating it as a valid guide", () => {
     const parser = createGuideParser();

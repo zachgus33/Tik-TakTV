@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
-import { defaultAddon, safeUrl, addonDetail } from "./api";
+import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
@@ -154,6 +154,18 @@ export async function loadSetup(
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
       ]
     : [];
+  if (!(addonRows.data ?? []).length) {
+    await rpc("sync_push_addons", {
+      p_profile_id: addonId,
+      p_addons: defaultAddons.map((addon, index) => ({
+        url: `${addon.base}/manifest.json`,
+        name: addon.manifest.name,
+        enabled: true,
+        sort_order: index,
+      })),
+      p_origin_client_id: origin,
+    });
+  }
   const library = libraryRows.map((r): Item => ({
     id: String(r.content_id),
     name: String(r.name ?? "Untitled"),
@@ -236,7 +248,7 @@ export async function loadSetup(
     .slice(0, 100);
   baselines.set(id, {
     addons: JSON.stringify(
-      restoredAddons.length ? restoredAddons : [defaultAddon],
+      restoredAddons.length ? restoredAddons : defaultAddons,
     ),
     collections: JSON.stringify(resolvedCollections),
     library,
@@ -249,7 +261,7 @@ export async function loadSetup(
     setup: {
       playbackService: getService(),
       tmdbKey: typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? ""),
-      addons: restoredAddons.length ? restoredAddons : [defaultAddon],
+      addons: restoredAddons.length ? restoredAddons : defaultAddons,
       collections: resolvedCollections,
       library: library.length
         ? library

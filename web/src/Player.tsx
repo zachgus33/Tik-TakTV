@@ -41,7 +41,6 @@ function VideoPlayer({
   const subtitleRef = useRef(subtitles);
   subtitleRef.current = subtitles;
   useEffect(() => {
-    dialogRef.current?.showModal();
     return () => {
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
     };
@@ -234,7 +233,7 @@ function VideoPlayer({
     onClose();
   }
   return (
-    <dialog ref={dialogRef} className="player-dialog" onCancel={close}>
+    <dialog ref={dialogRef} open className="player-dialog" onCancel={close}>
       <div className="player-top">
         <div>
           <span className="eyebrow">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Addon, Item, Progress, Provider } from "./types";
-import { defaultAddon } from "./api";
+import { defaultAddons } from "./api";
 
 export function read<T>(
   key: string,
@@ -37,7 +37,7 @@ export function useStored<T>(key: string, fallback: T) {
     });
   return [value, update] as const;
 }
-export const getAddons = (): Addon[] => read("addons", [defaultAddon]);
+export const getAddons = (): Addon[] => read("addons", defaultAddons);
 export const getProvider = (): Provider | null =>
   read("provider", read("provider", null), sessionStorage);
 export function storeProvider(p: Provider | null, remember: boolean) {

@@ -56,7 +56,27 @@ async function connect(page: Page) {
   ).toBeVisible();
 }
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("tiktak:established-local", "1"),
+  );
   await mockSources(page);
+});
+
+test("first visit offers Nuvio sign in and account creation", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.removeItem("tiktak:established-local"),
+  );
+  await page.goto("/#home");
+  await expect(
+    page.getByRole("heading", { name: "Your entertainment, your way" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByLabel("Confirm password")).toBeVisible();
+  await expect(
+    page.getByText(/starts with Cinemeta.*OpenSubtitles v3/),
+  ).toBeVisible();
 });
 
 test("offline app shell retains library and never caches provider requests", async ({
@@ -153,12 +173,7 @@ test("Xtream session login, channels, guide, favorites and disconnect", async ({
     await page.evaluate(() => !!sessionStorage.getItem("nuvio:provider")),
   ).toBe(true);
   await page.goto("/#live");
-  await page
-    .getByRole("button", { name: "Test News News", exact: false })
-    .click();
-  await expect(
-    page.locator(".guide").getByText("Evening news", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".tv-guide-row")).toContainText("Evening news");
   await page
     .getByRole("button", { name: "Favorite Test News", exact: true })
     .click();
@@ -222,14 +237,14 @@ test("live TV sends the provider transport stream through Pi HLS remux", async (
   await connect(page);
   await page.goto("/#live");
   await page
-    .getByRole("button", { name: "Test News News", exact: false })
+    .locator(".tv-guide-channel")
+    .filter({ hasText: "Test News" })
     .click();
-  await page.getByRole("button", { name: "Watch channel" }).click();
   await expect.poll(() => prepared).toBeTruthy();
   expect(prepared.mode).toBe("remux");
   expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
 });
-test("large channel lists render in bounded batches and search locally", async ({
+test("channels without guide data stay out of the live guide", async ({
   page,
 }) => {
   await connect(page);
@@ -249,10 +264,9 @@ test("large channel lists render in bounded batches and search locally", async (
     },
   );
   await page.goto("/#live");
-  await expect(page.locator(".channel")).toHaveCount(60);
+  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
   await page.getByLabel("Search titles or channels").fill("Channel 4999");
-  await expect(page.locator(".channel")).toHaveCount(1, { timeout: 15_000 });
-  await expect(page.locator(".channel")).toContainText("Channel 4999");
+  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
 });
 
 test("imports native collections and opens their addon catalogs", async ({
@@ -458,7 +472,7 @@ test("full XMLTV guide loads automatically from login before channel selection",
   );
   await connect(page);
   await page.goto("/#live");
-  await expect(page.locator(".channel")).toContainText(
+  await expect(page.locator(".tv-guide-row")).toContainText(
     "Automatic XMLTV programme",
   );
 });
@@ -523,8 +537,6 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
     "Programme 61",
   );
   expect(shortGuideRequests).toBe(0);
-  await page.getByRole("button", { name: "Show 60 more channels" }).click();
-  await expect(page.locator(".channel").last()).toContainText("Programme 61");
 });
 
 test("country filter combines with Xtream channel categories", async ({
@@ -559,10 +571,9 @@ test("country filter combines with Xtream channel categories", async ({
   await connect(page);
   await page.goto("/#live");
   await page.getByLabel("Country or region").selectOption("US");
-  await expect(page.locator(".channel")).toHaveCount(1);
-  await expect(page.locator(".channel")).toContainText("American News");
+  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
   await page.getByLabel("Channel category").selectOption("us");
-  await expect(page.locator(".channel")).toHaveCount(1);
+  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
 });
 
 test.describe("authenticated integrations", () => {
@@ -708,9 +719,10 @@ test.describe("authenticated integrations", () => {
       .uncheck();
     await expect
       .poll(() =>
-        pushes.some((entry) =>
-          entry.path.endsWith("sync_push_profile_settings_blob") &&
-          entry.body.p_settings_json.tikTakWebV1?.autoplay === false,
+        pushes.some(
+          (entry) =>
+            entry.path.endsWith("sync_push_profile_settings_blob") &&
+            entry.body.p_settings_json.tikTakWebV1?.autoplay === false,
         ),
       )
       .toBe(true);

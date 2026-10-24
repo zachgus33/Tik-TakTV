@@ -305,6 +305,18 @@ export const defaultAddon: Addon = {
     ],
   },
 };
+export const defaultSubtitleAddon: Addon = {
+  base: "https://opensubtitles-v3.strem.io",
+  manifest: {
+    id: "org.stremio.opensubtitlesv3",
+    name: "OpenSubtitles v3",
+    description: "OpenSubtitles v3 Addon for Stremio",
+    types: ["movie", "series"],
+    resources: ["subtitles"],
+    catalogs: [],
+  },
+};
+export const defaultAddons: Addon[] = [defaultAddon, defaultSubtitleAddon];
 export async function installAddon(input: string): Promise<Addon> {
   const normalized = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
   if (!normalized)

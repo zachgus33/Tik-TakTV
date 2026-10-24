@@ -7,7 +7,8 @@ self.onmessage = (
     if (event.data.start) parser = createGuideParser();
     if (event.data.chunk !== undefined) parser?.write(event.data.chunk);
     if (event.data.finish) {
-      self.postMessage({ programmes: parser?.finish() ?? {} });
+      const programmes = parser?.finish() ?? {};
+      self.postMessage({ programmes, aliases: parser?.aliases() ?? {} });
       parser = undefined;
     } else self.postMessage({ ready: true });
   } catch {

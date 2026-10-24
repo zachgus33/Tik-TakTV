@@ -15,12 +15,19 @@ export function xmltvTime(value: string): number {
 }
 export function createGuideParser(now = Date.now()) {
   const programmes: Record<string, Programme[]> = Object.create(null);
+  const aliases: Record<string, string> = Object.create(null);
   const parser = new SaxesParser({ xmlns: false });
   let current: (Programme & { channel: string }) | null = null;
   let field = "";
   let text = "";
   let count = 0;
+  let channelId = "";
+  let channelName = "";
   parser.on("opentag", (tag) => {
+    if (tag.name === "channel") {
+      channelId = String(tag.attributes.id ?? "");
+      channelName = "";
+    }
     if (tag.name === "programme") {
       const channel = String(tag.attributes.channel ?? "");
       const start = xmltvTime(String(tag.attributes.start ?? ""));
@@ -41,7 +48,10 @@ export function createGuideParser(now = Date.now()) {
             }
           : null;
     }
-    if (current && (tag.name === "title" || tag.name === "desc")) {
+    if (
+      (current && (tag.name === "title" || tag.name === "desc")) ||
+      (channelId && tag.name === "display-name")
+    ) {
       field = tag.name;
       text = "";
     }
@@ -58,6 +68,17 @@ export function createGuideParser(now = Date.now()) {
         current.description = text.trim();
       field = "";
       text = "";
+    }
+    if (channelId && tag.name === "display-name" && field === "display-name") {
+      if (!channelName) channelName = text.trim();
+      field = "";
+      text = "";
+    }
+    if (tag.name === "channel" && channelId) {
+      aliases[channelId] = channelId;
+      if (channelName) aliases[channelName] = channelId;
+      channelId = "";
+      channelName = "";
     }
     if (tag.name === "programme" && current) {
       const { channel, ...programme } = current;
@@ -78,6 +99,9 @@ export function createGuideParser(now = Date.now()) {
       for (const list of Object.values(programmes))
         list.sort((a, b) => a.start - b.start);
       return programmes;
+    },
+    aliases() {
+      return aliases;
     },
   };
 }

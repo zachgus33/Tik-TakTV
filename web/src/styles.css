@@ -211,6 +211,22 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tv-guide-favorite {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: #c69af2;
+}
+.tv-guide-favorite:hover,
+.tv-guide-favorite:focus-visible {
+  background: #ffffff12;
+  color: white;
+  outline: none;
+}
 .tv-guide-programmes {
   display: flex;
   gap: 3px;
@@ -393,6 +409,60 @@ body {
   border: 1px solid var(--line);
   background: #151219dd;
   border-radius: 16px;
+}
+.profile-gate-intro {
+  max-width: 520px;
+  margin: -1.3rem auto 1.7rem;
+  color: var(--muted);
+  font-size: 1rem;
+}
+.profile-auth-card {
+  width: min(420px, 100%);
+  margin: auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #151219e8;
+  box-shadow: 0 24px 80px #0008;
+}
+.profile-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+  background: #09080b99;
+}
+.profile-auth-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 750;
+}
+.profile-auth-tabs button.active {
+  color: white;
+  background: color-mix(in srgb, var(--accent) 28%, #17131c);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.profile-auth-card .profile-login {
+  width: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 1.45rem;
+}
+.profile-auth-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  text-align: center;
+}
+.profile-gate .success {
+  width: min(420px, 100%);
+  margin: 0 auto 1rem;
 }
 .profile-pin {
   margin-top: 2rem;

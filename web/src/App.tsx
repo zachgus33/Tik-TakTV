@@ -34,7 +34,6 @@ import {
   RefreshCw,
   Search,
   Settings2,
-  Signal,
   Sparkles,
   Star,
   Tv,
@@ -47,6 +46,7 @@ import {
   catalog,
   categories,
   defaultAddon,
+  defaultAddons,
   epg,
   providerDetail,
   providerItems,
@@ -135,10 +135,13 @@ function ProfileGate({
   const [pinProfile, setPinProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [notice, setNotice] = useState("");
   async function refresh() {
     const { data } = await account.auth.getSession();
     if (!data.session) {
-      onGuest();
+      setEmail("");
+      if (localStorage.getItem("tiktak:established-local") === "1") onGuest();
       return;
     }
     setEmail(data.session?.user.email ?? "");
@@ -185,10 +188,21 @@ function ProfileGate({
         nuvio.<small>ENHANCED</small>
       </div>
       <section>
-        <h1>{email ? "Who's watching?" : "Welcome to Nuvio"}</h1>
+        <h1>{email ? "Who's watching?" : "Your entertainment, your way"}</h1>
+        {!email && (
+          <p className="profile-gate-intro">
+            Sign in to restore your profiles and add-ons, or create a free Nuvio
+            account to get started.
+          </p>
+        )}
         {error && (
           <div className="error" role="alert">
             {error}
+          </div>
+        )}
+        {notice && (
+          <div className="success" role="status">
+            {notice}
           </div>
         )}
         {busy && !list.length ? (
@@ -251,48 +265,126 @@ function ProfileGate({
             )}
           </>
         ) : (
-          <form
-            className="profile-login"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              setBusy(true);
-              setError("");
-              void account.auth
-                .signInWithPassword({
-                  email: String(form.get("email") ?? "").trim(),
-                  password: String(form.get("password") ?? ""),
-                })
-                .then(({ error }) => {
-                  if (error) throw error;
-                  return refresh();
-                })
-                .catch((e) => setError(e.message))
-                .finally(() => setBusy(false));
-            }}
-          >
-            <label>
-              Email
-              <input
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              Sign in
-            </button>
-          </form>
+          <div className="profile-auth-card">
+            <div
+              className="profile-auth-tabs"
+              role="tablist"
+              aria-label="Account action"
+            >
+              <button
+                type="button"
+                className={authMode === "signin" ? "active" : ""}
+                onClick={() => {
+                  setAuthMode("signin");
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={authMode === "signup" ? "active" : ""}
+                onClick={() => {
+                  setAuthMode("signup");
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                Create account
+              </button>
+            </div>
+            <form
+              className="profile-login"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = new FormData(e.currentTarget);
+                const password = String(form.get("password") ?? "");
+                if (
+                  authMode === "signup" &&
+                  password !== String(form.get("confirmPassword") ?? "")
+                ) {
+                  setError("Passwords do not match.");
+                  return;
+                }
+                setBusy(true);
+                setError("");
+                setNotice("");
+                const request =
+                  authMode === "signup"
+                    ? account.auth.signUp({
+                        email: String(form.get("email") ?? "").trim(),
+                        password,
+                      })
+                    : account.auth.signInWithPassword({
+                        email: String(form.get("email") ?? "").trim(),
+                        password,
+                      });
+                void request
+                  .then(({ data, error }) => {
+                    if (error) throw error;
+                    if (authMode === "signup" && !data.session) {
+                      setNotice(
+                        "Account created. Check your email to confirm it, then sign in.",
+                      );
+                      setAuthMode("signin");
+                      return;
+                    }
+                    return refresh();
+                  })
+                  .catch((e) => setError(e.message))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              <label>
+                Email
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete={
+                    authMode === "signup" ? "new-password" : "current-password"
+                  }
+                  minLength={authMode === "signup" ? 8 : undefined}
+                  required
+                />
+              </label>
+              {authMode === "signup" && (
+                <label>
+                  Confirm password
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </label>
+              )}
+              <button className="primary" disabled={busy}>
+                {busy
+                  ? "Please wait…"
+                  : authMode === "signup"
+                    ? "Create free account"
+                    : "Sign in"}
+              </button>
+              {authMode === "signup" && (
+                <p className="profile-auth-note">
+                  Your account starts with Cinemeta for movies and shows and
+                  OpenSubtitles v3 for subtitles. Add a streaming add-on when
+                  you are ready to watch.
+                </p>
+              )}
+            </form>
+          </div>
         )}
       </section>
     </main>
@@ -901,7 +993,7 @@ export default function App() {
   const [profileReady, setProfileReady] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
-  const [addons, setAddons] = useStored<Addon[]>("addons", [defaultAddon]);
+  const [addons, setAddons] = useStored<Addon[]>("addons", defaultAddons);
   const [library, setLibrary] = useStored<Item[]>("library", []);
   const [accent, setAccent] = useStored("accent", "#9b5cff");
   const [collections, setCollections] = useStored<Collection[]>(
@@ -1157,18 +1249,11 @@ export default function App() {
             } else if (!c.signal.aborted) {
               setItems(
                 page === "live"
-                  ? playlist.filter(
-                      (i) => !category || i.category === category,
-                    )
+                  ? playlist.filter((i) => !category || i.category === category)
                   : [],
               );
             }
-            result = await providerItems(
-              provider,
-              type,
-              category,
-              c.signal,
-            );
+            result = await providerItems(provider, type, category, c.signal);
             if (!c.signal.aborted) void writeLiveCache(cacheKey, result);
           }
           if (page === "live")
@@ -1261,11 +1346,10 @@ export default function App() {
   );
   const guideState = useGuide(
     provider,
-    page === "live" ? filtered.slice(0, limit) : [],
+    page === "live" ? filtered : [],
     activeChannel,
     revision,
   );
-  const guide = activeChannel ? guideState.get(activeChannel) : [];
   const guideChannels = filtered.filter((channel) =>
     guideState.get(channel).some((p) => p.end > guideState.now),
   );
@@ -1273,14 +1357,6 @@ export default function App() {
     () => setGuideLimit(120),
     [region, category, favoritesOnly, deferredQuery],
   );
-  const guideError = activeChannel
-    ? guideState.failed(activeChannel.id)
-    : false;
-  const guideLoading =
-    !!activeChannel &&
-    activeChannel.source === "xtream" &&
-    !guideState.loaded(activeChannel) &&
-    !guideError;
   const allCategories = [
     ...categoryList,
     ...Array.from(new Set(playlist.map((i) => i.category ?? "Other"))).map(
@@ -1930,12 +2006,39 @@ export default function App() {
                           >
                             <button
                               className="tv-guide-channel"
-                              onClick={() => setActiveChannel(channel)}
+                              onClick={() => playChannel(channel)}
                             >
                               <span className="tv-guide-channel-art">
                                 <Art item={channel} />
                               </span>
                               <strong>{channel.name}</strong>
+                              <span
+                                className="tv-guide-favorite"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`${saved(channel) ? "Unfavorite" : "Favorite"} ${channel.name}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleSave(channel);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    toggleSave(channel);
+                                  }
+                                }}
+                              >
+                                <Heart
+                                  size={16}
+                                  fill={
+                                    saved(channel) ? "currentColor" : "none"
+                                  }
+                                />
+                              </span>
                             </button>
                             <div className="tv-guide-programmes">
                               {shows.length ? (
@@ -1959,7 +2062,7 @@ export default function App() {
                                           60_000,
                                       ),
                                     }}
-                                    onClick={() => setActiveChannel(channel)}
+                                    onClick={() => playChannel(channel)}
                                   >
                                     <strong>{programme.title}</strong>
                                     <small>
@@ -1988,148 +2091,6 @@ export default function App() {
                       {error}
                     </div>
                   )}
-                  <div className="live-list-heading">
-                    <div>
-                      <span className="eyebrow">ALL CHANNELS</span>
-                      <h2>Browse live TV</h2>
-                    </div>
-                    <span>{filtered.length.toLocaleString()} available</span>
-                  </div>
-                  <div
-                    className={`live-layout ${activeChannel ? "has-guide" : ""}`}
-                  >
-                    <div>
-                      {loading ? (
-                        <Loading />
-                      ) : filtered.length ? (
-                        <div className="channel-grid">
-                          {filtered.slice(0, limit).map((item) => (
-                            <div
-                              className={`channel ${activeChannel && itemKey(item) === itemKey(activeChannel) ? "selected" : ""}`}
-                              key={itemKey(item)}
-                            >
-                              <button
-                                className="channel-main"
-                                onClick={() => setActiveChannel(item)}
-                              >
-                                <div className="channel-logo">
-                                  <Art item={item} />
-                                </div>
-                                <span>
-                                  <strong>{item.name}</strong>
-                                  <small>
-                                    {categoryList.find(
-                                      (c) => c.id === item.category,
-                                    )?.name ??
-                                      item.category ??
-                                      "Live television"}
-                                  </small>
-                                  <small className="channel-programme">
-                                    {guideState
-                                      .get(item)
-                                      .find((p) => p.start <= guideState.now)
-                                      ?.title ??
-                                      (guideState.loaded(item) ||
-                                      guideState.failed(item.id)
-                                        ? "No programme information"
-                                        : "Loading guide...")}
-                                  </small>
-                                  {guideState
-                                    .get(item)
-                                    .find((p) => p.start > guideState.now) && (
-                                    <small className="channel-next">
-                                      Next:{" "}
-                                      {
-                                        guideState
-                                          .get(item)
-                                          .find((p) => p.start > guideState.now)
-                                          ?.title
-                                      }
-                                    </small>
-                                  )}
-                                </span>
-                                <Signal size={16} />
-                              </button>
-                              <button
-                                className="favorite-button"
-                                aria-label={`${saved(item) ? "Unfavorite" : "Favorite"} ${item.name}`}
-                                onClick={() => toggleSave(item)}
-                              >
-                                <Heart
-                                  size={17}
-                                  fill={saved(item) ? "currentColor" : "none"}
-                                />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Empty
-                          title="No channels found"
-                          text="Try another category or clear your search."
-                        />
-                      )}
-                      {filtered.length > limit && (
-                        <button
-                          className="load-more"
-                          onClick={() => setLimit((v) => v + 60)}
-                        >
-                          Show 60 more channels
-                        </button>
-                      )}
-                    </div>
-                    {activeChannel && (
-                      <aside className="guide">
-                        <button
-                          className="icon-button guide-close"
-                          onClick={() => setActiveChannel(null)}
-                          aria-label="Close channel guide"
-                        >
-                          <X size={18} />
-                        </button>
-                        <div className="guide-logo">
-                          <Art item={activeChannel} />
-                        </div>
-                        <span className="eyebrow">LIVE CHANNEL</span>
-                        <h2>{activeChannel.name}</h2>
-                        <button
-                          className="primary"
-                          onClick={() => playChannel(activeChannel)}
-                        >
-                          <Play size={18} fill="currentColor" />
-                          Watch channel
-                        </button>
-                        <h3>On the guide</h3>
-                        {guideLoading ? (
-                          <Loading />
-                        ) : guideError ? (
-                          <p className="muted">
-                            Guide unavailable. You can still try playing this
-                            channel.
-                          </p>
-                        ) : !guide.length ? (
-                          <p className="muted">
-                            No programme information supplied.
-                          </p>
-                        ) : (
-                          guide.map((p) => (
-                            <div className="programme" key={p.id}>
-                              <span>
-                                {new Date(p.start).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                                {p.start <= Date.now() &&
-                                  p.end > Date.now() && <b>ON NOW</b>}
-                              </span>
-                              <strong>{p.title}</strong>
-                              {p.description && <p>{p.description}</p>}
-                            </div>
-                          ))
-                        )}
-                      </aside>
-                    )}
-                  </div>
                 </>
               )}
             </div>

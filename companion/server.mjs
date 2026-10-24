@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns/promises";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Agent, fetch as upstreamFetch } from "undici";
@@ -16,6 +17,8 @@ import ipaddr from "ipaddr.js";
 const nuvioAnonKey =
   process.env.NUVIO_ANON_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxNTIxMzQ2LCJleHAiOjE5MzkyMDEzNDZ9.tmQaj682pwzehpqlgCDMnySOqiUvpgRbrE43T4VJpDI";
+const guideCacheDir = process.env.GUIDE_CACHE_DIR ?? join(tmpdir(), "tiktaktv-guides");
+const guideCacheAge = Number(process.env.GUIDE_CACHE_AGE_MS ?? 6 * 60 * 60_000);
 
 export function publicAddress(address) {
   try {
@@ -318,6 +321,19 @@ export function createService({ token, origins }) {
         const url = new URL(body.url);
         if (!/\/xmltv\.php$/.test(url.pathname))
           return send(400, { error: "Only an Xtream XMLTV guide is allowed" });
+        await mkdir(guideCacheDir, { recursive: true });
+        const cacheName = createHash("sha256").update(url.href).digest("hex") + ".xml";
+        const cachePath = join(guideCacheDir, cacheName);
+        const cached = await stat(cachePath).catch(() => null);
+        if (cached && Date.now() - cached.mtimeMs < guideCacheAge) {
+          res.writeHead(200, {
+            "Content-Type": "application/xml; charset=utf-8",
+            "Content-Length": cached.size,
+            "X-TikTak-Guide-Cache": "hit",
+          });
+          await pipeline(createReadStream(cachePath), res);
+          return;
+        }
         const result = await fetchSafe(url.href, {
           signal: AbortSignal.any([
             controller.signal,
@@ -325,11 +341,29 @@ export function createService({ token, origins }) {
           ]),
         });
         try {
+          const canCache = result.response.ok && result.response.body;
           res.writeHead(result.response.status, {
             "Content-Type":
               result.response.headers.get("content-type") ??
               "application/xml; charset=utf-8",
+            "X-TikTak-Guide-Cache": "miss",
           });
+          if (canCache) {
+            const tempPath = `${cachePath}.${randomBytes(6).toString("hex")}.tmp`;
+            const [clientBody, cacheBody] = result.response.body.tee();
+            let bytes = 0;
+            const client = Readable.fromWeb(clientBody);
+            client.on("data", (chunk) => {
+              bytes += chunk.byteLength;
+              if (bytes > 192_000_000) client.destroy(new Error("Guide too large"));
+            });
+            await Promise.all([
+              pipeline(client, res),
+              pipeline(Readable.fromWeb(cacheBody), createWriteStream(tempPath)),
+            ]);
+            await rename(tempPath, cachePath).catch(() => rm(tempPath, { force: true }));
+            return;
+          }
           let bytes = 0;
           for await (const chunk of result.response.body ?? []) {
             bytes += chunk.byteLength;
