@@ -30,6 +30,18 @@ export type Setup = {
   provider: Provider | null;
   torboxKey: string;
   autoplay: boolean;
+  homeCatalogs?: HomeCatalogSetting[];
+};
+export type HomeCatalogSetting = {
+  addon_id: string;
+  type: string;
+  catalog_id: string;
+  enabled: boolean;
+  order: number;
+  custom_title?: string;
+  is_collection?: boolean;
+  collection_id?: string;
+  key?: string;
 };
 const platform = "tiktak_web";
 const baselines = new Map<
@@ -85,7 +97,7 @@ export async function loadSetup(
 ): Promise<{ setup: Setup; warnings: string[] }> {
   const id = profile.profile_index;
   const addonId = profile.uses_primary_addons ? 1 : id;
-  const [blob, collections, addonRows, libraryRows, credentials, progressRows] =
+  const [blob, collections, addonRows, libraryRows, credentials, progressRows, homeRows] =
     await Promise.all([
       settings(id),
       rpc<{ collections_json: unknown }[]>("sync_pull_collections", {
@@ -109,6 +121,10 @@ export async function loadSetup(
         p_profile_id: id,
         p_limit: 1000,
       }),
+      rpc<{ settings_json: unknown }[]>("sync_pull_home_catalog_settings", {
+        p_profile_id: id,
+        p_platform: "home_catalog_shared",
+      }).catch(() => []),
     ]);
   if (addonRows.error)
     throw new Error("Nuvio could not load your installed add-ons.");
@@ -148,6 +164,13 @@ export async function loadSetup(
   const resolvedCollections = parseCollections(
     collections?.[0]?.collections_json ?? [],
   );
+  const homeRaw = homeRows?.[0]?.settings_json;
+  const homeBlob = typeof homeRaw === "string" ? JSON.parse(homeRaw) : homeRaw;
+  const homeCatalogs = Array.isArray((homeBlob as { items?: unknown[] } | null)?.items)
+    ? ((homeBlob as { items: HomeCatalogSetting[] }).items)
+        .filter((item) => item && typeof item === "object")
+        .sort((a, b) => Number(a.order) - Number(b.order))
+    : [];
   const remoteProgress: Progress[] = [];
   for (const row of [...progressRows]
     .sort((a, b) => Number(b.last_watched) - Number(a.last_watched))
@@ -224,6 +247,7 @@ export async function loadSetup(
       provider: web.provider ?? null,
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
       autoplay: web.autoplay ?? true,
+      homeCatalogs: homeCatalogs.length ? homeCatalogs : web.homeCatalogs,
     },
   };
 }

@@ -1,6 +1,6 @@
 import { getService } from "./connection";
 import { storeProvider } from "./storage";
-import type { Setup } from "./account";
+import type { HomeCatalogSetting, Setup } from "./account";
 import {
   lazy,
   Suspense,
@@ -671,7 +671,13 @@ export default function App() {
       window.dispatchEvent(new Event("connections-changed"));
     if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
     setAddons(s.addons);
-    setCollections(s.collections);
+    const collectionSettings = s.homeCatalogs?.filter((x) => x.is_collection) ?? [];
+    setCollections(
+      s.collections.map((collection) => {
+        const setting = collectionSettings.find((x) => x.collection_id === collection.id);
+        return setting ? { ...collection, showOnHome: setting.enabled } : collection;
+      }),
+    );
     setLibrary(s.library);
     setProgress(s.progress);
     save("progress", s.progress);
@@ -681,6 +687,7 @@ export default function App() {
     save("torbox-key", s.torboxKey);
     sessionStorage.removeItem("nuvio:torbox-key");
     setAutoplay(s.autoplay);
+    setHomeCatalogs(s.homeCatalogs ?? []);
   }
   const [playlist, setPlaylist] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
@@ -694,6 +701,7 @@ export default function App() {
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
     [],
   );
+  const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>("home-catalogs", []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -773,7 +781,7 @@ export default function App() {
     const c = new AbortController();
     setLoading(true);
     setError("");
-    const entries = addons
+    const available = addons
       .flatMap((a) =>
         (a.manifest.catalogs ?? [])
           .filter(
@@ -781,15 +789,29 @@ export default function App() {
               ["movie", "series"].includes(cat.type) &&
               !cat.extra?.some((e) => e.isRequired),
           )
-          .slice(0, 2)
           .map((cat) => ({ a, cat })),
-      )
-      .slice(0, 4);
+      );
+    const entries = homeCatalogs.length
+      ? homeCatalogs
+          .filter((setting) => setting.enabled && !setting.is_collection)
+          .sort((a, b) => Number(a.order) - Number(b.order))
+          .flatMap((setting) => {
+            const match = available.find(
+              ({ a, cat }) =>
+                a.manifest.id === setting.addon_id &&
+                cat.type === setting.type &&
+                cat.id === setting.catalog_id,
+            );
+            return match ? [{ ...match, customTitle: setting.custom_title }] : [];
+          })
+      : available.slice(0, 14).map((entry) => ({ ...entry, customTitle: undefined }));
     void Promise.allSettled(
-      entries.map(async ({ a, cat }) => ({
+      entries.map(async ({ a, cat, customTitle }) => ({
         title:
-          cat.name ??
+          customTitle ||
+          ((cat.name || a.manifest.name) as string) /*
           `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
+          */,
         items: await catalog(a, cat.type, cat.id, "", c.signal),
       })),
     ).then((results) => {
@@ -802,7 +824,7 @@ export default function App() {
       setLoading(false);
     });
     return () => c.abort();
-  }, [page, addons, revision]);
+  }, [page, addons, homeCatalogs, revision]);
   useEffect(() => {
     if (
       !(page === "live" || (page === "discover" && source === "xtream")) ||
@@ -1107,6 +1129,7 @@ export default function App() {
                   provider,
                   torboxKey,
                   autoplay,
+                  homeCatalogs,
                 }}
                 onLoad={loadAccountSetup}
                 onLoading={setAccountLoading}
