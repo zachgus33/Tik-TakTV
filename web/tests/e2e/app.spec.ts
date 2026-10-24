@@ -46,6 +46,7 @@ async function mockSources(page: Page) {
 }
 async function connect(page: Page) {
   await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
   await page.getByLabel("Username", { exact: true }).fill("test-user");
   await page.getByLabel("Password", { exact: true }).fill("test-password");
   await page.getByRole("button", { name: "Test & connect" }).click();
@@ -165,6 +166,7 @@ test("Xtream session login, channels, guide, favorites and disconnect", async ({
     page.locator(".media-card strong").filter({ hasText: "Test News" }),
   ).toBeVisible();
   await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
   await page.getByRole("button", { name: "Disconnect", exact: true }).click();
   expect(
     await page.evaluate(() => sessionStorage.getItem("nuvio:provider")),
@@ -179,6 +181,7 @@ test("bad credentials show a useful error and are never saved", async ({
     (route) => route.fulfill({ json: { user_info: { auth: 0 } } }),
   );
   await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
   await page.getByLabel("Username", { exact: true }).fill("wrong");
   await page.getByLabel("Password", { exact: true }).fill("wrong");
   await page.getByRole("button", { name: "Test & connect" }).click();
@@ -255,6 +258,7 @@ test("imports native collections and opens their addon catalogs", async ({
   page,
 }) => {
   await page.goto("/#settings");
+  await page.getByRole("button", { name: /General/ }).click();
   await page.getByLabel("Import collections file").setInputFiles({
     name: "collections.json",
     mimeType: "application/json",
@@ -303,6 +307,7 @@ test("imports native collections and opens their addon catalogs", async ({
     page.getByRole("button", { name: "Open Cinema nights: Movies" }),
   ).toBeVisible();
   await page.goto("/#settings");
+  await page.getByRole("button", { name: /Collections/ }).click();
   await page.getByRole("checkbox", { name: "Cinema nights" }).uncheck();
   await page.goto("/#home");
   await expect(
@@ -473,8 +478,10 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
   );
   const stamp = (time: number) =>
     new Date(time).toISOString().replace(/[-:T]/g, "").slice(0, 14) + " +0000";
-  const programmes = Array.from({ length: 61 }, (_, index) =>
-    `<programme channel="channel.${index + 1}" start="${stamp(Date.now() - 60000)}" stop="${stamp(Date.now() + 3600000)}"><title>Programme ${index + 1}</title></programme>`,
+  const programmes = Array.from(
+    { length: 61 },
+    (_, index) =>
+      `<programme channel="channel.${index + 1}" start="${stamp(Date.now() - 60000)}" stop="${stamp(Date.now() + 3600000)}"><title>Programme ${index + 1}</title></programme>`,
   ).join("");
   await page.route("https://playback.example/guide", async (route) => {
     expect(route.request().postDataJSON().url).toContain("/xmltv.php?");
@@ -485,55 +492,69 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
   });
   let shortGuideRequests = 0;
   await page.unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
-  await page.route("https://vpn.trx-pro-iptvstore.cc/player_api.php**", (route) => {
-    const action = new URL(route.request().url()).searchParams.get("action");
-    if (action === "get_short_epg") shortGuideRequests++;
-    return route.fulfill({
-      json: !action
-        ? { user_info: { auth: 1, status: "Active" } }
-        : action === "get_short_epg"
-          ? { epg_listings: [] }
-          : action.endsWith("_categories")
-            ? [{ category_id: "1", category_name: "News" }]
-            : Array.from({ length: 61 }, (_, index) => ({
-                stream_id: index + 1,
-                name: `Channel ${index + 1}`,
-                category_id: "1",
-                epg_channel_id: `channel.${index + 1}`,
-              })),
-    });
-  });
+  await page.route(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+    (route) => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      if (action === "get_short_epg") shortGuideRequests++;
+      return route.fulfill({
+        json: !action
+          ? { user_info: { auth: 1, status: "Active" } }
+          : action === "get_short_epg"
+            ? { epg_listings: [] }
+            : action.endsWith("_categories")
+              ? [{ category_id: "1", category_name: "News" }]
+              : Array.from({ length: 61 }, (_, index) => ({
+                  stream_id: index + 1,
+                  name: `Channel ${index + 1}`,
+                  category_id: "1",
+                  epg_channel_id: `channel.${index + 1}`,
+                })),
+      });
+    },
+  );
   await connect(page);
   await page.goto("/#live");
   await expect(page.getByText("Guide ready - 61 channel guides")).toBeVisible();
   await expect(page.getByText("61 channels with schedules")).toBeVisible();
   await expect(page.locator(".tv-guide-row")).toHaveCount(61);
-  await expect(page.locator(".tv-guide-row").last()).toContainText("Programme 61");
+  await expect(page.locator(".tv-guide-row").last()).toContainText(
+    "Programme 61",
+  );
   expect(shortGuideRequests).toBe(0);
   await page.getByRole("button", { name: "Show 60 more channels" }).click();
   await expect(page.locator(".channel").last()).toContainText("Programme 61");
 });
 
-test("country filter combines with Xtream channel categories", async ({ page }) => {
+test("country filter combines with Xtream channel categories", async ({
+  page,
+}) => {
   await page.unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
-  await page.route("https://vpn.trx-pro-iptvstore.cc/player_api.php**", (route) => {
-    const action = new URL(route.request().url()).searchParams.get("action");
-    return route.fulfill({
-      json: !action
-        ? { user_info: { auth: 1, status: "Active" } }
-        : action === "get_short_epg"
-          ? { epg_listings: [] }
-          : action.endsWith("_categories")
-            ? [
-                { category_id: "us", category_name: "US| NEWS NETWORK" },
-                { category_id: "uk", category_name: "UK| ENTERTAINMENT" },
-              ]
-            : [
-                { stream_id: 1, name: "American News", category_id: "us" },
-                { stream_id: 2, name: "British Entertainment", category_id: "uk" },
-              ],
-    });
-  });
+  await page.route(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+    (route) => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      return route.fulfill({
+        json: !action
+          ? { user_info: { auth: 1, status: "Active" } }
+          : action === "get_short_epg"
+            ? { epg_listings: [] }
+            : action.endsWith("_categories")
+              ? [
+                  { category_id: "us", category_name: "US| NEWS NETWORK" },
+                  { category_id: "uk", category_name: "UK| ENTERTAINMENT" },
+                ]
+              : [
+                  { stream_id: 1, name: "American News", category_id: "us" },
+                  {
+                    stream_id: 2,
+                    name: "British Entertainment",
+                    category_id: "uk",
+                  },
+                ],
+      });
+    },
+  );
   await connect(page);
   await page.goto("/#live");
   await page.getByLabel("Country or region").selectOption("US");
@@ -609,18 +630,20 @@ test.describe("authenticated integrations", () => {
       else if (url.pathname.endsWith("/sync_pull_collections"))
         data = [{ collections_json: [collection] }];
       else if (url.pathname.endsWith("/sync_pull_profile_settings_blob"))
-        data = [{
-          settings_json: {
-            unrelatedSetting: "preserve",
-            tikTakWebV1: {
-              playbackService: {
-                url: "https://playback.example",
-                token: "fake-private-key-for-browser-sync",
-                mode: "direct",
+        data = [
+          {
+            settings_json: {
+              unrelatedSetting: "preserve",
+              tikTakWebV1: {
+                playbackService: {
+                  url: "https://playback.example",
+                  token: "fake-private-key-for-browser-sync",
+                  mode: "direct",
+                },
               },
             },
           },
-        }];
+        ];
       else if (url.pathname.includes("/sync_push_")) {
         pushes.push({
           path: url.pathname,
@@ -653,12 +676,17 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByText("Nuvio profile loaded.", { exact: false }),
     ).toBeVisible();
-    await expect.poll(() =>
-      page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
-    ).toContain("playback.example");
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
+      )
+      .toContain("playback.example");
+    await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
+    await page.getByRole("button", { name: /Account/ }).click();
+    await page.getByText("Show selector", { exact: true }).click();
     await page.goto("/#home");
     await page
       .getByRole("button", { name: "Open Streaming Services: Prime Video" })
@@ -667,25 +695,28 @@ test.describe("authenticated integrations", () => {
       page.locator(".collections-section .media-card strong"),
     ).toHaveText("The Test Movie");
     await page.reload();
-    await page
-      .getByRole("button", { name: /Home$/ })
-      .click();
     await expect(
       page.getByRole("button", {
         name: "Open Streaming Services: Prime Video",
       }),
     ).toBeVisible();
     await page.goto("/#settings");
+    await page.getByRole("button", { name: /Playback/ }).click();
     await page
       .getByLabel("Automatically play the best 720p-or-higher stream")
       .uncheck();
-    await expect(
-      page.getByText("Saved to your Nuvio account.", { exact: true }),
-    ).toBeVisible();
+    await expect
+      .poll(() =>
+        pushes.some((entry) =>
+          entry.path.endsWith("sync_push_profile_settings_blob") &&
+          entry.body.p_settings_json.tikTakWebV1?.autoplay === false,
+        ),
+      )
+      .toBe(true);
     expect(pushes.some((p) => p.path.endsWith("sync_push_addons"))).toBe(false);
-    const saved = [...pushes].reverse().find((p) =>
-      p.path.endsWith("sync_push_profile_settings_blob"),
-    )!;
+    const saved = [...pushes]
+      .reverse()
+      .find((p) => p.path.endsWith("sync_push_profile_settings_blob"))!;
     expect(saved.body.p_settings_json.unrelatedSetting).toBe("preserve");
     expect(saved.body.p_settings_json.tikTakWebV1.autoplay).toBe(false);
   });
@@ -714,6 +745,7 @@ test.describe("authenticated integrations", () => {
       return r.fulfill({ json: { success: true, data: { id: 1 } } });
     });
     await page.goto("/#settings");
+    await page.getByRole("button", { name: /Playback/ }).click();
     await page
       .getByLabel("TorBox API key", { exact: true })
       .fill("fake-torbox-key");

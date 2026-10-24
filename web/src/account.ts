@@ -2,7 +2,7 @@ import { getService, type PlaybackService } from "./connection";
 import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
-import { installMany } from "./addon-import";
+import { installMany, mergeAddons } from "./addon-import";
 import { defaultAddon, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 
@@ -97,35 +97,42 @@ export async function loadSetup(
 ): Promise<{ setup: Setup; warnings: string[] }> {
   const id = profile.profile_index;
   const addonId = profile.uses_primary_addons ? 1 : id;
-  const [blob, collections, addonRows, libraryRows, credentials, progressRows, homeRows] =
-    await Promise.all([
-      settings(id),
-      rpc<{ collections_json: unknown }[]>("sync_pull_collections", {
-        p_profile_id: id,
-      }),
-      account
-        .from("addons")
-        .select("url,name,enabled,sort_order")
-        .eq("profile_id", addonId)
-        .order("sort_order"),
-      rpc<Record<string, unknown>[]>("sync_pull_library", {
-        p_profile_id: id,
-        p_limit: 1000,
-        p_offset: 0,
-      }),
-      rpc<{ provider: string; credential_json: Record<string, unknown> }[]>(
-        "sync_pull_provider_credentials",
-        { p_profile_id: id },
-      ).catch(() => []),
-      rpc<Record<string, unknown>[]>("sync_pull_watch_progress", {
-        p_profile_id: id,
-        p_limit: 1000,
-      }),
-      rpc<{ settings_json: unknown }[]>("sync_pull_home_catalog_settings", {
-        p_profile_id: id,
-        p_platform: "home_catalog_shared",
-      }).catch(() => []),
-    ]);
+  const [
+    blob,
+    collections,
+    addonRows,
+    libraryRows,
+    credentials,
+    progressRows,
+    homeRows,
+  ] = await Promise.all([
+    settings(id),
+    rpc<{ collections_json: unknown }[]>("sync_pull_collections", {
+      p_profile_id: id,
+    }),
+    account
+      .from("addons")
+      .select("url,name,enabled,sort_order")
+      .eq("profile_id", addonId)
+      .order("sort_order"),
+    rpc<Record<string, unknown>[]>("sync_pull_library", {
+      p_profile_id: id,
+      p_limit: 1000,
+      p_offset: 0,
+    }),
+    rpc<{ provider: string; credential_json: Record<string, unknown> }[]>(
+      "sync_pull_provider_credentials",
+      { p_profile_id: id },
+    ).catch(() => []),
+    rpc<Record<string, unknown>[]>("sync_pull_watch_progress", {
+      p_profile_id: id,
+      p_limit: 1000,
+    }),
+    rpc<{ settings_json: unknown }[]>("sync_pull_home_catalog_settings", {
+      p_profile_id: id,
+      p_platform: "home_catalog_shared",
+    }).catch(() => []),
+  ]);
   if (addonRows.error)
     throw new Error("Nuvio could not load your installed add-ons.");
   const web = (blob[field] ?? {}) as Partial<Setup>;
@@ -138,11 +145,15 @@ export async function loadSetup(
     .filter((a) => a.enabled !== false)
     .map((a) => String(a.url));
   const installed = await installMany(urls);
-  // Never save a partial manifest fetch as the account's complete add-on list.
-  if (installed.failed)
-    throw new Error(
-      `${installed.failed} synced add-ons could not load. Your account has not been changed. Connect the playback service if those add-ons block browser access, then retry sync.`,
-    );
+  const restoredAddons = mergeAddons(
+    installed.addons,
+    Array.isArray(web.addons) ? web.addons : [],
+  );
+  const warnings = installed.failed
+    ? [
+        `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
+      ]
+    : [];
   const library = libraryRows.map((r): Item => ({
     id: String(r.content_id),
     name: String(r.name ?? "Untitled"),
@@ -166,8 +177,10 @@ export async function loadSetup(
   );
   const homeRaw = homeRows?.[0]?.settings_json;
   const homeBlob = typeof homeRaw === "string" ? JSON.parse(homeRaw) : homeRaw;
-  const homeCatalogs = Array.isArray((homeBlob as { items?: unknown[] } | null)?.items)
-    ? ((homeBlob as { items: HomeCatalogSetting[] }).items)
+  const homeCatalogs = Array.isArray(
+    (homeBlob as { items?: unknown[] } | null)?.items,
+  )
+    ? (homeBlob as { items: HomeCatalogSetting[] }).items
         .filter((item) => item && typeof item === "object")
         .sort((a, b) => Number(a.order) - Number(b.order))
     : [];
@@ -223,7 +236,7 @@ export async function loadSetup(
     .slice(0, 100);
   baselines.set(id, {
     addons: JSON.stringify(
-      installed.addons.length ? installed.addons : [defaultAddon],
+      restoredAddons.length ? restoredAddons : [defaultAddon],
     ),
     collections: JSON.stringify(resolvedCollections),
     library,
@@ -232,11 +245,11 @@ export async function loadSetup(
     progressRows,
   });
   return {
-    warnings: [],
+    warnings,
     setup: {
       playbackService: getService(),
       tmdbKey: typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? ""),
-      addons: installed.addons.length ? installed.addons : [defaultAddon],
+      addons: restoredAddons.length ? restoredAddons : [defaultAddon],
       collections: resolvedCollections,
       library: library.length
         ? library

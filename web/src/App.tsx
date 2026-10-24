@@ -120,7 +120,15 @@ function liveRegion(name: string) {
   return liveRegions.find(([, , , pattern]) => pattern.test(name))?.[0] ?? "";
 }
 
-function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; onGuest: () => void }) {
+function ProfileGate({
+  onEnter,
+  onGuest,
+  skipSelection,
+}: {
+  onEnter: (setup: Setup) => void;
+  onGuest: () => void;
+  skipSelection: boolean;
+}) {
   const [list, setList] = useState<Profile[]>([]);
   const [email, setEmail] = useState("");
   const [pinProfile, setPinProfile] = useState<Profile | null>(null);
@@ -133,10 +141,22 @@ function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; on
       return;
     }
     setEmail(data.session?.user.email ?? "");
-    setList(data.session ? await profiles() : []);
+    const available = data.session ? await profiles() : [];
+    setList(available);
+    if (data.session && skipSelection) {
+      const remembered = Number(
+        localStorage.getItem(`tiktak:profile:${data.session.user.id}`),
+      );
+      const preferred =
+        available.find((item) => item.profile_index === remembered) ??
+        available.find((item) => !item.pin_enabled);
+      if (preferred && !preferred.pin_enabled) await enter(preferred);
+    }
   }
   useEffect(() => {
-    void refresh().catch((e) => setError(e.message)).finally(() => setBusy(false));
+    void refresh()
+      .catch((e) => setError(e.message))
+      .finally(() => setBusy(false));
   }, []);
   async function enter(profile: Profile, pin = "") {
     setBusy(true);
@@ -146,7 +166,10 @@ function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; on
       const result = await loadSetup(profile);
       const { data } = await account.auth.getSession();
       if (data.session)
-        localStorage.setItem(`tiktak:profile:${data.session.user.id}`, String(profile.profile_index));
+        localStorage.setItem(
+          `tiktak:profile:${data.session.user.id}`,
+          String(profile.profile_index),
+        );
       sessionStorage.setItem("tiktak:profile-active", "1");
       onEnter(result.setup);
     } catch (e) {
@@ -157,20 +180,38 @@ function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; on
   }
   return (
     <main className="profile-gate">
-      <div className="profile-gate-brand">nuvio.<small>ENHANCED</small></div>
+      <div className="profile-gate-brand">
+        nuvio.<small>ENHANCED</small>
+      </div>
       <section>
         <h1>{email ? "Who's watching?" : "Welcome to Nuvio"}</h1>
-        {error && <div className="error" role="alert">{error}</div>}
-        {busy && !list.length ? <Loading /> : email ? (
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        {busy && !list.length ? (
+          <Loading />
+        ) : email ? (
           <>
             <div className="profile-choices">
               {list.map((profile, index) => (
                 <button
                   key={profile.profile_index}
-                  onClick={() => profile.pin_enabled ? setPinProfile(profile) : void enter(profile)}
+                  onClick={() =>
+                    profile.pin_enabled
+                      ? setPinProfile(profile)
+                      : void enter(profile)
+                  }
                   disabled={busy}
                 >
-                  <span style={{ "--profile-hue": `${(index * 83 + 275) % 360}` } as React.CSSProperties}>
+                  <span
+                    style={
+                      {
+                        "--profile-hue": `${(index * 83 + 275) % 360}`,
+                      } as React.CSSProperties
+                    }
+                  >
                     {profile.name.trim().slice(0, 1).toUpperCase()}
                   </span>
                   <strong>{profile.name}</strong>
@@ -179,31 +220,77 @@ function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; on
               ))}
             </div>
             {pinProfile && (
-              <form className="profile-pin" onSubmit={(e) => {
-                e.preventDefault();
-                const pin = String(new FormData(e.currentTarget).get("pin") ?? "");
-                void enter(pinProfile, pin);
-              }}>
-                <label>Enter PIN for {pinProfile.name}<input autoFocus name="pin" type="password" inputMode="numeric" required /></label>
-                <button className="primary" disabled={busy}>Open profile</button>
-                <button type="button" onClick={() => setPinProfile(null)}>Cancel</button>
+              <form
+                className="profile-pin"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const pin = String(
+                    new FormData(e.currentTarget).get("pin") ?? "",
+                  );
+                  void enter(pinProfile, pin);
+                }}
+              >
+                <label>
+                  Enter PIN for {pinProfile.name}
+                  <input
+                    autoFocus
+                    name="pin"
+                    type="password"
+                    inputMode="numeric"
+                    required
+                  />
+                </label>
+                <button className="primary" disabled={busy}>
+                  Open profile
+                </button>
+                <button type="button" onClick={() => setPinProfile(null)}>
+                  Cancel
+                </button>
               </form>
             )}
           </>
         ) : (
-          <form className="profile-login" onSubmit={(e) => {
-            e.preventDefault();
-            const form = new FormData(e.currentTarget);
-            setBusy(true);
-            setError("");
-            void account.auth.signInWithPassword({ email: String(form.get("email") ?? "").trim(), password: String(form.get("password") ?? "") })
-              .then(({ error }) => { if (error) throw error; return refresh(); })
-              .catch((e) => setError(e.message))
-              .finally(() => setBusy(false));
-          }}>
-            <label>Email<input name="email" type="email" autoComplete="username" required /></label>
-            <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
-            <button className="primary" disabled={busy}>Sign in</button>
+          <form
+            className="profile-login"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = new FormData(e.currentTarget);
+              setBusy(true);
+              setError("");
+              void account.auth
+                .signInWithPassword({
+                  email: String(form.get("email") ?? "").trim(),
+                  password: String(form.get("password") ?? ""),
+                })
+                .then(({ error }) => {
+                  if (error) throw error;
+                  return refresh();
+                })
+                .catch((e) => setError(e.message))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <label>
+              Email
+              <input
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <button className="primary" disabled={busy}>
+              Sign in
+            </button>
           </form>
         )}
       </section>
@@ -406,7 +493,9 @@ function Detail({
         if (result.item.type !== "live")
           void import("./tmdb")
             .then(({ titleCredits }) => titleCredits(result.item, c.signal))
-            .then((rows) => { if (!c.signal.aborted) setCredits(rows); })
+            .then((rows) => {
+              if (!c.signal.aborted) setCredits(rows);
+            })
             .catch(() => undefined);
       })
       .catch((e) => {
@@ -462,7 +551,12 @@ function Detail({
       signal,
     );
     if (!signal?.aborted) {
-      const subtitles = await addonSubtitles(addons, item, ep?.id ?? item.id, signal);
+      const subtitles = await addonSubtitles(
+        addons,
+        item,
+        ep?.id ?? item.id,
+        signal,
+      );
       onPlay({ item, episode: ep, url, resume: position, subtitles });
     }
   }
@@ -623,10 +717,19 @@ function Detail({
             <div className="cast-row">
               {(credits.length
                 ? credits
-                : (item.cast ?? []).map((name, index) => ({ id: index, name, role: "Cast", photo: undefined })))
-              .map((person) => (
+                : (item.cast ?? []).map((name, index) => ({
+                    id: index,
+                    name,
+                    role: "Cast",
+                    photo: undefined,
+                  }))
+              ).map((person) => (
                 <div className="cast-person" key={person.id}>
-                  {person.photo ? <img src={person.photo} alt="" /> : <span>{person.name.slice(0, 1)}</span>}
+                  {person.photo ? (
+                    <img src={person.photo} alt="" />
+                  ) : (
+                    <span>{person.name.slice(0, 1)}</span>
+                  )}
                   <strong>{person.name}</strong>
                   <small>{person.role}</small>
                 </div>
@@ -791,6 +894,10 @@ export default function App() {
     [],
   );
   const [autoplay, setAutoplay] = useStored("autoplay", true);
+  const [skipProfileSelection, setSkipProfileSelection] = useStored(
+    "skip-profile-selection",
+    false,
+  );
   const [torboxKey, setTorboxKey] = useState<string>(() =>
     read("torbox-key", read("torbox-key", ""), sessionStorage),
   );
@@ -807,11 +914,16 @@ export default function App() {
       window.dispatchEvent(new Event("connections-changed"));
     if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
     setAddons(s.addons);
-    const collectionSettings = s.homeCatalogs?.filter((x) => x.is_collection) ?? [];
+    const collectionSettings =
+      s.homeCatalogs?.filter((x) => x.is_collection) ?? [];
     setCollections(
       s.collections.map((collection) => {
-        const setting = collectionSettings.find((x) => x.collection_id === collection.id);
-        return setting ? { ...collection, showOnHome: setting.enabled } : collection;
+        const setting = collectionSettings.find(
+          (x) => x.collection_id === collection.id,
+        );
+        return setting
+          ? { ...collection, showOnHome: setting.enabled }
+          : collection;
       }),
     );
     setLibrary(s.library);
@@ -838,7 +950,10 @@ export default function App() {
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
     [],
   );
-  const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>("home-catalogs", []);
+  const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>(
+    "home-catalogs",
+    [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -920,16 +1035,15 @@ export default function App() {
     const c = new AbortController();
     setLoading(true);
     setError("");
-    const available = addons
-      .flatMap((a) =>
-        (a.manifest.catalogs ?? [])
-          .filter(
-            (cat) =>
-              ["movie", "series"].includes(cat.type) &&
-              !cat.extra?.some((e) => e.isRequired),
-          )
-          .map((cat) => ({ a, cat })),
-      );
+    const available = addons.flatMap((a) =>
+      (a.manifest.catalogs ?? [])
+        .filter(
+          (cat) =>
+            ["movie", "series"].includes(cat.type) &&
+            !cat.extra?.some((e) => e.isRequired),
+        )
+        .map((cat) => ({ a, cat })),
+    );
     const entries = homeCatalogs.length
       ? homeCatalogs
           .filter((setting) => setting.enabled && !setting.is_collection)
@@ -941,14 +1055,16 @@ export default function App() {
                 cat.type === setting.type &&
                 cat.id === setting.catalog_id,
             );
-            return match ? [{ ...match, customTitle: setting.custom_title }] : [];
+            return match
+              ? [{ ...match, customTitle: setting.custom_title }]
+              : [];
           })
-      : available.slice(0, 14).map((entry) => ({ ...entry, customTitle: undefined }));
+      : available
+          .slice(0, 14)
+          .map((entry) => ({ ...entry, customTitle: undefined }));
     void Promise.allSettled(
       entries.map(async ({ a, cat, customTitle }) => ({
-        title:
-          customTitle ||
-          ((cat.name || a.manifest.name) as string) /*
+        title: customTitle || ((cat.name || a.manifest.name) as string) /*
           `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
           */,
         items: await catalog(a, cat.type, cat.id, "", c.signal),
@@ -1095,7 +1211,10 @@ export default function App() {
   const guideChannels = filtered.filter((channel) =>
     guideState.get(channel).some((p) => p.end > guideState.now),
   );
-  useEffect(() => setGuideLimit(120), [region, category, favoritesOnly, deferredQuery]);
+  useEffect(
+    () => setGuideLimit(120),
+    [region, category, favoritesOnly, deferredQuery],
+  );
   const guideError = activeChannel
     ? guideState.failed(activeChannel.id)
     : false;
@@ -1161,6 +1280,7 @@ export default function App() {
   if (!profileReady)
     return (
       <ProfileGate
+        skipSelection={skipProfileSelection}
         onGuest={() => setProfileReady(true)}
         onEnter={(setup) => {
           loadAccountSetup(setup);
@@ -1281,26 +1401,6 @@ export default function App() {
               Loading your Nuvio profile...
             </div>
           )}
-          <div className="page-content" hidden={page !== "settings"}>
-            <Suspense fallback={null}>
-              <AccountPanel
-                setup={{
-                  playbackService: getService(),
-                  tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
-                  addons,
-                  collections,
-                  library,
-                  progress,
-                  provider,
-                  torboxKey,
-                  autoplay,
-                  homeCatalogs,
-                }}
-                onLoad={loadAccountSetup}
-                onLoading={setAccountLoading}
-              />
-            </Suspense>
-          </div>
           {page === "home" && (
             <>
               {hero ? (
@@ -1725,7 +1825,10 @@ export default function App() {
                       onScroll={(event) => {
                         const element = event.currentTarget;
                         if (
-                          element.scrollHeight - element.scrollTop - element.clientHeight < 300
+                          element.scrollHeight -
+                            element.scrollTop -
+                            element.clientHeight <
+                          300
                         )
                           setGuideLimit((value) =>
                             Math.min(value + 120, guideChannels.length),
@@ -1733,37 +1836,89 @@ export default function App() {
                       }}
                     >
                       <div className="tv-guide-heading">
-                        <div><span className="eyebrow">ON NOW</span><h2>Live guide</h2></div>
-                        <span>{guideChannels.length} channels with schedules</span>
+                        <div>
+                          <span className="eyebrow">ON NOW</span>
+                          <h2>Live guide</h2>
+                        </div>
+                        <span>
+                          {guideChannels.length} channels with schedules
+                        </span>
                       </div>
                       <div className="tv-guide-times">
                         <span>Channels</span>
                         {[0, 30, 60, 90].map((minutes) => (
                           <time key={minutes}>
-                            {new Date(guideState.now + minutes * 60_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            {new Date(
+                              guideState.now + minutes * 60_000,
+                            ).toLocaleTimeString([], {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
                           </time>
                         ))}
                       </div>
                       {guideChannels.slice(0, guideLimit).map((channel) => {
-                        const shows = guideState.get(channel).filter((p) => p.end > guideState.now && p.start < guideState.now + 2 * 60 * 60_000);
+                        const shows = guideState
+                          .get(channel)
+                          .filter(
+                            (p) =>
+                              p.end > guideState.now &&
+                              p.start < guideState.now + 2 * 60 * 60_000,
+                          );
                         return (
-                          <div className="tv-guide-row" key={`guide-${itemKey(channel)}`}>
-                            <button className="tv-guide-channel" onClick={() => setActiveChannel(channel)}>
-                              <span className="tv-guide-channel-art"><Art item={channel} /></span>
+                          <div
+                            className="tv-guide-row"
+                            key={`guide-${itemKey(channel)}`}
+                          >
+                            <button
+                              className="tv-guide-channel"
+                              onClick={() => setActiveChannel(channel)}
+                            >
+                              <span className="tv-guide-channel-art">
+                                <Art item={channel} />
+                              </span>
                               <strong>{channel.name}</strong>
                             </button>
                             <div className="tv-guide-programmes">
-                              {shows.length ? shows.map((programme) => (
-                                <button
-                                  key={programme.id}
-                                  className={programme.start <= guideState.now && programme.end > guideState.now ? "on-now" : ""}
-                                  style={{ flexGrow: Math.max(15, (programme.end - Math.max(programme.start, guideState.now)) / 60_000) }}
-                                  onClick={() => setActiveChannel(channel)}
-                                >
-                                  <strong>{programme.title}</strong>
-                                  <small>{new Date(programme.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small>
-                                </button>
-                              )) : <span className="tv-guide-empty">No programme information</span>}
+                              {shows.length ? (
+                                shows.map((programme) => (
+                                  <button
+                                    key={programme.id}
+                                    className={
+                                      programme.start <= guideState.now &&
+                                      programme.end > guideState.now
+                                        ? "on-now"
+                                        : ""
+                                    }
+                                    style={{
+                                      flexGrow: Math.max(
+                                        15,
+                                        (programme.end -
+                                          Math.max(
+                                            programme.start,
+                                            guideState.now,
+                                          )) /
+                                          60_000,
+                                      ),
+                                    }}
+                                    onClick={() => setActiveChannel(channel)}
+                                  >
+                                    <strong>{programme.title}</strong>
+                                    <small>
+                                      {new Date(
+                                        programme.start,
+                                      ).toLocaleTimeString([], {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      })}
+                                    </small>
+                                  </button>
+                                ))
+                              ) : (
+                                <span className="tv-guide-empty">
+                                  No programme information
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -1776,7 +1931,10 @@ export default function App() {
                     </div>
                   )}
                   <div className="live-list-heading">
-                    <div><span className="eyebrow">ALL CHANNELS</span><h2>Browse live TV</h2></div>
+                    <div>
+                      <span className="eyebrow">ALL CHANNELS</span>
+                      <h2>Browse live TV</h2>
+                    </div>
                     <span>{filtered.length.toLocaleString()} available</span>
                   </div>
                   <div
@@ -1954,6 +2112,28 @@ export default function App() {
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
                   playbackConnected={!!getService()}
+                  skipProfileSelection={skipProfileSelection}
+                  onSkipProfileSelection={setSkipProfileSelection}
+                  accountPanel={
+                    <Suspense fallback={<Loading />}>
+                      <AccountPanel
+                        setup={{
+                          playbackService: getService(),
+                          tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
+                          addons,
+                          collections,
+                          library,
+                          progress,
+                          provider,
+                          torboxKey,
+                          autoplay,
+                          homeCatalogs,
+                        }}
+                        onLoad={loadAccountSetup}
+                        onLoading={setAccountLoading}
+                      />
+                    </Suspense>
+                  }
                 />
               </Suspense>
             </div>

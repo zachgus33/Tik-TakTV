@@ -29,13 +29,8 @@ export default function AccountPanel({
   const autoOpening = useRef(false);
   const loadRef = useRef(onLoad);
   loadRef.current = onLoad;
-  async function openDefaultProfile(
-    available: Profile[],
-    userId: string,
-  ) {
-    const remembered = Number(
-      localStorage.getItem("tiktak:profile:" + userId),
-    );
+  async function openDefaultProfile(available: Profile[], userId: string) {
+    const remembered = Number(localStorage.getItem("tiktak:profile:" + userId));
     const profile =
       available.find((item) => item.profile_index === remembered) ??
       available.find((item) => !item.pin_enabled);
@@ -97,7 +92,9 @@ export default function AccountPanel({
       // Seed a locally connected private relay into the account settings so a
       // fresh browser can restore it immediately after profile selection.
       setStatus(
-        "Nuvio profile loaded. Add-ons, collections and saved setup are available.",
+        result.warnings.length
+          ? `Nuvio profile loaded. ${result.warnings.join(" ")}`
+          : "Nuvio profile loaded. Add-ons, collections and saved setup are available.",
       );
       setAuto(true);
       if (result.setup.playbackService)
@@ -117,15 +114,22 @@ export default function AccountPanel({
       !list.length ||
       selected ||
       autoOpening.current
-    ) return;
+    )
+      return;
     autoOpening.current = true;
-    void account.auth.getSession().then(({ data }) => {
-      if (data.session)
-        return openDefaultProfile(list, data.session.user.id);
-    }).catch((e) => {
-      setError(e instanceof Error ? e.message : "Could not load the default profile.");
-      autoOpening.current = false;
-    });
+    void account.auth
+      .getSession()
+      .then(({ data }) => {
+        if (data.session) return openDefaultProfile(list, data.session.user.id);
+      })
+      .catch((e) => {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Could not load the default profile.",
+        );
+        autoOpening.current = false;
+      });
   }, [email, list, selected]);
   useEffect(() => {
     if (!auto || !selected || busy) return;
