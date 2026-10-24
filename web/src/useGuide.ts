@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { epg } from "./api";
-import { sourceFetch } from "./connection";
+import { getService, serviceRequest, sourceFetch } from "./connection";
 import type { Item, Programme, Provider } from "./types";
 
 type State = {
@@ -98,16 +98,22 @@ export function useGuide(
     async function load() {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
-        const response = await sourceFetch(`${provider!.server}/xmltv.php?${query}`, {
+        const url = `${provider!.server}/xmltv.php?${query}`;
+        const service = getService();
+        let response = service
+          ? await serviceRequest("/guide", { url }, controller.signal, service)
+          : undefined;
+        if (!response || response.status === 404)
+          response = await sourceFetch(url, {
           signal: controller.signal,
           cache: "no-store",
           credentials: "omit",
           referrerPolicy: "no-referrer",
-        });
+          });
         if (
           !response.ok ||
           !response.body ||
-          Number(response.headers.get("content-length")) > 60_000_000
+          Number(response.headers.get("content-length")) > 192_000_000
         )
           throw new Error("Guide unavailable");
         reader = response.body.getReader();
@@ -118,7 +124,7 @@ export function useGuide(
           const { value, done } = await reader.read();
           if (done) break;
           bytes += value.byteLength;
-          if (bytes > 60_000_000) throw new Error("Guide too large");
+          if (bytes > 192_000_000) throw new Error("Guide too large");
           await send({ chunk: decoder.decode(value, { stream: true }) });
         }
         if (!controller.signal.aborted) {
@@ -141,7 +147,7 @@ export function useGuide(
       controller.abort();
       acknowledge?.();
       worker.terminate();
-    }, 47000);
+    }, 180000);
     return () => {
       stopped = true;
       controller.abort();

@@ -282,6 +282,35 @@ export function createService({ token, origins }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/guide") {
+        const url = new URL(body.url);
+        if (!/\/xmltv\.php$/.test(url.pathname))
+          return send(400, { error: "Only an Xtream XMLTV guide is allowed" });
+        const result = await fetchSafe(url.href, {
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(180000),
+          ]),
+        });
+        try {
+          res.writeHead(result.response.status, {
+            "Content-Type":
+              result.response.headers.get("content-type") ??
+              "application/xml; charset=utf-8",
+          });
+          let bytes = 0;
+          for await (const chunk of result.response.body ?? []) {
+            bytes += chunk.byteLength;
+            if (bytes > 192_000_000) throw new Error("Guide too large");
+            if (!res.write(chunk))
+              await new Promise((resolve) => res.once("drain", resolve));
+          }
+          res.end();
+        } finally {
+          await result.close();
+        }
+        return;
+      }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);
         const headers = sourceHeaders(body.headers);

@@ -476,7 +476,7 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
   const programmes = Array.from({ length: 61 }, (_, index) =>
     `<programme channel="channel.${index + 1}" start="${stamp(Date.now() - 60000)}" stop="${stamp(Date.now() + 3600000)}"><title>Programme ${index + 1}</title></programme>`,
   ).join("");
-  await page.route("https://playback.example/request", async (route) => {
+  await page.route("https://playback.example/guide", async (route) => {
     expect(route.request().postDataJSON().url).toContain("/xmltv.php?");
     await route.fulfill({
       contentType: "application/xml",
