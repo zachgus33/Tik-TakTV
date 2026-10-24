@@ -12,11 +12,19 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
       name: "iphone",
-      use: { ...devices["iPhone 13"], defaultBrowserType: "webkit" },
+      use: {
+        ...devices["iPhone 13"],
+        defaultBrowserType: "webkit",
+        serviceWorkers: "block",
+      },
     },
     {
       name: "ipad",
-      use: { ...devices["iPad (gen 7)"], defaultBrowserType: "webkit" },
+      use: {
+        ...devices["iPad (gen 7)"],
+        defaultBrowserType: "webkit",
+        serviceWorkers: "block",
+      },
     },
   ],
   webServer: {

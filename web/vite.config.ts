@@ -36,7 +36,10 @@ export default defineConfig({
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
         skipWaiting: true,
-        clientsClaim: true,
+        // A first-time install should not take over a page while it is loading.
+        // Existing installations are still replaced immediately by the
+        // controllerchange/reload flow in main.tsx.
+        clientsClaim: false,
         runtimeCaching: [],
       },
     }),
