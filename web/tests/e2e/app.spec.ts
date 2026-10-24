@@ -581,6 +581,9 @@ test.describe("authenticated integrations", () => {
       page.locator(".collections-section .media-card strong"),
     ).toHaveText("The Test Movie");
     await page.reload();
+    await page
+      .getByRole("button", { name: /Home$/ })
+      .click();
     await expect(
       page.getByRole("button", {
         name: "Open Streaming Services: Prime Video",

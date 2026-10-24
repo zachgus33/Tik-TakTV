@@ -179,10 +179,15 @@ export default function AccountPanel({
                   password: String(data.get("password")),
                 });
               if (error) throw new Error(error.message);
+              sessionStorage.setItem("tiktak:profile-active", "1");
               setEmail(auth.user?.email ?? "Signed in");
               const available = await profiles();
               setList(available);
               f.reset();
+              if (auth.user) {
+                autoOpening.current = true;
+                await openDefaultProfile(available, auth.user.id);
+              }
             });
           }}
         >
