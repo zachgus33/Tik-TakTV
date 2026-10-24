@@ -15,8 +15,8 @@ class ErrorBoundary extends React.Component<
     return this.state.failed ? (
       <main className="fatal">
         <h1>Let’s try that again.</h1>
-        <p>Nuvio couldn’t load this screen. Reload to recover.</p>
-        <button onClick={() => location.reload()}>Reload Nuvio</button>
+        <p>TikTak TV couldn’t load this screen. Reload to recover.</p>
+        <button onClick={() => location.reload()}>Reload TikTak TV</button>
       </main>
     ) : (
       this.props.children

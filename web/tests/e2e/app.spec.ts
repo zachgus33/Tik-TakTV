@@ -208,7 +208,7 @@ test("bad credentials show a useful error and are never saved", async ({
     await page.evaluate(() => sessionStorage.getItem("nuvio:provider")),
   ).toBeNull();
 });
-test("live TV sends the provider transport stream through Pi HLS remux", async ({
+test("live TV sends the provider transport stream through browser-safe Pi transcoding", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -241,7 +241,7 @@ test("live TV sends the provider transport stream through Pi HLS remux", async (
     .filter({ hasText: "Test News" })
     .click();
   await expect.poll(() => prepared).toBeTruthy();
-  expect(prepared.mode).toBe("remux");
+  expect(prepared.mode).toBe("transcode");
   expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
 });
 test("channels without guide data stay out of the live guide", async ({
@@ -682,7 +682,10 @@ test.describe("authenticated integrations", () => {
     await page.goto("/");
     await page.getByLabel("Email", { exact: true }).fill("test@example.com");
     await page.getByLabel("Password", { exact: true }).fill("fake-password");
-    await page.locator("form").getByRole("button", { name: "Sign in", exact: true }).click();
+    await page
+      .locator("form")
+      .getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await page.getByRole("button", { name: /Home/ }).click();
     await expect(
       page.getByRole("heading", { name: "The Test Movie" }),

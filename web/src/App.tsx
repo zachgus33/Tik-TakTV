@@ -127,7 +127,7 @@ function ProfileGate({
   onGuest,
   skipSelection,
 }: {
-  onEnter: (setup: Setup) => void;
+  onEnter: (setup: Setup, profile: Profile) => void;
   onGuest: () => void;
   skipSelection: boolean;
 }) {
@@ -176,7 +176,7 @@ function ProfileGate({
           String(profile.profile_index),
         );
       sessionStorage.setItem("tiktak:profile-active", "1");
-      onEnter(result.setup);
+      onEnter(result.setup, profile);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open this profile.");
     } finally {
@@ -186,7 +186,7 @@ function ProfileGate({
   return (
     <main className="profile-gate">
       <div className="profile-gate-brand">
-        nuvio.<small>ENHANCED</small>
+        TikTak TV<small>STREAM YOUR WORLD</small>
       </div>
       <section>
         <h1>{email ? "Who's watching?" : "Your entertainment, your way"}</h1>
@@ -542,6 +542,7 @@ function Detail({
   toggleSave,
   onClose,
   onPlay,
+  onSelectItem,
   resume,
   torboxKey,
   autoplay,
@@ -553,6 +554,7 @@ function Detail({
   toggleSave: (item: Item) => void;
   onClose: () => void;
   onPlay: (p: Playback) => void;
+  onSelectItem: (item: Item) => void;
   resume?: Progress;
   torboxKey: string;
   autoplay: boolean;
@@ -567,6 +569,9 @@ function Detail({
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
+  const [person, setPerson] = useState<{ name: string; items: Item[] } | null>(
+    null,
+  );
   const [files, setFiles] = useState<{
     torrentId: number;
     files: TorboxFile[];
@@ -699,7 +704,7 @@ function Detail({
         item,
         episode: ep,
         resume: position,
-        mode: item.type === "live" && getService() ? "remux" : undefined,
+        mode: item.type === "live" && getService() ? "transcode" : undefined,
         hls: item.type === "live",
         url: streamUrl(
           provider,
@@ -832,7 +837,20 @@ function Detail({
                     photo: undefined,
                   }))
               ).map((person) => (
-                <div className="cast-person" key={person.id}>
+                <button
+                  className="cast-person"
+                  key={person.id}
+                  disabled={!credits.length}
+                  onClick={() => {
+                    if (!credits.length) return;
+                    setBusy(true);
+                    void import("./tmdb")
+                      .then(({ personCredits }) => personCredits(person.id))
+                      .then((items) => setPerson({ name: person.name, items }))
+                      .catch((e) => setError(message(e)))
+                      .finally(() => setBusy(false));
+                  }}
+                >
                   {person.photo ? (
                     <img src={person.photo} alt="" />
                   ) : (
@@ -840,7 +858,42 @@ function Detail({
                   )}
                   <strong>{person.name}</strong>
                   <small>{person.role}</small>
-                </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        {person && (
+          <section
+            className="person-credits"
+            aria-label={`${person.name} filmography`}
+          >
+            <div>
+              <div>
+                <span className="eyebrow">FILMOGRAPHY</span>
+                <h2>{person.name}</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setPerson(null)}
+                aria-label="Close filmography"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="person-credit-grid">
+              {person.items.map((title) => (
+                <button
+                  key={itemKey(title)}
+                  onClick={() => onSelectItem(title)}
+                >
+                  <Art item={title} />
+                  <strong>{title.name}</strong>
+                  <small>
+                    {title.year} ·{" "}
+                    {title.type === "series" ? "Series" : "Movie"}
+                  </small>
+                </button>
               ))}
             </div>
           </section>
@@ -994,6 +1047,11 @@ export default function App() {
       : "home";
   const [accountLoading, setAccountLoading] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [activeProfileView, setActiveProfileView] = useState<{
+    name: string;
+    image?: string;
+    color?: string;
+  } | null>(null);
   const [forceProfileSelection, setForceProfileSelection] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
@@ -1384,14 +1442,14 @@ export default function App() {
             getService() ? (item.extension ?? "ts") : "m3u8",
           ),
         requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
-        mode: getService() ? "remux" : undefined,
+        mode: getService() ? "transcode" : undefined,
         hls: true,
       });
     } else if (item.url)
       setPlayback({
         item,
         url: item.url,
-        mode: getService() ? "remux" : undefined,
+        mode: getService() ? "transcode" : undefined,
         hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
       });
   }
@@ -1420,8 +1478,13 @@ export default function App() {
       <ProfileGate
         skipSelection={skipProfileSelection && !forceProfileSelection}
         onGuest={() => setProfileReady(true)}
-        onEnter={(setup) => {
+        onEnter={(setup, profile) => {
           setForceProfileSelection(false);
+          setActiveProfileView({
+            name: profile.name,
+            image: profile.avatar_url ?? undefined,
+            color: profile.avatar_color_hex,
+          });
           loadAccountSetup(setup);
           location.hash = "home";
           setPage("home");
@@ -1432,11 +1495,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#home" aria-label="Nuvio home">
+        <a className="brand" href="#home" aria-label="TikTak TV home">
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />
           <span>
-            nuvio<span className="brand-dot">.</span>
-            <small>ENHANCED</small>
+            TikTak<span className="brand-dot"> TV</span>
+            <small>STREAM YOUR WORLD</small>
           </span>
         </a>
         <div className="nav-label">YOUR SPACE</div>
@@ -1469,7 +1532,7 @@ export default function App() {
                 : "Your screen. Your sources."}
             </span>
           </div>
-          <span className="version">Nuvio Enhanced · Web edition</span>
+          <span className="version">TikTak TV · Web edition</span>
         </div>
       </aside>
       <div className="main-shell">
@@ -1513,7 +1576,13 @@ export default function App() {
             onClick={() => navigate("account")}
             aria-label="Open account"
           >
-            N
+            {activeProfileView?.image ? (
+              <img src={activeProfileView.image} alt="" />
+            ) : (
+              <span style={{ background: activeProfileView?.color }}>
+                {activeProfileView?.name.slice(0, 1).toUpperCase() ?? "T"}
+              </span>
+            )}
           </button>
         </header>
         {offline && (
@@ -2149,6 +2218,7 @@ export default function App() {
                     setForceProfileSelection(true);
                     setProfileReady(false);
                   }}
+                  onProfileUpdated={setActiveProfileView}
                 />
               </Suspense>
             </div>
@@ -2222,6 +2292,7 @@ export default function App() {
           toggleSave={toggleSave}
           onClose={() => setDetail(null)}
           onPlay={setPlayback}
+          onSelectItem={setDetail}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />
       )}

@@ -17,6 +17,7 @@ export default function AccountPanel({
   onChangeUser,
   skipProfileSelection,
   onSkipProfileSelection,
+  onProfileUpdated,
 }: {
   setup: Setup;
   onLoad: (s: Setup) => void;
@@ -24,6 +25,11 @@ export default function AccountPanel({
   onChangeUser: () => void;
   skipProfileSelection: boolean;
   onSkipProfileSelection: (value: boolean) => void;
+  onProfileUpdated: (profile: {
+    name: string;
+    image?: string;
+    color?: string;
+  }) => void;
 }) {
   const [email, setEmail] = useState("");
   const [selected, setSelected] = useState<Profile | null>(null);
@@ -51,11 +57,22 @@ export default function AccountPanel({
         const remembered = Number(
           localStorage.getItem(`tiktak:profile:${data.session.user.id}`),
         );
-        setSelected(
+        const active =
           available.find((profile) => profile.profile_index === remembered) ??
-            available[0] ??
-            null,
-        );
+          available[0] ??
+          null;
+        setSelected(active);
+        if (active) {
+          const avatar = avatarCatalog.find(
+            (item) => item.id === active.avatar_id,
+          );
+          onProfileUpdated({
+            name: active.name,
+            image:
+              active.avatar_url ?? (avatar ? avatarUrl(avatar) : undefined),
+            color: active.avatar_color_hex,
+          });
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => {
@@ -142,6 +159,14 @@ export default function AccountPanel({
                         profile.profile_index === selected.profile_index,
                     ) ?? { ...selected, name },
                   );
+                  const avatar = chosenAvatar;
+                  onProfileUpdated({
+                    name,
+                    image: avatar
+                      ? avatarUrl(avatar)
+                      : (selected.avatar_url ?? undefined),
+                    color: avatar?.bg_color ?? selected.avatar_color_hex,
+                  });
                   setStatus("Profile updated in Nuvio.");
                 })
                 .catch((e) => setError(e.message))

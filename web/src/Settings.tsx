@@ -503,14 +503,19 @@ export default function Settings(props: Props) {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  localStorage.setItem(
-                    "nuvio:tmdb-key",
-                    String(new FormData(e.currentTarget).get("tmdb")).trim(),
-                  );
-                  setSuccess(
-                    "TMDB key saved. Reopen the collection to load it.",
-                  );
-                  e.currentTarget.reset();
+                  const form = e.currentTarget;
+                  const credential = String(
+                    new FormData(form).get("tmdb"),
+                  ).trim();
+                  void run("tmdb", async () => {
+                    const { validateTmdbCredential } = await import("./tmdb");
+                    await validateTmdbCredential(credential);
+                    localStorage.setItem("nuvio:tmdb-key", credential);
+                    setSuccess(
+                      "TMDB connected. Cast photos and filmographies are ready.",
+                    );
+                    form.reset();
+                  });
                 }}
               >
                 <label>
@@ -522,7 +527,9 @@ export default function Settings(props: Props) {
                     required
                   />
                 </label>
-                <button>Save TMDB key</button>
+                <button disabled={!!busy}>
+                  {busy === "tmdb" ? "Checking…" : "Connect TMDB"}
+                </button>
               </form>
             </section>
             <section className="settings-card">

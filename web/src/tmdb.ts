@@ -1,9 +1,24 @@
-import { json, defaultAddon, safeUrl } from "./api";
+import { defaultAddon, safeUrl } from "./api";
+import { sourceFetch } from "./connection";
 import type { CollectionSource } from "./collections";
 import type { Item } from "./types";
 const base = "https://api.themoviedb.org/3";
 function key() {
   return localStorage.getItem("nuvio:tmdb-key") ?? "";
+}
+function authenticatedRequest(
+  path: string,
+  query: Record<string, string>,
+  credential: string,
+) {
+  const bearer = credential.startsWith("eyJ") || credential.length > 80;
+  const params = new URLSearchParams(
+    bearer ? query : { api_key: credential, ...query },
+  );
+  return {
+    url: `${base}/${path}?${params}`,
+    headers: bearer ? { Authorization: `Bearer ${credential}` } : undefined,
+  };
 }
 async function get<T>(
   path: string,
@@ -14,10 +29,28 @@ async function get<T>(
     throw new Error(
       "This collection uses TMDB. Add your TMDB API key in Settings or sync it from your Nuvio profile.",
     );
-  return json<T>(
-    `${base}/${path}?${new URLSearchParams({ api_key: key(), ...query })}`,
+  const credential = key().trim();
+  const request = authenticatedRequest(path, query, credential);
+  const response = await sourceFetch(request.url, {
     signal,
-  );
+    cache: "force-cache",
+    headers: request.headers,
+  });
+  if (!response.ok)
+    throw new Error(
+      `TMDB returned HTTP ${response.status}. Check the API credential saved in Settings.`,
+    );
+  return (await response.json()) as T;
+}
+export async function validateTmdbCredential(
+  credential: string,
+): Promise<void> {
+  const value = credential.trim();
+  if (!value) throw new Error("Enter a TMDB API credential.");
+  const request = authenticatedRequest("configuration", {}, value);
+  const response = await sourceFetch(request.url, { headers: request.headers });
+  if (!response.ok)
+    throw new Error(`TMDB rejected this credential (HTTP ${response.status}).`);
 }
 export async function tmdbCollection(
   source: CollectionSource,
@@ -79,23 +112,21 @@ export async function tmdbCollection(
     kind === "DIRECTOR"
       ? (data.crew ?? []).filter((r) => r.job === "Director")
       : (data.results ?? data.items ?? data.parts ?? data.cast ?? []);
-  return rows
-    .slice(0, 200)
-    .map((r) => ({
-      id: `tmdb:${r.id}`,
-      name: String(r.title ?? r.name ?? "Untitled"),
-      type: (r.media_type ?? media) === "tv" ? "series" : "movie",
-      source: "addon",
-      provider: defaultAddon.base,
-      poster: r.poster_path
-        ? safeUrl(`https://image.tmdb.org/t/p/w500${r.poster_path}`)
-        : undefined,
-      background: r.backdrop_path
-        ? safeUrl(`https://image.tmdb.org/t/p/w1280${r.backdrop_path}`)
-        : undefined,
-      description: String(r.overview ?? ""),
-      year: String(r.release_date ?? r.first_air_date ?? "").slice(0, 4),
-    }));
+  return rows.slice(0, 200).map((r) => ({
+    id: `tmdb:${r.id}`,
+    name: String(r.title ?? r.name ?? "Untitled"),
+    type: (r.media_type ?? media) === "tv" ? "series" : "movie",
+    source: "addon",
+    provider: defaultAddon.base,
+    poster: r.poster_path
+      ? safeUrl(`https://image.tmdb.org/t/p/w500${r.poster_path}`)
+      : undefined,
+    background: r.backdrop_path
+      ? safeUrl(`https://image.tmdb.org/t/p/w1280${r.backdrop_path}`)
+      : undefined,
+    description: String(r.overview ?? ""),
+    year: String(r.release_date ?? r.first_air_date ?? "").slice(0, 4),
+  }));
 }
 export async function resolveTmdb(
   item: Item,
@@ -116,16 +147,19 @@ export async function resolveTmdb(
 }
 
 export type Credit = { id: number; name: string; role: string; photo?: string };
-export async function titleCredits(item: Item, signal?: AbortSignal): Promise<Credit[]> {
+export async function titleCredits(
+  item: Item,
+  signal?: AbortSignal,
+): Promise<Credit[]> {
   const media = item.type === "series" ? "tv" : "movie";
   let id = item.id.startsWith("tmdb:") ? item.id.slice(5) : "";
   if (!id && /^tt\d+$/.test(item.id)) {
-    const found = await get<{ movie_results?: { id: number }[]; tv_results?: { id: number }[] }>(
-      `find/${item.id}`,
-      { external_source: "imdb_id" },
-      signal,
-    );
-    const row = item.type === "series" ? found.tv_results?.[0] : found.movie_results?.[0];
+    const found = await get<{
+      movie_results?: { id: number }[];
+      tv_results?: { id: number }[];
+    }>(`find/${item.id}`, { external_source: "imdb_id" }, signal);
+    const row =
+      item.type === "series" ? found.tv_results?.[0] : found.movie_results?.[0];
     if (!row) return [];
     id = String(row.id);
   }
@@ -143,4 +177,45 @@ export async function titleCredits(item: Item, signal?: AbortSignal): Promise<Cr
       ? safeUrl(`https://image.tmdb.org/t/p/w185${person.profile_path}`)
       : undefined,
   }));
+}
+export async function personCredits(
+  personId: number,
+  signal?: AbortSignal,
+): Promise<Item[]> {
+  const data = await get<{ cast?: Record<string, unknown>[] }>(
+    `person/${personId}/combined_credits`,
+    { language: "en-US" },
+    signal,
+  );
+  return [
+    ...new Map(
+      (data.cast ?? [])
+        .filter(
+          (row) =>
+            (row.media_type === "movie" || row.media_type === "tv") && row.id,
+        )
+        .sort((a, b) => Number(b.popularity ?? 0) - Number(a.popularity ?? 0))
+        .map((row) => {
+          const item: Item = {
+            id: `tmdb:${row.id}`,
+            name: String(row.title ?? row.name ?? "Untitled"),
+            type: row.media_type === "tv" ? "series" : "movie",
+            source: "addon",
+            provider: defaultAddon.base,
+            poster: row.poster_path
+              ? safeUrl(`https://image.tmdb.org/t/p/w500${row.poster_path}`)
+              : undefined,
+            background: row.backdrop_path
+              ? safeUrl(`https://image.tmdb.org/t/p/w1280${row.backdrop_path}`)
+              : undefined,
+            description: String(row.overview ?? ""),
+            year: String(row.release_date ?? row.first_air_date ?? "").slice(
+              0,
+              4,
+            ),
+          };
+          return [`${item.type}:${item.id}`, item] as const;
+        }),
+    ).values(),
+  ].slice(0, 40);
 }

@@ -11,8 +11,8 @@ export default defineConfig({
       injectRegister: null,
       includeAssets: ["icon.svg", "apple-touch-icon.png"],
       manifest: {
-        name: "Nuvio Enhanced Web",
-        short_name: "Nuvio",
+        name: "TikTak TV",
+        short_name: "TikTak TV",
         description: "Your movies, series and live television, together.",
         start_url: "./",
         scope: "./",

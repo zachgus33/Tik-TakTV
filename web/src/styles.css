@@ -499,7 +499,16 @@ body {
 .account-page-content {
   display: grid;
   gap: 18px;
-  max-width: 980px;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.account-shell-page {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 .account-hero-card {
   display: grid;
@@ -535,11 +544,20 @@ body {
 .account-profile-form {
   display: grid;
   gap: 18px;
+  width: 100%;
+  max-width: 720px;
+}
+.account-profile-form > .primary {
+  width: auto;
+  min-width: 160px;
+  justify-self: start;
 }
 .avatar-picker {
   border: 0;
   padding: 0;
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 .avatar-picker legend {
   margin-bottom: 10px;
@@ -791,7 +809,7 @@ label {
   inset: 0 auto 0 0;
   padding: 32px 20px 24px 24px;
   border-right: 1px solid var(--line);
-  background: #101013;
+  background: linear-gradient(180deg, #10131a 0%, #0b0d12 100%);
   display: flex;
   flex-direction: column;
   z-index: 20;
@@ -801,8 +819,8 @@ label {
   align-items: center;
   gap: 9px;
   margin: 0 8px 51px;
-  font-size: 34px;
-  letter-spacing: -2px;
+  font-size: 23px;
+  letter-spacing: -1.1px;
   font-weight: 750;
   line-height: 1;
 }
@@ -811,7 +829,7 @@ label {
   height: 40px;
 }
 .brand-dot {
-  color: var(--accent);
+  color: var(--accent-2);
 }
 .brand small {
   display: block;
@@ -954,6 +972,18 @@ label {
   color: #c9a5ff;
   font-size: 12px;
   border: 1px solid #ffffff15;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.profile-button img,
+.profile-button > span {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+  border-radius: inherit;
 }
 .hero {
   height: 525px;
@@ -2292,6 +2322,23 @@ body:has(dialog[open]) {
   gap: 0.25rem;
   text-align: center;
   min-width: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+.cast-person:not(:disabled):hover,
+.cast-person:not(:disabled):focus-visible {
+  transform: translateY(-3px);
+  background: #ffffff08;
+}
+.cast-person:disabled {
+  cursor: default;
+  opacity: 1;
 }
 .cast-person img,
 .cast-person > span {
@@ -2313,6 +2360,54 @@ body:has(dialog[open]) {
 }
 .cast-person small {
   color: var(--muted);
+}
+.person-credits {
+  margin-top: 1.5rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line);
+}
+.person-credits > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.person-credits h2 {
+  margin: 0.2rem 0 0.8rem;
+}
+.person-credit-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 126px;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 3px 2px 12px;
+}
+.person-credit-grid > button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  min-width: 0;
+}
+.person-credit-grid .art {
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.person-credit-grid strong,
+.person-credit-grid small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-credit-grid small {
+  color: var(--muted);
+  margin-top: 3px;
+  font-size: 0.7rem;
 }
 .chips span {
   font-size: 10px;
@@ -2616,10 +2711,10 @@ body:has(dialog[open]) {
     gap: 13px;
   }
   .topbar:before {
-    content: "nuvio.";
+    content: "TikTak TV";
     color: #f3effa;
-    letter-spacing: -1.5px;
-    font-size: 25px;
+    letter-spacing: -1px;
+    font-size: 21px;
     font-weight: 750;
   }
   .search-box {
