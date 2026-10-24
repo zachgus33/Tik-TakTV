@@ -292,19 +292,20 @@ export const defaultAddon: Addon = {
   },
 };
 export async function installAddon(input: string): Promise<Addon> {
-  const url = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
-  if (
-    !url ||
-    !new URL(url).pathname.endsWith("/manifest.json") ||
-    new URL(url).search
-  )
+  const normalized = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
+  if (!normalized)
     throw new Error(
-      "Enter the HTTPS manifest.json URL supplied by your add-on.",
+      "Enter the HTTPS add-on URL supplied by your add-on.",
     );
+  const parsed = new URL(normalized);
+  if (!parsed.pathname.endsWith("/manifest.json"))
+    parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/manifest.json`;
+  const url = parsed.href;
   const manifest = await json<Manifest>(url);
   if (!manifest.id || !manifest.name || !Array.isArray(manifest.resources))
     throw new Error("This is not a valid Stremio add-on manifest.");
-  return { base: url.slice(0, -14), manifest };
+  parsed.pathname = parsed.pathname.slice(0, -14);
+  return { base: parsed.href.replace(/\/$/, ""), manifest };
 }
 export function fromMeta(meta: Record<string, unknown>, addon: Addon): Item {
   return {

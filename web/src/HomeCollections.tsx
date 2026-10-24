@@ -25,7 +25,7 @@ export default function HomeCollections(props: {
     );
   return (
     <>
-      {props.collections.map((c) => (
+      {props.collections.filter((c) => c.showOnHome !== false).map((c) => (
         <section className="home-collection" key={c.id}>
           <h2>{c.title}</h2>
           <div className="service-tiles">

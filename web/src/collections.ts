@@ -21,6 +21,7 @@ export type Collection = {
   id: string;
   title: string;
   folders: CollectionFolder[];
+  showOnHome?: boolean;
   [key: string]: unknown;
 };
 export type Transfer = {

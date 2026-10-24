@@ -984,6 +984,18 @@ button.selected {
   border-radius: 12px;
   margin-bottom: 22px;
 }
+.setting-list {
+  display: grid;
+  gap: 0.65rem;
+}
+.setting-list label {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+}
+.setting-list input {
+  width: auto;
+}
 .settings-card h2 {
   font-size: 18px;
 }

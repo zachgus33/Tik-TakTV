@@ -193,4 +193,17 @@ describe("playlists and addons", () => {
     );
     expect(addon.base).toBe("https://addon.example/config");
   });
+  it("accepts Nuvio's stored add-on base URL", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: "test", name: "Test", resources: ["stream"] }),
+      ),
+    );
+    const addon = await installAddon("https://addon.example/config");
+    expect(request).toHaveBeenCalledWith(
+      "https://addon.example/config/manifest.json",
+      expect.anything(),
+    );
+    expect(addon.base).toBe("https://addon.example/config");
+  });
 });

@@ -79,7 +79,6 @@ const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
 const HomeCollections = lazy(() => import("./HomeCollections"));
 const AccountPanel = lazy(() => import("./AccountPanel"));
-const CollectionsView = lazy(() => import("./CollectionsView"));
 type Page = "home" | "discover" | "live" | "library" | "settings";
 const nav = [
   { id: "home", label: "Home", icon: Home },
@@ -1249,17 +1248,6 @@ export default function App() {
                   <Compass className="section-icon" />
                 )}
               </div>
-              {page === "library" && (
-                <Suspense fallback={<Loading />}>
-                  <CollectionsView
-                    collections={collections}
-                    onChange={setCollections}
-                    addons={addons}
-                    library={library}
-                    onOpen={open}
-                  />
-                </Suspense>
-              )}
               {page === "discover" && (
                 <div className="filter-toolbar">
                   <div className="tabs">

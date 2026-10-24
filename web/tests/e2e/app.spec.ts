@@ -249,7 +249,11 @@ test("imports native collections and opens their addon catalogs", async ({
     page.getByText("Imported 1 collections.", { exact: false }),
   ).toBeVisible();
   await page.goto("/#library");
-  await page.getByRole("button", { name: "Cinema nights 1 folders" }).click();
+  await expect(page.getByText("Cinema nights", { exact: true })).toHaveCount(0);
+  await page.goto("/#home");
+  await page
+    .getByRole("button", { name: "Open Cinema nights: Movies" })
+    .click();
   await expect(
     page.locator(".collections-section .media-card strong"),
   ).toHaveText("The Test Movie");
@@ -260,8 +264,14 @@ test("imports native collections and opens their addon catalogs", async ({
   ).toBe(false);
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "Cinema nights 1 folders" }),
+    page.getByRole("button", { name: "Open Cinema nights: Movies" }),
   ).toBeVisible();
+  await page.goto("/#settings");
+  await page.getByRole("checkbox", { name: "Cinema nights" }).uncheck();
+  await page.goto("/#home");
+  await expect(
+    page.getByRole("button", { name: "Open Cinema nights: Movies" }),
+  ).toHaveCount(0);
 });
 
 async function streamingAddon(page: Page) {

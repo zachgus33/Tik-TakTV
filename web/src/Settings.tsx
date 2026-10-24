@@ -435,6 +435,37 @@ export default function Settings(props: Props) {
           <button>Save TMDB key</button>
         </form>
       </section>
+      <section className="settings-card">
+        <h2>Home collections</h2>
+        <p>
+          Choose which synced collections appear on Home. Hidden collections
+          stay in your Nuvio account and can be turned back on here.
+        </p>
+        {props.collections.length ? (
+          <div className="setting-list">
+            {props.collections.map((collection) => (
+              <label key={collection.id}>
+                <input
+                  type="checkbox"
+                  checked={collection.showOnHome !== false}
+                  onChange={(event) =>
+                    props.onCollections(
+                      props.collections.map((item) =>
+                        item.id === collection.id
+                          ? { ...item, showOnHome: event.target.checked }
+                          : item,
+                      ),
+                    )
+                  }
+                />
+                {collection.title}
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="hint">Sign in to Nuvio or import collections first.</p>
+        )}
+      </section>
       <DataTools
         addons={props.addons}
         collections={props.collections}
