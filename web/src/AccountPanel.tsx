@@ -1,52 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import {
   account,
+  avatars,
+  avatarUrl,
   profiles,
-  unlock,
-  loadSetup,
   saveSetup,
+  updateProfile,
+  type Avatar,
   type Profile,
   type Setup,
 } from "./account";
 
 export default function AccountPanel({
   setup,
-  onLoad,
   onLoading,
+  onChangeUser,
+  skipProfileSelection,
+  onSkipProfileSelection,
 }: {
   setup: Setup;
   onLoad: (s: Setup) => void;
   onLoading: (value: boolean) => void;
+  onChangeUser: () => void;
+  skipProfileSelection: boolean;
+  onSkipProfileSelection: (value: boolean) => void;
 }) {
   const [email, setEmail] = useState("");
-  const [list, setList] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<Profile | null>(null);
+  const [catalog, setCatalog] = useState<Avatar[]>([]);
+  const [chosenAvatar, setChosenAvatar] = useState<Avatar>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [auto, setAuto] = useState(false);
   const initial = useRef("");
-  const autoOpening = useRef(false);
-  const loadRef = useRef(onLoad);
-  loadRef.current = onLoad;
-  async function openDefaultProfile(available: Profile[], userId: string) {
-    const remembered = Number(localStorage.getItem("tiktak:profile:" + userId));
-    const profile =
-      available.find((item) => item.profile_index === remembered) ??
-      available.find((item) => !item.pin_enabled);
-    if (profile && !profile.pin_enabled) await openProfile(profile);
-  }
-  async function run(fn: () => Promise<void>) {
-    setBusy(true);
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Account request failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
+
   useEffect(() => {
     let live = true;
     onLoading(true);
@@ -55,18 +42,22 @@ export default function AccountPanel({
       .then(async ({ data }) => {
         if (!data.session || !live) return;
         setEmail(data.session.user.email ?? "Signed in");
-        try {
-          const p = await profiles();
-          if (live) {
-            setList(p);
-          }
-        } catch (e) {
-          if (live) setError(String(e));
-        }
+        const [available, avatarCatalog] = await Promise.all([
+          profiles(),
+          avatars().catch(() => []),
+        ]);
+        if (!live) return;
+        setCatalog(avatarCatalog);
+        const remembered = Number(
+          localStorage.getItem(`tiktak:profile:${data.session.user.id}`),
+        );
+        setSelected(
+          available.find((profile) => profile.profile_index === remembered) ??
+            available[0] ??
+            null,
+        );
       })
-      .catch((e) => {
-        if (live) setError(e.message);
-      })
+      .catch((e) => setError(e.message))
       .finally(() => {
         if (live) onLoading(false);
       });
@@ -74,225 +65,162 @@ export default function AccountPanel({
       live = false;
     };
   }, []);
-  async function openProfile(p: Profile, pin = "") {
-    onLoading(true);
-    try {
-      setAuto(false);
-      await unlock(p, pin);
-      const result = await loadSetup(p);
-      const { data } = await account.auth.getSession();
-      if (data.session)
-        localStorage.setItem(
-          "tiktak:profile:" + data.session.user.id,
-          String(p.profile_index),
-        );
-      setSelected(p);
-      initial.current = JSON.stringify(result.setup);
-      loadRef.current(result.setup);
-      // Seed a locally connected private relay into the account settings so a
-      // fresh browser can restore it immediately after profile selection.
-      setStatus(
-        result.warnings.length
-          ? `Nuvio profile loaded. ${result.warnings.join(" ")}`
-          : "Nuvio profile loaded. Add-ons, collections and saved setup are available.",
-      );
-      setAuto(true);
-      if (result.setup.playbackService)
-        void saveSetup(p, result.setup).catch(() => {
-          setStatus(
-            "Profile loaded. Playback settings are available on this device; cloud save needs a retry.",
-          );
-        });
-    } finally {
-      onLoading(false);
-    }
-  }
+
   useEffect(() => {
-    if (
-      sessionStorage.getItem("tiktak:profile-active") !== "1" ||
-      !email ||
-      !list.length ||
-      selected ||
-      autoOpening.current
-    )
-      return;
-    autoOpening.current = true;
-    void account.auth
-      .getSession()
-      .then(({ data }) => {
-        if (data.session) return openDefaultProfile(list, data.session.user.id);
-      })
-      .catch((e) => {
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Could not load the default profile.",
-        );
-        autoOpening.current = false;
-      });
-  }, [email, list, selected]);
-  useEffect(() => {
-    if (!auto || !selected || busy) return;
+    if (!selected) return;
     const next = JSON.stringify(setup);
+    if (!initial.current) {
+      initial.current = next;
+      return;
+    }
     if (next === initial.current) return;
     const timer = setTimeout(() => {
-      setBusy(true);
-      setStatus("Saving to Nuvio...");
+      setStatus("Saving changes…");
       void saveSetup(selected, setup)
-        .then(
-          () => {
-            initial.current = next;
-            setStatus("Saved to your Nuvio account.");
-          },
-          (e) => {
-            setError(e.message);
-            setStatus(
-              "Changes are saved on this device; cloud sync needs attention.",
-            );
-            setAuto(false);
-          },
-        )
-        .finally(() => setBusy(false));
-    }, 1800);
+        .then(() => {
+          initial.current = next;
+          setStatus("All changes saved to Nuvio.");
+        })
+        .catch((e) => setError(e.message));
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [setup, auto, selected, busy]);
+  }, [setup, selected]);
+
+  const currentAvatar =
+    chosenAvatar ?? catalog.find((avatar) => avatar.id === selected?.avatar_id);
   return (
-    <section className="settings-card">
-      <h2>Nuvio account</h2>
-      <p>
-        Sign in with your existing Nuvio account to bring over profiles,
-        configured add-ons and collections. Your web setup, including saved IPTV
-        and TorBox connections, can sync to your private account settings.
-      </p>
+    <div className="account-page-content">
+      <section className="settings-card account-hero-card">
+        <div
+          className="account-avatar-large"
+          style={{
+            background:
+              currentAvatar?.bg_color ??
+              selected?.avatar_color_hex ??
+              "#8E24AA",
+          }}
+        >
+          {currentAvatar ? (
+            <img src={avatarUrl(currentAvatar)} alt="" />
+          ) : (
+            selected?.name.slice(0, 1).toUpperCase()
+          )}
+        </div>
+        <div>
+          <span className="eyebrow">ACTIVE PROFILE</span>
+          <h2>{selected?.name ?? "Nuvio profile"}</h2>
+          <p>{email}</p>
+          {status && <small role="status">{status}</small>}
+        </div>
+        <button onClick={onChangeUser}>Change user</button>
+      </section>
       {error && (
-        <div role="alert" className="error">
+        <div className="error" role="alert">
           {error}
         </div>
       )}
-      {status && <p role="status">{status}</p>}
-      {!email ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = e.currentTarget;
-            const data = new FormData(f);
-            void run(async () => {
-              const { data: auth, error } =
-                await account.auth.signInWithPassword({
-                  email: String(data.get("email")).trim(),
-                  password: String(data.get("password")),
-                });
-              if (error) throw new Error(error.message);
-              sessionStorage.setItem("tiktak:profile-active", "1");
-              setEmail(auth.user?.email ?? "Signed in");
-              const available = await profiles();
-              setList(available);
-              f.reset();
-              if (auth.user) {
-                autoOpening.current = true;
-                await openDefaultProfile(available, auth.user.id);
-              }
-            });
-          }}
-        >
-          <label>
-            Nuvio email
-            <input name="email" type="email" autoComplete="username" required />
-          </label>
-          <label>
-            Nuvio password
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <button disabled={busy}>Sign in to Nuvio</button>
-          <a href="https://nuvio.tv" target="_blank" rel="noreferrer">
-            Create a Nuvio account
-          </a>
-        </form>
-      ) : (
-        <>
-          <p>Signed in as {email}</p>
+      {selected && (
+        <section className="settings-card">
+          <h2>Edit profile</h2>
+          <p>Your name and avatar sync with the same profile in Nuvio.</p>
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const data = new FormData(e.currentTarget);
-              const p = list.find(
-                (p) => String(p.profile_index) === data.get("profile"),
-              );
-              if (p)
-                void run(() => openProfile(p, String(data.get("pin") ?? "")));
+            className="account-profile-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = String(
+                new FormData(event.currentTarget).get("name") ?? "",
+              ).trim();
+              if (!name) return;
+              setBusy(true);
+              setError("");
+              void updateProfile(selected, { name, avatar: chosenAvatar })
+                .then(async () => {
+                  const refreshed = await profiles();
+                  setSelected(
+                    refreshed.find(
+                      (profile) =>
+                        profile.profile_index === selected.profile_index,
+                    ) ?? { ...selected, name },
+                  );
+                  setStatus("Profile updated in Nuvio.");
+                })
+                .catch((e) => setError(e.message))
+                .finally(() => setBusy(false));
             }}
           >
             <label>
-              Nuvio profile
-              <select name="profile">
-                {list.map((p) => (
-                  <option key={p.profile_index} value={p.profile_index}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Profile PIN (if required)
+              Profile name
               <input
-                name="pin"
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
+                name="name"
+                defaultValue={selected.name}
+                maxLength={40}
+                required
               />
             </label>
-            <button disabled={busy || !list.length}>Load Nuvio profile</button>
+            {catalog.length > 0 && (
+              <fieldset className="avatar-picker">
+                <legend>Profile image</legend>
+                <div>
+                  {catalog.map((avatar) => (
+                    <button
+                      key={avatar.id}
+                      type="button"
+                      className={
+                        (chosenAvatar?.id ?? selected.avatar_id) === avatar.id
+                          ? "selected"
+                          : ""
+                      }
+                      onClick={() => setChosenAvatar(avatar)}
+                      aria-label={`Use ${avatar.display_name || "avatar"}`}
+                    >
+                      <img src={avatarUrl(avatar)} alt="" loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <button className="primary" disabled={busy}>
+              {busy ? "Saving…" : "Save profile"}
+            </button>
           </form>
-          {selected && (
-            <>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={auto}
-                  onChange={(e) => setAuto(e.target.checked)}
-                />
-                Automatically save changes to this Nuvio profile
-              </label>
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await saveSetup(selected, setup);
-                    initial.current = JSON.stringify(setup);
-                    setStatus("Saved to your Nuvio account.");
-                  })
-                }
-              >
-                Save setup to Nuvio now
-              </button>
-            </>
-          )}
-          <button
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                setAuto(false);
-                const { error } = await account.auth.signOut({
-                  scope: "local",
-                });
-                if (error) throw error;
-                setEmail("");
-                setList([]);
-                setSelected(null);
-                autoOpening.current = false;
-                setStatus("Signed out. Device settings remain available.");
-              })
-            }
-          >
-            Sign out of Nuvio
-          </button>
-        </>
+        </section>
       )}
-    </section>
+      <section className="settings-card account-actions">
+        <div>
+          <strong>Automatic sync</strong>
+          <p>
+            Add-ons, collections, playback settings, and preferences save
+            automatically to this profile.
+          </p>
+        </div>
+        <button
+          onClick={() =>
+            void account.auth
+              .signOut({ scope: "local" })
+              .then(() => onChangeUser())
+          }
+        >
+          Sign out
+        </button>
+      </section>
+      <section className="settings-card preference-card">
+        <div>
+          <strong>Profile selection on launch</strong>
+          <p>
+            Skip the profile chooser on this device and open the last profile
+            automatically.
+          </p>
+        </div>
+        <label className="switch-control">
+          <input
+            type="checkbox"
+            checked={skipProfileSelection}
+            onChange={(event) => onSkipProfileSelection(event.target.checked)}
+          />
+          <span aria-hidden="true" />
+          <em>{skipProfileSelection ? "Skip selector" : "Show selector"}</em>
+        </label>
+      </section>
+    </div>
   );
 }

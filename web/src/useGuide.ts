@@ -191,7 +191,8 @@ export function useGuide(
     if (
       !provider ||
       stateRef.current.scope !== provider.scope ||
-      stateRef.current.loading
+      stateRef.current.loading ||
+      !stateRef.current.fallback
     )
       return;
     const c = new AbortController();
@@ -201,22 +202,50 @@ export function useGuide(
         !stateRef.current.failed.includes(i.id) &&
         !stateRef.current.xml[i.epgId ?? ""],
     );
+    let pending: Record<string, Programme[]> = {};
+    let pendingFailed: string[] = [];
+    let flushTimer: ReturnType<typeof setTimeout> | undefined;
+    const flush = () => {
+      flushTimer = undefined;
+      if (
+        c.signal.aborted ||
+        (!Object.keys(pending).length && !pendingFailed.length)
+      )
+        return;
+      const channels = pending;
+      const failed = pendingFailed;
+      pending = {};
+      pendingFailed = [];
+      setState((s) =>
+        s.scope === provider.scope
+          ? {
+              ...s,
+              channels: { ...s.channels, ...channels },
+              failed: [...s.failed, ...failed],
+            }
+          : s,
+      );
+    };
+    const scheduleFlush = () => {
+      if (!flushTimer) flushTimer = setTimeout(flush, 250);
+    };
     async function consume() {
       while (queue.length && !c.signal.aborted) {
         const item = queue.shift()!;
         try {
           const list = await epg(provider!, item.id, c.signal);
-          if (!c.signal.aborted)
-            setState((s) =>
-              s.scope === provider!.scope
-                ? { ...s, channels: { ...s.channels, [item.id]: list } }
-                : s,
-            );
+          if (!c.signal.aborted) {
+            pending[item.id] = list;
+            scheduleFlush();
+          }
         } catch {
-          if (!c.signal.aborted)
-            setState((s) => ({ ...s, failed: [...s.failed, item.id] }));
+          if (!c.signal.aborted) {
+            pendingFailed.push(item.id);
+            scheduleFlush();
+          }
         }
       }
+      flush();
       if (!c.signal.aborted) {
         const current = stateRef.current;
         void writeLiveCache(`guide:${provider!.scope}`, {
@@ -226,10 +255,22 @@ export function useGuide(
         });
       }
     }
-    // Only visible channels, at most three requests at once. The full feed loads in a worker.
-    void Promise.all([consume(), consume(), consume()]);
-    return () => c.abort();
-  }, [provider, signature, revision, refresh, state.loading, state.scope]);
+    // This path runs only when the complete XMLTV feed failed. Batch state
+    // updates so a large provider cannot lock the browser between requests.
+    void Promise.all(Array.from({ length: 8 }, consume));
+    return () => {
+      c.abort();
+      if (flushTimer) clearTimeout(flushTimer);
+    };
+  }, [
+    provider,
+    signature,
+    revision,
+    refresh,
+    state.loading,
+    state.scope,
+    state.fallback,
+  ]);
   const valid = state.scope === provider?.scope ? state : empty;
   const normalize = (value: string) =>
     value

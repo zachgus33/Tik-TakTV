@@ -676,17 +676,16 @@ test.describe("authenticated integrations", () => {
         },
       }),
     );
-    await page.goto("/#settings");
-    await page.getByLabel("Nuvio email").fill("test@example.com");
-    await page.getByLabel("Nuvio password").fill("fake-password");
-    await page
-      .getByRole("button", { name: "Sign in to Nuvio", exact: true })
-      .click();
+    await page.addInitScript(() =>
+      localStorage.removeItem("tiktak:established-local"),
+    );
+    await page.goto("/");
+    await page.getByLabel("Email", { exact: true }).fill("test@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("fake-password");
+    await page.locator("form").getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("button", { name: /Home/ }).click();
     await expect(
-      page.getByRole("option", { name: "Home", exact: true }),
-    ).toHaveCount(1);
-    await expect(
-      page.getByText("Nuvio profile loaded.", { exact: false }),
+      page.getByRole("heading", { name: "The Test Movie" }),
     ).toBeVisible();
     await expect
       .poll(() =>
@@ -698,11 +697,12 @@ test.describe("authenticated integrations", () => {
         }),
       )
       .toBe(true);
+    await page.goto("/#settings");
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
-    await page.getByRole("button", { name: /Account/ }).click();
+    await page.goto("/#account");
     await page.getByText("Show selector", { exact: true }).click();
     await page.goto("/#home");
     await page

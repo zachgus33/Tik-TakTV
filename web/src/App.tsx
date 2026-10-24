@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Search,
   Settings2,
+  UserRound,
   Sparkles,
   Star,
   Tv,
@@ -392,13 +393,13 @@ function ProfileGate({
 }
 const HomeCollections = lazy(() => import("./HomeCollections"));
 const AccountPanel = lazy(() => import("./AccountPanel"));
-type Page = "home" | "discover" | "live" | "library" | "settings";
+type Page = "home" | "discover" | "live" | "library" | "account" | "settings";
 const nav = [
   { id: "home", label: "Home", icon: Home },
   { id: "discover", label: "Discover", icon: Compass },
   { id: "live", label: "Live TV", icon: Radio },
   { id: "library", label: "My library", icon: Library },
-  { id: "settings", label: "Settings", icon: Settings2 },
+  { id: "account", label: "Account", icon: UserRound },
 ] as const;
 const message = (e: unknown) =>
   e instanceof Error ? e.message : "The source could not be loaded.";
@@ -986,11 +987,14 @@ function Detail({
 
 export default function App() {
   const route = (): Page =>
-    nav.some((n) => n.id === location.hash.slice(1))
+    [...nav.map((item) => item.id), "settings"].includes(
+      location.hash.slice(1) as Page,
+    )
       ? (location.hash.slice(1) as Page)
       : "home";
   const [accountLoading, setAccountLoading] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [forceProfileSelection, setForceProfileSelection] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
   const [addons, setAddons] = useStored<Addon[]>("addons", defaultAddons);
@@ -1414,9 +1418,10 @@ export default function App() {
   if (!profileReady)
     return (
       <ProfileGate
-        skipSelection={skipProfileSelection}
+        skipSelection={skipProfileSelection && !forceProfileSelection}
         onGuest={() => setProfileReady(true)}
         onEnter={(setup) => {
+          setForceProfileSelection(false);
           loadAccountSetup(setup);
           location.hash = "home";
           setPage("home");
@@ -1505,8 +1510,8 @@ export default function App() {
           </form>
           <button
             className="profile-button"
-            onClick={() => navigate("settings")}
-            aria-label="Open settings"
+            onClick={() => navigate("account")}
+            aria-label="Open account"
           >
             N
           </button>
@@ -2095,8 +2100,59 @@ export default function App() {
               )}
             </div>
           )}
-          {page === "settings" && (
-            <div className="page-content">
+          <div
+            className="page-content account-shell-page"
+            hidden={page !== "account" && page !== "settings"}
+          >
+            <div className="account-page-header">
+              <div>
+                <span className="eyebrow">YOUR NUVIO</span>
+                <h1>{page === "account" ? "Account" : "Settings"}</h1>
+                <p>Manage your profile and everything connected to it.</p>
+              </div>
+              <div className="account-page-tabs">
+                <button
+                  className={page === "account" ? "active" : ""}
+                  onClick={() => navigate("account")}
+                >
+                  <UserRound size={18} /> Profile
+                </button>
+                <button
+                  className={page === "settings" ? "active" : ""}
+                  onClick={() => navigate("settings")}
+                >
+                  <Settings2 size={18} /> Settings
+                </button>
+              </div>
+            </div>
+            <div hidden={page !== "account"}>
+              <Suspense fallback={<Loading />}>
+                <AccountPanel
+                  setup={{
+                    playbackService: getService(),
+                    tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
+                    addons,
+                    collections,
+                    library,
+                    progress,
+                    provider,
+                    torboxKey,
+                    autoplay,
+                    homeCatalogs,
+                  }}
+                  onLoad={loadAccountSetup}
+                  onLoading={setAccountLoading}
+                  skipProfileSelection={skipProfileSelection}
+                  onSkipProfileSelection={setSkipProfileSelection}
+                  onChangeUser={() => {
+                    sessionStorage.removeItem("tiktak:profile-active");
+                    setForceProfileSelection(true);
+                    setProfileReady(false);
+                  }}
+                />
+              </Suspense>
+            </div>
+            {page === "settings" && (
               <Suspense fallback={<Loading />}>
                 <Settings
                   provider={provider}
@@ -2131,32 +2187,10 @@ export default function App() {
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
                   playbackConnected={!!getService()}
-                  skipProfileSelection={skipProfileSelection}
-                  onSkipProfileSelection={setSkipProfileSelection}
-                  accountPanel={
-                    <Suspense fallback={<Loading />}>
-                      <AccountPanel
-                        setup={{
-                          playbackService: getService(),
-                          tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
-                          addons,
-                          collections,
-                          library,
-                          progress,
-                          provider,
-                          torboxKey,
-                          autoplay,
-                          homeCatalogs,
-                        }}
-                        onLoad={loadAccountSetup}
-                        onLoading={setAccountLoading}
-                      />
-                    </Suspense>
-                  }
                 />
               </Suspense>
-            </div>
-          )}
+            )}
+          </div>
         </main>
       </div>
       <nav className="bottom-nav" aria-label="Mobile navigation">

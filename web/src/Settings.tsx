@@ -1,9 +1,8 @@
 import ConnectionPanel from "./ConnectionPanel";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   Blocks,
   CheckCircle2,
-  CircleUserRound,
   ExternalLink,
   Globe2,
   LibraryBig,
@@ -40,20 +39,11 @@ type Props = {
   autoplay: boolean;
   onAutoplay: (value: boolean) => void;
   playbackConnected: boolean;
-  accountPanel: ReactNode;
-  skipProfileSelection: boolean;
-  onSkipProfileSelection: (value: boolean) => void;
 };
 type SettingsSection =
-  "account" | "addons" | "collections" | "live" | "playback" | "general";
+  "addons" | "collections" | "live" | "playback" | "general";
 
 const sections = [
-  {
-    id: "account",
-    label: "Account",
-    description: "Profiles and sync",
-    icon: CircleUserRound,
-  },
   {
     id: "addons",
     label: "Add-ons",
@@ -86,7 +76,7 @@ const sections = [
   },
 ] as const;
 export default function Settings(props: Props) {
-  const [section, setSection] = useState<SettingsSection>("account");
+  const [section, setSection] = useState<SettingsSection>("addons");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -111,9 +101,7 @@ export default function Settings(props: Props) {
         <div>
           <span className="eyebrow">MAKE IT YOURS</span>
           <h1>Settings</h1>
-          <p>
-            Manage your account, content sources, playback, and preferences.
-          </p>
+          <p>Manage content sources, playback, and preferences.</p>
         </div>
         <ShieldCheck className="section-icon" />
       </div>
@@ -150,33 +138,6 @@ export default function Settings(props: Props) {
             <span>{sections.find((item) => item.id === section)?.label}</span>
             <h2>{sections.find((item) => item.id === section)?.description}</h2>
           </header>
-          <div hidden={section !== "account"}>
-            {props.accountPanel}
-            <section className="settings-card preference-card">
-              <div>
-                <strong>Profile selection on launch</strong>
-                <p>
-                  Choose whether this device asks who is watching each time you
-                  open Nuvio.
-                </p>
-              </div>
-              <label className="switch-control">
-                <input
-                  type="checkbox"
-                  checked={props.skipProfileSelection}
-                  onChange={(event) =>
-                    props.onSkipProfileSelection(event.target.checked)
-                  }
-                />
-                <span aria-hidden="true" />
-                <em>
-                  {props.skipProfileSelection
-                    ? "Skip selector"
-                    : "Show selector"}
-                </em>
-              </label>
-            </section>
-          </div>
           <div hidden={section !== "playback"}>
             <ConnectionPanel restored={props.playbackConnected} />
             <section className="settings-card">

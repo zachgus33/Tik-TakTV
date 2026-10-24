@@ -18,7 +18,17 @@ export type Profile = {
   profile_index: number;
   name: string;
   uses_primary_addons?: boolean;
+  uses_primary_plugins?: boolean;
   pin_enabled?: boolean;
+  avatar_color_hex?: string;
+  avatar_id?: string | null;
+  avatar_url?: string | null;
+};
+export type Avatar = {
+  id: string;
+  display_name: string;
+  storage_path: string;
+  bg_color?: string | null;
 };
 export type Setup = {
   playbackService?: PlaybackService | null;
@@ -73,6 +83,42 @@ export async function rpc<T>(
   return data as T;
 }
 export const profiles = () => rpc<Profile[]>("sync_pull_profiles");
+export const avatars = () => rpc<Avatar[]>("get_avatar_catalog");
+export const avatarUrl = (avatar: Avatar) =>
+  `${NUVIO_URL}/storage/v1/object/public/avatars/${avatar.storage_path}`;
+export async function updateProfile(
+  current: Profile,
+  changes: { name: string; avatar?: Avatar },
+) {
+  const all = await profiles();
+  await rpc("sync_push_profiles", {
+    p_client_max_profiles: 6,
+    p_profiles: all.map((profile) => ({
+      profile_index: profile.profile_index,
+      name:
+        profile.profile_index === current.profile_index
+          ? changes.name
+          : profile.name,
+      avatar_color_hex:
+        profile.profile_index === current.profile_index
+          ? (changes.avatar?.bg_color ?? profile.avatar_color_hex ?? "#8E24AA")
+          : (profile.avatar_color_hex ?? "#8E24AA"),
+      uses_primary_addons: profile.uses_primary_addons ?? false,
+      uses_primary_plugins: profile.uses_primary_plugins ?? false,
+      avatar_id:
+        profile.profile_index === current.profile_index
+          ? (changes.avatar?.id ?? profile.avatar_id ?? null)
+          : (profile.avatar_id ?? null),
+      avatar_url:
+        profile.profile_index === current.profile_index
+          ? changes.avatar
+            ? avatarUrl(changes.avatar)
+            : (profile.avatar_url ?? null)
+          : (profile.avatar_url ?? null),
+    })),
+    p_origin_client_id: origin,
+  });
+}
 export async function unlock(profile: Profile, pin: string) {
   if (!profile.pin_enabled) return;
   const data = await rpc<{ unlocked: boolean }[]>("verify_profile_pin", {

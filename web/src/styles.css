@@ -464,6 +464,140 @@ body {
   width: min(420px, 100%);
   margin: 0 auto 1rem;
 }
+.account-page-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.account-page-header h1 {
+  margin: 5px 0;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+.account-page-header p {
+  margin: 0;
+  color: var(--muted);
+}
+.account-page-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #121016;
+}
+.account-page-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.account-page-tabs button.active {
+  color: white;
+  background: color-mix(in srgb, var(--accent) 28%, #17131c);
+}
+.account-page-content {
+  display: grid;
+  gap: 18px;
+  max-width: 980px;
+}
+.account-hero-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 22px;
+}
+.account-hero-card h2 {
+  margin: 3px 0;
+  font-size: 1.8rem;
+}
+.account-hero-card p {
+  margin: 0;
+  color: var(--muted);
+}
+.account-avatar-large {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid #ffffff35;
+  color: white;
+  font-size: 2rem;
+  font-weight: 850;
+}
+.account-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-profile-form {
+  display: grid;
+  gap: 18px;
+}
+.avatar-picker {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.avatar-picker legend {
+  margin-bottom: 10px;
+  font-weight: 750;
+}
+.avatar-picker > div {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 3px 3px 10px;
+}
+.avatar-picker button {
+  flex: 0 0 68px;
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #211a29;
+}
+.avatar-picker button.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.avatar-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.account-actions p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+@media (max-width: 650px) {
+  .account-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .account-page-tabs button {
+    flex: 1;
+  }
+  .account-hero-card {
+    grid-template-columns: auto 1fr;
+  }
+  .account-hero-card > button {
+    grid-column: 1 / -1;
+  }
+  .account-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 .profile-pin {
   margin-top: 2rem;
   grid-template-columns: 1fr auto auto;
