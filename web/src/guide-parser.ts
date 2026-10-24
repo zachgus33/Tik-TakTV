@@ -30,7 +30,7 @@ export function createGuideParser(now = Date.now()) {
         end > now &&
         start < now + 24 * 3600_000 &&
         end > start &&
-        count < 50_000
+        count < 500_000
           ? {
               id: `${channel}:${start}`,
               channel,

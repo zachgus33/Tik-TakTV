@@ -506,6 +506,9 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
   await connect(page);
   await page.goto("/#live");
   await expect(page.getByText("Guide ready - 61 channel guides")).toBeVisible();
+  await expect(page.getByText("61 channels with schedules")).toBeVisible();
+  await expect(page.locator(".tv-guide-row")).toHaveCount(61);
+  await expect(page.locator(".tv-guide-row").last()).toContainText("Programme 61");
   expect(shortGuideRequests).toBe(0);
   await page.getByRole("button", { name: "Show 60 more channels" }).click();
   await expect(page.locator(".channel").last()).toContainText("Programme 61");

@@ -85,7 +85,7 @@ textarea {
 .tv-guide-times time:nth-of-type(2) { grid-column: 2; justify-self: center; transform: translateX(-100%); }
 .tv-guide-times time:nth-of-type(3) { grid-column: 2; justify-self: center; }
 .tv-guide-times time:nth-of-type(4) { grid-column: 2; justify-self: end; transform: translateX(-100%); }
-.tv-guide-row { min-height: 76px; border-bottom: 1px solid var(--line); }
+.tv-guide-row { min-height: 76px; border-bottom: 1px solid var(--line); content-visibility: auto; contain-intrinsic-size: auto 76px; }
 .tv-guide-channel { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: .75rem; padding: .65rem .8rem; border: 0; border-radius: 0; background: #17131c; text-align: left; overflow: hidden; }
 .tv-guide-channel-art { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 8px; overflow: hidden; }
 .tv-guide-channel-art img { width: 100%; height: 100%; object-fit: contain; }

@@ -1091,9 +1091,9 @@ export default function App() {
     revision,
   );
   const guide = activeChannel ? guideState.get(activeChannel) : [];
-  const guideChannels = filtered
-    .slice(0, limit)
-    .filter((channel) => guideState.get(channel).some((p) => p.end > guideState.now));
+  const guideChannels = filtered.filter((channel) =>
+    guideState.get(channel).some((p) => p.end > guideState.now),
+  );
   const guideError = activeChannel
     ? guideState.failed(activeChannel.id)
     : false;
@@ -1730,7 +1730,7 @@ export default function App() {
                           </time>
                         ))}
                       </div>
-                      {guideChannels.slice(0, 18).map((channel) => {
+                      {guideChannels.map((channel) => {
                         const shows = guideState.get(channel).filter((p) => p.end > guideState.now && p.start < guideState.now + 2 * 60 * 60_000);
                         return (
                           <div className="tv-guide-row" key={`guide-${itemKey(channel)}`}>
