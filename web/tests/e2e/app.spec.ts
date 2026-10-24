@@ -127,7 +127,7 @@ test("discovery, library persistence, accessible modal and mobile layout", async
   ).toBeVisible();
   await page.getByRole("button", { name: "Find streams" }).click();
   await expect(page.getByRole("alert")).toContainText(
-    "Install a streaming add-on",
+    "No streaming add-on is installed",
   );
   await page.getByRole("button", { name: "Close details" }).click();
   await page.goto("/#library");
@@ -409,4 +409,169 @@ test("full XMLTV guide loads automatically from login before channel selection",
   await expect(page.locator(".channel")).toContainText(
     "Automatic XMLTV programme",
   );
+});
+
+test.describe("authenticated integrations", () => {
+  test.use({ serviceWorkers: "block" });
+  test("Nuvio login loads shared addons and collection tiles, persists profile and saves edits", async ({
+    page,
+  }) => {
+    const user = {
+      id: "00000000-0000-4000-8000-000000000001",
+      email: "test@example.com",
+      aud: "authenticated",
+      role: "authenticated",
+    };
+    const jwt =
+      btoa(JSON.stringify({ alg: "HS256" })) +
+      "." +
+      btoa(
+        JSON.stringify({
+          sub: user.id,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ) +
+      ".fake";
+    const pushes: Array<{ path: string; body: any }> = [];
+    const collection = {
+      id: "services",
+      title: "Streaming Services",
+      folders: [
+        {
+          id: "prime",
+          title: "Prime Video",
+          sources: [
+            {
+              provider: "addon",
+              addonId: "com.linvo.cinemeta",
+              type: "movie",
+              catalogId: "top",
+            },
+          ],
+        },
+      ],
+    };
+    await page.route("https://api.nuvio.tv/**", async (route) => {
+      const url = new URL(route.request().url());
+      let data: any = [];
+      if (url.pathname.includes("/auth/v1/token"))
+        data = {
+          access_token: jwt,
+          refresh_token: "fake-refresh",
+          expires_in: 3600,
+          token_type: "bearer",
+          user,
+        };
+      else if (url.pathname.includes("/auth/v1/user")) data = user;
+      else if (url.pathname.endsWith("/sync_pull_profiles"))
+        data = [{ profile_index: 1, name: "Home", pin_enabled: false }];
+      else if (url.pathname === "/rest/v1/addons")
+        data = [
+          {
+            url: "https://v3-cinemeta.strem.io/manifest.json",
+            name: "Cinemeta",
+            enabled: true,
+            sort_order: 0,
+          },
+        ];
+      else if (url.pathname.endsWith("/sync_pull_collections"))
+        data = [{ collections_json: [collection] }];
+      else if (url.pathname.endsWith("/sync_pull_profile_settings_blob"))
+        data = [{ settings_json: { unrelatedSetting: "preserve" } }];
+      else if (url.pathname.includes("/sync_push_")) {
+        pushes.push({
+          path: url.pathname,
+          body: route.request().postDataJSON(),
+        });
+        data = null;
+      }
+      await route.fulfill({ json: data });
+    });
+    await page.route("https://v3-cinemeta.strem.io/manifest.json", (r) =>
+      r.fulfill({
+        json: {
+          id: "com.linvo.cinemeta",
+          name: "Cinemeta",
+          types: ["movie"],
+          resources: ["catalog", "meta", "stream"],
+          catalogs: [{ id: "top", type: "movie" }],
+        },
+      }),
+    );
+    await page.goto("/#settings");
+    await page.getByLabel("Nuvio email").fill("test@example.com");
+    await page.getByLabel("Nuvio password").fill("fake-password");
+    await page
+      .getByRole("button", { name: "Sign in to Nuvio", exact: true })
+      .click();
+    await expect(
+      page.getByRole("option", { name: "Home", exact: true }),
+    ).toHaveCount(1);
+    await page.getByRole("button", { name: "Load Nuvio profile" }).click();
+    await expect(
+      page.getByText("Nuvio profile loaded.", { exact: false }),
+    ).toBeVisible();
+    await page.goto("/#home");
+    await page
+      .getByRole("button", { name: "Open Streaming Services: Prime Video" })
+      .click();
+    await expect(
+      page.locator(".collections-section .media-card strong"),
+    ).toHaveText("The Test Movie");
+    await page.reload();
+    await expect(
+      page.getByRole("button", {
+        name: "Open Streaming Services: Prime Video",
+      }),
+    ).toBeVisible();
+    await page.goto("/#settings");
+    await page
+      .getByLabel("Automatically play the best 720p-or-higher stream")
+      .uncheck();
+    await expect(
+      page.getByText("Saved to your Nuvio account.", { exact: true }),
+    ).toBeVisible();
+    expect(pushes.some((p) => p.path.endsWith("sync_push_addons"))).toBe(false);
+    const saved = pushes.find((p) =>
+      p.path.endsWith("sync_push_profile_settings_blob"),
+    )!;
+    expect(saved.body.p_settings_json.unrelatedSetting).toBe("preserve");
+    expect(saved.body.p_settings_json.tikTakWebV1.autoplay).toBe(false);
+  });
+
+  test("TorBox requests use the configured playback service instead of browser CORS", async ({
+    page,
+  }) => {
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "nuvio:playback-service",
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "fake-private-key",
+        }),
+      ),
+    );
+    let directCalls = 0;
+    await page.route("https://api.torbox.app/**", (r) => {
+      directCalls++;
+      return r.abort();
+    });
+    await page.route("https://playback.example/request", (r) => {
+      const body = r.request().postDataJSON();
+      expect(body.url).toBe("https://api.torbox.app/v1/api/user/me");
+      expect(body.headers.authorization).toBe("Bearer fake-torbox-key");
+      return r.fulfill({ json: { success: true, data: { id: 1 } } });
+    });
+    await page.goto("/#settings");
+    await page
+      .getByLabel("TorBox API key", { exact: true })
+      .fill("fake-torbox-key");
+    await page
+      .getByRole("button", { name: "Connect TorBox", exact: true })
+      .click();
+    await expect(
+      page.getByText("TorBox connected.", { exact: false }),
+    ).toBeVisible();
+    expect(directCalls).toBe(0);
+  });
 });

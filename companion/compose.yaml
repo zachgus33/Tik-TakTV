@@ -1,0 +1,33 @@
+services:
+  playback:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3101:3101"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,uid=1000,gid=1000
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 3
+    init: true
+  tunnel:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - playback
+  quick-tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: [quick]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://playback:3101
+    depends_on:
+      - playback

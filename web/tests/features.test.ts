@@ -1,3 +1,4 @@
+import { addonStreams } from "../src/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGuideParser, xmltvTime } from "../src/guide-parser";
 import {
@@ -262,5 +263,31 @@ describe("TorBox cached torrent flow", () => {
       prepareTorbox("fake-key", { infoHash: "a".repeat(40) }),
     ).rejects.toThrow("not cached");
     expect(mock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("stream manifest compatibility", () => {
+  it("treats empty resource filters as unrestricted", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ streams: [{ url: "https://cdn.example/movie.mp4" }] }),
+      ),
+    );
+    const result = await addonStreams(
+      [
+        {
+          base: "https://addon.example",
+          manifest: {
+            id: "streamer",
+            name: "Streamer",
+            resources: [{ name: "stream", types: [], idPrefixes: [] }],
+          },
+        },
+      ],
+      { id: "tt1", name: "Movie", type: "movie", source: "addon" },
+      "tt1",
+    );
+    expect(result.count).toBe(1);
+    expect(result.streams).toHaveLength(1);
   });
 });

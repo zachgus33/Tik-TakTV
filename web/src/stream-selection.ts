@@ -1,3 +1,4 @@
+import { getService } from "./connection";
 import { safeUrl } from "./api";
 import type { Stream } from "./types";
 
@@ -29,7 +30,10 @@ export function seeders(stream: Stream): number {
 export function directStream(stream: Stream): boolean {
   const headers = stream.behaviorHints?.proxyHeaders as
     { request?: Record<string, string> } | undefined;
-  return !!safeUrl(stream.url) && !Object.keys(headers?.request ?? {}).length;
+  return (
+    !!safeUrl(stream.url) &&
+    (!!getService() || !Object.keys(headers?.request ?? {}).length)
+  );
 }
 export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
   return streams

@@ -1,3 +1,4 @@
+import { sourceFetch } from "./connection";
 import { safeUrl } from "./api";
 import type { Episode, Stream } from "./types";
 import { quality, streamQuality } from "./stream-selection";
@@ -28,18 +29,22 @@ export async function torboxRequest<T>(
   options.signal?.addEventListener("abort", abort, { once: true });
   if (options.signal?.aborted) abort();
   try {
-    const response = await fetch(`${base}${path}`, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${key}`,
-        Accept: "application/json",
-        ...options.headers,
+    const response = await sourceFetch(
+      `${base}${path}`,
+      {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${key}`,
+          Accept: "application/json",
+          ...options.headers,
+        },
+        credentials: "omit",
+        cache: "no-store",
+        referrerPolicy: "no-referrer",
       },
-      credentials: "omit",
-      cache: "no-store",
-      referrerPolicy: "no-referrer",
-    });
+      true,
+    );
     if (response.status === 401 || response.status === 403)
       throw new Error(
         "TorBox rejected this API key or your plan does not allow this request.",
@@ -71,7 +76,7 @@ export async function torboxRequest<T>(
       throw new Error("TorBox took too long to respond. Please retry.");
     if (error instanceof TypeError)
       throw new Error(
-        "Cannot reach TorBox. Check your connection and browser access to its API.",
+        "TorBox blocks direct browser API requests. Connect your private playback service in Settings, or use Torrentio configured with TorBox. This is a browser connection error, not evidence that your API key is wrong.",
       );
     throw error;
   } finally {

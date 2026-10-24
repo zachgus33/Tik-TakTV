@@ -1,3 +1,4 @@
+import ConnectionPanel from "./ConnectionPanel";
 import { useState } from "react";
 import {
   CheckCircle2,
@@ -59,7 +60,7 @@ export default function Settings(props: Props) {
         <div>
           <span className="eyebrow">MAKE IT YOURS</span>
           <h1>Settings & sources</h1>
-          <p>Your connections stay in this browser.</p>
+          <p>Manage your Nuvio account, add-ons and playback connections.</p>
         </div>
         <ShieldCheck className="section-icon" />
       </div>
@@ -74,6 +75,7 @@ export default function Settings(props: Props) {
           {success}
         </div>
       )}
+      <ConnectionPanel />
       <section className="settings-card">
         <h2>Torrentio & TorBox playback</h2>
         <p>
@@ -143,9 +145,10 @@ export default function Settings(props: Props) {
           </button>
         </form>
         <p className="hint">
-          The key goes directly to TorBox and stays in this tab unless
-          remembered. Playing a torrent can add its cached entry to your TorBox
-          account. No uncached download is started.
+          The key reaches TorBox directly or through your private playback
+          service. Nuvio account sync can save it with your setup. Playing a
+          torrent can add its cached entry to your TorBox account. No uncached
+          download is started.
         </p>
         <label className="check">
           <input
@@ -287,6 +290,24 @@ export default function Settings(props: Props) {
             <p>Bring your Stremio catalogs and HTTPS streaming sources.</p>
           </div>
         </div>
+        <button
+          disabled={!!busy}
+          onClick={() =>
+            void run("refresh", async () => {
+              const result = await installMany(
+                props.addons.map((a) => a.base + "/manifest.json"),
+              );
+              props.onAddons(mergeAddons(props.addons, result.addons));
+              setSuccess(
+                result.failed
+                  ? `Refreshed ${result.addons.length} manifests; ${result.failed} could not be reached. Existing add-ons were kept.`
+                  : "All add-on manifests refreshed.",
+              );
+            })
+          }
+        >
+          Refresh installed manifests
+        </button>
         <div className="addon-list">
           {props.addons.map((a) => (
             <div className="addon" key={a.base}>
@@ -296,7 +317,14 @@ export default function Settings(props: Props) {
               <div>
                 <strong>{a.manifest.name}</strong>
                 <p>
-                  {a.manifest.catalogs?.length ?? 0} catalogs ·{" "}
+                  {a.manifest.resources?.some((r) =>
+                    typeof r === "string"
+                      ? r === "stream"
+                      : r.name === "stream",
+                  )
+                    ? "Streaming enabled"
+                    : "Catalog / metadata only"}{" "}
+                  ? {a.manifest.catalogs?.length ?? 0} catalogs ·{" "}
                   {(a.manifest.types ?? []).join(", ")}
                 </p>
               </div>
@@ -382,6 +410,30 @@ export default function Settings(props: Props) {
           streams. Raw torrent results can be resolved with your TorBox key
           above. Native Cloudstream plug-ins cannot run in a browser.
         </p>
+      </section>
+      <section className="settings-card">
+        <h2>TMDB collections</h2>
+        <p>
+          For streaming-service, studio and network collections. Nuvio profile
+          sync imports your existing TMDB key.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            localStorage.setItem(
+              "nuvio:tmdb-key",
+              String(new FormData(e.currentTarget).get("tmdb")).trim(),
+            );
+            setSuccess("TMDB key saved. Reopen the collection to load it.");
+            e.currentTarget.reset();
+          }}
+        >
+          <label>
+            TMDB API key
+            <input name="tmdb" type="password" autoComplete="off" required />
+          </label>
+          <button>Save TMDB key</button>
+        </form>
       </section>
       <DataTools
         addons={props.addons}
@@ -489,9 +541,9 @@ export default function Settings(props: Props) {
         <h3>About this fork</h3>
         <p>
           An independent GPL-3.0 web adaptation of Nuvio Mobile Enhanced. This
-          version supports browser-compatible sources and TorBox-backed torrents.
-          Native downloads, direct peer-to-peer torrent playback, Trakt sync,
-          and AI features are not included.
+          version supports browser-compatible sources and TorBox-backed
+          torrents. Native downloads, direct peer-to-peer torrent playback,
+          Trakt sync, and AI features are not included.
         </p>
         <div className="actions">
           <a

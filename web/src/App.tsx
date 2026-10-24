@@ -1,3 +1,6 @@
+import { getService } from "./connection";
+import { storeProvider } from "./storage";
+import type { Setup } from "./account";
 import {
   lazy,
   Suspense,
@@ -74,6 +77,8 @@ import { save } from "./storage";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
+const HomeCollections = lazy(() => import("./HomeCollections"));
+const AccountPanel = lazy(() => import("./AccountPanel"));
 const CollectionsView = lazy(() => import("./CollectionsView"));
 type Page = "home" | "discover" | "live" | "library" | "settings";
 const nav = [
@@ -275,7 +280,16 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
-      onPlay({ item, episode: ep, url: stream.url!, resume: position });
+      onPlay({
+        item,
+        episode: ep,
+        url: stream.url!,
+        resume: position,
+        requestHeaders: (
+          stream.behaviorHints?.proxyHeaders as
+            { request?: Record<string, string> } | undefined
+        )?.request,
+      });
       return;
     }
     if (!torboxKey)
@@ -354,7 +368,9 @@ function Detail({
       if (auto && ranked.length) await chooseStream(ranked[0], ep, c.signal);
       if (!result.count)
         setError(
-          "Install a streaming add-on in Settings. Cinemeta provides information about titles, not video streams.",
+          result.installedStreaming
+            ? "Your streaming add-ons do not support this title ID. Try the title from an IMDb-based catalog or refresh your installed manifests in Settings."
+            : "No streaming add-on is installed in this browser profile. Sign in to Nuvio to sync your add-ons, or install a configured manifest in Settings. Localhost and your website have separate settings.",
         );
       else if (result.failed)
         setError(
@@ -586,6 +602,7 @@ export default function App() {
     nav.some((n) => n.id === location.hash.slice(1))
       ? (location.hash.slice(1) as Page)
       : "home";
+  const [accountLoading, setAccountLoading] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
   const [addons, setAddons] = useStored<Addon[]>("addons", [defaultAddon]);
@@ -602,6 +619,25 @@ export default function App() {
   const [progress, setProgress] = useState<Progress[]>(() =>
     read("progress", []),
   );
+  function loadAccountSetup(s: Setup) {
+    if (s.playbackService)
+      localStorage.setItem(
+        "nuvio:playback-service",
+        JSON.stringify(s.playbackService),
+      );
+    if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
+    setAddons(s.addons);
+    setCollections(s.collections);
+    setLibrary(s.library);
+    setProgress(s.progress);
+    save("progress", s.progress);
+    setProvider(s.provider);
+    storeProvider(s.provider, true);
+    setTorboxKey(s.torboxKey);
+    save("torbox-key", s.torboxKey);
+    sessionStorage.removeItem("nuvio:torbox-key");
+    setAutoplay(s.autoplay);
+  }
   const [playlist, setPlaylist] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -617,6 +653,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const changed = () => setRevision((n) => n + 1);
+    window.addEventListener("connections-changed", changed);
+    return () => window.removeEventListener("connections-changed", changed);
+  }, []);
   const [limit, setLimit] = useState(60);
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
@@ -856,7 +897,14 @@ export default function App() {
         setToast("Connect this channel’s IPTV account in Settings.");
         return;
       }
-      setPlayback({ item, url: streamUrl(provider, "live", item.id) });
+      setPlayback({
+        item,
+        url:
+          item.url ??
+          streamUrl(provider, "live", item.id, item.extension ?? "ts"),
+        requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
+        hls: item.extension?.toLowerCase() === "m3u8",
+      });
     } else if (item.url) setPlayback({ item, url: item.url });
   }
   async function restoreSetup(transfer: Transfer) {
@@ -985,6 +1033,30 @@ export default function App() {
           </div>
         )}
         <main id="main-content">
+          {accountLoading && (
+            <div className="account-loading" role="status">
+              Loading your Nuvio profile...
+            </div>
+          )}
+          <div className="page-content" hidden={page !== "settings"}>
+            <Suspense fallback={null}>
+              <AccountPanel
+                setup={{
+                  playbackService: getService(),
+                  tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
+                  addons,
+                  collections,
+                  library,
+                  progress,
+                  provider,
+                  torboxKey,
+                  autoplay,
+                }}
+                onLoad={loadAccountSetup}
+                onLoading={setAccountLoading}
+              />
+            </Suspense>
+          </div>
           {page === "home" && (
             <>
               {hero ? (
@@ -1136,6 +1208,15 @@ export default function App() {
                     </div>
                   </section>
                 ))}
+                <Suspense fallback={null}>
+                  <HomeCollections
+                    collections={collections}
+                    onChange={setCollections}
+                    addons={addons}
+                    library={library}
+                    onOpen={open}
+                  />
+                </Suspense>
                 <footer className="app-footer">
                   <span>Made for your next great watch.</span>
                   <button onClick={() => navigate("settings")}>

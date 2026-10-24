@@ -45,8 +45,9 @@ export default function DataTools({
     <section className="settings-card">
       <h2>Your Nuvio setup</h2>
       <p>
-        Bring over Nuvio collection JSON and your configured add-ons. Changes
-        here stay in this browser; this is not automatic Nuvio account sync.
+        Bring over Nuvio collection JSON and your configured add-ons. Use these
+        tools for manual transfer, or sign in to your Nuvio account above for
+        profile sync.
       </p>
       {error && (
         <div className="error" role="alert">
@@ -100,10 +101,10 @@ export default function DataTools({
       </details>
       <p className="hint">
         In native Nuvio, export from collection management. Add-on catalog
-        folders are supported. TMDB/Trakt source definitions are preserved but
-        need an equivalent add-on catalog to load here. Nuvio Enhanced’s
-        settings backup is a different format and does not contain the full
-        library.
+        folders are supported. TMDB sources use the API key from your Nuvio
+        profile or Settings. Trakt sources are preserved but still need an
+        equivalent add-on catalog. Nuvio Enhanced’s settings backup is a
+        different format and does not contain the full library.
       </p>
       <h3>Move this web setup to another device</h3>
       <p>

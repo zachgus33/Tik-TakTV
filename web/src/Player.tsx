@@ -1,3 +1,4 @@
+import { getService, prepareMedia } from "./connection";
 import { useEffect, useRef, useState } from "react";
 import { Airplay, Maximize, PictureInPicture2, X } from "lucide-react";
 import type Hls from "hls.js";
@@ -10,8 +11,10 @@ export type Playback = {
   url: string;
   episode?: Episode;
   resume?: number;
+  requestHeaders?: Record<string, string>;
+  hls?: boolean;
 };
-export default function Player({
+function VideoPlayer({
   playback,
   onClose,
 }: {
@@ -45,7 +48,12 @@ export default function Player({
     setError("");
     setNotice("");
     setQuality([]);
-    const url = safeUrl(playback.url);
+    const url =
+      safeUrl(playback.url) ??
+      (getService()?.url.startsWith("http://127.0.0.1:") &&
+      playback.url.startsWith(getService()!.url + "/media/")
+        ? playback.url
+        : undefined);
     if (!url) {
       setError("This stream needs a secure HTTPS connection.");
       return;
@@ -88,9 +96,7 @@ export default function Player({
     video.addEventListener("ended", persist);
     video.addEventListener("error", failed);
     window.addEventListener("pagehide", persist);
-    const isHls =
-      /\.m3u8(?:[?#]|$)/i.test(playback.url) ||
-      (playback.item.source === "xtream" && playback.item.type === "live");
+    const isHls = playback.hls || /\.m3u8(?:[?#]|$)/i.test(playback.url);
     if (isHls && !video.canPlayType("application/vnd.apple.mpegurl")) {
       void import("hls.js")
         .then(({ default: HlsClass }) => {
@@ -307,6 +313,49 @@ export default function Player({
           />
         </label>
       </div>
+    </dialog>
+  );
+}
+
+export default function Player({
+  playback,
+  onClose,
+}: {
+  playback: Playback;
+  onClose: () => void;
+}) {
+  const [ready, setReady] = useState<Playback | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const c = new AbortController();
+    setReady(null);
+    setError("");
+    void prepareMedia(playback.url, playback.requestHeaders, c.signal).then(
+      (url) => {
+        if (!c.signal.aborted)
+          setReady({
+            ...playback,
+            url,
+            hls:
+              playback.hls ||
+              getService()?.mode === "remux" ||
+              getService()?.mode === "transcode" ||
+              /\.m3u8(?:[?#]|$)/i.test(playback.url),
+          });
+      },
+      (e) => {
+        if (!c.signal.aborted) setError(e.message);
+      },
+    );
+    return () => c.abort();
+  }, [playback]);
+  if (ready) return <VideoPlayer playback={ready} onClose={onClose} />;
+  return (
+    <dialog open className="player-dialog" aria-label="Preparing playback">
+      <p role={error ? "alert" : "status"}>
+        {error || "Preparing your stream..."}
+      </p>
+      <button onClick={onClose}>Close player</button>
     </dialog>
   );
 }

@@ -1,3 +1,4 @@
+import { sourceFetch } from "./connection";
 import type {
   Addon,
   Category,
@@ -41,7 +42,7 @@ export async function json<T>(url: string, signal?: AbortSignal): Promise<T> {
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(cancel, 20000);
   try {
-    const r = await fetch(url, {
+    const r = await sourceFetch(url, {
       signal: controller.signal,
       credentials: "omit",
       referrerPolicy: "no-referrer",
@@ -172,7 +173,13 @@ export async function providerItems(
       ),
       category: String(x.category_id ?? ""),
       epgId: String(x.epg_channel_id ?? x.tvg_id ?? ""),
-      extension: String(x.container_extension ?? "mp4"),
+      extension: String(
+        x.container_extension ?? (type === "live" ? "ts" : "mp4"),
+      ),
+      url:
+        type === "live" && typeof x.direct_source === "string"
+          ? safeUrl(x.direct_source)
+          : undefined,
       rating: x.rating ? String(x.rating) : undefined,
       year: String(x.year ?? x.releaseDate ?? "").slice(0, 4),
       description: String(x.plot ?? ""),
@@ -285,7 +292,7 @@ export const defaultAddon: Addon = {
   },
 };
 export async function installAddon(input: string): Promise<Addon> {
-  const url = safeUrl(input.replace(/^stremio:\/\//, "https://"));
+  const url = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
   if (
     !url ||
     !new URL(url).pathname.endsWith("/manifest.json") ||
@@ -338,6 +345,10 @@ export async function addonDetail(
   item: Item,
   signal?: AbortSignal,
 ): Promise<{ item: Item; episodes: Episode[] }> {
+  if (item.id.startsWith("tmdb:")) {
+    const { resolveTmdb } = await import("./tmdb");
+    item = await resolveTmdb(item, signal);
+  }
   const data = await json<{ meta: Record<string, unknown> }>(
     `${item.provider}/meta/${item.type}/${encodeURIComponent(item.id)}.json`,
     signal,
@@ -368,8 +379,8 @@ export async function addonStreams(
       typeof r === "string"
         ? r === "stream"
         : r.name === "stream" &&
-          (!r.types || r.types.includes(item.type)) &&
-          (!r.idPrefixes || r.idPrefixes.some((p) => id.startsWith(p))),
+          (!r.types?.length || r.types.includes(item.type)) &&
+          (!r.idPrefixes?.length || r.idPrefixes.some((p) => id.startsWith(p))),
     ),
   );
   const results = await Promise.allSettled(
@@ -388,6 +399,11 @@ export async function addonStreams(
     streams: results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     failed: results.filter((r) => r.status === "rejected").length,
     count: eligible.length,
+    installedStreaming: addons.filter((a) =>
+      a.manifest.resources?.some((r) =>
+        typeof r === "string" ? r === "stream" : r.name === "stream",
+      ),
+    ).length,
   };
 }
 export function parsePlaylist(text: string, scope: string): Item[] {

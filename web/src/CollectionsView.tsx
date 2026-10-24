@@ -1,3 +1,4 @@
+import { tmdbCollection } from "./tmdb";
 import { useEffect, useState } from "react";
 import { Folder, Plus, ArrowLeft, Trash2 } from "lucide-react";
 import { catalog } from "./api";
@@ -14,15 +15,17 @@ export default function CollectionsView({
   addons,
   library,
   onOpen,
+  initialSelection,
 }: {
   collections: Collection[];
   onChange: (c: Collection[]) => void;
   addons: Addon[];
   library: Item[];
   onOpen: (item: Item) => void;
+  initialSelection?: { collection: string; folder: string };
 }) {
-  const [selected, setSelected] = useState("");
-  const [folderId, setFolderId] = useState("");
+  const [selected, setSelected] = useState(initialSelection?.collection ?? "");
+  const [folderId, setFolderId] = useState(initialSelection?.folder ?? "");
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -58,6 +61,8 @@ export default function CollectionsView({
     const local = library.filter((i) => folder.itemKeys?.includes(itemKey(i)));
     void Promise.allSettled(
       sources.map(async (s) => {
+        if (s.provider?.toLowerCase() === "tmdb")
+          return tmdbCollection(s, c.signal);
         if (s.provider && s.provider !== "addon")
           throw new Error(
             `${s.provider} collection sources need their own account integration. Add an equivalent add-on catalog here; the imported source is preserved for export.`,

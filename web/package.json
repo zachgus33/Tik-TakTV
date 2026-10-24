@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "hls.js": "^1.6.13",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
