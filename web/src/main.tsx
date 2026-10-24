@@ -33,17 +33,25 @@ createRoot(document.getElementById("root")!).render(
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
+    let refreshing = false;
+    const replacingExistingWorker = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing || !replacingExistingWorker) return;
+      refreshing = true;
+      location.reload();
+    });
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
-        const ready = () => window.dispatchEvent(new Event("app-update"));
-        if (registration.waiting) ready();
+        const activate = () =>
+          registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+        activate();
         registration.addEventListener("updatefound", () =>
           registration.installing?.addEventListener("statechange", () => {
-            if (registration.waiting && navigator.serviceWorker.controller)
-              ready();
+            if (registration.installing?.state === "installed") activate();
           }),
         );
+        void registration.update();
       })
       .catch(() => {
         /* App remains usable when storage is disabled. */

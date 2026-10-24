@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "prompt",
+      registerType: "autoUpdate",
       injectRegister: null,
       includeAssets: ["icon.svg", "apple-touch-icon.png"],
       manifest: {
@@ -35,6 +35,8 @@ export default defineConfig({
         globIgnores: ["**/hls-*.js"],
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [],
       },
     }),
