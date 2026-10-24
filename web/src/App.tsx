@@ -87,7 +87,7 @@ import { save } from "./storage";
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
 
-function ProfileGate({ onEnter }: { onEnter: (setup: Setup) => void }) {
+function ProfileGate({ onEnter, onGuest }: { onEnter: (setup: Setup) => void; onGuest: () => void }) {
   const [list, setList] = useState<Profile[]>([]);
   const [email, setEmail] = useState("");
   const [pinProfile, setPinProfile] = useState<Profile | null>(null);
@@ -95,6 +95,10 @@ function ProfileGate({ onEnter }: { onEnter: (setup: Setup) => void }) {
   const [error, setError] = useState("");
   async function refresh() {
     const { data } = await account.auth.getSession();
+    if (!data.session) {
+      onGuest();
+      return;
+    }
     setEmail(data.session?.user.email ?? "");
     setList(data.session ? await profiles() : []);
   }
@@ -1110,6 +1114,7 @@ export default function App() {
   if (!profileReady)
     return (
       <ProfileGate
+        onGuest={() => setProfileReady(true)}
         onEnter={(setup) => {
           loadAccountSetup(setup);
           location.hash = "home";
