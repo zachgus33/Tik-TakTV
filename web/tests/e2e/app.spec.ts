@@ -801,14 +801,10 @@ test.describe("authenticated integrations", () => {
       route.fulfill({ status: 503, body: "expired" }),
     );
     await page.route(
-      "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json**",
+      "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json**",
       (route) =>
         route.fulfill({
-          json: {
-            content: Buffer.from(
-              JSON.stringify({ url, updated, signature }),
-            ).toString("base64"),
-          },
+          json: { url, updated, signature },
         }),
     );
     await page.route(`${url}/request`, (route) =>

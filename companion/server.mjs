@@ -230,7 +230,7 @@ export function createService({ token, origins }) {
         const job = jobs.get(id);
         if (job) {
           const file = route.pathname.split("/")[3];
-          if (!/^(index\.m3u8|segment\d+\.ts)$/.test(file))
+          if (!/^(index\.m3u8|init\.mp4|segment\d+\.m4s)$/.test(file))
             return send(404, { error: "Unknown media file" });
           job.touched = Date.now();
           let content;
@@ -242,7 +242,9 @@ export function createService({ token, origins }) {
           res.writeHead(200, {
             "Content-Type": file.endsWith(".m3u8")
               ? "application/vnd.apple.mpegurl"
-              : "video/mp2t",
+              : file.endsWith(".mp4")
+                ? "video/mp4"
+                : "video/iso.segment",
           });
           res.end(req.method === "HEAD" ? undefined : content);
           return;
@@ -381,7 +383,8 @@ export function createService({ token, origins }) {
         await resolveTarget(body.url);
         const headers = sourceHeaders(body.headers);
         if (body.mode === "remux" || body.mode === "transcode") {
-          if (jobs.size >= 2)
+          const runningJobs = [...jobs.values()].filter((job) => job.running);
+          if (runningJobs.length >= 2)
             return send(429, {
               error:
                 "Two conversion sessions are already active. Close a player and retry.",
@@ -401,6 +404,7 @@ export function createService({ token, origins }) {
             "http,https,tcp,tls,crypto",
             "-format_whitelist",
             "hls,mpegts,mov,matroska,webm,aac,mp3",
+            "-re",
             "-i",
             inputUrl,
             "-map",
@@ -431,20 +435,30 @@ export function createService({ token, origins }) {
               : ["-c:v", "copy"]),
             "-c:a",
             "aac",
+            "-profile:a",
+            "aac_low",
             "-ac",
             "2",
+            "-ar",
+            "48000",
             "-b:a",
             "128k",
             "-f",
             "hls",
             "-hls_time",
-            "1",
+            "2",
             "-hls_list_size",
-            "6",
+            "12",
+            "-hls_delete_threshold",
+            "60",
             "-hls_flags",
             "delete_segments+independent_segments",
+            "-hls_segment_type",
+            "fmp4",
+            "-hls_fmp4_init_filename",
+            "init.mp4",
             "-hls_segment_filename",
-            join(dir, "segment%d.ts"),
+            join(dir, "segment%d.m4s"),
             join(dir, "index.m3u8"),
           ];
           const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
@@ -456,13 +470,20 @@ export function createService({ token, origins }) {
             dir,
             touched: Date.now(),
             failed: false,
+            running: true,
           };
           jobs.set(id, job);
           child.on("error", () => {
             job.failed = true;
           });
           child.on("exit", (code) => {
+            job.running = false;
             if (code) job.failed = true;
+            setTimeout(() => {
+              if (jobs.get(id) !== job || job.running) return;
+              jobs.delete(id);
+              void rm(job.dir, { recursive: true, force: true });
+            }, 30000).unref();
           });
           let ready = false;
           for (

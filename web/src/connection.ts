@@ -5,14 +5,18 @@ export type PlaybackService = {
   account?: boolean;
 };
 const endpointRecord =
-  "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json?ref=main";
+  "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json";
 const bootstrapEndpoint =
   "https://magnificent-tongue-composed-bears.trycloudflare.com";
 
 function accountToken() {
   try {
-    const session = JSON.parse(localStorage.getItem("tiktak:account") ?? "null");
-    return typeof session?.access_token === "string" ? session.access_token : "";
+    const session = JSON.parse(
+      localStorage.getItem("tiktak:account") ?? "null",
+    );
+    return typeof session?.access_token === "string"
+      ? session.access_token
+      : "";
   } catch {
     return "";
   }
@@ -26,9 +30,7 @@ async function discoveredService(config: PlaybackService) {
       referrerPolicy: "no-referrer",
     });
     if (!response.ok) return null;
-    const file = (await response.json()) as { content?: string };
-    if (!file.content) return null;
-    const record = JSON.parse(atob(file.content.replace(/\s/g, ""))) as {
+    const record = (await response.json()) as {
       url?: string;
       updated?: number;
       signature?: string;
@@ -62,7 +64,8 @@ async function discoveredService(config: PlaybackService) {
     }
     if (!valid || record.url === config.url) return null;
     const updated = { ...config, url: serviceUrl(record.url) };
-    if (config.account) localStorage.setItem("nuvio:discovered-url", updated.url);
+    if (config.account)
+      localStorage.setItem("nuvio:discovered-url", updated.url);
     else
       localStorage.setItem("nuvio:playback-service", JSON.stringify(updated));
     Object.assign(config, updated);
