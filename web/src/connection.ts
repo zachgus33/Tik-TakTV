@@ -160,7 +160,7 @@ export async function sourceFetch(
       options.signal ?? undefined,
       config,
     );
-  if (forceService) return relay();
+  if (forceService && config) return relay();
   try {
     return await fetch(url, options);
   } catch (e) {
