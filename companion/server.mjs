@@ -12,6 +12,11 @@ import { pipeline } from "node:stream/promises";
 import { Agent, fetch as upstreamFetch } from "undici";
 import ipaddr from "ipaddr.js";
 
+// Supabase's public anonymous client key; this is not a service-role secret.
+const nuvioAnonKey =
+  process.env.NUVIO_ANON_KEY ??
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxNTIxMzQ2LCJleHAiOjE5MzkyMDEzNDZ9.tmQaj682pwzehpqlgCDMnySOqiUvpgRbrE43T4VJpDI";
+
 export function publicAddress(address) {
   try {
     let a = ipaddr.parse(address);
@@ -122,6 +127,7 @@ export function createService({ token, origins }) {
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
   const jobs = new Map();
   const tickets = new Map();
+  const accountTokens = new Map();
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
     if (tickets.size > 5000) throw new Error("Playback capacity reached");
@@ -145,10 +151,36 @@ export function createService({ token, origins }) {
       }
   }, 30000);
   sweep.unref();
-  const authorized = (req) => {
+  const authorized = async (req) => {
     const a = Buffer.from(req.headers.authorization ?? "");
     const b = Buffer.from(`Bearer ${token}`);
-    return a.length === b.length && timingSafeEqual(a, b);
+    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    const bearer = String(req.headers.authorization ?? "").replace(
+      /^Bearer\s+/i,
+      "",
+    );
+    if (!bearer || bearer.length > 4096) return false;
+    const cached = accountTokens.get(bearer);
+    if (cached && cached > Date.now()) return true;
+    try {
+      const response = await upstreamFetch("https://api.nuvio.tv/auth/v1/user", {
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          apikey: nuvioAnonKey,
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) return false;
+      const user = await response.json();
+      if (!user?.id) return false;
+      accountTokens.set(bearer, Date.now() + 5 * 60_000);
+      if (accountTokens.size > 200)
+        for (const [key, expires] of accountTokens)
+          if (expires < Date.now()) accountTokens.delete(key);
+      return true;
+    } catch {
+      return false;
+    }
   };
   const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -184,7 +216,7 @@ export function createService({ token, origins }) {
     res.on("close", () => controller.abort());
     try {
       if (route.pathname === "/health") {
-        if (!authorized(req))
+        if (!(await authorized(req)))
           return send(401, { error: "Playback service key required" });
         return send(200, { ok: true, version: 1 });
       }
@@ -277,7 +309,7 @@ export function createService({ token, origins }) {
         }
         return;
       }
-      if (!authorized(req))
+      if (!(await authorized(req)))
         return send(401, { error: "Playback service key required" });
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });

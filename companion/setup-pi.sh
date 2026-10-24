@@ -10,4 +10,5 @@ if [ ! -f .env ]; then
   printf 'PLAYBACK_TOKEN=%s\nALLOWED_ORIGINS=https://zachgus33.github.io\nTUNNEL_TOKEN=\n' "$(openssl rand -hex 32)" > .env
 fi
 sudo docker compose up -d --build playback
-printf '\nPlayback service installed. Your private key is in .env. Next start the testing tunnel as described in README.md.\n'
+sh install-watchdog.sh
+printf '\nPlayback service and automatic recovery installed. Your private key is in .env. Next start the testing tunnel as described in README.md.\n'

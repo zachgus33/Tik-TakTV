@@ -2,13 +2,89 @@ export type PlaybackService = {
   url: string;
   token: string;
   mode?: "direct" | "remux" | "transcode";
+  account?: boolean;
 };
+const endpointRecord =
+  "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json?ref=main";
+const bootstrapEndpoint =
+  "https://magnificent-tongue-composed-bears.trycloudflare.com";
+
+function accountToken() {
+  try {
+    const session = JSON.parse(localStorage.getItem("tiktak:account") ?? "null");
+    return typeof session?.access_token === "string" ? session.access_token : "";
+  } catch {
+    return "";
+  }
+}
+
+async function discoveredService(config: PlaybackService) {
+  try {
+    const response = await fetch(`${endpointRecord}&t=${Date.now()}`, {
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+    if (!response.ok) return null;
+    const file = (await response.json()) as { content?: string };
+    if (!file.content) return null;
+    const record = JSON.parse(atob(file.content.replace(/\s/g, ""))) as {
+      url?: string;
+      updated?: number;
+      signature?: string;
+    };
+    if (
+      !record.url?.endsWith(".trycloudflare.com") ||
+      !Number.isFinite(record.updated) ||
+      !/^[a-f0-9]{64}$/i.test(record.signature ?? "")
+    )
+      return null;
+    let valid = config.account === true;
+    if (!valid) {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(config.token),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["verify"],
+      );
+      const signature = Uint8Array.from(
+        (record.signature!.match(/../g) ?? []).map((byte) =>
+          parseInt(byte, 16),
+        ),
+      );
+      valid = await crypto.subtle.verify(
+        "HMAC",
+        key,
+        signature,
+        new TextEncoder().encode(`${record.url}\n${record.updated}`),
+      );
+    }
+    if (!valid || record.url === config.url) return null;
+    const updated = { ...config, url: serviceUrl(record.url) };
+    if (config.account) localStorage.setItem("nuvio:discovered-url", updated.url);
+    else
+      localStorage.setItem("nuvio:playback-service", JSON.stringify(updated));
+    Object.assign(config, updated);
+    window.dispatchEvent(new Event("connections-changed"));
+    return updated;
+  } catch {
+    return null;
+  }
+}
 export function getService(): PlaybackService | null {
   try {
     const s = JSON.parse(
       localStorage.getItem("nuvio:playback-service") ?? "null",
     );
-    return s?.url && s?.token ? s : null;
+    if (s?.url && s?.token) return s;
+    const token = accountToken();
+    if (!token) return null;
+    return {
+      url: localStorage.getItem("nuvio:discovered-url") || bootstrapEndpoint,
+      token,
+      account: true,
+    };
   } catch {
     return null;
   }
@@ -40,19 +116,28 @@ export async function serviceRequest(
     throw new Error(
       "Connect a playback service in Settings. This source blocks direct browser requests.",
     );
-  const response = await fetch(`${config.url}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-    cache: "no-store",
-    credentials: "omit",
-    referrerPolicy: "no-referrer",
-  });
-  return response;
+  const request = (service: PlaybackService) =>
+    fetch(`${service.url}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        Authorization: `Bearer ${service.token}`,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+  try {
+    const response = await request(config);
+    if (response.status < 500) return response;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+  }
+  const replacement = await discoveredService(config);
+  if (replacement) return request(replacement);
+  return request(config);
 }
 export async function sourceFetch(
   url: string,
@@ -75,7 +160,7 @@ export async function sourceFetch(
       options.signal ?? undefined,
       config,
     );
-  if (forceService && config) return relay();
+  if (forceService) return relay();
   try {
     return await fetch(url, options);
   } catch (e) {

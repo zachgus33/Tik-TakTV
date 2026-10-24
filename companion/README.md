@@ -18,6 +18,8 @@ sh setup-pi.sh
 
 The installer generates a private service key in `.env` (ignored by Git). It does not send it anywhere. It builds the ARM64-compatible Node/FFmpeg image and starts the playback service with a restart policy. Do not commit `.env` or paste its contents into chat.
 
+It also installs a systemd watchdog that runs after boot and every minute. Docker restarts crashed containers immediately; the watchdog additionally checks the authenticated health endpoint and restarts an unresponsive service or stopped tunnel.
+
 ## First test, before buying a domain
 
 ```sh
@@ -26,6 +28,12 @@ sudo docker compose logs quick-tunnel
 ```
 
 Find the `https://...trycloudflare.com` URL. This is a temporary testing address, not a permanent hosting address. It can change when the tunnel restarts. Cloudflare Quick Tunnels have concurrency and availability limits.
+
+The native watchdog signs the current Quick Tunnel address with the private playback key and publishes it to `zachgus33/Tik-TakTV-Endpoint`. The website verifies that signature before replacing a privately configured address. This allows automatic recovery when Cloudflare assigns a different temporary hostname. A named tunnel remains the preferred option after a domain is available.
+
+For the native Raspberry Pi installation, `install-native-services.sh` creates persistent user services for playback, Cloudflare, endpoint publishing, and the one-minute health check. They start at boot and use systemd restart policies. The endpoint repository uses a dedicated write-enabled deploy key stored only on the Pi.
+
+Signed-in Nuvio users may also authenticate with their short-lived Nuvio session instead of receiving the private playback key. The service validates the session against Nuvio before accepting a request. This lets another person sign into the website with their own Nuvio account and load their own profiles and add-ons without exposing the owner’s service key.
 
 In the website's **Settings > Playback service**, paste that URL and the `PLAYBACK_TOKEN` value from the Pi's `.env`. Read it privately with `nano .env`. Click **Connect playback service**. Then connect TorBox, refresh installed manifests and test a live channel.
 

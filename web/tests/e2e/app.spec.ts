@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createHmac } from "node:crypto";
 
 const meta = {
   id: "tt-test",
@@ -756,5 +757,56 @@ test.describe("authenticated integrations", () => {
       page.getByText("TorBox connected.", { exact: false }),
     ).toBeVisible();
     expect(directCalls).toBe(0);
+  });
+
+  test("a signed discovery record replaces a failed tunnel automatically", async ({
+    page,
+  }) => {
+    const token = "discovery-secret";
+    const url = "https://replacement.trycloudflare.com";
+    const updated = 1_792_880_620_516;
+    const signature = createHmac("sha256", token)
+      .update(`${url}\n${updated}`)
+      .digest("hex");
+    await page.addInitScript(
+      ({ token }) => {
+        localStorage.setItem(
+          "nuvio:playback-service",
+          JSON.stringify({ url: "https://expired.example", token }),
+        );
+      },
+      { token },
+    );
+    await page.route("https://expired.example/request", (route) =>
+      route.fulfill({ status: 503, body: "expired" }),
+    );
+    await page.route(
+      "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json**",
+      (route) =>
+        route.fulfill({
+          json: {
+            content: Buffer.from(
+              JSON.stringify({ url, updated, signature }),
+            ).toString("base64"),
+          },
+        }),
+    );
+    await page.route(`${url}/request`, (route) =>
+      route.fulfill({ json: { success: true, data: { id: 1 } } }),
+    );
+    await page.goto("/#settings");
+    await page.getByRole("button", { name: /Playback/ }).click();
+    await page.getByLabel("TorBox API key", { exact: true }).fill("torbox-key");
+    await page
+      .getByRole("button", { name: "Connect TorBox", exact: true })
+      .click();
+    await expect(
+      page.getByText("TorBox connected.", { exact: false }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
+      )
+      .toContain("replacement.trycloudflare.com");
   });
 });
