@@ -92,9 +92,15 @@ export async function prepareMedia(
 ) {
   const config = getService();
   if (!config) return url;
+  const selectedMode = mode ?? config.mode ?? "direct";
+  // Resolved TorBox/add-on HTTPS links are already browser-playable and can be
+  // rate-limited when fetched again through the Pi. Keep the relay for sources
+  // that need headers or explicit remux/transcode compatibility.
+  if (selectedMode === "direct" && !Object.keys(headers ?? {}).length)
+    return url;
   const response = await serviceRequest(
     "/prepare",
-    { url, headers, mode: mode ?? config.mode ?? "direct" },
+    { url, headers, mode: selectedMode },
     signal,
     config,
   );

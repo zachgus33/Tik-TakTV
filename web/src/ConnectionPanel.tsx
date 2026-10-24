@@ -38,8 +38,8 @@ export default function ConnectionPanel({
       {connected ? (
         <>
           <p role="status">
-            Playback service connected. API requests can use the relay and video
-            is routed through it.
+            Playback service connected. API requests and incompatible video can
+            use the relay.
           </p>
           <label>
             Playback compatibility
@@ -53,7 +53,7 @@ export default function ConnectionPanel({
                 window.dispatchEvent(new Event("connections-changed"));
               }}
             >
-              <option value="direct">Relay original video (fastest)</option>
+              <option value="direct">Direct browser playback (fastest)</option>
               <option value="remux">Remux to HLS with compatible audio</option>
               <option value="transcode">
                 Convert to 720p H.264 (uses Pi CPU)
@@ -61,7 +61,7 @@ export default function ConnectionPanel({
             </select>
           </label>
           <p className="hint">
-            Start with relay. For unsupported containers or audio, try remux.
+            Start with direct playback. For unsupported containers or audio, try remux.
             Conversion starts a live HLS session with limited seeking.
           </p>
           <button
