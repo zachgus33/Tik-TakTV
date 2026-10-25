@@ -386,15 +386,22 @@ export default function Player({
     const c = new AbortController();
     setReady(null);
     setError("");
-    const nativeHls = document
-      .createElement("video")
-      .canPlayType("application/vnd.apple.mpegurl");
+    const userAgent = navigator.userAgent;
+    const appleNativeHls =
+      /(?:iPhone|iPad|iPod)/i.test(userAgent) ||
+      (/Macintosh/i.test(userAgent) &&
+        /Safari/i.test(userAgent) &&
+        !/(?:Chrome|Chromium|CriOS|Edg|OPR)/i.test(userAgent));
     void prepareMedia(
       playback.url,
       playback.requestHeaders,
       c.signal,
       playback.mode,
-      playback.mode === "transcode" ? (nativeHls ? "aac" : "opus") : undefined,
+      playback.mode === "transcode"
+        ? appleNativeHls
+          ? "aac"
+          : "opus"
+        : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)
