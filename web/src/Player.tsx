@@ -169,7 +169,6 @@ function VideoPlayer({
                 hlsRecoveries < 3
               ) {
                 hlsRecoveries += 1;
-                if (hlsRecoveries === 2) hls.swapAudioCodec();
                 hls.recoverMediaError();
                 setNotice("Recovering the live stream...");
                 return;

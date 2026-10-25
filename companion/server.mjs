@@ -439,7 +439,9 @@ export function createService({ token, origins }) {
                 ]
               : ["-c:v", "copy"]),
             "-c:a",
-            "libmp3lame",
+            "aac",
+            "-profile:a",
+            "aac_low",
             "-ac",
             "2",
             "-ar",
