@@ -400,7 +400,7 @@ export default function Player({
       playback.mode === "transcode"
         ? appleNativeHls
           ? "aac"
-          : "opus"
+          : "mp3"
         : undefined,
     ).then(
       (url) => {

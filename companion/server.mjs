@@ -467,18 +467,14 @@ export function createService({ token, origins }) {
             "60",
             "-hls_flags",
             "delete_segments+independent_segments",
-            ...(body.audioCodec === "mp3"
-              ? []
-              : [
-                  "-hls_segment_type",
-                  "fmp4",
-                  "-hls_fmp4_init_filename",
-                  "init.mp4",
-                ]),
+            "-hls_segment_type",
+            "fmp4",
+            "-hls_fmp4_init_filename",
+            "init.mp4",
             "-hls_segment_filename",
             join(
               dir,
-              body.audioCodec === "mp3" ? "segment%d.ts" : "segment%d.m4s",
+              "segment%d.m4s",
             ),
             join(dir, "index.m3u8"),
           ];
