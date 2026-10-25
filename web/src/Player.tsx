@@ -17,7 +17,10 @@ export type Playback = {
   subtitles?: Subtitle[];
 };
 function srtToVtt(text: string) {
-  return `WEBVTT\n\n${text.replace(/^\uFEFF/, "").replace(/^(\d+)\s*$/gm, "").replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`;
+  return `WEBVTT\n\n${text
+    .replace(/^\uFEFF/, "")
+    .replace(/^(\d+)\s*$/gm, "")
+    .replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`;
 }
 function VideoPlayer({
   playback,
@@ -57,15 +60,20 @@ function VideoPlayer({
         if (c.signal.aborted) return;
         setSubtitles((old) => {
           for (const s of old) URL.revokeObjectURL(s.url);
-          return [{
-            url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
-            name: candidate.name ?? "English (OpenSubtitles)",
-          }];
+          return [
+            {
+              url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
+              name: candidate.name ?? "English (OpenSubtitles)",
+            },
+          ];
         });
         setNotice("English subtitles loaded automatically.");
       })
       .catch(() => {
-        if (!c.signal.aborted) setNotice("Automatic English subtitles were unavailable for this stream.");
+        if (!c.signal.aborted)
+          setNotice(
+            "Automatic English subtitles were unavailable for this stream.",
+          );
       });
     return () => c.abort();
   }, [playback.subtitles]);
@@ -73,6 +81,7 @@ function VideoPlayer({
     const video = videoRef.current!;
     let disposed = false;
     let lastSave = 0;
+    let hlsRecoveries = 0;
     setError("");
     setNotice("");
     setQuality([]);
@@ -155,6 +164,25 @@ function VideoPlayer({
           });
           hls.on(HlsClass.Events.ERROR, (_, data) => {
             if (data.fatal) {
+              if (
+                data.type === HlsClass.ErrorTypes.MEDIA_ERROR &&
+                hlsRecoveries < 3
+              ) {
+                hlsRecoveries += 1;
+                if (hlsRecoveries === 2) hls.swapAudioCodec();
+                hls.recoverMediaError();
+                setNotice("Recovering the live stream...");
+                return;
+              }
+              if (
+                data.type === HlsClass.ErrorTypes.NETWORK_ERROR &&
+                hlsRecoveries < 2
+              ) {
+                hlsRecoveries += 1;
+                hls.startLoad();
+                setNotice("Reconnecting to the live channel...");
+                return;
+              }
               hls.destroy();
               hlsRef.current = null;
               failed();

@@ -24,7 +24,7 @@ function accountToken() {
 
 async function discoveredService(config: PlaybackService) {
   try {
-    const response = await fetch(`${endpointRecord}&t=${Date.now()}`, {
+    const response = await fetch(`${endpointRecord}?t=${Date.now()}`, {
       cache: "no-store",
       credentials: "omit",
       referrerPolicy: "no-referrer",

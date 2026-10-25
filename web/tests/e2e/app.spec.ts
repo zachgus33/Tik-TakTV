@@ -803,9 +803,9 @@ test.describe("authenticated integrations", () => {
     await page.route(
       "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json**",
       (route) =>
-        route.fulfill({
-          json: { url, updated, signature },
-        }),
+        route.request().url().includes("endpoint.json?")
+          ? route.fulfill({ json: { url, updated, signature } })
+          : route.fulfill({ status: 404 }),
     );
     await page.route(`${url}/request`, (route) =>
       route.fulfill({ json: { success: true, data: { id: 1 } } }),
