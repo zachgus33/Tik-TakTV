@@ -503,7 +503,7 @@ export function createService({ token, origins }) {
                   "-crf",
                   "25",
                   "-vf",
-                  "scale=-2:720",
+                  "scale=-2:480",
                   "-g",
                   "30",
                   "-keyint_min",
@@ -511,7 +511,7 @@ export function createService({ token, origins }) {
                   "-sc_threshold",
                   "0",
                   "-threads",
-                  "4",
+                  "2",
                 ]
               : ["-c:v", "copy"]),
             "-c:a",
