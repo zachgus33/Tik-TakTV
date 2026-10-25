@@ -1121,6 +1121,9 @@ export default function App() {
   const [torboxKey, setTorboxKey] = useState<string>(() =>
     read("torbox-key", read("torbox-key", ""), sessionStorage),
   );
+  const [tmdbKey, setTmdbKey] = useState(
+    () => localStorage.getItem("nuvio:tmdb-key") ?? "",
+  );
   const [progress, setProgress] = useState<Progress[]>(() =>
     read("progress", []),
   );
@@ -1132,7 +1135,9 @@ export default function App() {
       );
     if (s.playbackService)
       window.dispatchEvent(new Event("connections-changed"));
+    setTmdbKey(s.tmdbKey ?? "");
     if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
+    else localStorage.removeItem("nuvio:tmdb-key");
     setAddons(s.addons);
     const collectionSettings =
       s.homeCatalogs?.filter((x) => x.is_collection) ?? [];
@@ -2256,7 +2261,7 @@ export default function App() {
                 <AccountPanel
                   setup={{
                     playbackService: getService(),
-                    tmdbKey: localStorage.getItem("nuvio:tmdb-key") ?? "",
+                    tmdbKey,
                     addons,
                     collections,
                     library,
@@ -2314,6 +2319,8 @@ export default function App() {
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
                   playbackConnected={!!getService()}
+                  tmdbKey={tmdbKey}
+                  onTmdbKey={setTmdbKey}
                 />
               </Suspense>
             )}

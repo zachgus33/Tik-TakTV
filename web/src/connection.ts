@@ -178,6 +178,7 @@ export async function prepareMedia(
   headers?: Record<string, string>,
   signal?: AbortSignal,
   mode?: PlaybackService["mode"],
+  audioCodec?: "aac" | "mp3",
 ) {
   const config = getService();
   if (!config) return url;
@@ -189,7 +190,7 @@ export async function prepareMedia(
     return url;
   const response = await serviceRequest(
     "/prepare",
-    { url, headers, mode: selectedMode },
+    { url, headers, mode: selectedMode, audioCodec },
     signal,
     config,
   );

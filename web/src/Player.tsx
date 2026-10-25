@@ -25,9 +25,11 @@ function srtToVtt(text: string) {
 function VideoPlayer({
   playback,
   onClose,
+  onCompatibilityError,
 }: {
   playback: Playback;
   onClose: () => void;
+  onCompatibilityError?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -119,10 +121,15 @@ function VideoPlayer({
           Math.max(0, video.duration - 1),
         );
     };
-    const failed = () =>
+    const failed = () => {
+      if (onCompatibilityError) {
+        onCompatibilityError();
+        return;
+      }
       setError(
         "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
       );
+    };
     const play = () =>
       video.play().catch(() => {
         if (!disposed) setNotice("Tap the video’s play button to start.");
@@ -214,7 +221,7 @@ function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [playback, retry]);
+  }, [playback, retry, onCompatibilityError]);
   async function fullscreen() {
     const v = videoRef.current as HTMLVideoElement & {
       webkitEnterFullscreen?: () => void;
@@ -381,6 +388,8 @@ export default function Player({
 }) {
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
+  const [audioCodec, setAudioCodec] = useState<"aac" | "mp3">("aac");
+  useEffect(() => setAudioCodec("aac"), [playback]);
   useEffect(() => {
     const c = new AbortController();
     setReady(null);
@@ -390,6 +399,7 @@ export default function Player({
       playback.requestHeaders,
       c.signal,
       playback.mode,
+      playback.mode === "transcode" ? audioCodec : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)
@@ -410,8 +420,22 @@ export default function Player({
       },
     );
     return () => c.abort();
-  }, [playback]);
-  if (ready) return <VideoPlayer playback={ready} onClose={onClose} />;
+  }, [playback, audioCodec]);
+  if (ready)
+    return (
+      <VideoPlayer
+        playback={ready}
+        onClose={onClose}
+        onCompatibilityError={
+          playback.mode === "transcode" && audioCodec === "aac"
+            ? () => {
+                setReady(null);
+                setAudioCodec("mp3");
+              }
+            : undefined
+        }
+      />
+    );
   return (
     <dialog open className="player-dialog" aria-label="Preparing playback">
       <p role={error ? "alert" : "status"}>

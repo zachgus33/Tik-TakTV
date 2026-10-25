@@ -39,6 +39,8 @@ type Props = {
   autoplay: boolean;
   onAutoplay: (value: boolean) => void;
   playbackConnected: boolean;
+  tmdbKey: string;
+  onTmdbKey: (key: string) => void;
 };
 type SettingsSection =
   "addons" | "collections" | "live" | "playback" | "general";
@@ -511,6 +513,7 @@ export default function Settings(props: Props) {
                     const { validateTmdbCredential } = await import("./tmdb");
                     await validateTmdbCredential(credential);
                     localStorage.setItem("nuvio:tmdb-key", credential);
+                    props.onTmdbKey(credential);
                     setSuccess(
                       "TMDB connected. Cast photos and filmographies are ready.",
                     );
@@ -523,6 +526,7 @@ export default function Settings(props: Props) {
                   <input
                     name="tmdb"
                     type="password"
+                    defaultValue={props.tmdbKey}
                     autoComplete="off"
                     required
                   />
