@@ -232,7 +232,7 @@ export function createService({ token, origins }) {
         if (job) {
           const file = route.pathname.split("/")[3];
           if (job.kind === "webm") {
-            if (!/^(?:stream\.webm|audio\.mp3)$/.test(file))
+            if (file !== "stream.webm")
               return send(404, { error: "Unknown media file" });
             job.touched = Date.now();
             job.clients = (job.clients ?? 0) + 1;
@@ -254,12 +254,12 @@ export function createService({ token, origins }) {
             };
             res.once("close", release);
             res.writeHead(200, {
-              "Content-Type": file === "audio.mp3" ? "audio/mpeg" : "video/webm",
+              "Content-Type": "video/webm",
               "Cache-Control": "no-store",
             });
             if (req.method === "HEAD") return res.end();
             const stream = createReadStream(
-              file === "audio.mp3" ? job.audioPath : job.videoPath,
+              job.videoPath,
             );
             stream.on("error", () => res.destroy());
             stream.pipe(res);
@@ -438,9 +438,8 @@ export function createService({ token, origins }) {
             "http://127.0.0.1:" + address.port + "/media/" + input + "/stream";
           if (body.audioCodec === "webm") {
             const videoPath = join(dir, "stream.webm");
-            const audioPath = join(dir, "audio.mp3");
             await new Promise((resolve, reject) => {
-              const fifo = spawn("mkfifo", [videoPath, audioPath]);
+              const fifo = spawn("mkfifo", [videoPath]);
               fifo.once("error", reject);
               fifo.once("exit", (code) =>
                 code === 0 ? resolve() : reject(new Error("Could not create media pipes")),
@@ -449,12 +448,11 @@ export function createService({ token, origins }) {
             const args = [
               "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-re",
               "-i", inputUrl,
-              "-map", "0:v:0?", "-an",
+              "-map", "0:v:0?", "-map", "0:a:0?",
               "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "12",
               "-b:v", "1000k", "-vf", "scale=-2:480", "-threads", "2",
+              "-c:a", "libopus", "-ac", "2", "-ar", "48000", "-b:a", "96k",
               "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", videoPath,
-              "-map", "0:a:0?", "-vn", "-c:a", "libmp3lame",
-              "-ac", "2", "-ar", "48000", "-b:a", "128k", "-f", "mp3", audioPath,
             ];
             const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
               stdio: ["ignore", "ignore", "ignore"],
@@ -463,7 +461,6 @@ export function createService({ token, origins }) {
             jobs.set(id, {
               kind: "webm",
               videoPath,
-              audioPath,
               process: child,
               dir,
               touched: Date.now(),
