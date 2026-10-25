@@ -147,6 +147,48 @@ export async function resolveTmdb(
 }
 
 export type Credit = { id: number; name: string; role: string; photo?: string };
+
+export async function peopleByName(
+  names: string[],
+  signal?: AbortSignal,
+): Promise<Credit[]> {
+  const unique = [
+    ...new Set(names.map((name) => name.trim()).filter(Boolean)),
+  ].slice(0, 12);
+  const rows: Credit[] = [];
+  for (let offset = 0; offset < unique.length; offset += 4) {
+    const batch = await Promise.allSettled(
+      unique.slice(offset, offset + 4).map(async (name) => {
+        const data = await get<{ results?: Record<string, unknown>[] }>(
+          "search/person",
+          { query: name, language: "en-US", page: "1" },
+          signal,
+        );
+        const exact = (data.results ?? []).find(
+          (person) =>
+            String(person.name ?? "").localeCompare(name, undefined, {
+              sensitivity: "base",
+            }) === 0,
+        );
+        const person = exact ?? data.results?.[0];
+        if (!person?.id) return null;
+        return {
+          id: Number(person.id),
+          name: String(person.name ?? name),
+          role: "Cast",
+          photo: person.profile_path
+            ? safeUrl(`https://image.tmdb.org/t/p/w185${person.profile_path}`)
+            : undefined,
+        } satisfies Credit;
+      }),
+    );
+    for (const result of batch)
+      if (result.status === "fulfilled" && result.value)
+        rows.push(result.value);
+  }
+  return rows;
+}
+
 export async function titleCredits(
   item: Item,
   signal?: AbortSignal,

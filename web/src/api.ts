@@ -342,6 +342,7 @@ export function fromMeta(meta: Record<string, unknown>, addon: Addon): Item {
     background: safeUrl(meta.background),
     description: String(meta.description ?? ""),
     year: String(meta.releaseInfo ?? meta.year ?? ""),
+    released: typeof meta.released === "string" ? meta.released : undefined,
     rating: meta.imdbRating ? String(meta.imdbRating) : undefined,
     genres: Array.isArray(meta.genres) ? meta.genres.map(String) : [],
     runtime: String(meta.runtime ?? ""),

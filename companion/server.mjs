@@ -335,10 +335,9 @@ export function createService({ token, origins }) {
           return;
         }
         const result = await fetchSafe(url.href, {
-          signal: AbortSignal.any([
-            controller.signal,
-            AbortSignal.timeout(180000),
-          ]),
+          // A guide download fills a shared disk cache for every browser. Keep
+          // it running when the initiating tab navigates away or disconnects.
+          signal: AbortSignal.timeout(180000),
         });
         try {
           const canCache = result.response.ok && result.response.body;
@@ -357,11 +356,13 @@ export function createService({ token, origins }) {
               bytes += chunk.byteLength;
               if (bytes > 192_000_000) client.destroy(new Error("Guide too large"));
             });
-            await Promise.all([
-              pipeline(client, res),
-              pipeline(Readable.fromWeb(cacheBody), createWriteStream(tempPath)),
-            ]);
+            const clientWrite = pipeline(client, res).catch(() => undefined);
+            await pipeline(
+              Readable.fromWeb(cacheBody),
+              createWriteStream(tempPath),
+            );
             await rename(tempPath, cachePath).catch(() => rm(tempPath, { force: true }));
+            await clientWrite;
             return;
           }
           let bytes = 0;

@@ -89,6 +89,50 @@ import { save } from "./storage";
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
 
+const futureAvailability = new Map<string, boolean>();
+
+async function hideUnavailableFutureTitles(
+  rows: { title: string; items: Item[] }[],
+  addons: Addon[],
+  signal: AbortSignal,
+) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const candidates = rows
+    .flatMap((row) => row.items)
+    .filter((item) => {
+      const year = Number.parseInt(item.year ?? "", 10);
+      return Number.isFinite(year) && year >= currentYear;
+    });
+  for (let offset = 0; offset < candidates.length; offset += 6) {
+    await Promise.allSettled(
+      candidates.slice(offset, offset + 6).map(async (original) => {
+        const key = itemKey(original);
+        if (futureAvailability.has(key) || signal.aborted) return;
+        let item = original;
+        if (!item.released && Number(item.year) === currentYear)
+          item = (await addonDetail(item, signal)).item;
+        const released = item.released ? new Date(item.released) : null;
+        const isFuture = released
+          ? Number.isFinite(released.valueOf()) && released > now
+          : Number(item.year) > currentYear;
+        if (!isFuture) {
+          futureAvailability.set(key, true);
+          return;
+        }
+        const result = await addonStreams(addons, item, item.id, signal);
+        futureAvailability.set(key, result.streams.length > 0);
+      }),
+    );
+  }
+  return rows.map((row) => ({
+    ...row,
+    items: row.items.filter(
+      (item) => futureAvailability.get(itemKey(item)) !== false,
+    ),
+  }));
+}
+
 const liveRegions = [
   ["US", "🇺🇸", "United States", /^(US)\||UNITED STATES/i],
   ["CA", "🇨🇦", "Canada", /^(CA)\||CANADA/i],
@@ -605,7 +649,14 @@ function Detail({
         setSeason(result.episodes[0]?.season ?? null);
         if (result.item.type !== "live")
           void import("./tmdb")
-            .then(({ titleCredits }) => titleCredits(result.item, c.signal))
+            .then(async ({ peopleByName, titleCredits }) => {
+              const rows = await titleCredits(result.item, c.signal).catch(
+                () => [],
+              );
+              return rows.length || !result.item.cast?.length
+                ? rows
+                : peopleByName(result.item.cast, c.signal);
+            })
             .then((rows) => {
               if (!c.signal.aborted) setCredits(rows);
             })
@@ -1240,8 +1291,14 @@ export default function App() {
       })),
     ).then((results) => {
       if (c.signal.aborted) return;
-      setHomeRows(
-        results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+      const rows = results.flatMap((r) =>
+        r.status === "fulfilled" ? [r.value] : [],
+      );
+      setHomeRows(rows);
+      void hideUnavailableFutureTitles(rows, addons, c.signal).then(
+        (filtered) => {
+          if (!c.signal.aborted) setHomeRows(filtered);
+        },
       );
       const rejected = results.find((r) => r.status === "rejected");
       if (rejected?.status === "rejected") setError(message(rejected.reason));

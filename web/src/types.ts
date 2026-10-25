@@ -9,6 +9,7 @@ export type Item = {
   background?: string;
   description?: string;
   year?: string;
+  released?: string;
   rating?: string;
   genres?: string[];
   category?: string;
