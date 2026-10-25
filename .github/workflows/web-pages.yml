@@ -33,6 +33,7 @@ jobs:
         env:
           VITE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}/web
       - run: npx playwright install --with-deps chromium webkit
+        timeout-minutes: 10
       - run: npm run test:e2e
       - uses: actions/upload-pages-artifact@v3
         with:
