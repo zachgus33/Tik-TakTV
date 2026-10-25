@@ -2377,11 +2377,9 @@ body:has(dialog[open]) {
 }
 .person-credit-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 126px;
-  gap: 12px;
-  overflow-x: auto;
-  padding: 3px 2px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 18px 14px;
+  padding: 4px 2px 14px;
 }
 .person-credit-grid > button {
   padding: 0;
@@ -2391,11 +2389,23 @@ body:has(dialog[open]) {
   text-align: left;
   min-width: 0;
 }
-.person-credit-grid .art {
+.person-credit-grid > button > img,
+.person-credit-grid > button > .art-fallback {
+  display: block;
+  width: 100%;
   aspect-ratio: 2 / 3;
+  height: auto;
+  object-fit: cover;
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 8px;
+}
+.person-credit-grid > button:hover,
+.person-credit-grid > button:focus-visible {
+  transform: translateY(-3px);
+}
+.person-credit-grid > button {
+  transition: transform 160ms ease;
 }
 .person-credit-grid strong,
 .person-credit-grid small {

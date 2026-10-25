@@ -231,7 +231,7 @@ export function createService({ token, origins }) {
         const job = jobs.get(id);
         if (job) {
           const file = route.pathname.split("/")[3];
-          if (!/^(index\.m3u8|segment\d+\.ts)$/.test(file))
+          if (!/^(index\.m3u8|init\.mp4|segment\d+\.(?:ts|m4s))$/.test(file))
             return send(404, { error: "Unknown media file" });
           job.touched = Date.now();
           let content;
@@ -243,7 +243,9 @@ export function createService({ token, origins }) {
           res.writeHead(200, {
             "Content-Type": file.endsWith(".m3u8")
               ? "application/vnd.apple.mpegurl"
-              : "video/mp2t",
+              : file.endsWith(".ts")
+                ? "video/mp2t"
+                : "video/mp4",
           });
           res.end(req.method === "HEAD" ? undefined : content);
           return;
@@ -459,8 +461,19 @@ export function createService({ token, origins }) {
             "60",
             "-hls_flags",
             "delete_segments+independent_segments",
+            ...(body.audioCodec === "mp3"
+              ? []
+              : [
+                  "-hls_segment_type",
+                  "fmp4",
+                  "-hls_fmp4_init_filename",
+                  "init.mp4",
+                ]),
             "-hls_segment_filename",
-            join(dir, "segment%d.ts"),
+            join(
+              dir,
+              body.audioCodec === "mp3" ? "segment%d.ts" : "segment%d.m4s",
+            ),
             join(dir, "index.m3u8"),
           ];
           const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
