@@ -232,15 +232,15 @@ export function createService({ token, origins }) {
         if (job) {
           const file = route.pathname.split("/")[3];
           if (job.kind === "webm") {
-            if (file !== "stream.webm")
+            if (!/^(?:stream\.webm|audio\.mp3)$/.test(file))
               return send(404, { error: "Unknown media file" });
             job.touched = Date.now();
             res.writeHead(200, {
-              "Content-Type": "video/webm",
+              "Content-Type": file === "audio.mp3" ? "audio/mpeg" : "video/webm",
               "Cache-Control": "no-store",
             });
             if (req.method === "HEAD") return res.end();
-            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
+            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", file === "audio.mp3" ? job.audioArgs : job.videoArgs, {
               stdio: ["ignore", "pipe", "ignore"],
               windowsHide: true,
             });
@@ -423,18 +423,24 @@ export function createService({ token, origins }) {
           const inputUrl =
             "http://127.0.0.1:" + address.port + "/media/" + input + "/stream";
           if (body.audioCodec === "webm") {
-            const args = [
+            const baseArgs = [
               "-hide_banner", "-loglevel", "error", "-nostdin", "-re",
               "-i", inputUrl,
-              "-map", "0:v:0?", "-map", "0:a:0?",
+            ];
+            const videoArgs = [
+              ...baseArgs, "-map", "0:v:0?", "-an",
               "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8",
               "-b:v", "1200k", "-vf", "scale=-2:480", "-threads", "4",
-              "-c:a", "libopus", "-ac", "2", "-ar", "48000", "-b:a", "96k",
               "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", "pipe:1",
+            ];
+            const audioArgs = [
+              ...baseArgs, "-map", "0:a:0?", "-vn", "-c:a", "libmp3lame",
+              "-ac", "2", "-ar", "48000", "-b:a", "128k", "-f", "mp3", "pipe:1",
             ];
             jobs.set(id, {
               kind: "webm",
-              args,
+              videoArgs,
+              audioArgs,
               process: null,
               dir: null,
               touched: Date.now(),

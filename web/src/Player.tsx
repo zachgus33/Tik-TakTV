@@ -84,6 +84,7 @@ function VideoPlayer({
     let hlsRecoveries = 0;
     const streamAbort = new AbortController();
     let mediaObjectUrl = "";
+    let liveAudio: HTMLAudioElement | null = null;
     setError("");
     setNotice("");
     setQuality([]);
@@ -126,10 +127,12 @@ function VideoPlayer({
         "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
       );
     };
-    const play = () =>
-      video.play().catch(() => {
+    const play = () => {
+      void liveAudio?.play().catch(() => undefined);
+      return video.play().catch(() => {
         if (!disposed) setNotice("Tap the video’s play button to start.");
       });
+    };
     video.addEventListener("loadedmetadata", loaded);
     video.addEventListener("timeupdate", time);
     video.addEventListener("pause", persist);
@@ -199,6 +202,16 @@ function VideoPlayer({
           ),
         );
     } else if (/\.webm(?:[?#]|$)/i.test(url) && "MediaSource" in window) {
+      liveAudio = new Audio(url.replace(/stream\.webm(?:[?#]|$)/i, "audio.mp3"));
+      liveAudio.preload = "auto";
+      video.addEventListener("play", () => void liveAudio?.play().catch(() => undefined));
+      video.addEventListener("pause", () => liveAudio?.pause());
+      video.addEventListener("volumechange", () => {
+        if (liveAudio) {
+          liveAudio.volume = video.volume;
+          liveAudio.muted = video.muted;
+        }
+      });
       const mediaSource = new MediaSource();
       mediaObjectUrl = URL.createObjectURL(mediaSource);
       video.src = mediaObjectUrl;
@@ -210,7 +223,7 @@ function VideoPlayer({
             if (!response.ok || !response.body)
               throw new Error(`Live stream returned HTTP ${response.status}`);
             const source = mediaSource.addSourceBuffer(
-              'video/webm; codecs="vp8, opus"',
+              'video/webm; codecs="vp8"',
             );
             const reader = response.body.getReader();
             const append = (chunk: Uint8Array) =>
@@ -257,6 +270,8 @@ function VideoPlayer({
       hlsRef.current?.destroy();
       hlsRef.current = null;
       streamAbort.abort();
+      liveAudio?.pause();
+      if (liveAudio) liveAudio.src = "";
       video.pause();
       video.removeAttribute("src");
       video.load();
