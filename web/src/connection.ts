@@ -178,7 +178,7 @@ export async function prepareMedia(
   headers?: Record<string, string>,
   signal?: AbortSignal,
   mode?: PlaybackService["mode"],
-  audioCodec?: "aac" | "mp3" | "opus",
+  audioCodec?: "aac" | "mp3" | "opus" | "webm",
 ) {
   const config = getService();
   if (!config) return url;

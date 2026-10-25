@@ -149,9 +149,9 @@ export function createService({ token, origins }) {
       if (t.expires < Date.now()) tickets.delete(id);
     for (const [id, j] of jobs)
       if (Date.now() - j.touched > 120000) {
-        j.process.kill();
+        j.process?.kill();
         jobs.delete(id);
-        void rm(j.dir, { recursive: true, force: true });
+        if (j.dir) void rm(j.dir, { recursive: true, force: true });
       }
   }, 30000);
   sweep.unref();
@@ -231,6 +231,26 @@ export function createService({ token, origins }) {
         const job = jobs.get(id);
         if (job) {
           const file = route.pathname.split("/")[3];
+          if (job.kind === "webm") {
+            if (file !== "stream.webm")
+              return send(404, { error: "Unknown media file" });
+            job.touched = Date.now();
+            res.writeHead(200, {
+              "Content-Type": "video/webm",
+              "Cache-Control": "no-store",
+            });
+            if (req.method === "HEAD") return res.end();
+            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
+              stdio: ["ignore", "pipe", "ignore"],
+              windowsHide: true,
+            });
+            job.process = child;
+            const stop = () => child.kill();
+            res.once("close", stop);
+            child.once("close", () => res.end());
+            child.stdout.pipe(res);
+            return;
+          }
           if (!/^(index\.m3u8|init\.mp4|segment\d+\.(?:ts|m4s))$/.test(file))
             return send(404, { error: "Unknown media file" });
           job.touched = Date.now();
@@ -402,6 +422,26 @@ export function createService({ token, origins }) {
           const address = server.address();
           const inputUrl =
             "http://127.0.0.1:" + address.port + "/media/" + input + "/stream";
+          if (body.audioCodec === "webm") {
+            const args = [
+              "-hide_banner", "-loglevel", "error", "-nostdin", "-re",
+              "-i", inputUrl,
+              "-map", "0:v:0?", "-map", "0:a:0?",
+              "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8",
+              "-b:v", "1200k", "-vf", "scale=-2:480", "-threads", "4",
+              "-c:a", "libopus", "-ac", "2", "-ar", "48000", "-b:a", "96k",
+              "-f", "webm", "pipe:1",
+            ];
+            jobs.set(id, {
+              kind: "webm",
+              args,
+              process: null,
+              dir: null,
+              touched: Date.now(),
+              running: false,
+            });
+            return send(200, { path: `/media/${id}/stream.webm`, hls: false });
+          }
           const args = [
             "-hide_banner",
             "-loglevel",
@@ -609,8 +649,8 @@ export function createService({ token, origins }) {
   server.on("close", () => {
     clearInterval(sweep);
     for (const j of jobs.values()) {
-      j.process.kill();
-      void rm(j.dir, { recursive: true, force: true });
+      j.process?.kill();
+      if (j.dir) void rm(j.dir, { recursive: true, force: true });
     }
   });
   return server;

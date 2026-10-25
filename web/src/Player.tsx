@@ -400,7 +400,7 @@ export default function Player({
       playback.mode === "transcode"
         ? appleNativeHls
           ? "aac"
-          : "mp3"
+          : "webm"
         : undefined,
     ).then(
       (url) => {
@@ -408,13 +408,13 @@ export default function Player({
           setReady({
             ...playback,
             url,
-            hls:
+            hls: !/\.webm(?:[?#]|$)/i.test(url) && (
               playback.hls ||
               playback.mode === "remux" ||
               playback.mode === "transcode" ||
               getService()?.mode === "remux" ||
               getService()?.mode === "transcode" ||
-              /\.m3u8(?:[?#]|$)/i.test(playback.url),
+              /\.m3u8(?:[?#]|$)/i.test(playback.url)),
           });
       },
       (e) => {
