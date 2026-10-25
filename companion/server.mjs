@@ -430,7 +430,7 @@ export function createService({ token, origins }) {
               "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8",
               "-b:v", "1200k", "-vf", "scale=-2:480", "-threads", "4",
               "-c:a", "libopus", "-ac", "2", "-ar", "48000", "-b:a", "96k",
-              "-f", "webm", "pipe:1",
+              "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", "pipe:1",
             ];
             jobs.set(id, {
               kind: "webm",

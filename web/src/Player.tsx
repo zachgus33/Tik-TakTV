@@ -82,6 +82,8 @@ function VideoPlayer({
     let disposed = false;
     let lastSave = 0;
     let hlsRecoveries = 0;
+    const streamAbort = new AbortController();
+    let mediaObjectUrl = "";
     setError("");
     setNotice("");
     setQuality([]);
@@ -196,6 +198,49 @@ function VideoPlayer({
             "The video player could not load. Check your connection and retry.",
           ),
         );
+    } else if (/\.webm(?:[?#]|$)/i.test(url) && "MediaSource" in window) {
+      const mediaSource = new MediaSource();
+      mediaObjectUrl = URL.createObjectURL(mediaSource);
+      video.src = mediaObjectUrl;
+      mediaSource.addEventListener(
+        "sourceopen",
+        () => {
+          void (async () => {
+            const response = await fetch(url, { signal: streamAbort.signal });
+            if (!response.ok || !response.body)
+              throw new Error(`Live stream returned HTTP ${response.status}`);
+            const source = mediaSource.addSourceBuffer(
+              'video/webm; codecs="vp8, opus"',
+            );
+            const reader = response.body.getReader();
+            const append = (chunk: Uint8Array) =>
+              new Promise<void>((resolve, reject) => {
+                const done = () => {
+                  source.removeEventListener("updateend", done);
+                  source.removeEventListener("error", bad);
+                  resolve();
+                };
+                const bad = () => {
+                  source.removeEventListener("updateend", done);
+                  source.removeEventListener("error", bad);
+                  reject(new Error("Browser rejected live media"));
+                };
+                source.addEventListener("updateend", done);
+                source.addEventListener("error", bad);
+                source.appendBuffer(new Uint8Array(chunk).buffer as ArrayBuffer);
+              });
+            void play();
+            while (!disposed) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value?.byteLength) await append(value);
+            }
+          })().catch(() => {
+            if (!disposed && !streamAbort.signal.aborted) failed();
+          });
+        },
+        { once: true },
+      );
     } else {
       video.src = url;
       void play();
@@ -211,9 +256,11 @@ function VideoPlayer({
       window.removeEventListener("pagehide", persist);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      streamAbort.abort();
       video.pause();
       video.removeAttribute("src");
       video.load();
+      if (mediaObjectUrl) URL.revokeObjectURL(mediaObjectUrl);
     };
   }, [playback, retry]);
   async function fullscreen() {
