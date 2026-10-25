@@ -441,8 +441,14 @@ export function createService({ token, origins }) {
                 ]
               : ["-c:v", "copy"]),
             "-c:a",
-            body.audioCodec === "mp3" ? "libmp3lame" : "aac",
-            ...(body.audioCodec === "mp3" ? [] : ["-profile:a", "aac_low"]),
+            body.audioCodec === "mp3"
+              ? "libmp3lame"
+              : body.audioCodec === "opus"
+                ? "libopus"
+                : "aac",
+            ...(body.audioCodec === "aac" || !body.audioCodec
+              ? ["-profile:a", "aac_low"]
+              : []),
             "-ac",
             "2",
             "-ar",

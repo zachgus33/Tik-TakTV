@@ -386,12 +386,15 @@ export default function Player({
     const c = new AbortController();
     setReady(null);
     setError("");
+    const nativeHls = document
+      .createElement("video")
+      .canPlayType("application/vnd.apple.mpegurl");
     void prepareMedia(
       playback.url,
       playback.requestHeaders,
       c.signal,
       playback.mode,
-      playback.mode === "transcode" ? "aac" : undefined,
+      playback.mode === "transcode" ? (nativeHls ? "aac" : "opus") : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)
