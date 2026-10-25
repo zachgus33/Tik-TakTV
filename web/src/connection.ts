@@ -77,17 +77,18 @@ async function discoveredService(config: PlaybackService) {
 }
 export function getService(): PlaybackService | null {
   try {
+    const token = accountToken();
+    if (token)
+      return {
+        url: localStorage.getItem("nuvio:discovered-url") || bootstrapEndpoint,
+        token,
+        account: true,
+      };
     const s = JSON.parse(
       localStorage.getItem("nuvio:playback-service") ?? "null",
     );
     if (s?.url && s?.token) return s;
-    const token = accountToken();
-    if (!token) return null;
-    return {
-      url: localStorage.getItem("nuvio:discovered-url") || bootstrapEndpoint,
-      token,
-      account: true,
-    };
+    return null;
   } catch {
     return null;
   }
