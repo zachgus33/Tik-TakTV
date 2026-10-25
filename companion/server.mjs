@@ -10,6 +10,7 @@ import dns from "node:dns/promises";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
 import { Agent, fetch as upstreamFetch } from "undici";
 import ipaddr from "ipaddr.js";
 
@@ -328,10 +329,11 @@ export function createService({ token, origins }) {
         if (cached && Date.now() - cached.mtimeMs < guideCacheAge) {
           res.writeHead(200, {
             "Content-Type": "application/xml; charset=utf-8",
-            "Content-Length": cached.size,
+            "Content-Encoding": "gzip",
+            Vary: "Accept-Encoding",
             "X-TikTak-Guide-Cache": "hit",
           });
-          await pipeline(createReadStream(cachePath), res);
+          await pipeline(createReadStream(cachePath), createGzip(), res);
           return;
         }
         const result = await fetchSafe(url.href, {
@@ -346,6 +348,8 @@ export function createService({ token, origins }) {
               result.response.headers.get("content-type") ??
               "application/xml; charset=utf-8",
             "X-TikTak-Guide-Cache": "miss",
+            "Content-Encoding": "gzip",
+            Vary: "Accept-Encoding",
           });
           if (canCache) {
             const tempPath = `${cachePath}.${randomBytes(6).toString("hex")}.tmp`;
@@ -356,7 +360,9 @@ export function createService({ token, origins }) {
               bytes += chunk.byteLength;
               if (bytes > 192_000_000) client.destroy(new Error("Guide too large"));
             });
-            const clientWrite = pipeline(client, res).catch(() => undefined);
+            const clientWrite = pipeline(client, createGzip(), res).catch(
+              () => undefined,
+            );
             await pipeline(
               Readable.fromWeb(cacheBody),
               createWriteStream(tempPath),
