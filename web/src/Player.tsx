@@ -85,6 +85,7 @@ function VideoPlayer({
     const streamAbort = new AbortController();
     let mediaObjectUrl = "";
     let liveAudio: HTMLAudioElement | null = null;
+    let detachLiveAudio: () => void = () => undefined;
     setError("");
     setNotice("");
     setQuality([]);
@@ -127,11 +128,13 @@ function VideoPlayer({
         "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
       );
     };
-    const play = () => {
-      void liveAudio?.play().catch(() => undefined);
-      return video.play().catch(() => {
+    const play = async () => {
+      try {
+        await video.play();
+        await liveAudio?.play();
+      } catch {
         if (!disposed) setNotice("Tap the video’s play button to start.");
-      });
+      }
     };
     video.addEventListener("loadedmetadata", loaded);
     video.addEventListener("timeupdate", time);
@@ -204,14 +207,39 @@ function VideoPlayer({
     } else if (/\.webm(?:[?#]|$)/i.test(url) && "MediaSource" in window) {
       liveAudio = new Audio(url.replace(/stream\.webm(?:[?#]|$)/i, "audio.mp3"));
       liveAudio.preload = "auto";
-      video.addEventListener("play", () => void liveAudio?.play().catch(() => undefined));
-      video.addEventListener("pause", () => liveAudio?.pause());
-      video.addEventListener("volumechange", () => {
+      const startLiveAudio = () => {
+        if (!liveAudio) return;
+        if (
+          liveAudio.readyState > 0 &&
+          Math.abs(liveAudio.currentTime - video.currentTime) > 1.25
+        )
+          liveAudio.currentTime = video.currentTime;
+        void liveAudio.play().catch(() => undefined);
+      };
+      const pauseLiveAudio = () => liveAudio?.pause();
+      const updateLiveAudio = () => {
         if (liveAudio) {
           liveAudio.volume = video.volume;
           liveAudio.muted = video.muted;
+          if (
+            liveAudio.readyState > 0 &&
+            Math.abs(liveAudio.currentTime - video.currentTime) > 1.25
+          )
+            liveAudio.currentTime = video.currentTime;
         }
-      });
+      };
+      video.addEventListener("play", startLiveAudio);
+      video.addEventListener("playing", startLiveAudio);
+      video.addEventListener("pause", pauseLiveAudio);
+      video.addEventListener("volumechange", updateLiveAudio);
+      video.addEventListener("timeupdate", updateLiveAudio);
+      detachLiveAudio = () => {
+        video.removeEventListener("play", startLiveAudio);
+        video.removeEventListener("playing", startLiveAudio);
+        video.removeEventListener("pause", pauseLiveAudio);
+        video.removeEventListener("volumechange", updateLiveAudio);
+        video.removeEventListener("timeupdate", updateLiveAudio);
+      };
       const mediaSource = new MediaSource();
       mediaObjectUrl = URL.createObjectURL(mediaSource);
       video.src = mediaObjectUrl;
@@ -270,6 +298,7 @@ function VideoPlayer({
       hlsRef.current?.destroy();
       hlsRef.current = null;
       streamAbort.abort();
+      detachLiveAudio();
       liveAudio?.pause();
       if (liveAudio) liveAudio.src = "";
       video.pause();

@@ -235,20 +235,34 @@ export function createService({ token, origins }) {
             if (!/^(?:stream\.webm|audio\.mp3)$/.test(file))
               return send(404, { error: "Unknown media file" });
             job.touched = Date.now();
+            job.clients = (job.clients ?? 0) + 1;
+            clearTimeout(job.stopTimer);
+            let released = false;
+            const release = () => {
+              if (released) return;
+              released = true;
+              job.clients = Math.max(0, (job.clients ?? 1) - 1);
+              if (job.clients === 0) {
+                job.stopTimer = setTimeout(() => {
+                  if (job.clients || jobs.get(id) !== job) return;
+                  job.process?.kill();
+                  jobs.delete(id);
+                  void rm(job.dir, { recursive: true, force: true });
+                }, 3000);
+                job.stopTimer.unref?.();
+              }
+            };
+            res.once("close", release);
             res.writeHead(200, {
               "Content-Type": file === "audio.mp3" ? "audio/mpeg" : "video/webm",
               "Cache-Control": "no-store",
             });
             if (req.method === "HEAD") return res.end();
-            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", file === "audio.mp3" ? job.audioArgs : job.videoArgs, {
-              stdio: ["ignore", "pipe", "ignore"],
-              windowsHide: true,
-            });
-            job.process = child;
-            const stop = () => child.kill();
-            res.once("close", stop);
-            child.once("close", () => res.end());
-            child.stdout.pipe(res);
+            const stream = createReadStream(
+              file === "audio.mp3" ? job.audioPath : job.videoPath,
+            );
+            stream.on("error", () => res.destroy());
+            stream.pipe(res);
             return;
           }
           if (!/^(index\.m3u8|init\.mp4|segment\d+\.(?:ts|m4s))$/.test(file))
@@ -423,28 +437,42 @@ export function createService({ token, origins }) {
           const inputUrl =
             "http://127.0.0.1:" + address.port + "/media/" + input + "/stream";
           if (body.audioCodec === "webm") {
-            const baseArgs = [
-              "-hide_banner", "-loglevel", "error", "-nostdin", "-re",
+            const videoPath = join(dir, "stream.webm");
+            const audioPath = join(dir, "audio.mp3");
+            await new Promise((resolve, reject) => {
+              const fifo = spawn("mkfifo", [videoPath, audioPath]);
+              fifo.once("error", reject);
+              fifo.once("exit", (code) =>
+                code === 0 ? resolve() : reject(new Error("Could not create media pipes")),
+              );
+            });
+            const args = [
+              "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-re",
               "-i", inputUrl,
+              "-map", "0:v:0?", "-an",
+              "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "12",
+              "-b:v", "1000k", "-vf", "scale=-2:480", "-threads", "2",
+              "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", videoPath,
+              "-map", "0:a:0?", "-vn", "-c:a", "libmp3lame",
+              "-ac", "2", "-ar", "48000", "-b:a", "128k", "-f", "mp3", audioPath,
             ];
-            const videoArgs = [
-              ...baseArgs, "-map", "0:v:0?", "-an",
-              "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8",
-              "-b:v", "1200k", "-vf", "scale=-2:480", "-threads", "4",
-              "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", "pipe:1",
-            ];
-            const audioArgs = [
-              ...baseArgs, "-map", "0:a:0?", "-vn", "-c:a", "libmp3lame",
-              "-ac", "2", "-ar", "48000", "-b:a", "128k", "-f", "mp3", "pipe:1",
-            ];
+            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
+              stdio: ["ignore", "ignore", "ignore"],
+              windowsHide: true,
+            });
             jobs.set(id, {
               kind: "webm",
-              videoArgs,
-              audioArgs,
-              process: null,
-              dir: null,
+              videoPath,
+              audioPath,
+              process: child,
+              dir,
               touched: Date.now(),
-              running: false,
+              running: true,
+              clients: 0,
+            });
+            child.once("exit", () => {
+              const job = jobs.get(id);
+              if (job) job.running = false;
             });
             return send(200, { path: `/media/${id}/stream.webm`, hls: false });
           }
