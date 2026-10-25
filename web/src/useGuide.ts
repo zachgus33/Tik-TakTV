@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { epg } from "./api";
 import { getService, serviceRequest, sourceFetch } from "./connection";
 import { readLiveCache, writeLiveCache } from "./live-cache";
@@ -179,14 +179,20 @@ export function useGuide(
       worker.terminate();
     };
   }, [provider, revision, refresh]);
-  const ids = [
-    ...new Map(
-      [...(active ? [active] : []), ...visible]
-        .filter((i) => i.source === "xtream" && i.provider === provider?.scope)
-        .map((i) => [i.id, i]),
-    ).values(),
-  ];
-  const signature = ids.map((i) => `${i.id}:${i.epgId ?? ""}`).join("|");
+  const ids = useMemo(
+    () => [
+      ...new Map(
+        [...(active ? [active] : []), ...visible]
+          .filter((i) => i.source === "xtream" && i.provider === provider?.scope)
+          .map((i) => [i.id, i]),
+      ).values(),
+    ],
+    [active, visible, provider?.scope],
+  );
+  const signature = useMemo(
+    () => ids.map((i) => `${i.id}:${i.epgId ?? ""}`).join("|"),
+    [ids],
+  );
   useEffect(() => {
     if (
       !provider ||
@@ -272,23 +278,26 @@ export function useGuide(
     state.fallback,
   ]);
   const valid = state.scope === provider?.scope ? state : empty;
-  const normalize = (value: string) =>
-    value
-      .toLocaleLowerCase()
-      .replace(/^\s*[a-z]{2,3}\s*[|:\-]\s*/i, "")
-      .replace(/\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\b/gi, "")
-      .replace(/[^a-z0-9]+/g, "");
-  const aliasIndex = new Map<string, string>();
-  for (const [alias, id] of Object.entries(valid.aliases))
-    aliasIndex.set(normalize(alias), id);
-  const guideId = (item: Item) =>
-    (item.epgId && valid.xml[item.epgId] ? item.epgId : undefined) ??
-    aliasIndex.get(normalize(item.epgId ?? "")) ??
-    aliasIndex.get(normalize(item.name));
-  const get = (item: Item) =>
-    (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).filter(
-      (p) => p.end > now,
-    );
+  const aliasIndex = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const [alias, id] of Object.entries(valid.aliases))
+      index.set(normalizeGuideName(alias), id);
+    return index;
+  }, [valid.aliases]);
+  const guideId = useCallback(
+    (item: Item) =>
+      (item.epgId && valid.xml[item.epgId] ? item.epgId : undefined) ??
+      aliasIndex.get(normalizeGuideName(item.epgId ?? "")) ??
+      aliasIndex.get(normalizeGuideName(item.name)),
+    [aliasIndex, valid.xml],
+  );
+  const get = useCallback(
+    (item: Item) =>
+      (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).filter(
+        (p) => p.end > now,
+      ),
+    [guideId, now, valid.channels, valid.xml],
+  );
   return {
     get,
     now,
@@ -299,4 +308,12 @@ export function useGuide(
       !!(valid.xml[guideId(item) ?? ""] || valid.channels[item.id]),
     count: Object.keys(valid.xml).length || Object.keys(valid.channels).length,
   };
+}
+
+function normalizeGuideName(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replace(/^\s*[a-z]{2,3}\s*[|:\-]\s*/i, "")
+    .replace(/\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\b/gi, "")
+    .replace(/[^a-z0-9]+/g, "");
 }

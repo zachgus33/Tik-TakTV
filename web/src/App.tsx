@@ -14,6 +14,7 @@ import {
   Suspense,
   useDeferredValue,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -1466,14 +1467,18 @@ export default function App() {
   const availableRegions = liveRegions.filter(([code]) =>
     items.some((item) => regionOf(item) === code),
   );
-  const filtered = (page === "library" ? library : items).filter(
-    (i) =>
-      (!deferredQuery ||
-        i.name
-          .toLocaleLowerCase()
-          .includes(deferredQuery.toLocaleLowerCase())) &&
-      (!region || regionOf(i) === region) &&
-      (!favoritesOnly || saved(i)),
+  const filtered = useMemo(
+    () =>
+      (page === "library" ? library : items).filter(
+        (i) =>
+          (!deferredQuery ||
+            i.name
+              .toLocaleLowerCase()
+              .includes(deferredQuery.toLocaleLowerCase())) &&
+          (!region || regionOf(i) === region) &&
+          (!favoritesOnly || saved(i)),
+      ),
+    [deferredQuery, favoritesOnly, items, library, page, region],
   );
   const guideState = useGuide(
     provider,
@@ -1481,8 +1486,12 @@ export default function App() {
     activeChannel,
     revision,
   );
-  const guideChannels = filtered.filter((channel) =>
-    guideState.get(channel).some((p) => p.end > guideState.now),
+  const guideChannels = useMemo(
+    () =>
+      filtered.filter((channel) =>
+        guideState.get(channel).some((p) => p.end > guideState.now),
+      ),
+    [filtered, guideState.get, guideState.now],
   );
   useEffect(
     () => setGuideLimit(120),

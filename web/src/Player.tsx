@@ -270,11 +270,17 @@ function VideoPlayer({
                 source.addEventListener("error", bad);
                 source.appendBuffer(new Uint8Array(chunk).buffer as ArrayBuffer);
               });
-            void play();
+            let started = false;
             while (!disposed) {
               const { value, done } = await reader.read();
               if (done) break;
-              if (value?.byteLength) await append(value);
+              if (value?.byteLength) {
+                await append(value);
+                if (!started) {
+                  started = true;
+                  await play();
+                }
+              }
             }
           })().catch(() => {
             if (!disposed && !streamAbort.signal.aborted) failed();
