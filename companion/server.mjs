@@ -541,14 +541,10 @@ export function createService({ token, origins }) {
             "60",
             "-hls_flags",
             "delete_segments+independent_segments",
-            "-hls_segment_type",
-            "fmp4",
-            "-hls_fmp4_init_filename",
-            "init.mp4",
             "-hls_segment_filename",
             join(
               dir,
-              "segment%d.m4s",
+              "segment%d.ts",
             ),
             join(dir, "index.m3u8"),
           ];

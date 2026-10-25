@@ -2249,6 +2249,12 @@ dialog {
   overscroll-behavior: contain;
   box-shadow: 0 20px 120px #0009;
 }
+dialog[open] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: auto;
+}
 dialog::backdrop {
   background: #030206c9;
   backdrop-filter: blur(5px);
