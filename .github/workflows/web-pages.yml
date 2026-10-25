@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
     defaults:
       run:
         working-directory: web
@@ -32,8 +34,6 @@ jobs:
       - run: npm run build
         env:
           VITE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}/web
-      - run: npx playwright install chromium webkit
-        timeout-minutes: 15
       - run: npm run test:e2e
       - uses: actions/upload-pages-artifact@v3
         with:
