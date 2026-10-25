@@ -891,12 +891,19 @@ function Detail({
                 <button
                   className="cast-person"
                   key={person.id}
-                  disabled={!credits.length}
                   onClick={() => {
-                    if (!credits.length) return;
                     setBusy(true);
                     void import("./tmdb")
-                      .then(({ personCredits }) => personCredits(person.id))
+                      .then(async ({ peopleByName, personCredits }) => {
+                        const resolved = credits.length
+                          ? person
+                          : (await peopleByName([person.name]))[0];
+                        if (!resolved)
+                          throw new Error(
+                            "This cast member could not be matched. Check the TMDB connection in Settings.",
+                          );
+                        return personCredits(resolved.id);
+                      })
                       .then((items) => setPerson({ name: person.name, items }))
                       .catch((e) => setError(message(e)))
                       .finally(() => setBusy(false));
