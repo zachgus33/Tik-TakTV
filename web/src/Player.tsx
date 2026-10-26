@@ -145,7 +145,11 @@ function VideoPlayer({
     video.addEventListener("error", failed);
     window.addEventListener("pagehide", persist);
     const isHls = playback.hls || /\.m3u8(?:[?#]|$)/i.test(playback.url);
-    if (isHls && !video.canPlayType("application/vnd.apple.mpegurl")) {
+    const nativeHls =
+      video.canPlayType("application/vnd.apple.mpegurl") !== "" &&
+      /(?:iPhone|iPad|iPod|Safari)/i.test(navigator.userAgent) &&
+      !/(?:Chrome|Chromium|CriOS|Edg|OPR)/i.test(navigator.userAgent);
+    if (isHls && !nativeHls) {
       void import("hls.js")
         .then(({ default: HlsClass }) => {
           if (disposed) return;
