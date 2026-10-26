@@ -396,22 +396,12 @@ export default function Player({
     const c = new AbortController();
     setReady(null);
     setError("");
-    const userAgent = navigator.userAgent;
-    const appleNativeHls =
-      /(?:iPhone|iPad|iPod)/i.test(userAgent) ||
-      (/Macintosh/i.test(userAgent) &&
-        /Safari/i.test(userAgent) &&
-        !/(?:Chrome|Chromium|CriOS|Edg|OPR)/i.test(userAgent));
     void prepareMedia(
       playback.url,
       playback.requestHeaders,
       c.signal,
       playback.mode,
-      playback.mode === "transcode"
-        ? appleNativeHls
-          ? "aac"
-          : "webm"
-        : undefined,
+      playback.mode === "transcode" ? "aac" : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)

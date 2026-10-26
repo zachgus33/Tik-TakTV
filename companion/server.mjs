@@ -449,11 +449,13 @@ export function createService({ token, origins }) {
             : "stream.ts";
           const inputUrl =
             "http://127.0.0.1:" + address.port + "/media/" + input + "/" + inputFile;
+          const hlsInputArgs = inputFile === "stream.m3u8"
+            ? ["-allowed_extensions", "ALL", "-allowed_segment_extensions", "ALL", "-extension_picky", "0"]
+            : [];
           if (body.audioCodec === "webm") {
             const args = [
               "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-re",
-              "-allowed_extensions", "ALL", "-allowed_segment_extensions", "ALL",
-              "-extension_picky", "0",
+              ...hlsInputArgs,
               "-i", inputUrl,
               "-map", "0:v:0?", "-map", "0:a:0?",
               "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "12",
@@ -481,12 +483,7 @@ export function createService({ token, origins }) {
             "-format_whitelist",
             "hls,mpegts,mov,matroska,webm,aac,mp3",
             "-re",
-            "-allowed_extensions",
-            "ALL",
-            "-allowed_segment_extensions",
-            "ALL",
-            "-extension_picky",
-            "0",
+            ...hlsInputArgs,
             "-i",
             inputUrl,
             "-map",

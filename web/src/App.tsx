@@ -1,4 +1,4 @@
-import { getService } from "./connection";
+import { getService, refreshPlaybackEndpoint } from "./connection";
 import { storeProvider } from "./storage";
 import {
   account,
@@ -1197,6 +1197,21 @@ export default function App() {
     const changed = () => setRevision((n) => n + 1);
     window.addEventListener("connections-changed", changed);
     return () => window.removeEventListener("connections-changed", changed);
+  }, []);
+  useEffect(() => {
+    const refresh = () => void refreshPlaybackEndpoint();
+    refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    const visible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", visible);
+    };
   }, []);
   const [limit, setLimit] = useState(60);
   const [guideLimit, setGuideLimit] = useState(120);

@@ -75,6 +75,12 @@ async function discoveredService(config: PlaybackService) {
     return null;
   }
 }
+
+export async function refreshPlaybackEndpoint() {
+  const config = getService();
+  if (!config) return null;
+  return discoveredService(config);
+}
 export function getService(): PlaybackService | null {
   try {
     const token = accountToken();
