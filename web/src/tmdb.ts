@@ -2,9 +2,10 @@ import { defaultAddon, safeUrl } from "./api";
 import { sourceFetch } from "./connection";
 import type { CollectionSource } from "./collections";
 import type { Item } from "./types";
+import { DEFAULT_TMDB_KEY } from "./config";
 const base = "https://api.themoviedb.org/3";
 function key() {
-  return localStorage.getItem("nuvio:tmdb-key") ?? "";
+  return localStorage.getItem("nuvio:tmdb-key")?.trim() || DEFAULT_TMDB_KEY;
 }
 function authenticatedRequest(
   path: string,

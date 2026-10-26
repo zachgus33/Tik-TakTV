@@ -242,9 +242,14 @@ export function createService({ token, origins }) {
             job.touched = Date.now();
             job.process?.kill();
             const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
-              stdio: ["ignore", "pipe", "ignore"],
+              stdio: ["ignore", "pipe", "pipe"],
               windowsHide: true,
             });
+            child.stderr.pipe(
+              createWriteStream(join(process.cwd(), "runtime", "ffmpeg-last.log"), {
+                flags: "w",
+              }),
+            );
             job.process = child;
             job.running = true;
             const stop = () => {
@@ -424,7 +429,9 @@ export function createService({ token, origins }) {
       }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);
-        const headers = sourceHeaders(body.headers);
+          const headers = sourceHeaders(body.headers);
+          if (!Object.keys(headers).some((name) => name.toLowerCase() === "user-agent"))
+            headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
         if (body.mode === "remux" || body.mode === "transcode") {
           const runningJobs = [...jobs.values()].filter((job) => job.running);
           if (runningJobs.length >= 2)
@@ -436,8 +443,12 @@ export function createService({ token, origins }) {
           const dir = await mkdtemp(join(tmpdir(), "tiktak-"));
           const input = ticket(body.url, headers);
           const address = server.address();
+          const sourcePath = new URL(body.url).pathname.toLowerCase();
+          const inputFile = sourcePath.endsWith(".m3u8")
+            ? "stream.m3u8"
+            : "stream.ts";
           const inputUrl =
-            "http://127.0.0.1:" + address.port + "/media/" + input + "/stream";
+            "http://127.0.0.1:" + address.port + "/media/" + input + "/" + inputFile;
           if (body.audioCodec === "webm") {
             const args = [
               "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-re",

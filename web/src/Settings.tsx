@@ -500,7 +500,7 @@ export default function Settings(props: Props) {
               <h2>TMDB collections</h2>
               <p>
                 For streaming-service, studio and network collections. Nuvio
-                profile sync imports your existing TMDB key.
+                profile sync can override TikTak TV's shared TMDB connection.
               </p>
               <form
                 onSubmit={(e) => {

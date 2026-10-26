@@ -79,6 +79,7 @@ import {
 } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
 import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
+import { DEFAULT_TMDB_KEY } from "./config";
 import {
   directStream,
   rankedStreams,
@@ -1130,7 +1131,7 @@ export default function App() {
     read("torbox-key", read("torbox-key", ""), sessionStorage),
   );
   const [tmdbKey, setTmdbKey] = useState(
-    () => localStorage.getItem("nuvio:tmdb-key") ?? "",
+    () => localStorage.getItem("nuvio:tmdb-key")?.trim() || DEFAULT_TMDB_KEY,
   );
   const [progress, setProgress] = useState<Progress[]>(() =>
     read("progress", []),
@@ -1143,8 +1144,10 @@ export default function App() {
       );
     if (s.playbackService)
       window.dispatchEvent(new Event("connections-changed"));
-    setTmdbKey(s.tmdbKey ?? "");
-    if (s.tmdbKey) localStorage.setItem("nuvio:tmdb-key", s.tmdbKey);
+    const accountTmdbKey = s.tmdbKey?.trim();
+    setTmdbKey(accountTmdbKey || DEFAULT_TMDB_KEY);
+    if (accountTmdbKey)
+      localStorage.setItem("nuvio:tmdb-key", accountTmdbKey);
     else localStorage.removeItem("nuvio:tmdb-key");
     setAddons(s.addons);
     const collectionSettings =
