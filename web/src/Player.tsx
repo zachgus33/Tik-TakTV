@@ -405,7 +405,7 @@ export default function Player({
       playback.requestHeaders,
       c.signal,
       playback.mode,
-      playback.mode === "transcode" ? "aac" : undefined,
+      playback.mode === "transcode" ? "mp3" : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)
