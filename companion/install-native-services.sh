@@ -30,7 +30,7 @@ cat > "$units/tiktaktv-tunnel.service" <<EOF
 [Unit]
 Description=Tik-TakTV Cloudflare tunnel
 After=tiktaktv-playback.service network-online.target
-Requires=tiktaktv-playback.service
+Wants=tiktaktv-playback.service
 
 [Service]
 Type=simple
