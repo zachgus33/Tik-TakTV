@@ -3,7 +3,7 @@ import { storeProvider } from "./storage";
 import {
   account,
   loadSetup,
-  profiles,
+  ensureProfiles,
   unlock,
   type HomeCatalogSetting,
   type Profile,
@@ -193,7 +193,7 @@ function ProfileGate({
       return;
     }
     setEmail(data.session?.user.email ?? "");
-    const available = data.session ? await profiles() : [];
+    const available = data.session ? await ensureProfiles() : [];
     setList(available);
     if (data.session && skipSelection) {
       const remembered = Number(

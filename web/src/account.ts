@@ -88,6 +88,35 @@ export async function rpc<T>(
   return data as T;
 }
 export const profiles = () => rpc<Profile[]>("sync_pull_profiles");
+export async function ensureProfiles(): Promise<Profile[]> {
+  const existing = await profiles();
+  if (existing.length) return existing;
+
+  await rpc("sync_push_profiles", {
+    p_client_max_profiles: 6,
+    p_profiles: [
+      {
+        profile_index: 1,
+        name: "Home",
+        avatar_color_hex: "#8E24AA",
+        uses_primary_addons: false,
+        uses_primary_plugins: false,
+        avatar_id: null,
+        avatar_url: null,
+      },
+    ],
+    p_origin_client_id: origin,
+  });
+
+  // The profile write can take a moment to become visible immediately after
+  // Supabase creates a brand-new account.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const created = await profiles();
+    if (created.length) return created;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+  throw new Error("Your first profile could not be created. Please try again.");
+}
 export const avatars = () => rpc<Avatar[]>("get_avatar_catalog");
 export const avatarUrl = (avatar: Avatar) =>
   `${NUVIO_URL}/storage/v1/object/public/avatars/${avatar.storage_path}`;

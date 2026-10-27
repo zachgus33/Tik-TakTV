@@ -623,6 +623,64 @@ test("country filter combines with Xtream channel categories", async ({
 
 test.describe("authenticated integrations", () => {
   test.use({ serviceWorkers: "block" });
+  test("new accounts receive a selectable first profile", async ({ page }) => {
+    const user = {
+      id: "00000000-0000-4000-8000-000000000002",
+      email: "new@example.com",
+      aud: "authenticated",
+      role: "authenticated",
+    };
+    const jwt =
+      btoa(JSON.stringify({ alg: "HS256" })) +
+      "." +
+      btoa(
+        JSON.stringify({
+          sub: user.id,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        }),
+      ) +
+      ".fake";
+    let profileCreated = false;
+    let profilePayload: Record<string, any> | undefined;
+    await page.route("https://api.nuvio.tv/**", async (route) => {
+      const url = new URL(route.request().url());
+      let data: any = [];
+      if (url.pathname.includes("/auth/v1/signup"))
+        data = {
+          access_token: jwt,
+          refresh_token: "fake-refresh",
+          expires_in: 3600,
+          token_type: "bearer",
+          user,
+        };
+      else if (url.pathname.includes("/auth/v1/user")) data = user;
+      else if (url.pathname.endsWith("/sync_pull_profiles"))
+        data = profileCreated
+          ? [{ profile_index: 1, name: "Home", pin_enabled: false }]
+          : [];
+      else if (url.pathname.endsWith("/sync_push_profiles")) {
+        profilePayload = route.request().postDataJSON();
+        profileCreated = true;
+        data = null;
+      }
+      await route.fulfill({ json: data });
+    });
+    await page.addInitScript(() =>
+      localStorage.removeItem("tiktak:established-local"),
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create account" }).click();
+    await page.getByLabel("Email", { exact: true }).fill(user.email);
+    await page.getByLabel("Password", { exact: true }).fill("fake-password");
+    await page.getByLabel("Confirm password").fill("fake-password");
+    await page.getByRole("button", { name: "Create free account" }).click();
+
+    await expect(page.getByRole("button", { name: /Home/ })).toBeVisible();
+    expect(profilePayload?.p_profiles).toEqual([
+      expect.objectContaining({ profile_index: 1, name: "Home" }),
+    ]);
+  });
+
   test("Nuvio login loads shared addons and collection tiles, persists profile and saves edits", async ({
     page,
   }) => {
