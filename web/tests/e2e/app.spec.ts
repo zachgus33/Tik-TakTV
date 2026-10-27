@@ -154,13 +154,24 @@ test("discovery, library persistence, accessible modal and mobile layout", async
   await page.getByRole("button", { name: "Close details" }).click();
   await page.goto("/#library");
   await expect(
-    page.locator(".media-card strong").filter({ hasText: "The Test Movie" }),
+    page
+      .locator(".media-card strong")
+      .filter({ hasText: "The Test Movie" })
+      .first(),
   ).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth + 1,
   );
   expect(overflow).toBe(false);
   expect(errors).toEqual([]);
+});
+test("home Random Pick opens a title from the loaded catalogs", async ({
+  page,
+}) => {
+  await page.goto("/#home");
+  await page.getByRole("button", { name: "Random Pick" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).toContainText("The Test Movie");
 });
 test("Xtream session login, channels, guide, favorites and disconnect", async ({
   page,
@@ -187,6 +198,34 @@ test("Xtream session login, channels, guide, favorites and disconnect", async ({
   expect(
     await page.evaluate(() => sessionStorage.getItem("nuvio:provider")),
   ).toBeNull();
+});
+test("mobile live guide uses stacked channel cards without page overflow", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await connect(page);
+  await page.goto("/#live");
+  const row = page.locator(".tv-guide-row").first();
+  await expect(row).toContainText("Evening news");
+  const layout = await row.evaluate((element) => {
+    const channel = element.querySelector<HTMLElement>(".tv-guide-channel")!;
+    const programme = element.querySelector<HTMLElement>(
+      ".tv-guide-programmes button",
+    )!;
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: innerWidth,
+      rowWidth: element.getBoundingClientRect().width,
+      channelWidth: channel.getBoundingClientRect().width,
+      programmeWidth: programme.getBoundingClientRect().width,
+      channelHeight: channel.getBoundingClientRect().height,
+    };
+  });
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+  expect(layout.channelWidth).toBeGreaterThan(layout.rowWidth - 2);
+  expect(layout.programmeWidth).toBeGreaterThan(220);
+  expect(layout.channelHeight).toBeGreaterThanOrEqual(44);
+  await expect(page.locator(".bottom-nav")).toBeVisible();
 });
 test("bad credentials show a useful error and are never saved", async ({
   page,

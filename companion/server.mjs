@@ -18,7 +18,8 @@ import ipaddr from "ipaddr.js";
 const nuvioAnonKey =
   process.env.NUVIO_ANON_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxNTIxMzQ2LCJleHAiOjE5MzkyMDEzNDZ9.tmQaj682pwzehpqlgCDMnySOqiUvpgRbrE43T4VJpDI";
-const guideCacheDir = process.env.GUIDE_CACHE_DIR ?? join(tmpdir(), "tiktaktv-guides");
+const guideCacheDir =
+  process.env.GUIDE_CACHE_DIR ?? join(tmpdir(), "tiktaktv-guides");
 const guideCacheAge = Number(process.env.GUIDE_CACHE_AGE_MS ?? 6 * 60 * 60_000);
 
 export function publicAddress(address) {
@@ -167,13 +168,16 @@ export function createService({ token, origins }) {
     const cached = accountTokens.get(bearer);
     if (cached && cached > Date.now()) return true;
     try {
-      const response = await upstreamFetch("https://api.nuvio.tv/auth/v1/user", {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-          apikey: nuvioAnonKey,
+      const response = await upstreamFetch(
+        "https://api.nuvio.tv/auth/v1/user",
+        {
+          headers: {
+            Authorization: `Bearer ${bearer}`,
+            apikey: nuvioAnonKey,
+          },
+          signal: AbortSignal.timeout(10000),
         },
-        signal: AbortSignal.timeout(10000),
-      });
+      );
       if (!response.ok) return false;
       const user = await response.json();
       if (!user?.id) return false;
@@ -246,9 +250,12 @@ export function createService({ token, origins }) {
               windowsHide: true,
             });
             child.stderr.pipe(
-              createWriteStream(join(process.cwd(), "runtime", "ffmpeg-last.log"), {
-                flags: "w",
-              }),
+              createWriteStream(
+                join(process.cwd(), "runtime", "ffmpeg-last.log"),
+                {
+                  flags: "w",
+                },
+              ),
             );
             job.process = child;
             job.running = true;
@@ -307,15 +314,28 @@ export function createService({ token, origins }) {
         const r = result.response;
         try {
           const type = r.headers.get("content-type") ?? "";
-          let looksLikeHls=false;
-          if(req.method!=="HEAD" && r.body){
-            const probe=r.clone().body.getReader();let prefix="";
-            try{while(prefix.length<16){const {value,done}=await probe.read();if(done)break;prefix+=new TextDecoder().decode(value.slice(0,64));}looksLikeHls=prefix.trimStart().startsWith("#EXTM3U");}finally{void probe.cancel().catch(()=>{});}
+          let looksLikeHls = false;
+          if (req.method !== "HEAD" && r.body) {
+            const probe = r.clone().body.getReader();
+            let prefix = "";
+            try {
+              while (prefix.length < 16) {
+                const { value, done } = await probe.read();
+                if (done) break;
+                prefix += new TextDecoder().decode(value.slice(0, 64));
+              }
+              looksLikeHls = prefix.trimStart().startsWith("#EXTM3U");
+            } finally {
+              void probe.cancel().catch(() => {});
+            }
           }
           if (
             req.method !== "HEAD" &&
             r.ok &&
-            (looksLikeHls || /mpegurl/i.test(type) || /\.m3u8(?:\?|$)/i.test(result.url) || /\.m3u8(?:\?|$)/i.test(t.url))
+            (looksLikeHls ||
+              /mpegurl/i.test(type) ||
+              /\.m3u8(?:\?|$)/i.test(result.url) ||
+              /\.m3u8(?:\?|$)/i.test(t.url))
           ) {
             const text = await limitedText(r, 4_000_000);
             if (!text.trimStart().startsWith("#EXTM3U"))
@@ -366,7 +386,8 @@ export function createService({ token, origins }) {
         if (!/\/xmltv\.php$/.test(url.pathname))
           return send(400, { error: "Only an Xtream XMLTV guide is allowed" });
         await mkdir(guideCacheDir, { recursive: true });
-        const cacheName = createHash("sha256").update(url.href).digest("hex") + ".xml";
+        const cacheName =
+          createHash("sha256").update(url.href).digest("hex") + ".xml";
         const cachePath = join(guideCacheDir, cacheName);
         const cached = await stat(cachePath).catch(() => null);
         if (cached && Date.now() - cached.mtimeMs < guideCacheAge) {
@@ -401,7 +422,8 @@ export function createService({ token, origins }) {
             const client = Readable.fromWeb(clientBody);
             client.on("data", (chunk) => {
               bytes += chunk.byteLength;
-              if (bytes > 192_000_000) client.destroy(new Error("Guide too large"));
+              if (bytes > 192_000_000)
+                client.destroy(new Error("Guide too large"));
             });
             const clientWrite = pipeline(client, createGzip(), res).catch(
               () => undefined,
@@ -410,7 +432,9 @@ export function createService({ token, origins }) {
               Readable.fromWeb(cacheBody),
               createWriteStream(tempPath),
             );
-            await rename(tempPath, cachePath).catch(() => rm(tempPath, { force: true }));
+            await rename(tempPath, cachePath).catch(() =>
+              rm(tempPath, { force: true }),
+            );
             await clientWrite;
             return;
           }
@@ -429,9 +453,13 @@ export function createService({ token, origins }) {
       }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);
-          const headers = sourceHeaders(body.headers);
-          if (!Object.keys(headers).some((name) => name.toLowerCase() === "user-agent"))
-            headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
+        const headers = sourceHeaders(body.headers);
+        if (
+          !Object.keys(headers).some(
+            (name) => name.toLowerCase() === "user-agent",
+          )
+        )
+          headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
         if (body.mode === "remux" || body.mode === "transcode") {
           const runningJobs = [...jobs.values()].filter((job) => job.running);
           if (runningJobs.length >= 2)
@@ -448,20 +476,65 @@ export function createService({ token, origins }) {
             ? "stream.m3u8"
             : "stream.ts";
           const inputUrl =
-            "http://127.0.0.1:" + address.port + "/media/" + input + "/" + inputFile;
-          const hlsInputArgs = inputFile === "stream.m3u8"
-            ? ["-allowed_extensions", "ALL", "-allowed_segment_extensions", "ALL", "-extension_picky", "0"]
-            : [];
+            "http://127.0.0.1:" +
+            address.port +
+            "/media/" +
+            input +
+            "/" +
+            inputFile;
+          const hlsInputArgs =
+            inputFile === "stream.m3u8"
+              ? [
+                  "-allowed_extensions",
+                  "ALL",
+                  "-allowed_segment_extensions",
+                  "ALL",
+                  "-extension_picky",
+                  "0",
+                ]
+              : [];
           if (body.audioCodec === "webm") {
             const args = [
-              "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-re",
+              "-hide_banner",
+              "-loglevel",
+              "error",
+              "-nostdin",
+              "-y",
+              "-re",
               ...hlsInputArgs,
-              "-i", inputUrl,
-              "-map", "0:v:0?", "-map", "0:a:0?",
-              "-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "12",
-              "-b:v", "1000k", "-vf", "scale=-2:480", "-threads", "2",
-              "-c:a", "libopus", "-ac", "2", "-ar", "48000", "-b:a", "96k",
-              "-f", "webm", "-live", "1", "-cluster_time_limit", "1000", "pipe:1",
+              "-i",
+              inputUrl,
+              "-map",
+              "0:v:0?",
+              "-map",
+              "0:a:0?",
+              "-c:v",
+              "libvpx",
+              "-deadline",
+              "realtime",
+              "-cpu-used",
+              "12",
+              "-b:v",
+              "1000k",
+              "-vf",
+              "scale=-2:480",
+              "-threads",
+              "2",
+              "-c:a",
+              "libopus",
+              "-ac",
+              "2",
+              "-ar",
+              "48000",
+              "-b:a",
+              "96k",
+              "-f",
+              "webm",
+              "-live",
+              "1",
+              "-cluster_time_limit",
+              "1000",
+              "pipe:1",
             ];
             jobs.set(id, {
               kind: "webm",
@@ -478,6 +551,8 @@ export function createService({ token, origins }) {
             "-loglevel",
             "error",
             "-nostdin",
+            "-fflags",
+            "+genpts+discardcorrupt",
             "-protocol_whitelist",
             "http,https,tcp,tls,crypto",
             "-format_whitelist",
@@ -501,7 +576,7 @@ export function createService({ token, origins }) {
                   "-crf",
                   "25",
                   "-vf",
-                  "scale=-2:480",
+                  "scale=-2:480,setpts=PTS-STARTPTS",
                   "-g",
                   "30",
                   "-keyint_min",
@@ -527,8 +602,16 @@ export function createService({ token, origins }) {
             "48000",
             "-b:a",
             "128k",
+            "-af",
+            body.mode === "transcode"
+              ? "aresample=async=1000:first_pts=0"
+              : "aresample=async=1000",
             "-pix_fmt",
             "yuv420p",
+            "-max_interleave_delta",
+            "0",
+            "-avoid_negative_ts",
+            "make_zero",
             "-f",
             "hls",
             "-hls_time",
@@ -540,10 +623,7 @@ export function createService({ token, origins }) {
             "-hls_flags",
             "delete_segments+independent_segments",
             "-hls_segment_filename",
-            join(
-              dir,
-              "segment%d.ts",
-            ),
+            join(dir, "segment%d.ts"),
             join(dir, "index.m3u8"),
           ];
           const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {

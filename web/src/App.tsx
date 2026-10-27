@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Clapperboard,
   Compass,
+  Dices,
   Film,
   Heart,
   Home,
@@ -1146,8 +1147,7 @@ export default function App() {
       window.dispatchEvent(new Event("connections-changed"));
     const accountTmdbKey = s.tmdbKey?.trim();
     setTmdbKey(accountTmdbKey || DEFAULT_TMDB_KEY);
-    if (accountTmdbKey)
-      localStorage.setItem("nuvio:tmdb-key", accountTmdbKey);
+    if (accountTmdbKey) localStorage.setItem("nuvio:tmdb-key", accountTmdbKey);
     else localStorage.removeItem("nuvio:tmdb-key");
     setAddons(s.addons);
     const collectionSettings =
@@ -1474,6 +1474,24 @@ export default function App() {
       navigate("live");
     } else setDetail(item);
   };
+  const randomPick = () => {
+    const choices = [
+      ...new Map(
+        homeRows
+          .flatMap((row) => row.items)
+          .filter((item) => item.type !== "live")
+          .map((item) => [itemKey(item), item]),
+      ).values(),
+    ];
+    if (!choices.length) {
+      setToast(
+        "Your catalogs are still loading. Try Random Pick again shortly.",
+      );
+      return;
+    }
+    const selected = choices[Math.floor(Math.random() * choices.length)];
+    setDetail(selected);
+  };
   const hero =
     homeRows[0]?.items.find((i) => i.background) ?? homeRows[0]?.items[0];
   const regionOf = (item: Item) =>
@@ -1782,7 +1800,7 @@ export default function App() {
               )}
               <div className="home-content">
                 <section className="quick-strip">
-                  <div>
+                  <div className="quick-strip-copy">
                     <span className="quick-icon">
                       <Radio />
                     </span>
@@ -1795,12 +1813,18 @@ export default function App() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate(provider ? "live" : "settings")}
-                  >
-                    {provider ? "Watch Live TV" : "Connect IPTV"}
-                    <ArrowRight size={17} />
-                  </button>
+                  <div className="quick-strip-actions">
+                    <button onClick={randomPick}>
+                      <Dices size={17} />
+                      Random Pick
+                    </button>
+                    <button
+                      onClick={() => navigate(provider ? "live" : "settings")}
+                    >
+                      {provider ? "Watch Live TV" : "Connect IPTV"}
+                      <ArrowRight size={17} />
+                    </button>
+                  </div>
                 </section>
                 {error && (
                   <div className="error" role="alert">
