@@ -28,11 +28,13 @@ export function seeders(stream: Stream): number {
   return match ? Number(match[1].replaceAll(",", "")) : -1;
 }
 export function directStream(stream: Stream): boolean {
+  const service = getService();
   const headers = stream.behaviorHints?.proxyHeaders as
     { request?: Record<string, string> } | undefined;
   return (
     !!safeUrl(stream.url) &&
-    (!!getService() || !Object.keys(headers?.request ?? {}).length)
+    (!!service || !Object.keys(headers?.request ?? {}).length) &&
+    (stream.behaviorHints?.notWebReady !== true || !!service)
   );
 }
 function sourcePriority(stream: Stream): number {

@@ -7,7 +7,12 @@ import {
   parseTransfer,
   mergeCollections,
 } from "../src/collections";
-import { quality, rankedStreams, seeders } from "../src/stream-selection";
+import {
+  directStream,
+  quality,
+  rankedStreams,
+  seeders,
+} from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
@@ -225,6 +230,27 @@ describe("720p+ preference and safe episode matching", () => {
     expect(
       rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
     ).toHaveLength(1);
+  });
+  it("skips PenguPlay helper and non-web-ready entries without a relay", () => {
+    const helper = {
+      name: "Support PenguPlay",
+      externalUrl: "https://example.com/support",
+    };
+    const incompatible = {
+      name: "PenguPlay 4K",
+      url: "https://cdn.example/movie.mkv",
+      behaviorHints: { notWebReady: true },
+    };
+    const browserReady = {
+      name: "PenguPlay 720p",
+      url: "https://cdn.example/movie.m3u8",
+      behaviorHints: { notWebReady: false },
+    };
+    expect(directStream(helper)).toBe(false);
+    expect(directStream(incompatible)).toBe(false);
+    expect(rankedStreams([helper, incompatible, browserReady], false)).toEqual([
+      browserReady,
+    ]);
   });
   it("prefers a cached direct stream over a higher-seeded raw torrent", () => {
     const direct = {

@@ -693,6 +693,10 @@ function Detail({
         episode: ep,
         url: stream.url!,
         resume: position,
+        mode:
+          stream.behaviorHints?.notWebReady && getService()
+            ? "transcode"
+            : undefined,
         requestHeaders: (
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
