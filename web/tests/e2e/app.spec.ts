@@ -75,7 +75,7 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByLabel("Confirm password")).toBeVisible();
   await expect(
-    page.getByText(/starts with Cinemeta.*OpenSubtitles v3/),
+    page.getByText(/starts with Cinemeta.*OpenSubtitles v3.*PenguPlay/),
   ).toBeVisible();
 });
 

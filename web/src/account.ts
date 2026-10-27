@@ -6,6 +6,7 @@ import { installMany, mergeAddons } from "./addon-import";
 import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
+import { DEFAULT_TMDB_KEY } from "./config";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -318,7 +319,8 @@ export async function loadSetup(
     warnings,
     setup: {
       playbackService: getService(),
-      tmdbKey: typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? ""),
+      tmdbKey:
+        typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? DEFAULT_TMDB_KEY),
       addons: restoredAddons.length ? restoredAddons : defaultAddons,
       collections: resolvedCollections,
       library: library.length

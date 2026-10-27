@@ -1,4 +1,4 @@
-import { addonStreams } from "../src/api";
+import { addonStreams, defaultAddons } from "../src/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGuideParser, xmltvTime } from "../src/guide-parser";
 import {
@@ -13,6 +13,18 @@ import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
 
 afterEach(() => vi.restoreAllMocks());
+describe("new account defaults", () => {
+  it("includes metadata, subtitles and configured direct streaming only", () => {
+    expect(defaultAddons.map((addon) => addon.manifest.id)).toEqual([
+      "com.linvo.cinemeta",
+      "org.stremio.opensubtitlesv3",
+      "com.penguplay",
+    ]);
+    expect(defaultAddons.some((addon) => /torrentio/i.test(addon.base))).toBe(
+      false,
+    );
+  });
+});
 describe("live television browser compatibility", () => {
   it("uses AAC for Safari's native HLS player", () => {
     expect(
