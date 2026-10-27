@@ -10,8 +10,26 @@ import {
 import { quality, rankedStreams, seeders } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveAccountProvider } from "../src/provider-sharing";
+import { liveAudioCodec } from "../src/media-compatibility";
 
 afterEach(() => vi.restoreAllMocks());
+describe("live television browser compatibility", () => {
+  it("uses AAC for Safari's native HLS player", () => {
+    expect(
+      liveAudioCodec(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.6 Safari/605.1.15",
+      ),
+    ).toBe("aac");
+  });
+
+  it("keeps the verified MP3 path for Chromium browsers", () => {
+    expect(
+      liveAudioCodec(
+        "Mozilla/5.0 AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+      ),
+    ).toBe("mp3");
+  });
+});
 describe("account-wide Xtream connection", () => {
   const provider = {
     server: "https://tv.example",

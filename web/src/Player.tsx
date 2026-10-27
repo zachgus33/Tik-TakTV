@@ -5,6 +5,7 @@ import type Hls from "hls.js";
 import type { Episode, Item, Subtitle } from "./types";
 import { safeUrl } from "./api";
 import { storeProgress } from "./storage";
+import { liveAudioCodec } from "./media-compatibility";
 
 export type Playback = {
   item: Item;
@@ -405,20 +406,23 @@ export default function Player({
       playback.requestHeaders,
       c.signal,
       playback.mode,
-      playback.mode === "transcode" ? "mp3" : undefined,
+      playback.mode === "transcode"
+        ? liveAudioCodec(navigator.userAgent)
+        : undefined,
     ).then(
       (url) => {
         if (!c.signal.aborted)
           setReady({
             ...playback,
             url,
-            hls: !/\.webm(?:[?#]|$)/i.test(url) && (
-              playback.hls ||
-              playback.mode === "remux" ||
-              playback.mode === "transcode" ||
-              getService()?.mode === "remux" ||
-              getService()?.mode === "transcode" ||
-              /\.m3u8(?:[?#]|$)/i.test(playback.url)),
+            hls:
+              !/\.webm(?:[?#]|$)/i.test(url) &&
+              (playback.hls ||
+                playback.mode === "remux" ||
+                playback.mode === "transcode" ||
+                getService()?.mode === "remux" ||
+                getService()?.mode === "transcode" ||
+                /\.m3u8(?:[?#]|$)/i.test(playback.url)),
           });
       },
       (e) => {
@@ -427,13 +431,7 @@ export default function Player({
     );
     return () => c.abort();
   }, [playback]);
-  if (ready)
-    return (
-      <VideoPlayer
-        playback={ready}
-        onClose={onClose}
-      />
-    );
+  if (ready) return <VideoPlayer playback={ready} onClose={onClose} />;
   return (
     <dialog open className="player-dialog" aria-label="Preparing playback">
       <p role={error ? "alert" : "status"}>
