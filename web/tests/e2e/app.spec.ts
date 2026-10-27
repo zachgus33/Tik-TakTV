@@ -10,6 +10,12 @@ const meta = {
   imdbRating: "8.1",
 };
 async function mockSources(page: Page) {
+  await page.route("https://pengu.uk/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill({
+      json: path.includes("/stream/") ? { streams: [] } : { subtitles: [] },
+    });
+  });
   await page
     .context()
     .route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
@@ -148,9 +154,9 @@ test("discovery, library persistence, accessible modal and mobile layout", async
     page.getByRole("button", { name: "In my library" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Find streams" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "No streaming add-on is installed",
-  );
+  await expect(
+    page.getByText("No streams found. Try another source."),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
   await page.goto("/#library");
   await expect(
