@@ -10,6 +10,7 @@ import {
   type Profile,
   type Setup,
 } from "./account";
+import { storeProvider } from "./storage";
 
 export default function AccountPanel({
   setup,
@@ -219,11 +220,12 @@ export default function AccountPanel({
           </p>
         </div>
         <button
-          onClick={() =>
+          onClick={() => {
+            storeProvider(null, true);
             void account.auth
               .signOut({ scope: "local" })
-              .then(() => onChangeUser())
-          }
+              .then(() => onChangeUser());
+          }}
         >
           Sign out
         </button>

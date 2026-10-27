@@ -9,8 +9,36 @@ import {
 } from "../src/collections";
 import { quality, rankedStreams, seeders } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
+import { resolveAccountProvider } from "../src/provider-sharing";
 
 afterEach(() => vi.restoreAllMocks());
+describe("account-wide Xtream connection", () => {
+  const provider = {
+    server: "https://tv.example",
+    username: "member",
+    password: "secret",
+  };
+
+  it("migrates the primary profile connection to every secondary profile", () => {
+    expect(resolveAccountProvider(2, {}, { provider })).toEqual(provider);
+  });
+
+  it("uses the account connection instead of a profile's stale connection", () => {
+    expect(
+      resolveAccountProvider(
+        3,
+        { provider: { ...provider, username: "old" } },
+        { accountProvider: provider },
+      ),
+    ).toEqual(provider);
+  });
+
+  it("honors an account-wide disconnect", () => {
+    expect(
+      resolveAccountProvider(2, { provider }, { accountProvider: null }),
+    ).toBeNull();
+  });
+});
 describe("automatic Xtream XMLTV guide", () => {
   it("converts explicit positive and negative timezones to UTC", () => {
     expect(xmltvTime("20261023183000 +0200")).toBe(

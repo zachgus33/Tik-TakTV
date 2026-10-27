@@ -5,6 +5,7 @@ import { parseCollections, type Collection } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
 import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
+import { resolveAccountProvider } from "./provider-sharing";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -66,6 +67,9 @@ const baselines = new Map<
   }
 >();
 const field = "tikTakWebV1";
+type StoredWebSetup = Partial<Setup> & {
+  accountProvider?: Provider | null;
+};
 const origin = (() => {
   let id = localStorage.getItem("tiktak:client");
   if (!id) {
@@ -145,6 +149,7 @@ export async function loadSetup(
   const addonId = profile.uses_primary_addons ? 1 : id;
   const [
     blob,
+    accountBlob,
     collections,
     addonRows,
     libraryRows,
@@ -153,6 +158,7 @@ export async function loadSetup(
     homeRows,
   ] = await Promise.all([
     settings(id),
+    id === 1 ? Promise.resolve(null) : settings(1).catch(() => null),
     rpc<{ collections_json: unknown }[]>("sync_pull_collections", {
       p_profile_id: id,
     }),
@@ -182,6 +188,12 @@ export async function loadSetup(
   if (addonRows.error)
     throw new Error("Nuvio could not load your installed add-ons.");
   const web = (blob[field] ?? {}) as Partial<Setup>;
+  const accountWeb = (accountBlob?.[field] ?? {}) as StoredWebSetup;
+  const ownWeb = web as StoredWebSetup;
+  // Xtream credentials belong to the signed-in Nuvio account. Profile 1 is
+  // the account-owned storage location, so secondary profiles can read the
+  // connection without making it available to any other account.
+  const sharedProvider = resolveAccountProvider(id, ownWeb, accountWeb);
   if (!getService() && web.playbackService?.url && web.playbackService?.token)
     localStorage.setItem(
       "nuvio:playback-service",
@@ -315,7 +327,7 @@ export async function loadSetup(
           ? web.library
           : [],
       progress: mergedProgress,
-      provider: web.provider ?? null,
+      provider: sharedProvider,
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
       autoplay: web.autoplay ?? true,
       homeCatalogs: homeCatalogs.length ? homeCatalogs : web.homeCatalogs,
@@ -326,12 +338,27 @@ export async function saveSetup(profile: Profile, setup: Setup) {
   const id = profile.profile_index;
   // Read/merge the native platform blob so unknown settings are retained.
   const blob = await settings(id);
+  const profileSetup =
+    id === 1 ? { ...setup, accountProvider: setup.provider } : setup;
   await rpc("sync_push_profile_settings_blob", {
     p_profile_id: id,
     p_platform: platform,
-    p_settings_json: { ...blob, [field]: setup },
+    p_settings_json: { ...blob, [field]: profileSetup },
     p_origin_client_id: origin,
   });
+  if (id !== 1) {
+    const accountBlob = await settings(1);
+    const accountWeb = (accountBlob[field] ?? {}) as Record<string, unknown>;
+    await rpc("sync_push_profile_settings_blob", {
+      p_profile_id: 1,
+      p_platform: platform,
+      p_settings_json: {
+        ...accountBlob,
+        [field]: { ...accountWeb, accountProvider: setup.provider },
+      },
+      p_origin_client_id: origin,
+    });
+  }
   const previous = baselines.get(id);
   if (!previous) throw new Error("Load this Nuvio profile before saving.");
   if (previous.addons !== JSON.stringify(setup.addons))
