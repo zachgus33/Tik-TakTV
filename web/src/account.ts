@@ -3,7 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
-import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
+import {
+  defaultAddon,
+  defaultAddons,
+  defaultStreamingAddon,
+  safeUrl,
+  addonDetail,
+} from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
@@ -237,22 +243,54 @@ export async function loadSetup(
     installed.addons,
     Array.isArray(web.addons) ? web.addons : [],
   );
+  const supportsStreaming = restoredAddons.some((addon) =>
+    addon.manifest.resources?.some((resource) =>
+      typeof resource === "string"
+        ? resource === "stream"
+        : resource.name === "stream",
+    ),
+  );
+  const resolvedAddons = supportsStreaming
+    ? restoredAddons
+    : mergeAddons(restoredAddons, [defaultStreamingAddon]);
   const warnings = installed.failed
     ? [
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
       ]
     : [];
-  if (!(addonRows.data ?? []).length) {
+  const nativeRows = addonRows.data ?? [];
+  const hasNativeStreamingDefault = nativeRows.some(
+    (row) =>
+      String(row.url).replace(/\/manifest\.json$/, "") ===
+      defaultStreamingAddon.base,
+  );
+  let savedRows: Record<string, unknown>[] = nativeRows;
+  if (
+    !nativeRows.length ||
+    (!supportsStreaming && !hasNativeStreamingDefault)
+  ) {
+    const addonsToSave = !nativeRows.length
+      ? defaultAddons.map((addon, index) => ({
+          url: `${addon.base}/manifest.json`,
+          name: addon.manifest.name,
+          enabled: true,
+          sort_order: index,
+        }))
+      : [
+          ...nativeRows,
+          {
+            url: `${defaultStreamingAddon.base}/manifest.json`,
+            name: defaultStreamingAddon.manifest.name,
+            enabled: true,
+            sort_order: nativeRows.length,
+          },
+        ];
     await rpc("sync_push_addons", {
       p_profile_id: addonId,
-      p_addons: defaultAddons.map((addon, index) => ({
-        url: `${addon.base}/manifest.json`,
-        name: addon.manifest.name,
-        enabled: true,
-        sort_order: index,
-      })),
+      p_addons: addonsToSave,
       p_origin_client_id: origin,
     });
+    savedRows = addonsToSave;
   }
   const library = libraryRows.map((r): Item => ({
     id: String(r.content_id),
@@ -336,11 +374,11 @@ export async function loadSetup(
     .slice(0, 100);
   baselines.set(id, {
     addons: JSON.stringify(
-      restoredAddons.length ? restoredAddons : defaultAddons,
+      resolvedAddons.length ? resolvedAddons : defaultAddons,
     ),
     collections: JSON.stringify(resolvedCollections),
     library,
-    rows: addonRows.data ?? [],
+    rows: savedRows,
     progress: mergedProgress,
     progressRows,
   });
@@ -350,7 +388,7 @@ export async function loadSetup(
       playbackService: getService(),
       tmdbKey:
         typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? DEFAULT_TMDB_KEY),
-      addons: restoredAddons.length ? restoredAddons : defaultAddons,
+      addons: resolvedAddons.length ? resolvedAddons : defaultAddons,
       collections: resolvedCollections,
       library: library.length
         ? library

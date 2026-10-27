@@ -642,6 +642,7 @@ test.describe("authenticated integrations", () => {
       ".fake";
     let profileCreated = false;
     let profilePayload: Record<string, any> | undefined;
+    let addonsPayload: Record<string, any> | undefined;
     await page.route("https://api.nuvio.tv/**", async (route) => {
       const url = new URL(route.request().url());
       let data: any = [];
@@ -662,9 +663,51 @@ test.describe("authenticated integrations", () => {
         profilePayload = route.request().postDataJSON();
         profileCreated = true;
         data = null;
+      } else if (url.pathname === "/rest/v1/addons")
+        data = [
+          {
+            url: "https://v3-cinemeta.strem.io/manifest.json",
+            name: "Nuvio Catalog Addon",
+            enabled: true,
+            sort_order: 0,
+          },
+          {
+            url: "https://opensubtitles-v3.strem.io/manifest.json",
+            name: "OpenSubtitles v3",
+            enabled: true,
+            sort_order: 1,
+          },
+        ];
+      else if (url.pathname.endsWith("/sync_push_addons")) {
+        addonsPayload = route.request().postDataJSON();
+        data = null;
       }
       await route.fulfill({ json: data });
     });
+    await page.route("https://v3-cinemeta.strem.io/manifest.json", (route) =>
+      route.fulfill({
+        json: {
+          id: "com.linvo.cinemeta",
+          name: "Nuvio Catalog Addon",
+          types: ["movie", "series"],
+          resources: ["catalog", "meta"],
+          catalogs: [],
+        },
+      }),
+    );
+    await page.route(
+      "https://opensubtitles-v3.strem.io/manifest.json",
+      (route) =>
+        route.fulfill({
+          json: {
+            id: "org.stremio.opensubtitlesv3",
+            name: "OpenSubtitles v3",
+            types: ["movie", "series"],
+            resources: ["subtitles"],
+            catalogs: [],
+          },
+        }),
+    );
     await page.addInitScript(() =>
       localStorage.removeItem("tiktak:established-local"),
     );
@@ -679,6 +722,17 @@ test.describe("authenticated integrations", () => {
     expect(profilePayload?.p_profiles).toEqual([
       expect.objectContaining({ profile_index: 1, name: "Home" }),
     ]);
+    await page.getByRole("button", { name: /Home/ }).click();
+    await expect
+      .poll(() =>
+        addonsPayload?.p_addons?.some(
+          (addon: { name?: string }) => addon.name === "PenguPlay",
+        ),
+      )
+      .toBe(true);
+    await page.goto("/#settings");
+    await page.getByRole("button", { name: /Add-ons/ }).click();
+    await expect(page.getByText("PenguPlay", { exact: true })).toBeVisible();
   });
 
   test("Nuvio login loads shared addons and collection tiles, persists profile and saves edits", async ({
