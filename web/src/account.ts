@@ -3,13 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
-import {
-  defaultAddon,
-  defaultAddons,
-  defaultStreamingAddon,
-  safeUrl,
-  addonDetail,
-} from "./api";
+import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
@@ -74,6 +68,13 @@ const baselines = new Map<
   }
 >();
 const field = "tikTakWebV1";
+function isRemovedPenguPlay(value: unknown) {
+  try {
+    return new URL(String(value)).hostname.toLowerCase() === "pengu.uk";
+  } catch {
+    return false;
+  }
+}
 type StoredWebSetup = Partial<Setup> & {
   accountProvider?: Provider | null;
 };
@@ -236,55 +237,36 @@ export async function loadSetup(
       JSON.stringify(web.playbackService),
     );
   const urls = (addonRows.data ?? [])
-    .filter((a) => a.enabled !== false)
+    .filter((a) => a.enabled !== false && !isRemovedPenguPlay(a.url))
     .map((a) => String(a.url));
   const installed = await installMany(urls);
   const restoredAddons = mergeAddons(
     installed.addons,
-    Array.isArray(web.addons) ? web.addons : [],
+    Array.isArray(web.addons)
+      ? web.addons.filter((addon) => !isRemovedPenguPlay(addon.base))
+      : [],
   );
-  const supportsStreaming = restoredAddons.some((addon) =>
-    addon.manifest.resources?.some((resource) =>
-      typeof resource === "string"
-        ? resource === "stream"
-        : resource.name === "stream",
-    ),
-  );
-  const resolvedAddons = supportsStreaming
-    ? restoredAddons
-    : mergeAddons(restoredAddons, [defaultStreamingAddon]);
   const warnings = installed.failed
     ? [
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
       ]
     : [];
   const nativeRows = addonRows.data ?? [];
-  const hasNativeStreamingDefault = nativeRows.some(
+  const cleanedRows = nativeRows.filter(
     (row) =>
-      String(row.url).replace(/\/manifest\.json$/, "") ===
-      defaultStreamingAddon.base,
+      !isRemovedPenguPlay(row.url) &&
+      String(row.name ?? "").toLowerCase() !== "penguplay",
   );
-  let savedRows: Record<string, unknown>[] = nativeRows;
-  if (
-    !nativeRows.length ||
-    (!supportsStreaming && !hasNativeStreamingDefault)
-  ) {
-    const addonsToSave = !nativeRows.length
+  let savedRows: Record<string, unknown>[] = cleanedRows;
+  if (!nativeRows.length || cleanedRows.length !== nativeRows.length) {
+    const addonsToSave = !cleanedRows.length
       ? defaultAddons.map((addon, index) => ({
           url: `${addon.base}/manifest.json`,
           name: addon.manifest.name,
           enabled: true,
           sort_order: index,
         }))
-      : [
-          ...nativeRows,
-          {
-            url: `${defaultStreamingAddon.base}/manifest.json`,
-            name: defaultStreamingAddon.manifest.name,
-            enabled: true,
-            sort_order: nativeRows.length,
-          },
-        ];
+      : cleanedRows.map((row, index) => ({ ...row, sort_order: index }));
     await rpc("sync_push_addons", {
       p_profile_id: addonId,
       p_addons: addonsToSave,
@@ -374,7 +356,7 @@ export async function loadSetup(
     .slice(0, 100);
   baselines.set(id, {
     addons: JSON.stringify(
-      resolvedAddons.length ? resolvedAddons : defaultAddons,
+      restoredAddons.length ? restoredAddons : defaultAddons,
     ),
     collections: JSON.stringify(resolvedCollections),
     library,
@@ -388,7 +370,7 @@ export async function loadSetup(
       playbackService: getService(),
       tmdbKey:
         typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? DEFAULT_TMDB_KEY),
-      addons: resolvedAddons.length ? resolvedAddons : defaultAddons,
+      addons: restoredAddons.length ? restoredAddons : defaultAddons,
       collections: resolvedCollections,
       library: library.length
         ? library

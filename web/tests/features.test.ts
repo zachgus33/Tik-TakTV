@@ -19,11 +19,10 @@ import { liveAudioCodec } from "../src/media-compatibility";
 
 afterEach(() => vi.restoreAllMocks());
 describe("new account defaults", () => {
-  it("includes metadata, subtitles and configured direct streaming only", () => {
+  it("includes metadata and subtitles without a shared streaming account", () => {
     expect(defaultAddons.map((addon) => addon.manifest.id)).toEqual([
       "com.linvo.cinemeta",
       "org.stremio.opensubtitlesv3",
-      "com.penguplay",
     ]);
     expect(defaultAddons.some((addon) => /torrentio/i.test(addon.base))).toBe(
       false,
@@ -231,18 +230,18 @@ describe("720p+ preference and safe episode matching", () => {
       rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
     ).toHaveLength(1);
   });
-  it("skips PenguPlay helper and non-web-ready entries without a relay", () => {
+  it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {
-      name: "Support PenguPlay",
+      name: "Support provider",
       externalUrl: "https://example.com/support",
     };
     const incompatible = {
-      name: "PenguPlay 4K",
+      name: "Provider 4K",
       url: "https://cdn.example/movie.mkv",
       behaviorHints: { notWebReady: true },
     };
     const browserReady = {
-      name: "PenguPlay 720p",
+      name: "Provider 720p",
       url: "https://cdn.example/movie.m3u8",
       behaviorHints: { notWebReady: false },
     };

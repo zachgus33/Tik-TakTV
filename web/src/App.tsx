@@ -427,8 +427,8 @@ function ProfileGate({
               {authMode === "signup" && (
                 <p className="profile-auth-note">
                   Your account starts with Cinemeta, English subtitles from
-                  OpenSubtitles v3, and direct streaming through PenguPlay. You
-                  can manage these add-ons at any time.
+                  OpenSubtitles v3. Add your preferred streaming source in
+                  Settings when you are ready to watch.
                 </p>
               )}
             </form>

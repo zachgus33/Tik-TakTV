@@ -10,12 +10,6 @@ const meta = {
   imdbRating: "8.1",
 };
 async function mockSources(page: Page) {
-  await page.route("https://pengu.uk/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    await route.fulfill({
-      json: path.includes("/stream/") ? { streams: [] } : { subtitles: [] },
-    });
-  });
   await page
     .context()
     .route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
@@ -81,7 +75,7 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByLabel("Confirm password")).toBeVisible();
   await expect(
-    page.getByText(/starts with Cinemeta.*OpenSubtitles v3.*PenguPlay/),
+    page.getByText(/starts with Cinemeta.*OpenSubtitles v3/),
   ).toBeVisible();
 });
 
@@ -677,6 +671,12 @@ test.describe("authenticated integrations", () => {
             enabled: true,
             sort_order: 1,
           },
+          {
+            url: "https://pengu.uk/removed-config/manifest.json",
+            name: "PenguPlay",
+            enabled: true,
+            sort_order: 2,
+          },
         ];
       else if (url.pathname.endsWith("/sync_push_addons")) {
         addonsPayload = route.request().postDataJSON();
@@ -725,14 +725,15 @@ test.describe("authenticated integrations", () => {
     await page.getByRole("button", { name: /Home/ }).click();
     await expect
       .poll(() =>
-        addonsPayload?.p_addons?.some(
-          (addon: { name?: string }) => addon.name === "PenguPlay",
+        addonsPayload?.p_addons?.every(
+          (addon: { name?: string; url?: string }) =>
+            addon.name !== "PenguPlay" && !addon.url?.includes("pengu.uk"),
         ),
       )
       .toBe(true);
     await page.goto("/#settings");
     await page.getByRole("button", { name: /Add-ons/ }).click();
-    await expect(page.getByText("PenguPlay", { exact: true })).toBeVisible();
+    await expect(page.getByText("PenguPlay", { exact: true })).toHaveCount(0);
   });
 
   test("Nuvio login loads shared addons and collection tiles, persists profile and saves edits", async ({

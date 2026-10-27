@@ -316,56 +316,7 @@ export const defaultSubtitleAddon: Addon = {
     catalogs: [],
   },
 };
-// This configured PenguPlay install is intentionally shared with new TikTak TV
-// accounts. Its configuration is isolated from every user's private add-ons.
-export const defaultStreamingAddon: Addon = {
-  base: "https://pengu.uk/%7B%22auth_token%22%3A%22abo8a5dUNecjjviukQZAXg6E45MRt0FABC0r53X0DaA%22%7D",
-  manifest: {
-    id: "com.penguplay",
-    name: "PenguPlay",
-    version: "1.4.0",
-    description:
-      "Direct HTTPS streams with the shared TikTak TV filter configuration.",
-    types: ["movie", "series", "tv"],
-    resources: [
-      {
-        name: "stream",
-        types: ["movie", "series", "tv"],
-        idPrefixes: [
-          "tt",
-          "tmdb:",
-          "tvdb:",
-          "mal:",
-          "kitsu:",
-          "tvmaze:",
-          "anilist:",
-          "anidb:",
-          "pp-live:",
-        ],
-      },
-      {
-        name: "subtitles",
-        types: ["movie", "series"],
-        idPrefixes: [
-          "tt",
-          "tmdb:",
-          "tvdb:",
-          "mal:",
-          "kitsu:",
-          "tvmaze:",
-          "anilist:",
-          "anidb:",
-        ],
-      },
-    ],
-    catalogs: [],
-  },
-};
-export const defaultAddons: Addon[] = [
-  defaultAddon,
-  defaultSubtitleAddon,
-  defaultStreamingAddon,
-];
+export const defaultAddons: Addon[] = [defaultAddon, defaultSubtitleAddon];
 export async function installAddon(input: string): Promise<Addon> {
   const normalized = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
   if (!normalized)
