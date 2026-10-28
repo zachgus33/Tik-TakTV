@@ -232,6 +232,46 @@ test("a title can be removed from watch history", async ({ page }) => {
     ),
   ).toEqual([]);
 });
+test("catalog manager creates, renames, reorders and hides Home rows", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /^Collections/ }).click();
+  await page.getByRole("button", { name: "Create layout" }).click();
+
+  const manager = page.locator(".catalog-manager");
+  await expect(manager.locator("article")).toHaveCount(2);
+  const movieTitle = page.getByLabel("Title for Popular movies");
+  await movieTitle.fill("Friday night movies");
+  await page.getByRole("button", { name: "Move Popular series up" }).click();
+  await page.getByRole("button", { name: "Hide Popular movies" }).click();
+
+  const stored = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("nuvio:home-catalogs") ?? "[]"),
+  );
+  expect(stored).toHaveLength(2);
+  expect(stored[0]).toMatchObject({
+    catalog_id: "top",
+    type: "series",
+    order: 0,
+  });
+  expect(stored[1]).toMatchObject({
+    catalog_id: "top",
+    type: "movie",
+    order: 1,
+    enabled: false,
+    custom_title: "Friday night movies",
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: /^Collections/ }).click();
+  await expect(page.getByLabel("Title for Popular movies")).toHaveValue(
+    "Friday night movies",
+  );
+  await expect(
+    page.getByRole("button", { name: "Show Popular movies" }),
+  ).toBeVisible();
+});
 test("Xtream session login, channels, guide, favorites and disconnect", async ({
   page,
 }) => {
@@ -826,9 +866,7 @@ test("a Watch Together invite opens the host source and timeline", async ({
   );
   await page.goto("/?party=abcdefghijklmnopqrstuvwx#home");
   await expect(
-    page
-      .getByRole("dialog")
-      .getByRole("heading", { name: "The Test Movie" }),
+    page.getByRole("dialog").getByRole("heading", { name: "The Test Movie" }),
   ).toBeVisible();
   await expect(
     page.getByText("Following the host", { exact: false }),

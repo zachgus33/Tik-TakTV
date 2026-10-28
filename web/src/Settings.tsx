@@ -29,6 +29,7 @@ import {
   redeemFriendSetup,
 } from "./connection";
 import type { HomeCatalogSetting } from "./account";
+import CatalogManager from "./CatalogManager";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -64,6 +65,8 @@ type Props = {
     template: FriendTemplate,
     torboxKey: string,
   ) => Promise<void>;
+  homeCatalogs: HomeCatalogSetting[];
+  onHomeCatalogs: (value: HomeCatalogSetting[]) => void;
 };
 type SettingsSection =
   "addons" | "collections" | "live" | "playback" | "general";
@@ -457,9 +460,10 @@ export default function Settings(props: Props) {
               <p className="hint">
                 Quality is matched from add-on labels (720p, 1080p, 1440p,
                 2160p/4K, 4320p/8K). The highest quality wins, then the highest
-                reported seeder count. Episode files must match the selected season and
-                episode. Unknown quality or ambiguous files stay in the picker.
-                Safari may still require a tap on its video play button.
+                reported seeder count. Episode files must match the selected
+                season and episode. Unknown quality or ambiguous files stay in
+                the picker. Safari may still require a tap on its video play
+                button.
               </p>
             </section>
           </div>
@@ -724,6 +728,11 @@ export default function Settings(props: Props) {
             </section>
           </div>
           <div hidden={section !== "collections"}>
+            <CatalogManager
+              addons={props.addons}
+              value={props.homeCatalogs}
+              onChange={props.onHomeCatalogs}
+            />
             <section className="settings-card">
               <h2>TMDB collections</h2>
               <p>

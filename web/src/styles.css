@@ -1561,6 +1561,100 @@ button.selected {
 .setting-list input {
   width: auto;
 }
+.catalog-manager-heading {
+  justify-content: space-between;
+}
+.catalog-manager-heading .badge {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.catalog-start,
+.catalog-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px dashed #ffffff1c;
+  border-radius: 14px;
+  background: #ffffff03;
+}
+.catalog-start p,
+.catalog-empty p {
+  margin: 5px 0 0;
+}
+.catalog-manager-list {
+  display: grid;
+  gap: 9px;
+}
+.catalog-manager-list article {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 12px;
+  border: 1px solid #ffffff10;
+  border-radius: 13px;
+  background: #0d0c10aa;
+  transition:
+    border-color 0.2s,
+    opacity 0.2s;
+}
+.catalog-manager-list article:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, #ffffff10);
+}
+.catalog-manager-list article.is-hidden {
+  opacity: 0.58;
+}
+.catalog-order {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 15%, #17131c);
+  color: #d8c7f5;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.catalog-editor-fields {
+  min-width: 0;
+}
+.catalog-editor-fields input {
+  min-height: 38px;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+.catalog-editor-fields span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.67rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.catalog-actions {
+  display: flex;
+  gap: 6px;
+}
+.catalog-actions button {
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+}
+.catalog-actions .danger-icon:hover {
+  border-color: #e767783f;
+  color: #ff9bab;
+}
+.catalog-add-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
 .settings-card h2 {
   font-size: 18px;
 }
@@ -3092,6 +3186,28 @@ body:has(dialog[open]) {
   }
   .settings-card {
     padding: 20px 16px;
+  }
+  .catalog-manager-list article {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .catalog-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    padding-top: 3px;
+  }
+  .catalog-actions button {
+    flex: 1;
+    max-width: 62px;
+    min-height: 42px;
+  }
+  .catalog-add-form,
+  .catalog-start {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .catalog-add-form button,
+  .catalog-start button {
+    width: 100%;
   }
   .card-heading {
     gap: 11px;

@@ -8,6 +8,12 @@ import {
   mergeCollections,
 } from "../src/collections";
 import {
+  catalogChoices,
+  completeCatalogSettings,
+  normalizeCatalogOrder,
+  settingMatchesChoice,
+} from "../src/catalog-settings";
+import {
   autoplayStreams,
   codecCompatibility,
   compatibilityPlaybackMode,
@@ -114,6 +120,58 @@ describe("automatic Xtream XMLTV guide", () => {
       parser.write("<html>not xmltv");
       parser.finish();
     }).toThrow();
+  });
+});
+describe("home catalog management", () => {
+  const addons = [
+    {
+      base: "https://one.example/config-a",
+      manifest: {
+        id: "torrentio",
+        name: "Torrentio A",
+        catalogs: [{ id: "popular", type: "movie", name: "Popular" }],
+      },
+    },
+    {
+      base: "https://two.example/config-b",
+      manifest: {
+        id: "torrentio",
+        name: "Torrentio B",
+        catalogs: [{ id: "popular", type: "movie", name: "Popular" }],
+      },
+    },
+  ];
+
+  it("keeps separately configured copies of the same add-on distinct", () => {
+    const choices = catalogChoices(addons);
+    expect(choices).toHaveLength(2);
+    expect(choices[0].key).not.toBe(choices[1].key);
+    const settings = completeCatalogSettings(choices, []);
+    expect(settingMatchesChoice(settings[0], choices[0])).toBe(true);
+    expect(settingMatchesChoice(settings[0], choices[1])).toBe(false);
+  });
+
+  it("preserves edits and normalizes drag-button ordering", () => {
+    const choices = catalogChoices(addons);
+    const settings = completeCatalogSettings(choices, [
+      {
+        addon_id: "torrentio",
+        type: "movie",
+        catalog_id: "popular",
+        enabled: false,
+        order: 8,
+        custom_title: "Friday night",
+        key: choices[1].key,
+      },
+    ]);
+    expect(settings[1]).toMatchObject({
+      enabled: false,
+      custom_title: "Friday night",
+      key: choices[1].key,
+    });
+    expect(
+      normalizeCatalogOrder(settings.reverse()).map((item) => item.order),
+    ).toEqual([0, 1]);
   });
 });
 describe("Nuvio collections and add-on transfer", () => {

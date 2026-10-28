@@ -98,6 +98,7 @@ import {
   seeders,
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
+import { settingMatchesChoice } from "./catalog-settings";
 import { joinParty } from "./watch-party";
 
 const Player = lazy(() => import("./Player"));
@@ -1551,11 +1552,15 @@ export default function App() {
           .filter((setting) => setting.enabled && !setting.is_collection)
           .sort((a, b) => Number(a.order) - Number(b.order))
           .flatMap((setting) => {
-            const match = available.find(
-              ({ a, cat }) =>
-                a.manifest.id === setting.addon_id &&
-                cat.type === setting.type &&
-                cat.id === setting.catalog_id,
+            const match = available.find(({ a, cat }) =>
+              settingMatchesChoice(setting, {
+                key: `${a.base}|${cat.type}|${cat.id}`,
+                addonId: a.manifest.id,
+                addonName: a.manifest.name,
+                catalogId: cat.id,
+                catalogName: cat.name || a.manifest.name,
+                type: cat.type,
+              }),
             );
             return match
               ? [{ ...match, customTitle: setting.custom_title }]
@@ -2688,6 +2693,8 @@ export default function App() {
                     autoplay,
                     homeCatalogs,
                   }}
+                  homeCatalogs={homeCatalogs}
+                  onHomeCatalogs={setHomeCatalogs}
                   onFriendTemplate={async (
                     template: FriendTemplate,
                     friendTorboxKey: string,
