@@ -467,7 +467,7 @@ test("search uses every searchable catalog even when a trending catalog is selec
   expect(searched).toContain("search=the%20rookie");
   await expect(page.getByLabel("Catalog")).toHaveValue(/trending/);
 });
-test("browser-incompatible MKV is remuxed before playback", async ({
+test("browser-incompatible MKV is normalized before playback", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -510,10 +510,10 @@ test("browser-incompatible MKV is remuxed before playback", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect.poll(() => prepared.mode).toBe("remux");
+  await expect.poll(() => prepared.mode).toBe("transcode");
   expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
 });
-test("phone autoplay prefers H.264 and remuxes MKV instead of choosing HEVC", async ({
+test("phone autoplay prefers H.264 and normalizes MKV instead of choosing HEVC", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -562,7 +562,7 @@ test("phone autoplay prefers H.264 and remuxes MKV instead of choosing HEVC", as
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect.poll(() => prepared.mode).toBe("remux");
+  await expect.poll(() => prepared.mode).toBe("transcode");
   expect(prepared.url).toBe("https://cdn.example/resolve");
 });
 test("downloads the best ranked movie stream automatically as an MP4", async ({

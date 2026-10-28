@@ -67,7 +67,10 @@ export function compatibilityPlaybackMode(
     /\.(?:avi|wmv|flv)(?:[?#\s]|$)/i.test(source)
   )
     return "transcode";
-  if (/\.(?:mkv|ts)(?:[?#\s]|$)/i.test(source)) return "remux";
+  // Container-copying MKV into HLS can preserve timestamps and keyframe
+  // spacing that browsers reject even when FFmpeg can read the source.
+  if (/\.mkv(?:[?#\s]|$)/i.test(source)) return "transcode";
+  if (/\.ts(?:[?#\s]|$)/i.test(source)) return "remux";
   return undefined;
 }
 function sourcePriority(stream: Stream): number {
