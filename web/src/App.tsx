@@ -611,6 +611,115 @@ function Loading() {
     </div>
   );
 }
+function PersonView({
+  person,
+  onClose,
+  onSelect,
+}: {
+  person: import("./tmdb").PersonProfile;
+  onClose: () => void;
+  onSelect: (item: Item) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const released = person.titles.filter(
+    (title) => title.releaseDate && title.releaseDate <= today,
+  );
+  const popular = [...released]
+    .sort((a, b) => b.popularity - a.popularity)
+    .slice(0, 16);
+  const latest = [...released]
+    .sort((a, b) => b.releaseDate.localeCompare(a.releaseDate))
+    .slice(0, 16);
+  const upcoming = person.titles
+    .filter((title) => title.releaseDate > today)
+    .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
+    .slice(0, 16);
+  const birthday = person.birthday
+    ? new Date(`${person.birthday}T12:00:00`).toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+  const age = person.birthday
+    ? Math.max(
+        0,
+        new Date(person.deathday ?? today).getFullYear() -
+          new Date(person.birthday).getFullYear() -
+          (new Date(person.deathday ?? today).toISOString().slice(5, 10) <
+          person.birthday.slice(5, 10)
+            ? 1
+            : 0),
+      )
+    : null;
+  const rows = [
+    ["Popular", popular],
+    ["Latest", latest],
+    ["Upcoming", upcoming],
+  ] as const;
+  return (
+    <div
+      className="person-view"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${person.name} filmography`}
+    >
+      <button
+        className="person-back"
+        onClick={onClose}
+        aria-label="Back to title"
+      >
+        <ChevronLeft size={24} />
+        <span>Back</span>
+      </button>
+      <header className="person-hero">
+        {person.photo ? (
+          <img src={person.photo} alt="" />
+        ) : (
+          <span>{person.name.slice(0, 1)}</span>
+        )}
+        <div>
+          <span className="eyebrow">PERSON</span>
+          <h1>{person.name}</h1>
+          <p>
+            {[
+              birthday && `${birthday}${age != null ? ` (age ${age})` : ""}`,
+              person.placeOfBirth,
+              person.knownFor && `Known for ${person.knownFor}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+      </header>
+      {person.biography && (
+        <p className="person-biography">{person.biography}</p>
+      )}
+      <div className="person-rows">
+        {rows.map(([label, titles]) =>
+          titles.length ? (
+            <section key={label}>
+              <h2>{label}</h2>
+              <div className="person-title-row">
+                {titles.map((title) => (
+                  <button key={itemKey(title)} onClick={() => onSelect(title)}>
+                    <Art item={title} />
+                    <strong>{title.name}</strong>
+                    <small>
+                      {title.year ||
+                        (label === "Upcoming" ? "Coming soon" : "")}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null,
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Detail({
   initial,
   provider,
@@ -652,7 +761,7 @@ function Detail({
   const [downloadMode, setDownloadMode] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
-  const [person, setPerson] = useState<{ name: string; items: Item[] } | null>(
+  const [person, setPerson] = useState<import("./tmdb").PersonProfile | null>(
     null,
   );
   const [files, setFiles] = useState<{
@@ -1198,7 +1307,7 @@ function Detail({
                   onClick={() => {
                     setBusy(true);
                     void import("./tmdb")
-                      .then(async ({ peopleByName, personCredits }) => {
+                      .then(async ({ peopleByName, personProfile }) => {
                         const resolved = credits.length
                           ? person
                           : (await peopleByName([person.name]))[0];
@@ -1206,9 +1315,9 @@ function Detail({
                           throw new Error(
                             "This cast member could not be matched. Check the TMDB connection in Settings.",
                           );
-                        return personCredits(resolved.id);
+                        return personProfile(resolved.id);
                       })
-                      .then((items) => setPerson({ name: person.name, items }))
+                      .then(setPerson)
                       .catch((e) => setError(message(e)))
                       .finally(() => setBusy(false));
                   }}
@@ -1226,39 +1335,14 @@ function Detail({
           </section>
         )}
         {person && (
-          <section
-            className="person-credits"
-            aria-label={`${person.name} filmography`}
-          >
-            <div>
-              <div>
-                <span className="eyebrow">FILMOGRAPHY</span>
-                <h2>{person.name}</h2>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setPerson(null)}
-                aria-label="Close filmography"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="person-credit-grid">
-              {person.items.map((title) => (
-                <button
-                  key={itemKey(title)}
-                  onClick={() => onSelectItem(title)}
-                >
-                  <Art item={title} />
-                  <strong>{title.name}</strong>
-                  <small>
-                    {title.year} Â·{" "}
-                    {title.type === "series" ? "Series" : "Movie"}
-                  </small>
-                </button>
-              ))}
-            </div>
-          </section>
+          <PersonView
+            person={person}
+            onClose={() => setPerson(null)}
+            onSelect={(title) => {
+              setPerson(null);
+              onSelectItem(title);
+            }}
+          />
         )}
         {error && (
           <div className="error" role="alert">

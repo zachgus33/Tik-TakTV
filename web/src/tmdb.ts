@@ -149,6 +149,23 @@ export async function resolveTmdb(
 
 export type Credit = { id: number; name: string; role: string; photo?: string };
 
+export type PersonTitle = Item & {
+  releaseDate: string;
+  popularity: number;
+};
+
+export type PersonProfile = {
+  id: number;
+  name: string;
+  photo?: string;
+  biography: string;
+  birthday?: string;
+  deathday?: string;
+  placeOfBirth?: string;
+  knownFor?: string;
+  titles: PersonTitle[];
+};
+
 export async function peopleByName(
   names: string[],
   signal?: AbortSignal,
@@ -261,4 +278,71 @@ export async function personCredits(
         }),
     ).values(),
   ].slice(0, 40);
+}
+
+export async function personProfile(
+  personId: number,
+  signal?: AbortSignal,
+): Promise<PersonProfile> {
+  const [person, credits] = await Promise.all([
+    get<Record<string, unknown>>(
+      `person/${personId}`,
+      { language: "en-US" },
+      signal,
+    ),
+    get<{ cast?: Record<string, unknown>[] }>(
+      `person/${personId}/combined_credits`,
+      { language: "en-US" },
+      signal,
+    ),
+  ]);
+  const titles = [
+    ...new Map(
+      (credits.cast ?? [])
+        .filter(
+          (row) =>
+            (row.media_type === "movie" || row.media_type === "tv") && row.id,
+        )
+        .map((row) => {
+          const releaseDate = String(
+            row.release_date ?? row.first_air_date ?? "",
+          );
+          const item: PersonTitle = {
+            id: `tmdb:${row.id}`,
+            name: String(row.title ?? row.name ?? "Untitled"),
+            type: row.media_type === "tv" ? "series" : "movie",
+            source: "addon",
+            provider: defaultAddon.base,
+            poster: row.poster_path
+              ? safeUrl(`https://image.tmdb.org/t/p/w500${row.poster_path}`)
+              : undefined,
+            background: row.backdrop_path
+              ? safeUrl(`https://image.tmdb.org/t/p/w1280${row.backdrop_path}`)
+              : undefined,
+            description: String(row.overview ?? ""),
+            year: releaseDate.slice(0, 4),
+            releaseDate,
+            popularity: Number(row.popularity ?? 0),
+          };
+          return [`${item.type}:${item.id}`, item] as const;
+        }),
+    ).values(),
+  ];
+  return {
+    id: personId,
+    name: String(person.name ?? "Unknown person"),
+    photo: person.profile_path
+      ? safeUrl(`https://image.tmdb.org/t/p/h632${person.profile_path}`)
+      : undefined,
+    biography: String(person.biography ?? ""),
+    birthday: person.birthday ? String(person.birthday) : undefined,
+    deathday: person.deathday ? String(person.deathday) : undefined,
+    placeOfBirth: person.place_of_birth
+      ? String(person.place_of_birth)
+      : undefined,
+    knownFor: person.known_for_department
+      ? String(person.known_for_department)
+      : undefined,
+    titles,
+  };
 }

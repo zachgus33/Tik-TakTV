@@ -2874,6 +2874,147 @@ body:has(dialog[open]) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.person-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  overflow-y: auto;
+  padding: clamp(24px, 4vw, 64px);
+  background:
+    radial-gradient(
+      circle at 50% -20%,
+      color-mix(in srgb, var(--accent) 22%, transparent),
+      transparent 42%
+    ),
+    #090b10f7;
+  backdrop-filter: blur(22px);
+}
+.person-back {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 10px 8px;
+  border: 1px solid var(--soft-border);
+  border-radius: 999px;
+  background: #10131be8;
+  color: var(--text);
+}
+.person-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  max-width: 900px;
+  margin: 14px auto 28px;
+  text-align: left;
+}
+.person-hero > img,
+.person-hero > span {
+  width: 124px;
+  height: 124px;
+  flex: 0 0 124px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: #242834;
+  font-size: 2rem;
+}
+.person-hero h1 {
+  margin: 5px 0 7px;
+  font-size: clamp(2rem, 5vw, 4.2rem);
+}
+.person-hero p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.person-biography {
+  max-width: 1180px;
+  margin: 0 auto 36px;
+  color: #c7c9d2;
+  line-height: 1.7;
+}
+.person-rows {
+  display: grid;
+  gap: 32px;
+}
+.person-rows h2 {
+  margin: 0 0 14px;
+}
+.person-title-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(132px, 11vw);
+  gap: 14px;
+  overflow-x: auto;
+  padding: 2px 2px 16px;
+  scroll-snap-type: x proximity;
+}
+.person-title-row > button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  scroll-snap-align: start;
+  transition: transform 160ms ease;
+}
+.person-title-row > button:hover,
+.person-title-row > button:focus-visible {
+  transform: translateY(-4px);
+}
+.person-title-row img,
+.person-title-row .art-fallback {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  height: auto;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 9px;
+}
+.person-title-row strong,
+.person-title-row small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.person-title-row small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .person-view {
+    padding: 14px;
+  }
+  .person-back span {
+    display: none;
+  }
+  .person-hero {
+    flex-direction: column;
+    text-align: center;
+    margin-top: 20px;
+  }
+  .person-hero > img,
+  .person-hero > span {
+    width: 96px;
+    height: 96px;
+    flex-basis: 96px;
+  }
+  .person-title-row {
+    grid-auto-columns: 118px;
+  }
+  .person-biography {
+    font-size: 0.9rem;
+    max-height: 12em;
+    overflow: auto;
+  }
+}
 .person-credit-grid small {
   color: var(--muted);
   margin-top: 3px;

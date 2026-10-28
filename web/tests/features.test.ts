@@ -78,6 +78,11 @@ describe("account-wide Xtream connection", () => {
     password: "secret",
   };
 
+  it("leaves a fresh Nuvio account disconnected", () => {
+    expect(resolveAccountProvider(1, {}, {})).toBeNull();
+    expect(resolveAccountProvider(2, {}, {})).toBeNull();
+  });
+
   it("migrates the primary profile connection to every secondary profile", () => {
     expect(resolveAccountProvider(2, {}, { provider })).toEqual(provider);
   });
