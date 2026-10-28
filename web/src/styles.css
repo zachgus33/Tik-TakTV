@@ -2523,6 +2523,24 @@ body:has(dialog[open]) {
   aspect-ratio: 16/9;
   display: block;
 }
+.vod-controls {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.vod-controls button {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+.vod-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
 .player-dialog .error {
   margin: 18px 0;
 }

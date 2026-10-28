@@ -1,6 +1,14 @@
 import { getService, prepareMedia, sourceFetch } from "./connection";
 import { useEffect, useRef, useState } from "react";
-import { Airplay, Maximize, PictureInPicture2, X } from "lucide-react";
+import {
+  Airplay,
+  Maximize,
+  Pause,
+  PictureInPicture2,
+  Play,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import type Hls from "hls.js";
 import type { Episode, Item, Subtitle } from "./types";
 import { safeUrl } from "./api";
@@ -23,6 +31,15 @@ function srtToVtt(text: string) {
     .replace(/^(\d+)\s*$/gm, "")
     .replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`;
 }
+function formatPlayerTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0:00";
+  const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+  const minutes = Math.floor(value / 60) % 60;
+  const hours = Math.floor(value / 3600);
+  return hours
+    ? `${hours}:${minutes.toString().padStart(2, "0")}:${seconds}`
+    : `${minutes}:${seconds}`;
+}
 function VideoPlayer({
   playback,
   onClose,
@@ -34,6 +51,9 @@ function VideoPlayer({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [retry, setRetry] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [seekEnd, setSeekEnd] = useState(0);
   const [subtitles, setSubtitles] = useState<{ url: string; name: string }[]>(
     [],
   );
@@ -61,31 +81,36 @@ function VideoPlayer({
   }, []);
   useEffect(() => {
     const c = new AbortController();
-    const candidate = playback.subtitles?.[0];
-    if (!candidate) return () => c.abort();
-    void sourceFetch(candidate.url, { signal: c.signal, cache: "force-cache" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error();
-        const raw = await r.text();
-        const text = raw.trimStart().startsWith("WEBVTT") ? raw : srtToVtt(raw);
-        if (c.signal.aborted) return;
-        setSubtitles((old) => {
-          for (const s of old) URL.revokeObjectURL(s.url);
-          return [
-            {
-              url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
-              name: candidate.name ?? "English (OpenSubtitles)",
-            },
-          ];
+    const candidates = playback.subtitles?.slice(0, 12) ?? [];
+    if (!candidates.length) return () => c.abort();
+    void Promise.allSettled(
+      candidates.map(async (candidate, index) => {
+        const response = await sourceFetch(candidate.url, {
+          signal: c.signal,
+          cache: "force-cache",
         });
-        setNotice("English subtitles loaded automatically.");
-      })
-      .catch(() => {
-        if (!c.signal.aborted)
-          setNotice(
-            "Automatic English subtitles were unavailable for this stream.",
-          );
+        if (!response.ok) throw new Error();
+        const raw = await response.text();
+        const text = raw.trimStart().startsWith("WEBVTT") ? raw : srtToVtt(raw);
+        return {
+          url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
+          name: candidate.name ?? `Subtitle ${index + 1}`,
+        };
+      }),
+    ).then((results) => {
+      if (c.signal.aborted) return;
+      const loaded = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      if (!loaded.length) {
+        setNotice("Subtitles were unavailable for this stream.");
+        return;
+      }
+      setSubtitles((old) => {
+        for (const subtitle of old) URL.revokeObjectURL(subtitle.url);
+        return loaded;
       });
+    });
     return () => c.abort();
   }, [playback.subtitles]);
   useEffect(() => {
@@ -97,6 +122,9 @@ function VideoPlayer({
     setNotice("");
     setQuality([]);
     setAudioTracks([]);
+    setPlaying(false);
+    setCurrentTime(0);
+    setSeekEnd(0);
     const url =
       safeUrl(playback.url) ??
       (getService()?.url.startsWith("http://127.0.0.1:") &&
@@ -115,6 +143,13 @@ function VideoPlayer({
         playback.episode,
       );
     const time = () => {
+      setCurrentTime(video.currentTime || 0);
+      const available = video.seekable.length
+        ? video.seekable.end(video.seekable.length - 1)
+        : Number.isFinite(video.duration)
+          ? video.duration
+          : 0;
+      setSeekEnd(available);
       if (Date.now() - lastSave > 5000) {
         persist();
         lastSave = Date.now();
@@ -155,6 +190,8 @@ function VideoPlayer({
         "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
       );
     };
+    const playingStarted = () => setPlaying(true);
+    const playingStopped = () => setPlaying(false);
     const play = async () => {
       try {
         await video.play();
@@ -164,6 +201,10 @@ function VideoPlayer({
     };
     video.addEventListener("loadedmetadata", loaded);
     video.addEventListener("timeupdate", time);
+    video.addEventListener("progress", time);
+    video.addEventListener("durationchange", time);
+    video.addEventListener("play", playingStarted);
+    video.addEventListener("pause", playingStopped);
     video.addEventListener("pause", persist);
     video.addEventListener("ended", persist);
     video.addEventListener("error", failed);
@@ -204,8 +245,7 @@ function VideoPlayer({
                 hls.audioTracks.map((track, value) => ({
                   value,
                   source: "hls" as const,
-                  label:
-                    track.name || track.lang || `Audio ${value + 1}`,
+                  label: track.lang || track.name || `Audio ${value + 1}`,
                 })),
               );
             void play();
@@ -252,6 +292,10 @@ function VideoPlayer({
       persist();
       video.removeEventListener("loadedmetadata", loaded);
       video.removeEventListener("timeupdate", time);
+      video.removeEventListener("progress", time);
+      video.removeEventListener("durationchange", time);
+      video.removeEventListener("play", playingStarted);
+      video.removeEventListener("pause", playingStopped);
       video.removeEventListener("pause", persist);
       video.removeEventListener("ended", persist);
       video.removeEventListener("error", failed);
@@ -332,23 +376,64 @@ function VideoPlayer({
       </div>
       <video
         ref={videoRef}
-        controls
+        controls={playback.item.type === "live"}
         playsInline
         preload="metadata"
         poster={playback.item.background}
         aria-label={playback.item.name}
       >
-        {subtitles.map((s) => (
+        {subtitles.map((s, index) => (
           <track
             key={s.url}
             src={s.url}
             kind="subtitles"
             label={s.name}
-            srcLang="en"
-            default
+            srcLang={s.name.match(/\b[a-z]{2,3}\b/i)?.[0] ?? "und"}
+            default={index === 0}
           />
         ))}
       </video>
+      {playback.item.type !== "live" && (
+        <div className="vod-controls" aria-label="Playback controls">
+          <button
+            type="button"
+            aria-label={playing ? "Pause" : "Play"}
+            onClick={() => {
+              const video = videoRef.current;
+              if (!video) return;
+              if (video.paused) void video.play();
+              else video.pause();
+            }}
+          >
+            {playing ? <Pause size={18} /> : <Play size={18} />}
+          </button>
+          <button
+            type="button"
+            aria-label="Rewind 10 seconds"
+            onClick={() => {
+              const video = videoRef.current;
+              if (video) video.currentTime = Math.max(0, video.currentTime - 10);
+            }}
+          >
+            <RotateCcw size={18} />
+            <span>10</span>
+          </button>
+          <span>{formatPlayerTime(currentTime)}</span>
+          <input
+            type="range"
+            aria-label="Playback position"
+            min="0"
+            max={Math.max(1, seekEnd)}
+            step="0.1"
+            value={Math.min(currentTime, Math.max(1, seekEnd))}
+            onChange={(event) => {
+              const video = videoRef.current;
+              if (video) video.currentTime = Number(event.target.value);
+            }}
+          />
+          <span>{formatPlayerTime(seekEnd)}</span>
+        </div>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
@@ -412,6 +497,26 @@ function VideoPlayer({
             {audioTracks.map((track, index) => (
               <option key={`${track.source}-${track.value}`} value={index}>
                 {track.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {subtitles.length > 1 && (
+          <select
+            aria-label="Subtitle language"
+            defaultValue="0"
+            onChange={(event) => {
+              const tracks = videoRef.current?.textTracks;
+              if (!tracks) return;
+              const selected = Number(event.target.value);
+              for (let index = 0; index < tracks.length; index += 1)
+                tracks[index].mode =
+                  index === selected ? "showing" : "disabled";
+            }}
+          >
+            {subtitles.map((subtitle, index) => (
+              <option key={subtitle.url} value={index}>
+                {subtitle.name}
               </option>
             ))}
           </select>

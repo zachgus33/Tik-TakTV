@@ -11,7 +11,6 @@ import {
   autoplayStreams,
   codecCompatibility,
   compatibilityPlaybackMode,
-  languageCompatibility,
   directStream,
   quality,
   rankedStreams,
@@ -210,7 +209,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(quality("WEB-DL 720p")).toBe(720);
     expect(quality("CAM")).toBe(0);
   });
-  it("ranks seeders first, excludes SD and unknown quality", () => {
+  it("ranks quality first and seeders second, excluding anything below 720p", () => {
     const streams = [
       { name: "2160p", title: "👤 12", url: "https://cdn.example/4k.mp4" },
       { name: "720p", title: "👤 300", url: "https://cdn.example/720.mp4" },
@@ -222,8 +221,8 @@ describe("720p+ preference and safe episode matching", () => {
       },
     ];
     expect(rankedStreams(streams, false).map((s) => s.name)).toEqual([
-      "720p",
       "2160p",
+      "720p",
     ]);
     expect(seeders({ title: "Seeders: 1,200" })).toBe(1200);
   });
@@ -257,26 +256,6 @@ describe("720p+ preference and safe episode matching", () => {
     expect(autoplayStreams([download, malformed, ready], true)).toEqual([ready]);
     expect(seeders(ready)).toBe(170);
   });
-  it("prefers English and dubbed audio over foreign-only releases", () => {
-    const english = {
-      name: "1080p",
-      title: "VisionQuest S01E01 English 👤 12",
-      url: "https://cdn.example/english.mp4",
-    };
-    const foreign = {
-      name: "1080p",
-      title: "VisionQuest S01E01 ITALIAN 🇮🇹 👤 900",
-      url: "https://cdn.example/italian.mp4",
-    };
-    const animeDub = {
-      name: "1080p Dual Audio Dubbed",
-      title: "Anime S01E01 Japanese English",
-      url: "https://cdn.example/dubbed.mp4",
-    };
-    expect(rankedStreams([foreign, english], false)[0]).toBe(english);
-    expect(languageCompatibility(animeDub)).toBe(2);
-    expect(languageCompatibility(foreign)).toBe(-2);
-  });
   it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {
       name: "Support provider",
@@ -298,7 +277,7 @@ describe("720p+ preference and safe episode matching", () => {
       browserReady,
     ]);
   });
-  it("prefers a cached direct stream over a higher-seeded raw torrent", () => {
+  it("keeps quality and seeder ordering before autoplay removes raw torrents", () => {
     const direct = {
       name: "[TB+] Torrentio 1080p",
       title: "Movie.1080p 👤 215",
@@ -309,9 +288,10 @@ describe("720p+ preference and safe episode matching", () => {
       title: "Movie.1080p 👤 2000",
       infoHash: "a".repeat(40),
     };
-    expect(rankedStreams([raw, direct], true)[0]).toBe(direct);
+    expect(rankedStreams([raw, direct], true)[0]).toBe(raw);
+    expect(autoplayStreams([raw, direct], true)[0]).toBe(direct);
   });
-  it("prefers browser-ready video before a higher-seeded MKV conversion", () => {
+  it("keeps higher quality ahead of container compatibility", () => {
     const mkv = {
       name: "[TB+] Torrentio 1080p",
       title: "Show 1080p seeders: 500",
@@ -325,9 +305,9 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(needsCompatibilityTranscode(mkv)).toBe(true);
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
-    expect(rankedStreams([mkv, mp4], true)[0]).toBe(mp4);
+    expect(rankedStreams([mkv, mp4], true)[0]).toBe(mkv);
   });
-  it("prefers H.264 on phones and normalizes its MKV container", () => {
+  it("keeps quality ranking while marking incompatible codecs for conversion", () => {
     const h264 = {
       name: "[TB+] Torrentio 720p",
       title: "Show.720p.x264 seeders: 170",
@@ -343,7 +323,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(codecCompatibility(hevc)).toBe(-2);
     expect(compatibilityPlaybackMode(h264)).toBe("transcode");
     expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
-    expect(rankedStreams([hevc, h264], true)[0]).toBe(h264);
+    expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
   });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {
@@ -356,7 +336,7 @@ describe("720p+ preference and safe episode matching", () => {
       title: "Movie 1080p seeders: 2199",
       url: "https://torrentsdb.com/play.mkv",
     };
-    expect(rankedStreams([download, torrentio], true)[0]).toBe(torrentio);
+    expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
   });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [

@@ -28,6 +28,45 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGzip } from "node:zlib";
 import { Agent, fetch as upstreamFetch } from "undici";
+
+function probeAudioTracks(inputUrl, inputArgs = []) {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.env.FFPROBE_PATH ?? "ffprobe",
+      [
+        "-v", "error", ...inputArgs,
+        "-select_streams", "a",
+        "-show_entries", "stream=index:stream_tags=language,title",
+        "-of", "json", inputUrl,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
+    );
+    let output = "";
+    const timer = setTimeout(() => child.kill(), 15_000);
+    child.stdout.on("data", (chunk) => {
+      if (output.length < 1_000_000) output += chunk;
+    });
+    const finish = (value) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    child.once("error", () => finish([]));
+    child.once("exit", (code) => {
+      if (code) return finish([]);
+      try {
+        const streams = JSON.parse(output).streams ?? [];
+        finish(streams.map((stream, audioIndex) => ({
+          audioIndex,
+          language: String(stream.tags?.language ?? "und")
+            .toLowerCase().replace(/[^a-z0-9-]/g, "") || "und",
+          title: String(stream.tags?.title ?? "").trim(),
+        })));
+      } catch {
+        finish([]);
+      }
+    });
+  });
+}
 import ipaddr from "ipaddr.js";
 
 // Supabase's public anonymous client key; this is not a service-role secret.
@@ -480,7 +519,11 @@ export function createService({ token, origins }) {
             child.stdout.pipe(res);
             return;
           }
-          if (!/^(index\.m3u8|init\.mp4|segment\d+\.(?:ts|m4s))$/.test(file))
+          if (
+            !/^(?:index|master|stream[a-z0-9_-]+)\.m3u8$|^(?:init|segment[a-z0-9_-]*\d*)\.(?:ts|m4s|mp4)$/.test(
+              file,
+            )
+          )
             return send(404, { error: "Unknown media file" });
           job.touched = Date.now();
           let content;
@@ -820,9 +863,7 @@ export function createService({ token, origins }) {
             "-map",
             "0:v:0?",
             "-map",
-            "0:a:m:language:eng?",
-            "-map",
-            "0:a?",
+            "0:a:0?",
             "-c:v",
             "libx264",
             "-preset",
@@ -891,6 +932,10 @@ export function createService({ token, origins }) {
                   "0",
                 ]
               : [];
+          const audioTracks = body.live
+            ? []
+            : await probeAudioTracks(inputUrl, hlsInputArgs);
+          const multiAudio = audioTracks.length > 1;
           if (body.audioCodec === "webm") {
             const args = [
               "-hide_banner",
@@ -961,8 +1006,12 @@ export function createService({ token, origins }) {
             inputUrl,
             "-map",
             "0:v:0?",
-            "-map",
-            "0:a:0?",
+            ...(multiAudio
+              ? audioTracks.flatMap((track) => [
+                  "-map",
+                  `0:a:${track.audioIndex}?`,
+                ])
+              : ["-map", "0:a:0?"]),
             ...(body.mode === "transcode"
               ? [
                   "-c:v",
@@ -1029,9 +1078,23 @@ export function createService({ token, origins }) {
                   "-hls_flags",
                   "independent_segments",
                 ]),
+            ...(multiAudio
+              ? [
+                  "-master_pl_name",
+                  "master.m3u8",
+                  "-var_stream_map",
+                  [
+                    ...audioTracks.map(
+                      (track, index) =>
+                        `a:${index},agroup:audio${index === 0 ? ",default:yes" : ""},language:${track.language},name:audio${index}`,
+                    ),
+                    "v:0,agroup:audio,name:video",
+                  ].join(" "),
+                ]
+              : []),
             "-hls_segment_filename",
-            join(dir, "segment%d.ts"),
-            join(dir, "index.m3u8"),
+            join(dir, multiAudio ? "segment%v-%d.ts" : "segment%d.ts"),
+            join(dir, multiAudio ? "stream%v.m3u8" : "index.m3u8"),
           ];
           const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
             stdio: ["ignore", "ignore", "ignore"],
@@ -1064,7 +1127,9 @@ export function createService({ token, origins }) {
             n++
           ) {
             try {
-              const info = await stat(join(dir, "index.m3u8"));
+              const info = await stat(
+                join(dir, multiAudio ? "master.m3u8" : "index.m3u8"),
+              );
               if (info.size) {
                 ready = true;
                 break;
@@ -1082,7 +1147,12 @@ export function createService({ token, origins }) {
                 "Conversion could not start. Check the source and FFmpeg installation.",
             });
           }
-          return send(200, { path: "/media/" + id + "/index.m3u8", hls: true });
+          return send(200, {
+            path:
+              "/media/" + id + (multiAudio ? "/master.m3u8" : "/index.m3u8"),
+            hls: true,
+            audioTracks,
+          });
         }
         const id = ticket(body.url, headers);
         return send(200, { path: `/media/${id}/stream` });

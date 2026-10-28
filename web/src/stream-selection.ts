@@ -57,22 +57,6 @@ export function codecCompatibility(stream: Stream): number {
   if (/\.(?:mp4|m4v)(?:[?#\s]|$)/i.test(source)) return 1;
   return 0;
 }
-export function languageCompatibility(stream: Stream): number {
-  const source = streamDescriptor(stream);
-  if (
-    /\b(?:eng(?:lish)?|dual[ ._-]*audio|multi[ ._-]*(?:audio|lang)|dub(?:bed)?)\b|🇬🇧|🇺🇸/iu.test(
-      source,
-    )
-  )
-    return 2;
-  if (
-    /\b(?:ita(?:lian)?|french|fra|rus(?:sian)?|spanish|castellano|latino|german|deu|japanese|jpn|hindi|polish|portuguese|korean)\b|🇮🇹|🇫🇷|🇷🇺|🇪🇸|🇩🇪|🇯🇵|🇮🇳|🇵🇱|🇵🇹|🇰🇷/iu.test(
-      source,
-    )
-  )
-    return -2;
-  return 0;
-}
 export function compatibilityPlaybackMode(
   stream: Stream,
 ): "remux" | "transcode" | undefined {
@@ -89,14 +73,6 @@ export function compatibilityPlaybackMode(
   if (/\.ts(?:[?#\s]|$)/i.test(source)) return "remux";
   return undefined;
 }
-function sourcePriority(stream: Stream): number {
-  const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
-  if (/\[TB\+\].*torrentio/i.test(text)) return 3;
-  if (/torrentio/i.test(text)) return 2;
-  if (/\[TB\+\]/i.test(text)) return 1;
-  if (/\bdownload\b/i.test(text)) return -1;
-  return 0;
-}
 export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
   return streams
     .filter(
@@ -106,14 +82,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     )
     .sort(
       (a, b) =>
-        Number(directStream(b)) - Number(directStream(a)) ||
-        languageCompatibility(b) - languageCompatibility(a) ||
-        codecCompatibility(b) - codecCompatibility(a) ||
-        Number(!needsCompatibilityTranscode(b)) -
-          Number(!needsCompatibilityTranscode(a)) ||
-        sourcePriority(b) - sourcePriority(a) ||
-        seeders(b) - seeders(a) ||
-        streamQuality(b) - streamQuality(a),
+        streamQuality(b) - streamQuality(a) || seeders(b) - seeders(a),
     );
 }
 export function autoplayStreams(
