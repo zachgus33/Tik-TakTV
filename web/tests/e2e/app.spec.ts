@@ -467,7 +467,7 @@ test("search uses every searchable catalog even when a trending catalog is selec
   expect(searched).toContain("search=the%20rookie");
   await expect(page.getByLabel("Catalog")).toHaveValue(/trending/);
 });
-test("browser-incompatible add-on video is transcoded before playback", async ({
+test("browser-incompatible MKV is remuxed before playback", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -510,7 +510,7 @@ test("browser-incompatible add-on video is transcoded before playback", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect.poll(() => prepared.mode).toBe("transcode");
+  await expect.poll(() => prepared.mode).toBe("remux");
   expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
 });
 test("phone autoplay prefers H.264 and remuxes MKV instead of choosing HEVC", async ({
