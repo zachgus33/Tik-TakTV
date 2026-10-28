@@ -599,11 +599,26 @@ export function createService({ token, origins }) {
             error: "Friend vault encryption is not configured.",
           });
         const code = String(body.code ?? "").trim();
-        const torboxKey = String(body.torboxKey ?? "").trim();
+        let torboxKey = String(body.torboxKey ?? "").trim();
         const template = body.template;
         if (!/^\d{6,12}$/.test(code))
           return send(400, { error: "Use a 6 to 12 digit friend code." });
-        if (!torboxKey || torboxKey.startsWith("friend:"))
+        if (torboxKey.startsWith("friend:")) {
+          const existing = await readFriendVault();
+          if (
+            !existing ||
+            !validFriendGrant(
+              torboxKey.slice("friend:".length),
+              userId,
+              existing.updated,
+            )
+          )
+            return send(403, {
+              error: "Owner access expired. Connect the TorBox key again.",
+            });
+          torboxKey = existing.torboxKey;
+        }
+        if (!torboxKey)
           return send(400, {
             error: "Connect the owner TorBox key before publishing.",
           });
@@ -624,7 +639,11 @@ export function createService({ token, origins }) {
           template,
           updated: Date.now(),
         });
-        return send(200, { ok: true });
+        const vault = await readFriendVault();
+        return send(200, {
+          ok: true,
+          torboxKey: `friend:${friendGrant(userId, vault.updated)}`,
+        });
       }
       if (route.pathname === "/friend/redeem") {
         if (userId === "service")

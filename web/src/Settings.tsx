@@ -252,7 +252,7 @@ export default function Settings(props: Props) {
                         new FormData(form).get("ownerFriendCode"),
                       ).trim();
                       void run("friend-publish", async () => {
-                        await publishFriendSetup(
+                        const result = await publishFriendSetup(
                           code,
                           props.torboxKey,
                           props.friendTemplate as unknown as Record<
@@ -260,6 +260,10 @@ export default function Settings(props: Props) {
                             unknown
                           >,
                         );
+                        localStorage.removeItem("nuvio:torbox-key");
+                        sessionStorage.removeItem("nuvio:torbox-key");
+                        save("torbox-key", result.torboxKey);
+                        props.onTorboxKey(result.torboxKey);
                         setFriendStatus({ available: true, owner: true });
                         form.reset();
                         setSuccess(

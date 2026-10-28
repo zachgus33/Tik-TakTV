@@ -282,7 +282,7 @@ export const publishFriendSetup = (
   torboxKey: string,
   template: Record<string, unknown>,
 ) =>
-  friendRequest<{ ok: boolean }>("/friend/setup", {
+  friendRequest<{ ok: boolean; torboxKey: string }>("/friend/setup", {
     code,
     torboxKey,
     template,
