@@ -513,6 +513,58 @@ test("browser-incompatible add-on video is transcoded before playback", async ({
   await expect.poll(() => prepared.mode).toBe("transcode");
   expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
 });
+test("phone autoplay prefers H.264 and remuxes MKV instead of choosing HEVC", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "[TB+] Torrentio 1080p",
+            title: "Episode.1080p.x265 seeders: 230",
+            url: "https://cdn.example/episode.x265.mp4",
+          },
+          {
+            name: "[TB+] Torrentio 720p",
+            title: "Episode.720p.x264 seeders: 170",
+            url: "https://cdn.example/resolve",
+            behaviorHints: { filename: "Episode.720p.x264.mkv" },
+          },
+        ],
+      },
+    }),
+  );
+  let prepared: Record<string, unknown> = {};
+  await page.route("https://playback.example/prepare", async (route) => {
+    prepared = route.request().postDataJSON();
+    await route.fulfill({ json: { path: "/media/rookie/index.m3u8" } });
+  });
+  await page.route(
+    "https://playback.example/media/rookie/index.m3u8",
+    (route) =>
+      route.fulfill({
+        contentType: "application/vnd.apple.mpegurl",
+        body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+      }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect.poll(() => prepared.mode).toBe("remux");
+  expect(prepared.url).toBe("https://cdn.example/resolve");
+});
 test("downloads the best ranked movie stream automatically as an MP4", async ({
   page,
   browserName,

@@ -38,13 +38,37 @@ export function directStream(stream: Stream): boolean {
   );
 }
 export function needsCompatibilityTranscode(stream: Stream): boolean {
-  const source = [stream.url, stream.behaviorHints?.filename]
+  return compatibilityPlaybackMode(stream) !== undefined;
+}
+function streamDescriptor(stream: Stream): string {
+  return [
+    stream.name,
+    stream.title,
+    stream.url,
+    stream.behaviorHints?.filename,
+  ]
     .filter(Boolean)
     .join(" ");
-  return (
+}
+export function codecCompatibility(stream: Stream): number {
+  const source = streamDescriptor(stream);
+  if (/\b(?:av1|x265|h\.?265|hevc)\b/i.test(source)) return -2;
+  if (/\b(?:x264|h\.?264|avc)\b/i.test(source)) return 2;
+  if (/\.(?:mp4|m4v)(?:[?#\s]|$)/i.test(source)) return 1;
+  return 0;
+}
+export function compatibilityPlaybackMode(
+  stream: Stream,
+): "remux" | "transcode" | undefined {
+  const source = streamDescriptor(stream);
+  if (
     stream.behaviorHints?.notWebReady === true ||
-    /\.(?:mkv|avi|wmv|flv|ts)(?:[?#\s]|$)/i.test(source)
-  );
+    /\b(?:av1|x265|h\.?265|hevc)\b/i.test(source) ||
+    /\.(?:avi|wmv|flv)(?:[?#\s]|$)/i.test(source)
+  )
+    return "transcode";
+  if (/\.(?:mkv|ts)(?:[?#\s]|$)/i.test(source)) return "remux";
+  return undefined;
 }
 function sourcePriority(stream: Stream): number {
   const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
@@ -64,6 +88,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     .sort(
       (a, b) =>
         Number(directStream(b)) - Number(directStream(a)) ||
+        codecCompatibility(b) - codecCompatibility(a) ||
         Number(!needsCompatibilityTranscode(b)) -
           Number(!needsCompatibilityTranscode(a)) ||
         sourcePriority(b) - sourcePriority(a) ||

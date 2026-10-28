@@ -87,6 +87,7 @@ import { installMany, mergeAddons } from "./addon-import";
 import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
 import { DEFAULT_TMDB_KEY } from "./config";
 import {
+  compatibilityPlaybackMode,
   directStream,
   needsCompatibilityTranscode,
   rankedStreams,
@@ -694,10 +695,9 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
-      const compatibilityMode =
-        getService() && needsCompatibilityTranscode(stream)
-          ? "transcode"
-          : undefined;
+      const compatibilityMode = getService()
+        ? compatibilityPlaybackMode(stream)
+        : undefined;
       const subtitleId = ep?.id ?? item.id;
       const subtitles = await addonSubtitles(addons, item, subtitleId, signal);
       onPlay({

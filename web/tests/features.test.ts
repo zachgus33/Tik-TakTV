@@ -8,6 +8,8 @@ import {
   mergeCollections,
 } from "../src/collections";
 import {
+  codecCompatibility,
+  compatibilityPlaybackMode,
   directStream,
   quality,
   rankedStreams,
@@ -280,6 +282,24 @@ describe("720p+ preference and safe episode matching", () => {
     expect(needsCompatibilityTranscode(mkv)).toBe(true);
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
     expect(rankedStreams([mkv, mp4], true)[0]).toBe(mp4);
+  });
+  it("prefers H.264 on phones and remuxes its MKV container", () => {
+    const h264 = {
+      name: "[TB+] Torrentio 720p",
+      title: "Show.720p.x264 seeders: 170",
+      url: "https://cdn.example/resolve",
+      behaviorHints: { filename: "Show.S01E01.720p.x264.mkv" },
+    };
+    const hevc = {
+      name: "[TB+] Torrentio 1080p",
+      title: "Show.1080p.x265 seeders: 230",
+      url: "https://cdn.example/Show.S01E01.x265.mp4",
+    };
+    expect(codecCompatibility(h264)).toBe(2);
+    expect(codecCompatibility(hevc)).toBe(-2);
+    expect(compatibilityPlaybackMode(h264)).toBe("remux");
+    expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
+    expect(rankedStreams([hevc, h264], true)[0]).toBe(h264);
   });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {
