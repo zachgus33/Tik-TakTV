@@ -1553,36 +1553,27 @@ export default function App() {
             const searchable = catalogs.filter((entry) =>
               entry.catalog.extra?.some((extra) => extra.name === "search"),
             );
-            const searches = await Promise.allSettled(
-              searchable.map((entry) =>
-                catalog(
-                  entry.addon,
-                  kind,
-                  entry.catalog.id,
-                  deferredQuery,
-                  c.signal,
-                ),
-              ),
-            );
-            result = [
-              ...new Map(
-                searches
-                  .flatMap((entry) =>
-                    entry.status === "fulfilled" ? entry.value : [],
-                  )
-                  .map((item) => [itemKey(item), item]),
-              ).values(),
-            ];
-            if (!result.length) {
-              const failure = searches.find(
-                (entry): entry is PromiseRejectedResult =>
-                  entry.status === "rejected",
-              );
-              if (
-                failure &&
-                searches.every((entry) => entry.status === "rejected")
-              )
-                throw failure.reason;
+            if (searchable.length) {
+              try {
+                result = await Promise.any(
+                  searchable.map(async (entry) => {
+                    const matches = await catalog(
+                      entry.addon,
+                      kind,
+                      entry.catalog.id,
+                      deferredQuery,
+                      c.signal,
+                    );
+                    if (!matches.length)
+                      throw new Error("This catalog found no matches.");
+                    return matches;
+                  }),
+                );
+              } catch (failure) {
+                if (c.signal.aborted) return;
+                if (failure instanceof AggregateError) result = [];
+                else throw failure;
+              }
             }
           } else if (chosen) {
             result = await catalog(
