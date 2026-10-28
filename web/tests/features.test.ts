@@ -149,6 +149,19 @@ describe("home catalog management", () => {
     const settings = completeCatalogSettings(choices, []);
     expect(settingMatchesChoice(settings[0], choices[0])).toBe(true);
     expect(settingMatchesChoice(settings[0], choices[1])).toBe(false);
+    expect(
+      settingMatchesChoice(
+        {
+          addon_id: "torrentio",
+          type: "movie",
+          catalog_id: "popular",
+          enabled: true,
+          order: 0,
+          key: "torrentio:movie:popular",
+        },
+        choices[0],
+      ),
+    ).toBe(true);
   });
 
   it("preserves edits and normalizes drag-button ordering", () => {

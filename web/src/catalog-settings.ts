@@ -33,7 +33,10 @@ export function settingMatchesChoice(
   setting: HomeCatalogSetting,
   choice: CatalogChoice,
 ) {
-  if (setting.key) return setting.key === choice.key;
+  // TikTak TV keys include the configured add-on URL so two installations of
+  // the same manifest stay distinct. Native Nuvio uses colon-separated keys;
+  // those still match by their manifest/catalog fields during migration.
+  if (setting.key?.includes("|")) return setting.key === choice.key;
   return (
     setting.addon_id === choice.addonId &&
     setting.type === choice.type &&
