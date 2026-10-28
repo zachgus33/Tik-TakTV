@@ -28,6 +28,7 @@ import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
 import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
+import { prepareDownload } from "../src/connection";
 
 afterEach(() => vi.restoreAllMocks());
 describe("new account defaults", () => {
@@ -39,6 +40,13 @@ describe("new account defaults", () => {
     expect(defaultAddons.some((addon) => /torrentio/i.test(addon.base))).toBe(
       false,
     );
+  });
+});
+describe("browser downloads", () => {
+  it("allows a direct MP4 download without requiring the companion service", async () => {
+    await expect(
+      prepareDownload("https://cdn.example/movie.mp4", "Movie.mp4"),
+    ).resolves.toBe("https://cdn.example/movie.mp4");
   });
 });
 describe("live television browser compatibility", () => {

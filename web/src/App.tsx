@@ -1,4 +1,4 @@
-import {
+﻿import {
   getService,
   prepareDownload,
   refreshPlaybackEndpoint,
@@ -26,6 +26,7 @@ import {
   ArrowRight,
   Bookmark,
   Check,
+  ChevronLeft,
   ChevronRight,
   Clapperboard,
   Compass,
@@ -149,32 +150,32 @@ async function hideUnavailableFutureTitles(
 }
 
 const liveRegions = [
-  ["US", "🇺🇸", "United States", /^(US)\||UNITED STATES/i],
-  ["CA", "🇨🇦", "Canada", /^(CA)\||CANADA/i],
-  ["GB", "🇬🇧", "United Kingdom", /^(UK)\||UNITED KINGDOM/i],
-  ["IE", "🇮🇪", "Ireland", /^(IR)\|.*IRELAND|IRELAND/i],
-  ["FR", "🇫🇷", "France", /^(FR)\||FRANCE/i],
-  ["ES", "🇪🇸", "Spain", /^(ES)\||SPAIN|ESPAÑA/i],
-  ["DE", "🇩🇪", "Germany", /^(DE)\||GERMANY/i],
-  ["IT", "🇮🇹", "Italy", /^(IT)\||ITALY/i],
-  ["PT", "🇵🇹", "Portugal", /^(PT)\||PORTUGAL/i],
-  ["NL", "🇳🇱", "Netherlands", /^(NL)\||NETHERLAND/i],
-  ["BE", "🇧🇪", "Belgium", /^(BE)\||BELGIUM/i],
-  ["CH", "🇨🇭", "Switzerland", /^(CH)\||SWITZERLAND/i],
-  ["AT", "🇦🇹", "Austria", /^(AT)\||AUSTRIA/i],
-  ["PL", "🇵🇱", "Poland", /^(PL)\||POLAND/i],
-  ["GR", "🇬🇷", "Greece", /^(GR)\||GREECE/i],
-  ["CZ", "🇨🇿", "Czechia", /^(CZ)\||CZECH/i],
-  ["SE", "🇸🇪", "Sweden", /^SWEDEN|SWEDEN/i],
-  ["NO", "🇳🇴", "Norway", /^NORWAY|NORWAY/i],
-  ["DK", "🇩🇰", "Denmark", /^DENMARK|DENMARK/i],
-  ["FI", "🇫🇮", "Finland", /^(FI)\||FINLAND/i],
-  ["AU", "🇦🇺", "Australia", /^(AU)\||AUSTRALIA/i],
-  ["NZ", "🇳🇿", "New Zealand", /^(NZ)\||NEW ZEALAND/i],
-  ["BR", "🇧🇷", "Brazil", /^(BR)\||BRAZIL/i],
-  ["TR", "🇹🇷", "Türkiye", /^(TR)\||TURK/i],
-  ["IL", "🇮🇱", "Israel", /^(IS)\||ISRAEL/i],
-  ["IN", "🇮🇳", "India", /^ASIA\s*\|.*INDIA|INDIA/i],
+  ["US", "ðŸ‡ºðŸ‡¸", "United States", /^(US)\||UNITED STATES/i],
+  ["CA", "ðŸ‡¨ðŸ‡¦", "Canada", /^(CA)\||CANADA/i],
+  ["GB", "ðŸ‡¬ðŸ‡§", "United Kingdom", /^(UK)\||UNITED KINGDOM/i],
+  ["IE", "ðŸ‡®ðŸ‡ª", "Ireland", /^(IR)\|.*IRELAND|IRELAND/i],
+  ["FR", "ðŸ‡«ðŸ‡·", "France", /^(FR)\||FRANCE/i],
+  ["ES", "ðŸ‡ªðŸ‡¸", "Spain", /^(ES)\||SPAIN|ESPAÃ‘A/i],
+  ["DE", "ðŸ‡©ðŸ‡ª", "Germany", /^(DE)\||GERMANY/i],
+  ["IT", "ðŸ‡®ðŸ‡¹", "Italy", /^(IT)\||ITALY/i],
+  ["PT", "ðŸ‡µðŸ‡¹", "Portugal", /^(PT)\||PORTUGAL/i],
+  ["NL", "ðŸ‡³ðŸ‡±", "Netherlands", /^(NL)\||NETHERLAND/i],
+  ["BE", "ðŸ‡§ðŸ‡ª", "Belgium", /^(BE)\||BELGIUM/i],
+  ["CH", "ðŸ‡¨ðŸ‡­", "Switzerland", /^(CH)\||SWITZERLAND/i],
+  ["AT", "ðŸ‡¦ðŸ‡¹", "Austria", /^(AT)\||AUSTRIA/i],
+  ["PL", "ðŸ‡µðŸ‡±", "Poland", /^(PL)\||POLAND/i],
+  ["GR", "ðŸ‡¬ðŸ‡·", "Greece", /^(GR)\||GREECE/i],
+  ["CZ", "ðŸ‡¨ðŸ‡¿", "Czechia", /^(CZ)\||CZECH/i],
+  ["SE", "ðŸ‡¸ðŸ‡ª", "Sweden", /^SWEDEN|SWEDEN/i],
+  ["NO", "ðŸ‡³ðŸ‡´", "Norway", /^NORWAY|NORWAY/i],
+  ["DK", "ðŸ‡©ðŸ‡°", "Denmark", /^DENMARK|DENMARK/i],
+  ["FI", "ðŸ‡«ðŸ‡®", "Finland", /^(FI)\||FINLAND/i],
+  ["AU", "ðŸ‡¦ðŸ‡º", "Australia", /^(AU)\||AUSTRALIA/i],
+  ["NZ", "ðŸ‡³ðŸ‡¿", "New Zealand", /^(NZ)\||NEW ZEALAND/i],
+  ["BR", "ðŸ‡§ðŸ‡·", "Brazil", /^(BR)\||BRAZIL/i],
+  ["TR", "ðŸ‡¹ðŸ‡·", "TÃ¼rkiye", /^(TR)\||TURK/i],
+  ["IL", "ðŸ‡®ðŸ‡±", "Israel", /^(IS)\||ISRAEL/i],
+  ["IN", "ðŸ‡®ðŸ‡³", "India", /^ASIA\s*\|.*INDIA|INDIA/i],
 ] as const;
 
 function liveRegion(name: string) {
@@ -431,7 +432,7 @@ function ProfileGate({
               )}
               <button className="primary" disabled={busy}>
                 {busy
-                  ? "Please wait…"
+                  ? "Please waitâ€¦"
                   : authMode === "signup"
                     ? "Create free account"
                     : "Sign in"}
@@ -554,7 +555,7 @@ function Card({
                   : "Movie",
             ]
               .filter(Boolean)
-              .join(" · ")}
+              .join(" Â· ")}
       </span>
     </button>
   );
@@ -590,7 +591,7 @@ function Loading() {
   return (
     <div className="loading" role="status">
       <span className="spinner" />
-      Loading your library…
+      Loading your libraryâ€¦
     </div>
   );
 }
@@ -644,6 +645,7 @@ function Detail({
     episode?: Episode;
   } | null>(null);
   const controller = useRef<AbortController | null>(null);
+  const pendingDownloadWindow = useRef<Window | null>(null);
   const streamRequests = useRef(
     new Map<string, ReturnType<typeof addonStreams>>(),
   );
@@ -818,6 +820,13 @@ function Detail({
     const filename = downloadFilename(ep);
     const downloadUrl = await prepareDownload(url, filename, headers, signal);
     if (signal?.aborted) return;
+    const reservedWindow = pendingDownloadWindow.current;
+    pendingDownloadWindow.current = null;
+    if (reservedWindow && !reservedWindow.closed) {
+      reservedWindow.location.replace(downloadUrl);
+      setDownloadMode(false);
+      return;
+    }
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = filename;
@@ -923,7 +932,7 @@ function Detail({
     const c = new AbortController();
     controller.current = c;
     setBusy(true);
-    setPreparing(auto && !downloadBest);
+    setPreparing(auto || downloadBest);
     try {
       const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
@@ -961,7 +970,11 @@ function Detail({
         );
     } catch (e) {
       if (!c.signal.aborted) {
-        if (downloadBest) setDownloadMode(false);
+        if (downloadBest) {
+          setDownloadMode(false);
+          pendingDownloadWindow.current?.close();
+          pendingDownloadWindow.current = null;
+        }
         setError(message(e));
       }
     } finally {
@@ -979,6 +992,19 @@ function Detail({
       );
       return;
     }
+    const appleTouchBrowser =
+      /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (appleTouchBrowser) {
+      pendingDownloadWindow.current?.close();
+      pendingDownloadWindow.current = window.open("about:blank", "_blank");
+      if (pendingDownloadWindow.current) {
+        pendingDownloadWindow.current.opener = null;
+        pendingDownloadWindow.current.document.title = "Preparing download";
+        pendingDownloadWindow.current.document.body.textContent =
+          "TikTak TV is preparing your MP4 download…";
+      }
+    }
     void play(ep, false, true);
   }
   const seasons = [...new Set(episodes.map((e) => e.season))];
@@ -987,8 +1013,14 @@ function Detail({
       {preparing && (
         <div className="detail-preparing" role="status" aria-live="polite">
           <span className="spinner" />
-          <strong>Preparing {item.name}</strong>
-          <span>Choosing the best source and opening the player…</span>
+          <strong>
+            {downloadMode ? "Preparing download" : `Preparing ${item.name}`}
+          </strong>
+          <span>
+            {downloadMode
+              ? "Choosing the best source and creating a compatible MP4…"
+              : "Choosing the best source and opening the player…"}
+          </span>
         </div>
       )}
       <button
@@ -1155,7 +1187,7 @@ function Detail({
                   <Art item={title} />
                   <strong>{title.name}</strong>
                   <small>
-                    {title.year} ·{" "}
+                    {title.year} Â·{" "}
                     {title.type === "series" ? "Series" : "Movie"}
                   </small>
                 </button>
@@ -1273,7 +1305,7 @@ function Detail({
           <div className="stream-results">
             <h2>
               {downloadMode ? "Choose a stream to download" : "Choose a stream"}
-              {episode ? ` · Episode ${episode.episode}` : ""}
+              {episode ? ` Â· Episode ${episode.episode}` : ""}
             </h2>
             {streams.length === 0 && (
               <p className="muted">No streams found. Try another source.</p>
@@ -1295,15 +1327,15 @@ function Detail({
                       {streamQuality(s)
                         ? `${streamQuality(s)}p`
                         : "Quality not reported"}
-                      {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
-                      {s.infoHash ? " · TorBox" : ""}
+                      {seeders(s) >= 0 ? ` Â· ${seeders(s)} seeders` : ""}
+                      {s.infoHash ? " Â· TorBox" : ""}
                     </small>
                     <span>
                       {s.title ??
                         (playable
                           ? "HTTPS video"
                           : s.infoHash
-                            ? "Torrent source — requires a separate streaming server"
+                            ? "Torrent source â€” requires a separate streaming server"
                             : "Not directly playable in a browser")}
                     </span>
                   </span>
@@ -1410,6 +1442,7 @@ export default function App() {
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
     [],
   );
+  const [heroIndex, setHeroIndex] = useState(0);
   const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>(
     "home-catalogs",
     [],
@@ -1573,7 +1606,7 @@ export default function App() {
     void Promise.allSettled(
       entries.map(async ({ a, cat, customTitle }) => ({
         title: customTitle || ((cat.name || a.manifest.name) as string) /*
-          `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
+          `${a.manifest.name} Â· ${cat.type === "movie" ? "Movies" : "Series"}`,
           */,
         items: await catalog(a, cat.type, cat.id, "", c.signal),
       })),
@@ -1774,8 +1807,29 @@ export default function App() {
     const selected = choices[Math.floor(Math.random() * choices.length)];
     setDetail(selected);
   };
-  const hero =
-    homeRows[0]?.items.find((i) => i.background) ?? homeRows[0]?.items[0];
+  const heroItems = useMemo(
+    () =>
+      [
+        ...new Map(
+          homeRows
+            .flatMap((row) => row.items)
+            .map((entry) => [itemKey(entry), entry]),
+        ).values(),
+      ].slice(0, 20),
+    [homeRows],
+  );
+  const hero = heroItems[heroIndex % Math.max(heroItems.length, 1)];
+  useEffect(() => {
+    if (page !== "home" || heroItems.length < 2) return;
+    const timer = window.setInterval(
+      () => setHeroIndex((current) => (current + 1) % heroItems.length),
+      8_000,
+    );
+    return () => window.clearInterval(timer);
+  }, [page, heroItems.length]);
+  useEffect(() => {
+    if (heroIndex >= heroItems.length) setHeroIndex(0);
+  }, [heroIndex, heroItems.length]);
   const regionOf = (item: Item) =>
     liveRegion(
       categoryList.find((entry) => entry.id === item.category)?.name ??
@@ -1844,7 +1898,7 @@ export default function App() {
   function playChannel(item: Item) {
     if (item.source === "xtream") {
       if (!provider || provider.scope !== item.provider) {
-        setToast("Connect this channel’s IPTV account in Settings.");
+        setToast("Connect this channelâ€™s IPTV account in Settings.");
         return;
       }
       setPlayback({
@@ -1948,7 +2002,7 @@ export default function App() {
                 : "Your screen. Your sources."}
             </span>
           </div>
-          <span className="version">TikTak TV · Web edition</span>
+          <span className="version">TikTak TV Â· Web edition</span>
         </div>
       </aside>
       <div className="main-shell">
@@ -1969,7 +2023,9 @@ export default function App() {
               ref={searchRef}
               aria-label="Search titles or channels"
               placeholder={
-                page === "live" ? "Search channels…" : "Search movies, series…"
+                page === "live"
+                  ? "Search channelsâ€¦"
+                  : "Search movies, seriesâ€¦"
               }
               value={query}
               onChange={(e) => {
@@ -2003,7 +2059,7 @@ export default function App() {
         </header>
         {offline && (
           <div className="banner" role="status">
-            You’re offline. Your saved library is available; streaming needs a
+            Youâ€™re offline. Your saved library is available; streaming needs a
             connection.
           </div>
         )}
@@ -2030,7 +2086,7 @@ export default function App() {
               {hero ? (
                 <section className="hero">
                   <div className="hero-image">
-                    <Art item={hero} wide priority />
+                    <Art key={itemKey(hero)} item={hero} wide priority />
                   </div>
                   <div className="hero-content">
                     <span className="hero-tag">
@@ -2070,10 +2126,32 @@ export default function App() {
                   </div>
                   <div className="hero-footer">
                     <span>CURATED BY YOUR ADD-ONS</span>
-                    <span>
-                      01 <span className="hero-line" />{" "}
-                      {String(homeRows[0]?.items.length ?? 1).padStart(2, "0")}
-                    </span>
+                    <div className="hero-navigation">
+                      <button
+                        aria-label="Previous featured title"
+                        onClick={() =>
+                          setHeroIndex(
+                            (heroIndex - 1 + heroItems.length) %
+                              heroItems.length,
+                          )
+                        }
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span>
+                        {String(heroIndex + 1).padStart(2, "0")}
+                        <span className="hero-line" />
+                        {String(heroItems.length).padStart(2, "0")}
+                      </span>
+                      <button
+                        aria-label="Next featured title"
+                        onClick={() =>
+                          setHeroIndex((heroIndex + 1) % heroItems.length)
+                        }
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
                   </div>
                 </section>
               ) : loading ? (
@@ -2419,7 +2497,7 @@ export default function App() {
                       value={region}
                       onChange={(e) => setRegion(e.target.value)}
                     >
-                      <option value="">🌐 All countries</option>
+                      <option value="">ðŸŒ All countries</option>
                       {availableRegions.map(([code, flag, label]) => (
                         <option key={code} value={code}>
                           {flag} {label}

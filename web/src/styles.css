@@ -4082,3 +4082,276 @@ body:has(dialog[open]) {
 [hidden] {
   display: none !important;
 }
+
+/* 2026 visual system: shared streaming-service polish across every surface. */
+:root {
+  --surface-0: #07080c;
+  --surface-1: #0d0f15;
+  --surface-2: #141720;
+  --surface-3: #1b1f2a;
+  --glass: #11141dcc;
+  --soft-border: #ffffff12;
+  --strong-border: #ffffff22;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --shadow-soft: 0 18px 50px #00000042;
+  --shadow-float: 0 28px 90px #0000008c;
+}
+body {
+  background:
+    radial-gradient(
+      circle at 82% -10%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 34rem
+    ),
+    var(--surface-0);
+}
+.main-shell {
+  background: linear-gradient(180deg, #0a0b10 0%, var(--surface-0) 38%);
+}
+.sidebar {
+  background: linear-gradient(180deg, #0c0e14f7, #08090df7);
+  border-right-color: var(--soft-border);
+  box-shadow: 18px 0 60px #00000024;
+}
+.sidebar nav a {
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+.sidebar nav a:hover {
+  transform: translateX(3px);
+}
+.sidebar nav a.active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 24%, transparent),
+    #ffffff08
+  );
+  box-shadow: inset 3px 0 var(--accent);
+}
+.topbar {
+  background: #090a0ed9;
+  border-bottom: 1px solid var(--soft-border);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+.search-box {
+  background: #ffffff08;
+  border: 1px solid var(--soft-border);
+  border-radius: 999px;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.search-box:focus-within {
+  background: #ffffff0d;
+  border-color: color-mix(in srgb, var(--accent) 65%, white 12%);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+button,
+.button {
+  border-radius: 11px;
+  font-weight: 750;
+}
+button.primary,
+.button.primary {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 90%, white 10%),
+    var(--accent)
+  );
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+button.primary:hover,
+.button.primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.hero {
+  min-height: clamp(430px, 60vh, 680px);
+  border: 1px solid var(--soft-border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+.hero-image img {
+  animation: hero-reveal 0.65s ease both;
+}
+@keyframes hero-reveal {
+  from {
+    opacity: 0.35;
+    transform: scale(1.025);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.hero-content {
+  max-width: 620px;
+}
+.hero-content h1 {
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+}
+.hero-content p {
+  color: #d1d4de;
+  line-height: 1.75;
+}
+.hero-navigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.hero-navigation > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 86px;
+  justify-content: center;
+}
+.hero-navigation button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #ffffff20;
+  border-radius: 50%;
+  background: #07080b8f;
+}
+.hero-navigation button:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, #08090d);
+}
+.home-content,
+.page-content,
+.account-page-content {
+  max-width: 1680px;
+  margin-inline: auto;
+}
+.row-heading h2,
+.page-heading h1,
+.account-page-header h1 {
+  letter-spacing: -0.035em;
+}
+.media-grid {
+  gap: clamp(14px, 1.45vw, 24px);
+}
+.media-card {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 0 0 12px;
+  overflow: hidden;
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease;
+}
+.media-card:hover,
+.media-card:focus-visible {
+  z-index: 2;
+  transform: translateY(-7px) scale(1.015);
+  border-color: var(--strong-border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-soft);
+}
+.media-card .poster {
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+.media-card > strong,
+.media-card > .card-meta {
+  padding-inline: 10px;
+}
+.settings-card,
+.account-hero-card,
+.live-layout,
+.collections-section {
+  background: linear-gradient(145deg, #141720e8, #0e1017f2);
+  border: 1px solid var(--soft-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 14px 42px #00000020;
+}
+.detail-dialog {
+  background: #10121a;
+  border: 1px solid var(--strong-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+}
+.detail-dialog::backdrop {
+  background: #020307d9;
+  backdrop-filter: blur(14px) saturate(80%);
+}
+.detail-dialog .actions {
+  gap: 10px;
+}
+.detail-dialog .actions > button {
+  min-height: 46px;
+}
+.detail-preparing {
+  background: #0b0d13f2;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, #ffffff12);
+  border-radius: 16px;
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(18px);
+}
+.episode-section,
+.stream-results,
+.person-credits {
+  border-top: 1px solid var(--soft-border);
+  padding-top: 20px;
+}
+.episodes button,
+.stream-results > button {
+  background: #ffffff05;
+  border-color: var(--soft-border);
+  border-radius: 12px;
+}
+.episodes button:hover,
+.stream-results > button:hover {
+  background: #ffffff0a;
+  border-color: color-mix(in srgb, var(--accent) 45%, #ffffff18);
+}
+.guide-channel,
+.live-channel-row {
+  border-radius: 12px;
+  transition:
+    background 0.18s,
+    transform 0.18s;
+}
+.guide-channel:hover,
+.live-channel-row:hover {
+  background: #ffffff08;
+}
+
+@media (max-width: 700px) {
+  .hero {
+    min-height: 72svh;
+    border-radius: 0 0 20px 20px;
+  }
+  .hero-content {
+    padding-bottom: 88px;
+  }
+  .hero-footer {
+    align-items: center;
+  }
+  .hero-footer > span:first-child {
+    display: none;
+  }
+  .hero-navigation {
+    margin-left: auto;
+  }
+  .detail-dialog {
+    border-radius: 20px 20px 0 0;
+  }
+  .media-card:hover,
+  .media-card:focus-visible {
+    transform: translateY(-3px);
+  }
+}

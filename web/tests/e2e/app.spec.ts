@@ -173,6 +173,36 @@ test("home Random Pick opens a title from the loaded catalogs", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("dialog")).toContainText("The Test Movie");
 });
+test("home featured gallery advances and its controls change the title", async ({
+  page,
+}) => {
+  const first = {
+    ...meta,
+    id: "tt-first",
+    name: "First Feature",
+    background: "https://images.example/first.jpg",
+  };
+  const second = {
+    ...meta,
+    id: "tt-second",
+    name: "Second Feature",
+    background: "https://images.example/second.jpg",
+  };
+  await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill({
+      json: path.includes("/meta/")
+        ? { meta: first }
+        : { metas: [first, second] },
+    });
+  });
+  await page.goto("/#home");
+  await expect(page.locator(".hero h1")).toHaveText("First Feature");
+  await page.getByRole("button", { name: "Next featured title" }).click();
+  await expect(page.locator(".hero h1")).toHaveText("Second Feature");
+  await page.getByRole("button", { name: "Previous featured title" }).click();
+  await expect(page.locator(".hero h1")).toHaveText("First Feature");
+});
 test("Discover Random Pick opens a title from the active results", async ({
   page,
 }) => {
@@ -936,7 +966,14 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
   const transfer =
     browserName === "chromium"
       ? page.waitForEvent("download")
-      : page.waitForRequest("https://playback.example/media/job/download.mp4");
+      : page
+          .context()
+          .waitForEvent("page")
+          .then((downloadPage) =>
+            downloadPage.waitForRequest(
+              "https://playback.example/media/job/download.mp4",
+            ),
+          );
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await expect.poll(() => requested.url).toBe("https://cdn.example/4k.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");

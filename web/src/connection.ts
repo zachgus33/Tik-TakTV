@@ -239,9 +239,10 @@ export async function prepareDownload(
   signal?: AbortSignal,
 ) {
   const config = getService();
+  if (!config && /\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) && !headers) return url;
   if (!config)
     throw new Error(
-      "Connect the TikTak TV playback service in Settings before downloading.",
+      "This source needs the TikTak TV playback service to convert it to MP4. Connect the service in Settings, or choose a direct MP4 source.",
     );
   const response = await serviceRequest(
     "/download",
