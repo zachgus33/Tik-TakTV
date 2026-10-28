@@ -389,7 +389,7 @@ async function streamingAddon(page: Page) {
     );
   });
 }
-test("autoplay selects 720p with most seeders over 4K and SD", async ({
+test("autoplay selects highest quality first and seeders break quality ties", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -418,7 +418,7 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect(page.locator("video")).toHaveAttribute(
     "src",
-    "https://cdn.example/best.mp4",
+    "https://cdn.example/4k.mp4",
   );
 });
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
@@ -629,7 +629,7 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
       ? page.waitForEvent("download")
       : page.waitForRequest("https://playback.example/media/job/download.mp4");
   await page.getByRole("button", { name: "Download", exact: true }).click();
-  await expect.poll(() => requested.url).toBe("https://cdn.example/best.mkv");
+  await expect.poll(() => requested.url).toBe("https://cdn.example/4k.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
   const result = await transfer;
   if (browserName === "chromium")
