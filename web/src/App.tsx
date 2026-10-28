@@ -101,9 +101,11 @@ import {
 import type { FriendTemplate } from "./Settings";
 import { settingMatchesChoice } from "./catalog-settings";
 import { joinParty } from "./watch-party";
+import { streamCompatibility, updateDownloadJob } from "./reliability";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
+const SetupWizard = lazy(() => import("./SetupWizard"));
 
 const futureAvailability = new Map<string, boolean>();
 
@@ -520,6 +522,20 @@ function Card({
     <button
       className={`media-card ${progress ? "continue-card" : ""}`}
       onClick={() => onOpen(item)}
+      onPointerEnter={() => {
+        if (item.background) {
+          const image = new Image();
+          image.referrerPolicy = "no-referrer";
+          image.src = item.background;
+        }
+      }}
+      onFocus={() => {
+        if (item.background) {
+          const image = new Image();
+          image.referrerPolicy = "no-referrer";
+          image.src = item.background;
+        }
+      }}
     >
       <div className="poster">
         <Art item={item} wide={!!progress} />
@@ -646,6 +662,7 @@ function Detail({
   } | null>(null);
   const controller = useRef<AbortController | null>(null);
   const pendingDownloadWindow = useRef<Window | null>(null);
+  const downloadJobId = useRef("");
   const streamRequests = useRef(
     new Map<string, ReturnType<typeof addonStreams>>(),
   );
@@ -723,6 +740,7 @@ function Detail({
     stream: Stream,
     ep?: Episode,
     signal?: AbortSignal,
+    fallbackStreams: Stream[] = [],
   ) {
     setError("");
     setFiles(null);
@@ -744,6 +762,24 @@ function Detail({
         )?.request,
         subtitleRequest: { addons, id: ep?.id ?? item.id },
         relay: debridStream(stream),
+        alternatives: fallbackStreams
+          .filter((candidate) => directStream(candidate))
+          .slice(0, 4)
+          .map((candidate) => ({
+            item,
+            episode: ep,
+            url: candidate.url!,
+            resume: position,
+            mode: getService()
+              ? compatibilityPlaybackMode(candidate)
+              : undefined,
+            requestHeaders: (
+              candidate.behaviorHints?.proxyHeaders as
+                { request?: Record<string, string> } | undefined
+            )?.request,
+            subtitleRequest: { addons, id: ep?.id ?? item.id },
+            relay: debridStream(candidate),
+          })),
       });
       return;
     }
@@ -820,6 +856,14 @@ function Detail({
     const filename = downloadFilename(ep);
     const downloadUrl = await prepareDownload(url, filename, headers, signal);
     if (signal?.aborted) return;
+    if (downloadJobId.current)
+      updateDownloadJob({
+        id: downloadJobId.current,
+        name: filename,
+        status: "started",
+        detail: "MP4 prepared and handed to the browser download manager.",
+        at: Date.now(),
+      });
     const reservedWindow = pendingDownloadWindow.current;
     pendingDownloadWindow.current = null;
     if (reservedWindow && !reservedWindow.closed) {
@@ -945,7 +989,12 @@ function Detail({
       } else {
         if (auto && autoplayRanked.length) {
           try {
-            await chooseStream(autoplayRanked[0], ep, c.signal);
+            await chooseStream(
+              autoplayRanked[0],
+              ep,
+              c.signal,
+              autoplayRanked.slice(1),
+            );
           } catch (error) {
             if (!c.signal.aborted) {
               setStreams(result.streams);
@@ -974,6 +1023,14 @@ function Detail({
           setDownloadMode(false);
           pendingDownloadWindow.current?.close();
           pendingDownloadWindow.current = null;
+          if (downloadJobId.current)
+            updateDownloadJob({
+              id: downloadJobId.current,
+              name: downloadFilename(ep),
+              status: "failed",
+              detail: message(e),
+              at: Date.now(),
+            });
         }
         setError(message(e));
       }
@@ -992,6 +1049,14 @@ function Detail({
       );
       return;
     }
+    downloadJobId.current = crypto.randomUUID();
+    updateDownloadJob({
+      id: downloadJobId.current,
+      name: downloadFilename(ep),
+      status: "preparing",
+      detail: "Selecting the best 720p+ source and preparing an MP4.",
+      at: Date.now(),
+    });
     const appleTouchBrowser =
       /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -1314,6 +1379,7 @@ function Detail({
               const playable =
                 directStream(s) ||
                 (!!s.infoHash && (!!torboxKey || !!realDebridKey));
+              const compatibility = streamCompatibility(s);
               return (
                 <button
                   key={i}
@@ -1323,6 +1389,12 @@ function Detail({
                   {downloadMode ? <Download size={20} /> : <Play size={20} />}
                   <span>
                     <strong>{s.name ?? "Stream"}</strong>
+                    <em
+                      className={`compatibility-badge ${compatibility.kind}`}
+                      title={compatibility.detail}
+                    >
+                      {compatibility.label}
+                    </em>
                     <small>
                       {streamQuality(s)
                         ? `${streamQuality(s)}p`
@@ -1363,6 +1435,7 @@ export default function App() {
     image?: string;
     color?: string;
   } | null>(null);
+  const [setupWizardKey, setSetupWizardKey] = useState("");
   const [forceProfileSelection, setForceProfileSelection] = useState(false);
   const [page, setPage] = useState<Page>(route);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
@@ -1956,6 +2029,9 @@ export default function App() {
             color: profile.avatar_color_hex,
           });
           loadAccountSetup(setup);
+          const wizardKey = `tiktak:setup-wizard-v2:${profile.profile_index}`;
+          if (localStorage.getItem(wizardKey) !== "complete")
+            setSetupWizardKey(wizardKey);
           location.hash = "home";
           setPage("home");
           setProfileReady(true);
@@ -2850,6 +2926,26 @@ export default function App() {
               }
               setPlayback(null);
               setProgress(read("progress", []));
+            }}
+          />
+        </Suspense>
+      )}
+      {setupWizardKey && (
+        <Suspense fallback={<Loading />}>
+          <SetupWizard
+            profileName={activeProfileView?.name ?? ""}
+            addons={addons}
+            catalogCount={catalogs.length}
+            torboxKey={torboxKey}
+            realDebridKey={realDebridKey}
+            provider={provider}
+            onSettings={() => {
+              setSetupWizardKey("");
+              navigate("settings");
+            }}
+            onComplete={() => {
+              localStorage.setItem(setupWizardKey, "complete");
+              setSetupWizardKey("");
             }}
           />
         </Suspense>

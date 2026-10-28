@@ -4,6 +4,7 @@ import {
   avatars,
   avatarUrl,
   profiles,
+  loadSetup,
   saveSetup,
   updateProfile,
   type Avatar,
@@ -14,6 +15,7 @@ import { storeProvider } from "./storage";
 
 export default function AccountPanel({
   setup,
+  onLoad,
   onLoading,
   onChangeUser,
   skipProfileSelection,
@@ -40,6 +42,9 @@ export default function AccountPanel({
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const initial = useRef("");
+  const [lastSynced, setLastSynced] = useState<number>(() =>
+    Number(localStorage.getItem("tiktak:last-sync") ?? 0),
+  );
 
   useEffect(() => {
     let live = true;
@@ -97,6 +102,9 @@ export default function AccountPanel({
       void saveSetup(selected, setup)
         .then(() => {
           initial.current = next;
+          const now = Date.now();
+          setLastSynced(now);
+          localStorage.setItem("tiktak:last-sync", String(now));
           setStatus("All changes saved to Nuvio.");
         })
         .catch((e) => setError(e.message));
@@ -218,7 +226,35 @@ export default function AccountPanel({
             Add-ons, collections, playback settings, and preferences save
             automatically to this profile.
           </p>
+          {lastSynced > 0 && (
+            <small>Last synced {new Date(lastSynced).toLocaleString()}</small>
+          )}
         </div>
+        <button
+          disabled={busy || !selected}
+          onClick={() => {
+            if (!selected) return;
+            setBusy(true);
+            setStatus("Syncing with Nuvio…");
+            void loadSetup(selected)
+              .then(({ setup: remote, warnings }) => {
+                onLoad(remote);
+                initial.current = JSON.stringify(remote);
+                const now = Date.now();
+                setLastSynced(now);
+                localStorage.setItem("tiktak:last-sync", String(now));
+                setStatus(
+                  warnings.length
+                    ? `Sync finished. ${warnings.join(" ")}`
+                    : "Everything is synced with Nuvio.",
+                );
+              })
+              .catch((reason) => setError(reason.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "Syncing…" : "Sync now"}
+        </button>
         <button
           onClick={() => {
             storeProvider(null, true);

@@ -268,6 +268,18 @@ async function friendRequest<T>(
   path: "/friend/status" | "/friend/setup" | "/friend/redeem",
   body: Record<string, unknown> = {},
 ) {
+  if (path === "/friend/redeem") {
+    const attempts = JSON.parse(
+      sessionStorage.getItem("tiktak:friend-attempts") ?? "[]",
+    ) as number[];
+    const recent = attempts.filter((value) => Date.now() - value < 60_000);
+    if (recent.length >= 5)
+      throw new Error(
+        "Too many friend-code attempts. Wait one minute and try again.",
+      );
+    recent.push(Date.now());
+    sessionStorage.setItem("tiktak:friend-attempts", JSON.stringify(recent));
+  }
   const config = getService();
   if (!config) throw new Error("Connect the TikTak TV playback service first.");
   const response = await serviceRequest(path, body, undefined, config);

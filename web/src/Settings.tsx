@@ -12,6 +12,9 @@ import {
   Plus,
   Radio,
   ShieldCheck,
+  Activity,
+  Download,
+  LockKeyhole,
   Trash2,
   UsersRound,
 } from "lucide-react";
@@ -31,6 +34,9 @@ import {
 import type { HomeCatalogSetting } from "./account";
 import CatalogManager from "./CatalogManager";
 import CollectionManager from "./CollectionManager";
+import HealthPanel from "./HealthPanel";
+import DownloadCenter from "./DownloadCenter";
+import PrivacyStatus from "./PrivacyStatus";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -70,7 +76,14 @@ type Props = {
   onHomeCatalogs: (value: HomeCatalogSetting[]) => void;
 };
 type SettingsSection =
-  "addons" | "collections" | "live" | "playback" | "general";
+  | "addons"
+  | "collections"
+  | "live"
+  | "playback"
+  | "health"
+  | "downloads"
+  | "privacy"
+  | "general";
 
 const sections = [
   {
@@ -102,6 +115,24 @@ const sections = [
     label: "General",
     description: "Appearance and data",
     icon: Palette,
+  },
+  {
+    id: "health",
+    label: "Health check",
+    description: "Connections and codecs",
+    icon: Activity,
+  },
+  {
+    id: "downloads",
+    label: "Downloads",
+    description: "Activity and history",
+    icon: Download,
+  },
+  {
+    id: "privacy",
+    label: "Privacy & status",
+    description: "Data and services",
+    icon: LockKeyhole,
   },
 ] as const;
 export default function Settings(props: Props) {
@@ -468,6 +499,16 @@ export default function Settings(props: Props) {
               </p>
             </section>
           </div>
+          {section === "health" && (
+            <HealthPanel
+              addons={props.addons}
+              torboxKey={props.torboxKey}
+              realDebridKey={props.realDebridKey}
+              provider={props.provider}
+            />
+          )}
+          {section === "downloads" && <DownloadCenter />}
+          {section === "privacy" && <PrivacyStatus />}
           <div hidden={section !== "live"}>
             <section className="settings-card">
               <div className="card-heading">

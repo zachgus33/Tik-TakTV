@@ -82,7 +82,10 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
         (directStream(s) || (!!s.infoHash && hasTorbox)),
     )
     .sort(
-      (a, b) => streamQuality(b) - streamQuality(a) || seeders(b) - seeders(a),
+      (a, b) =>
+        streamQuality(b) - streamQuality(a) ||
+        seeders(b) - seeders(a) ||
+        codecCompatibility(b) - codecCompatibility(a),
     );
 }
 export function autoplayStreams(

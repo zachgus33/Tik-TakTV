@@ -29,6 +29,11 @@ import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
 import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
 import { prepareDownload } from "../src/connection";
+import {
+  streamCompatibility,
+  updateDownloadJob,
+  downloadJobs,
+} from "../src/reliability";
 
 afterEach(() => vi.restoreAllMocks());
 describe("new account defaults", () => {
@@ -600,6 +605,43 @@ describe("independent Real-Debrid playback", () => {
 });
 
 describe("stream manifest compatibility", () => {
+  it("labels direct, converted, and unsupported sources clearly", () => {
+    expect(
+      streamCompatibility({ url: "https://cdn.example/movie.mp4" }).label,
+    ).toBe("Direct play");
+    expect(
+      streamCompatibility({
+        url: "https://cdn.example/movie.mkv",
+        behaviorHints: { notWebReady: true },
+      }).label,
+    ).toBe("Conversion required");
+    expect(streamCompatibility({ name: "Unavailable" }).label).toBe(
+      "Unsupported",
+    );
+  });
+
+  it("keeps a durable download activity history", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    vi.stubGlobal("window", new EventTarget());
+    localStorage.removeItem("nuvio:downloads");
+    updateDownloadJob({
+      id: "job-1",
+      name: "Movie.mp4",
+      status: "started",
+      detail: "Ready",
+      at: 1,
+    });
+    expect(downloadJobs()).toEqual([
+      expect.objectContaining({ id: "job-1", status: "started" }),
+    ]);
+    vi.unstubAllGlobals();
+  });
+
   it("treats empty resource filters as unrestricted", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

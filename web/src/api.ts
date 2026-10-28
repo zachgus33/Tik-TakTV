@@ -12,6 +12,10 @@ import type {
   Subtitle,
 } from "./types";
 
+const responseCache = new Map<string, { expires: number; value: unknown }>();
+const cacheableRequest = (url: string) =>
+  /\/manifest\.json(?:[?#]|$)|\/catalog\/|\/meta\//i.test(url);
+
 export function safeUrl(value: unknown): string | undefined {
   try {
     const u = new URL(String(value));
@@ -52,6 +56,10 @@ export async function json<T>(
   signal?: AbortSignal,
   timeoutMs = 20000,
 ): Promise<T> {
+  const cacheEnabled = import.meta.env.MODE !== "test" && cacheableRequest(url);
+  const cached = responseCache.get(url);
+  if (cacheEnabled && cached && cached.expires > Date.now())
+    return cached.value as T;
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (signal?.aborted) controller.abort();
@@ -68,7 +76,10 @@ export async function json<T>(
       throw new Error(
         `The source returned HTTP ${r.status}. Check your account and try again.`,
       );
-    return (await r.json()) as T;
+    const value = (await r.json()) as T;
+    if (cacheEnabled)
+      responseCache.set(url, { expires: Date.now() + 120_000, value });
+    return value;
   } catch (e) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     if (e instanceof TypeError)

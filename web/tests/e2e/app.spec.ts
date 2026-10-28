@@ -592,6 +592,40 @@ test("autoplay shows a top loading state without opening the manual stream list"
     "https://cdn.example/fast.mp4",
   );
 });
+
+test("autoplay falls back to the next ranked source when playback fails", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "Synthetic empty MP4 errors are not emitted consistently by mobile WebKit.",
+  );
+  await streamingAddon(page);
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          { name: "1080p", seeders: 100, url: "https://cdn.example/first.mp4" },
+          {
+            name: "1080p",
+            seeders: 90,
+            url: "https://cdn.example/fallback.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  const fallbackRequested = page.waitForRequest(
+    "https://cdn.example/fallback.mp4",
+  );
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await fallbackRequested;
+});
 test("an independent user's configured Torrentio debrid stream uses the playback relay", async ({
   page,
 }) => {
@@ -1377,7 +1411,14 @@ test.describe("authenticated integrations", () => {
         expect.objectContaining({ name: "OpenSubtitles v3" }),
       ]),
     );
+    const wizardClose = page.getByRole("button", { name: "Close setup" });
+    if (await wizardClose.isVisible().catch(() => false))
+      await wizardClose.click();
     await page.goto("/#settings");
+    await page
+      .getByRole("button", { name: "Close setup" })
+      .click({ timeout: 3000 })
+      .catch(() => undefined);
     await page.getByRole("button", { name: /Add-ons/ }).click();
     await expect(page.getByText("PenguPlay", { exact: true })).toHaveCount(0);
   });
@@ -1508,7 +1549,14 @@ test.describe("authenticated integrations", () => {
         }),
       )
       .toBe(true);
+    const setupClose = page.getByRole("button", { name: "Close setup" });
+    if (await setupClose.isVisible().catch(() => false))
+      await setupClose.click();
     await page.goto("/#settings");
+    await page
+      .getByRole("button", { name: "Close setup" })
+      .click({ timeout: 3000 })
+      .catch(() => undefined);
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),

@@ -23,7 +23,9 @@ async function partyRequest<T>(body: Record<string, unknown>) {
     error?: string;
   };
   if (!response.ok)
-    throw new Error(data.error || `Watch Together returned HTTP ${response.status}.`);
+    throw new Error(
+      data.error || `Watch Together returned HTTP ${response.status}.`,
+    );
   return data;
 }
 
@@ -32,6 +34,16 @@ export function createParty(
   position: number,
   paused: boolean,
 ) {
+  const lastCreated = Number(
+    sessionStorage.getItem("tiktak:last-party-create") ?? 0,
+  );
+  if (Date.now() - lastCreated < 5000)
+    return Promise.reject(
+      new Error(
+        "Please wait a few seconds before creating another Watch Together room.",
+      ),
+    );
+  sessionStorage.setItem("tiktak:last-party-create", String(Date.now()));
   return partyRequest<PartySession>({
     action: "create",
     playback,

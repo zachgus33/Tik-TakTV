@@ -37,6 +37,7 @@ export type Playback = {
   prepared?: boolean;
   relay?: boolean;
   party?: { id: string; host: boolean };
+  alternatives?: Playback[];
 };
 function srtToVtt(text: string) {
   return `WEBVTT\n\n${text
@@ -243,8 +244,15 @@ function VideoPlayer({
     };
     const failed = () => {
       if (onFailure?.()) return;
+      const code = video.error?.code;
       setError(
-        "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
+        code === MediaError.MEDIA_ERR_DECODE
+          ? "This browser could not decode the source. Choose a Direct play result or connect the compatibility service for conversion."
+          : code === MediaError.MEDIA_ERR_NETWORK
+            ? "The stream stopped responding or blocked browser access. Check the add-on in Playback health and try another source."
+            : code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+              ? "The source format is unsupported on this device. Choose a Direct play source or enable compatibility conversion."
+              : "Playback could not start after every compatible fallback was tried. Run Playback health in Settings for a specific connection check.",
       );
     };
     const playingStarted = () => setPlaying(true);
@@ -726,8 +734,13 @@ export default function Player({
 }) {
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
+  const alternatives = playback.alternatives ?? [];
+  const selected = attempt === 0 ? playback : alternatives[attempt - 1];
+  const totalSources = alternatives.length + 1;
+  useEffect(() => setAttempt(0), [playback.item.id, playback.episode?.id]);
   useEffect(() => {
     const c = new AbortController();
     setReady(null);
@@ -738,60 +751,70 @@ export default function Player({
       fallbackController.current?.abort();
       fallbackController.current = null;
     };
-    if (playback.prepared) {
-      setReady(playback);
+    if (selected.prepared) {
+      setReady(selected);
       return cleanup;
     }
     void prepareMedia(
-      playback.url,
-      playback.requestHeaders,
+      selected.url,
+      selected.requestHeaders,
       c.signal,
-      playback.mode,
-      playback.mode === "transcode"
+      selected.mode,
+      selected.mode === "transcode"
         ? liveAudioCodec(navigator.userAgent)
         : undefined,
-      playback.item.type === "live",
-      playback.relay,
+      selected.item.type === "live",
+      selected.relay,
     ).then(
       (url) => {
         if (!c.signal.aborted)
           setReady({
-            ...playback,
+            ...selected,
             url,
             hls:
               !/\.webm(?:[?#]|$)/i.test(url) &&
-              (playback.hls ||
-                playback.mode === "remux" ||
-                playback.mode === "transcode" ||
+              (selected.hls ||
+                selected.mode === "remux" ||
+                selected.mode === "transcode" ||
                 getService()?.mode === "remux" ||
                 getService()?.mode === "transcode" ||
-                /\.m3u8(?:[?#]|$)/i.test(playback.url)),
+                /\.m3u8(?:[?#]|$)/i.test(selected.url)),
           });
       },
       (e) => {
-        if (!c.signal.aborted) setError(e.message);
+        if (!c.signal.aborted) {
+          if (attempt < alternatives.length) setAttempt((value) => value + 1);
+          else setError(e.message);
+        }
       },
     );
     return cleanup;
-  }, [playback]);
+  }, [selected, attempt]);
+  const tryNextSource = () => {
+    if (attempt >= alternatives.length) return false;
+    setReady(null);
+    setError("");
+    setAttempt((value) => value + 1);
+    return true;
+  };
   const recoverWithCompatibility = () => {
     const service = getService();
     if (
       fallbackStarted.current ||
       !service ||
-      !playback.relay ||
-      playback.item.type === "live" ||
-      playback.url.startsWith(`${service.url}/media/`)
+      !selected.relay ||
+      selected.item.type === "live" ||
+      selected.url.startsWith(`${service.url}/media/`)
     )
-      return false;
+      return tryNextSource();
     fallbackStarted.current = true;
     setReady(null);
     setError("");
     const controller = new AbortController();
     fallbackController.current = controller;
     void prepareMedia(
-      playback.url,
-      playback.requestHeaders,
+      selected.url,
+      selected.requestHeaders,
       controller.signal,
       "transcode",
       liveAudioCodec(navigator.userAgent),
@@ -801,7 +824,7 @@ export default function Player({
       (url) => {
         if (!controller.signal.aborted)
           setReady({
-            ...playback,
+            ...selected,
             url,
             hls: !/\.webm(?:[?#]|$)/i.test(url),
             mode: "transcode",
@@ -809,7 +832,7 @@ export default function Player({
           });
       },
       (reason) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted && !tryNextSource())
           setError(
             reason instanceof Error
               ? reason.message
@@ -837,7 +860,9 @@ export default function Player({
       <h2>
         {error
           ? "Could not prepare playback"
-          : `Preparing ${playback.item.name}`}
+          : totalSources > 1
+            ? `Trying source ${attempt + 1} of ${totalSources}`
+            : `Preparing ${selected.item.name}`}
       </h2>
       <p role={error ? "alert" : "status"}>
         {error || "Optimizing the selected source for your browser…"}
