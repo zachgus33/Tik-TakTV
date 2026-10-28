@@ -35,6 +35,20 @@ Use GitHub's custom-domain support rather than an iframe or masked URL forwardin
 
 For this Actions deployment, GitHub does not require a repository `CNAME` file. Domain settings live in Pages settings.
 
+### TikTak TV production records
+
+The production site uses `tiktaktv.me` as its GitHub Pages custom domain. Configure these records at IONOS and remove any parking/forwarding record for the same host first:
+
+| Type | Host | Value |
+| --- | --- | --- |
+| A | `@` | `185.199.108.153` |
+| A | `@` | `185.199.109.153` |
+| A | `@` | `185.199.110.153` |
+| A | `@` | `185.199.111.153` |
+| CNAME | `www` | `zachgus33.github.io` |
+
+GitHub redirects `www.tiktaktv.me` to the root custom domain once both records resolve. After GitHub provisions the certificate, enable **Enforce HTTPS** in repository **Settings > Pages**. Keep `play.tiktaktv.me` unused until the permanent Cloudflare Tunnel is configured; it must not point at GitHub Pages.
+
 ## iPhone / iPad acceptance checks
 
 - Safari: connect, load categories, select a live channel, tap Watch channel.

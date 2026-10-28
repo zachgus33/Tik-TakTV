@@ -7,7 +7,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 if [ ! -f .env ]; then
   umask 077
-  printf 'PLAYBACK_TOKEN=%s\nALLOWED_ORIGINS=https://zachgus33.github.io\nTUNNEL_TOKEN=\n' "$(openssl rand -hex 32)" > .env
+  printf 'PLAYBACK_TOKEN=%s\nALLOWED_ORIGINS=https://tiktaktv.me,https://www.tiktaktv.me,https://zachgus33.github.io\nTUNNEL_TOKEN=\n' "$(openssl rand -hex 32)" > .env
 fi
 sudo docker compose up -d --build playback
 sh install-watchdog.sh

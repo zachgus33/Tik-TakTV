@@ -1195,7 +1195,7 @@ if (
     token: process.env.PLAYBACK_TOKEN,
     origins: (
       process.env.ALLOWED_ORIGINS ??
-      "https://zachgus33.github.io,http://127.0.0.1:5173"
+      "https://tiktaktv.me,https://www.tiktaktv.me,https://zachgus33.github.io,http://127.0.0.1:5173"
     ).split(","),
   });
   server.listen(

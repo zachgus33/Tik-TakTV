@@ -7,7 +7,7 @@ chmod 700 runtime
 
 if [ ! -f .env.native ]; then
   umask 077
-  printf 'PLAYBACK_TOKEN=%s\nALLOWED_ORIGINS=https://zachgus33.github.io,http://127.0.0.1:5173,http://localhost:5173\n' "$(openssl rand -hex 32)" > .env.native
+  printf 'PLAYBACK_TOKEN=%s\nALLOWED_ORIGINS=https://tiktaktv.me,https://www.tiktaktv.me,https://zachgus33.github.io,http://127.0.0.1:5173,http://localhost:5173\n' "$(openssl rand -hex 32)" > .env.native
 fi
 
 set -a
