@@ -697,7 +697,7 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
   expect(stored.catalogs[0].custom_title).toBe("Owner picks");
   expect(stored.torbox).toBe("friend:signed-grant");
 });
-test("raw torrent is resolved through cached-only TorBox and correct file id", async ({
+test("manual raw torrent is resolved cached-only without autoplaying it", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -743,6 +743,9 @@ test("raw torrent is resolved through cached-only TorBox and correct file id", a
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect(page.locator("video")).toHaveCount(0);
+  expect(cachedOnly).toBe(false);
+  await page.locator(".stream-results button").first().click();
   await expect(page.locator("video")).toHaveAttribute(
     "src",
     "https://cdn.example/torbox.mp4",
