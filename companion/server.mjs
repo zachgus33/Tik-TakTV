@@ -1268,18 +1268,27 @@ export function createService({ token, origins, authorizeAccount }) {
           /^\/v1\/api\/(user\/me|torrents\/(createtorrent|mylist|requestdl))$/.test(
             url.pathname,
           );
+        const isRealDebrid =
+          url.origin === "https://api.real-debrid.com" &&
+          /^\/rest\/1\.0\/(?:user|torrents\/(?:instantAvailability\/[a-f0-9]+|addMagnet|selectFiles\/[^/]+|info\/[^/]+)|unrestrict\/link)$/.test(
+            url.pathname,
+          );
         const method = body.method ?? "GET";
         if (
-          method !== "GET" &&
+          !["GET", "POST"].includes(method) ||
           !(
-            isTorbox &&
-            method === "POST" &&
-            url.pathname.endsWith("/createtorrent")
+            method === "GET" ||
+            (isTorbox && url.pathname.endsWith("/createtorrent")) ||
+            (isRealDebrid &&
+              /\/(?:addMagnet|selectFiles\/[^/]+|unrestrict\/link)$/.test(
+                url.pathname,
+              ))
           )
         )
           return send(400, { error: "Unsupported API method" });
         if (
           !isTorbox &&
+          !isRealDebrid &&
           !/\/(manifest\.json|(?:catalog|meta|stream)\/.*\.json|player_api\.php|xmltv\.php)$/.test(
             url.pathname,
           )
@@ -1308,9 +1317,10 @@ export function createService({ token, origins, authorizeAccount }) {
         let data;
         if (body.form) {
           if (
-            !isTorbox ||
-            !url.pathname.endsWith("/createtorrent") ||
-            body.form.add_only_if_cached !== "true"
+            !isRealDebrid &&
+            (!isTorbox ||
+              !url.pathname.endsWith("/createtorrent") ||
+              body.form.add_only_if_cached !== "true")
           )
             return send(400, {
               error: "Only cached torrent requests are allowed",

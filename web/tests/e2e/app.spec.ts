@@ -519,6 +519,49 @@ test("autoplay shows a top loading state without opening the manual stream list"
     "https://cdn.example/fast.mp4",
   );
 });
+test("an independent user's configured Torrentio debrid stream uses the playback relay", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "independent-user",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "[TB+] Torrentio 1080p",
+            title: "The.Rookie.S01E01.1080p seeders: 250",
+            url: "https://torrentio.example/resolve/torbox/friend-key/hash/file/0/video",
+          },
+        ],
+      },
+    }),
+  );
+  const preparations: Record<string, unknown>[] = [];
+  await page.route("https://playback.example/prepare", async (route) => {
+    preparations.push(route.request().postDataJSON());
+    await route.fulfill({ json: { path: "/media/friend/stream" } });
+  });
+  await page.route("https://playback.example/media/friend/stream", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect.poll(() => preparations.length).toBeGreaterThan(0);
+  expect(preparations[0].url).toContain("/resolve/torbox/");
+  expect(preparations[0].mode).toBe("direct");
+  await expect(page.locator("video")).toBeVisible();
+});
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {
@@ -783,7 +826,9 @@ test("a Watch Together invite opens the host source and timeline", async ({
   );
   await page.goto("/?party=abcdefghijklmnopqrstuvwx#home");
   await expect(
-    page.getByRole("heading", { name: "The Test Movie" }),
+    page
+      .getByRole("dialog")
+      .getByRole("heading", { name: "The Test Movie" }),
   ).toBeVisible();
   await expect(
     page.getByText("Following the host", { exact: false }),

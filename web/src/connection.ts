@@ -202,6 +202,7 @@ export async function prepareMedia(
   mode?: PlaybackService["mode"],
   audioCodec?: "aac" | "mp3" | "opus" | "webm",
   live = false,
+  forceRelay = false,
 ) {
   const config = getService();
   if (!config) return url;
@@ -209,7 +210,11 @@ export async function prepareMedia(
   // Resolved TorBox/add-on HTTPS links are already browser-playable and can be
   // rate-limited when fetched again through the Pi. Keep the relay for sources
   // that need headers or explicit remux/transcode compatibility.
-  if (selectedMode === "direct" && !Object.keys(headers ?? {}).length)
+  if (
+    selectedMode === "direct" &&
+    !forceRelay &&
+    !Object.keys(headers ?? {}).length
+  )
     return url;
   const response = await serviceRequest(
     "/prepare",

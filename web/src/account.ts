@@ -41,6 +41,7 @@ export type Setup = {
   progress: Progress[];
   provider: Provider | null;
   torboxKey: string;
+  realDebridKey: string;
   autoplay: boolean;
   homeCatalogs?: HomeCatalogSetting[];
 };
@@ -292,6 +293,9 @@ export async function loadSetup(
   if (typeof tmdb === "string") localStorage.setItem("nuvio:tmdb-key", tmdb);
   const key = credentials.find((c) => c.provider === "debrid:torbox")
     ?.credential_json.api_key;
+  const realDebridKey = credentials.find(
+    (c) => c.provider === "debrid:realdebrid",
+  )?.credential_json.api_key;
   const resolvedCollections = parseCollections(
     collections?.[0]?.collections_json ?? [],
   );
@@ -380,6 +384,10 @@ export async function loadSetup(
       progress: mergedProgress,
       provider: sharedProvider,
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
+      realDebridKey:
+        typeof realDebridKey === "string" && realDebridKey
+          ? realDebridKey
+          : (web.realDebridKey ?? ""),
       autoplay: web.autoplay ?? true,
       homeCatalogs: homeCatalogs.length ? homeCatalogs : web.homeCatalogs,
     },

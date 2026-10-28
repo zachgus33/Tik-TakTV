@@ -85,11 +85,13 @@ import {
 } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
 import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
+import { resolveRealDebrid } from "./realdebrid";
 import { DEFAULT_TMDB_KEY } from "./config";
 import {
   autoplayStreams,
   compatibilityPlaybackMode,
   directStream,
+  debridStream,
   needsCompatibilityTranscode,
   rankedStreams,
   streamQuality,
@@ -602,6 +604,7 @@ function Detail({
   onRemoveProgress,
   resume,
   torboxKey,
+  realDebridKey,
   autoplay,
 }: {
   initial: Item;
@@ -615,6 +618,7 @@ function Detail({
   onRemoveProgress: (item: Item) => void;
   resume?: Progress;
   torboxKey: string;
+  realDebridKey: string;
   autoplay: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -735,13 +739,36 @@ function Detail({
             { request?: Record<string, string> } | undefined
         )?.request,
         subtitleRequest: { addons, id: ep?.id ?? item.id },
+        relay: debridStream(stream),
       });
       return;
     }
-    if (!torboxKey)
+    if (!torboxKey && !realDebridKey)
       throw new Error(
-        "Connect TorBox in Settings, or install your Torrentio manifest already configured with TorBox.",
+        "Connect TorBox or Real-Debrid in Settings, or install a debrid-configured streaming add-on.",
       );
+    if (!torboxKey) {
+      const resolved = await resolveRealDebrid(
+        realDebridKey,
+        stream,
+        ep,
+        signal,
+      );
+      if (!signal?.aborted)
+        onPlay({
+          item,
+          episode: ep,
+          url: resolved.url,
+          resume: position,
+          subtitleRequest: { addons, id: ep?.id ?? item.id },
+          mode:
+            getService() && !/\.(?:mp4|m4v|webm)$/i.test(resolved.filename)
+              ? "transcode"
+              : undefined,
+          relay: true,
+        });
+      return;
+    }
     const prepared = await prepareTorbox(torboxKey, stream, ep, signal);
     if (signal?.aborted) return;
     if (!prepared.selected) {
@@ -817,10 +844,20 @@ function Detail({
       );
       return;
     }
-    if (!torboxKey)
+    if (!torboxKey && !realDebridKey)
       throw new Error(
-        "Connect TorBox in Settings, or choose an HTTPS stream from an installed add-on.",
+        "Connect TorBox or Real-Debrid in Settings, or choose an HTTPS stream from an installed add-on.",
       );
+    if (!torboxKey) {
+      const resolved = await resolveRealDebrid(
+        realDebridKey,
+        stream,
+        ep,
+        signal,
+      );
+      await startDownload(resolved.url, ep, undefined, signal);
+      return;
+    }
     const prepared = await prepareTorbox(torboxKey, stream, ep, signal);
     if (signal?.aborted) return;
     if (!prepared.selected) {
@@ -888,8 +925,9 @@ function Detail({
     try {
       const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
-      const ranked = rankedStreams(result.streams, !!torboxKey);
-      const autoplayRanked = autoplayStreams(result.streams, !!torboxKey);
+      const hasDebrid = !!torboxKey || !!realDebridKey;
+      const ranked = rankedStreams(result.streams, hasDebrid);
+      const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
       if (downloadBest) {
         if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
         else setDownloadMode(false);
@@ -1239,7 +1277,9 @@ function Detail({
               <p className="muted">No streams found. Try another source.</p>
             )}
             {streams.map((s, i) => {
-              const playable = directStream(s) || (!!s.infoHash && !!torboxKey);
+              const playable =
+                directStream(s) ||
+                (!!s.infoHash && (!!torboxKey || !!realDebridKey));
               return (
                 <button
                   key={i}
@@ -1307,6 +1347,9 @@ export default function App() {
   const [torboxKey, setTorboxKey] = useState<string>(() =>
     read("torbox-key", read("torbox-key", ""), sessionStorage),
   );
+  const [realDebridKey, setRealDebridKey] = useState<string>(() =>
+    read("realdebrid-key", read("realdebrid-key", ""), sessionStorage),
+  );
   const [tmdbKey, setTmdbKey] = useState(
     () => localStorage.getItem("nuvio:tmdb-key")?.trim() || DEFAULT_TMDB_KEY,
   );
@@ -1346,6 +1389,9 @@ export default function App() {
     setTorboxKey(s.torboxKey);
     save("torbox-key", s.torboxKey);
     sessionStorage.removeItem("nuvio:torbox-key");
+    setRealDebridKey(s.realDebridKey);
+    save("realdebrid-key", s.realDebridKey);
+    sessionStorage.removeItem("nuvio:realdebrid-key");
     setAutoplay(s.autoplay);
     setHomeCatalogs(s.homeCatalogs ?? []);
   }
@@ -2580,6 +2626,7 @@ export default function App() {
                     progress,
                     provider,
                     torboxKey,
+                    realDebridKey,
                     autoplay,
                     homeCatalogs,
                   }}
@@ -2628,6 +2675,8 @@ export default function App() {
                   onRestore={restoreSetup}
                   torboxKey={torboxKey}
                   onTorboxKey={setTorboxKey}
+                  realDebridKey={realDebridKey}
+                  onRealDebridKey={setRealDebridKey}
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
                   playbackConnected={!!getService()}
@@ -2682,6 +2731,7 @@ export default function App() {
           provider={provider}
           addons={addons}
           torboxKey={torboxKey}
+          realDebridKey={realDebridKey}
           autoplay={autoplay}
           saved={saved(detail)}
           toggleSave={toggleSave}

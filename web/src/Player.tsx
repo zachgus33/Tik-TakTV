@@ -35,6 +35,7 @@ export type Playback = {
   subtitles?: Subtitle[];
   subtitleRequest?: { addons: Addon[]; id: string };
   prepared?: boolean;
+  relay?: boolean;
   party?: { id: string; host: boolean };
 };
 function srtToVtt(text: string) {
@@ -45,7 +46,9 @@ function srtToVtt(text: string) {
 }
 function formatPlayerTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
-  const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+  const seconds = Math.floor(value % 60)
+    .toString()
+    .padStart(2, "0");
   const minutes = Math.floor(value / 60) % 60;
   const hours = Math.floor(value / 3600);
   return hours
@@ -55,9 +58,11 @@ function formatPlayerTime(value: number) {
 function VideoPlayer({
   playback,
   onClose,
+  onFailure,
 }: {
   playback: Playback;
   onClose: () => void;
+  onFailure?: () => boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -87,20 +92,21 @@ function VideoPlayer({
   subtitleRef.current = subtitles;
   useEffect(() => {
     if (!playback.party) return;
-    setParty((current) =>
-      current ?? {
-        id: playback.party!.id,
-        host: playback.party!.host,
-        participants: 1,
-        playback,
-        state: {
-          position: playback.resume ?? 0,
-          paused: false,
-          updatedAt: Date.now(),
-          serverTime: Date.now(),
-          revision: 0,
+    setParty(
+      (current) =>
+        current ?? {
+          id: playback.party!.id,
+          host: playback.party!.host,
+          participants: 1,
+          playback,
+          state: {
+            position: playback.resume ?? 0,
+            paused: false,
+            updatedAt: Date.now(),
+            serverTime: Date.now(),
+            revision: 0,
+          },
         },
-      },
     );
   }, [playback]);
   useEffect(() => {
@@ -236,6 +242,7 @@ function VideoPlayer({
         );
     };
     const failed = () => {
+      if (onFailure?.()) return;
       setError(
         "Playback failed. The source may be offline, block browser access, or use an unsupported codec. Try another stream. Some sources require a separate media server.",
       );
@@ -386,9 +393,11 @@ function VideoPlayer({
           if (result.state.paused) {
             if (!video.paused) video.pause();
           } else if (video.paused) {
-            await video.play().catch(() =>
-              setNotice("Tap Play once to join the synchronized playback."),
-            );
+            await video
+              .play()
+              .catch(() =>
+                setNotice("Tap Play once to join the synchronized playback."),
+              );
           }
         }
       } catch (e) {
@@ -426,7 +435,9 @@ function VideoPlayer({
       setNotice("Watch Together link copied. Your playback controls the room.");
       window.setTimeout(() => setCopied(false), 2500);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Could not start Watch Together.");
+      setNotice(
+        e instanceof Error ? e.message : "Could not start Watch Together.",
+      );
     } finally {
       setPartyBusy(false);
     }
@@ -543,7 +554,8 @@ function VideoPlayer({
             aria-label="Rewind 10 seconds"
             onClick={() => {
               const video = videoRef.current;
-              if (video) video.currentTime = Math.max(0, video.currentTime - 10);
+              if (video)
+                video.currentTime = Math.max(0, video.currentTime - 10);
             }}
           >
             <RotateCcw size={18} />
@@ -714,13 +726,21 @@ export default function Player({
 }) {
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
+  const fallbackStarted = useRef(false);
+  const fallbackController = useRef<AbortController | null>(null);
   useEffect(() => {
     const c = new AbortController();
     setReady(null);
     setError("");
+    fallbackStarted.current = false;
+    const cleanup = () => {
+      c.abort();
+      fallbackController.current?.abort();
+      fallbackController.current = null;
+    };
     if (playback.prepared) {
       setReady(playback);
-      return () => c.abort();
+      return cleanup;
     }
     void prepareMedia(
       playback.url,
@@ -731,6 +751,7 @@ export default function Player({
         ? liveAudioCodec(navigator.userAgent)
         : undefined,
       playback.item.type === "live",
+      playback.relay,
     ).then(
       (url) => {
         if (!c.signal.aborted)
@@ -751,9 +772,61 @@ export default function Player({
         if (!c.signal.aborted) setError(e.message);
       },
     );
-    return () => c.abort();
+    return cleanup;
   }, [playback]);
-  if (ready) return <VideoPlayer playback={ready} onClose={onClose} />;
+  const recoverWithCompatibility = () => {
+    const service = getService();
+    if (
+      fallbackStarted.current ||
+      !service ||
+      !playback.relay ||
+      playback.item.type === "live" ||
+      playback.url.startsWith(`${service.url}/media/`)
+    )
+      return false;
+    fallbackStarted.current = true;
+    setReady(null);
+    setError("");
+    const controller = new AbortController();
+    fallbackController.current = controller;
+    void prepareMedia(
+      playback.url,
+      playback.requestHeaders,
+      controller.signal,
+      "transcode",
+      liveAudioCodec(navigator.userAgent),
+      false,
+      true,
+    ).then(
+      (url) => {
+        if (!controller.signal.aborted)
+          setReady({
+            ...playback,
+            url,
+            hls: !/\.webm(?:[?#]|$)/i.test(url),
+            mode: "transcode",
+            prepared: true,
+          });
+      },
+      (reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "This source could not be converted for this browser.",
+          );
+      },
+    );
+    return true;
+  };
+  if (ready)
+    return (
+      <VideoPlayer
+        playback={ready}
+        onClose={onClose}
+        onFailure={recoverWithCompatibility}
+      />
+    );
   return (
     <dialog
       open

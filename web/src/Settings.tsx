@@ -21,6 +21,7 @@ import type { Addon, Item, Provider } from "./types";
 import { type Collection, type Transfer, addonUrls } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
 import { validateTorboxKey } from "./torbox";
+import { validateRealDebridKey } from "./realdebrid";
 import DataTools from "./DataTools";
 import {
   friendAccessStatus,
@@ -51,6 +52,8 @@ type Props = {
   onRestore: (t: Transfer) => Promise<string>;
   torboxKey: string;
   onTorboxKey: (key: string) => void;
+  realDebridKey: string;
+  onRealDebridKey: (key: string) => void;
   autoplay: boolean;
   onAutoplay: (value: boolean) => void;
   playbackConnected: boolean;
@@ -87,7 +90,7 @@ const sections = [
   {
     id: "playback",
     label: "Playback",
-    description: "Player and TorBox",
+    description: "Player and debrid",
     icon: PlayCircle,
   },
   {
@@ -298,11 +301,11 @@ export default function Settings(props: Props) {
               )}
             </section>
             <section className="settings-card">
-              <h2>Torrentio & TorBox playback</h2>
+              <h2>Debrid playback</h2>
               <p>
-                Paste your existing Torrentio manifest configured with TorBox in
-                Add-ons below. Its resolved HTTPS streams play directly. For
-                torrent info-hash results, connect a TorBox API key here.
+                Install any compatible Stremio streaming add-on below. Connect
+                your own TorBox or Real-Debrid key here so cached torrent
+                results can be resolved securely for browser playback.
               </p>
               {props.torboxKey && (
                 <div className="connection">
@@ -372,6 +375,76 @@ export default function Settings(props: Props) {
                 service. Nuvio account sync can save it with your setup. Playing
                 a torrent can add its cached entry to your TorBox account. No
                 uncached download is started.
+              </p>
+              {props.realDebridKey && (
+                <div className="connection">
+                  <strong>Real-Debrid connected</strong>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("nuvio:realdebrid-key");
+                      sessionStorage.removeItem("nuvio:realdebrid-key");
+                      props.onRealDebridKey("");
+                    }}
+                  >
+                    Disconnect Real-Debrid
+                  </button>
+                </div>
+              )}
+              <form
+                className="inline-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const values = new FormData(form);
+                  const key = String(values.get("realdebrid")).trim();
+                  void run("realdebrid", async () => {
+                    await validateRealDebridKey(key);
+                    localStorage.removeItem("nuvio:realdebrid-key");
+                    sessionStorage.removeItem("nuvio:realdebrid-key");
+                    if (
+                      !save(
+                        "realdebrid-key",
+                        key,
+                        values.get("rememberRealDebrid")
+                          ? localStorage
+                          : sessionStorage,
+                      )
+                    )
+                      throw new Error(
+                        "Could not save the connection in this browser.",
+                      );
+                    props.onRealDebridKey(key);
+                    form.reset();
+                    setSuccess(
+                      "Real-Debrid connected. Cached torrent results can now play.",
+                    );
+                  });
+                }}
+              >
+                <label className="grow">
+                  Real-Debrid API key
+                  <input
+                    name="realdebrid"
+                    type="password"
+                    autoComplete="off"
+                    required
+                    placeholder="From your Real-Debrid account settings"
+                  />
+                </label>
+                <label className="check">
+                  <input name="rememberRealDebrid" type="checkbox" />
+                  Remember key on this device
+                </label>
+                <button disabled={!!busy}>
+                  {busy === "realdebrid"
+                    ? "Connectingâ€¦"
+                    : "Connect Real-Debrid"}
+                </button>
+              </form>
+              <p className="hint">
+                TikTak TV only requests cached torrent files and secure download
+                links. Your key belongs to your Nuvio setup and is never shared
+                with unrelated site visitors.
               </p>
               <label className="check">
                 <input

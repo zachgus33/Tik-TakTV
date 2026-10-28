@@ -12,12 +12,14 @@ import {
   codecCompatibility,
   compatibilityPlaybackMode,
   directStream,
+  debridStream,
   quality,
   rankedStreams,
   needsCompatibilityTranscode,
   seeders,
 } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
+import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
 import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
 
@@ -253,8 +255,30 @@ describe("720p+ preference and safe episode matching", () => {
       title: "Episode \u{1F464} 800 \u{1F4BE} 2 GB",
       url: "https://torrentio.example/resolve/torbox/token/hash/file/undefined/file.mkv",
     };
-    expect(autoplayStreams([download, malformed, ready], true)).toEqual([ready]);
+    expect(autoplayStreams([download, malformed, ready], true)).toEqual([
+      ready,
+    ]);
     expect(seeders(ready)).toBe(170);
+  });
+  it("recognizes resolved debrid URLs that must use the playback relay", () => {
+    expect(
+      debridStream({
+        name: "[TB+] Torrentio 1080p",
+        url: "https://torrentio.example/resolve/torbox/key/hash/file/0/video",
+      }),
+    ).toBe(true);
+    expect(
+      debridStream({
+        name: "[RD+] Torrentio 1080p",
+        url: "https://cdn.example/video.mp4",
+      }),
+    ).toBe(true);
+    expect(
+      debridStream({
+        name: "Public 1080p",
+        url: "https://cdn.example/video.mp4",
+      }),
+    ).toBe(false);
   });
   it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {
@@ -434,6 +458,65 @@ describe("TorBox cached torrent flow", () => {
       prepareTorbox("fake-key", { infoHash: "a".repeat(40) }),
     ).rejects.toThrow("not cached");
     expect(mock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("independent Real-Debrid playback", () => {
+  it("validates a user key and resolves the selected cached file", async () => {
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ username: "friend" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ["a".repeat(40)]: { rd: [{ filename: "cached" }] },
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "torrent-1" }), { status: 201 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "torrent-1",
+            files: [{ id: 7, path: "/The.Rookie.S01E01.1080p.mkv" }],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "torrent-1",
+            links: ["https://real-debrid.example/restricted"],
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ download: "https://cdn.example/rookie.mkv" }),
+        ),
+      );
+    await validateRealDebridKey("friend-key");
+    const resolved = await resolveRealDebrid(
+      "friend-key",
+      { infoHash: "a".repeat(40), name: "1080p" },
+      { id: "episode", name: "Pilot", season: 1, episode: 1 },
+    );
+    expect(resolved).toEqual({
+      url: "https://cdn.example/rookie.mkv",
+      filename: "/The.Rookie.S01E01.1080p.mkv",
+    });
+    expect((mock.mock.calls[2][1]?.body as FormData).get("magnet")).toContain(
+      "urn:btih:",
+    );
+    expect((mock.mock.calls[4][1]?.body as FormData).get("files")).toBe("7");
+    expect((mock.mock.calls[6][1]?.body as FormData).get("link")).toBe(
+      "https://real-debrid.example/restricted",
+    );
   });
 });
 

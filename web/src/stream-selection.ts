@@ -22,9 +22,10 @@ export function streamQuality(stream: Stream) {
 export function seeders(stream: Stream): number {
   if (Number.isFinite(stream.seeders)) return Math.max(0, stream.seeders!);
   const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
-  const match = /(?:\u{1F464}|\u{1F465}|seeders?\s*[:=]?|seeds?\s*[:=]?)\s*([\d,]+)/iu.exec(
-    text,
-  );
+  const match =
+    /(?:\u{1F464}|\u{1F465}|seeders?\s*[:=]?|seeds?\s*[:=]?)\s*([\d,]+)/iu.exec(
+      text,
+    );
   return match ? Number(match[1].replaceAll(",", "")) : -1;
 }
 export function directStream(stream: Stream): boolean {
@@ -41,14 +42,14 @@ export function needsCompatibilityTranscode(stream: Stream): boolean {
   return compatibilityPlaybackMode(stream) !== undefined;
 }
 function streamDescriptor(stream: Stream): string {
-  return [
-    stream.name,
-    stream.title,
-    stream.url,
-    stream.behaviorHints?.filename,
-  ]
+  return [stream.name, stream.title, stream.url, stream.behaviorHints?.filename]
     .filter(Boolean)
     .join(" ");
+}
+export function debridStream(stream: Stream): boolean {
+  return /\[(?:tb|rd|ad)\+?\]|\b(?:torbox|real[ -]?debrid|all[ -]?debrid)\b|\/resolve\/(?:torbox|realdebrid|real-debrid|alldebrid)\//i.test(
+    streamDescriptor(stream),
+  );
 }
 export function codecCompatibility(stream: Stream): number {
   const source = streamDescriptor(stream);
@@ -81,8 +82,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
         (directStream(s) || (!!s.infoHash && hasTorbox)),
     )
     .sort(
-      (a, b) =>
-        streamQuality(b) - streamQuality(a) || seeders(b) - seeders(a),
+      (a, b) => streamQuality(b) - streamQuality(a) || seeders(b) - seeders(a),
     );
 }
 export function autoplayStreams(
@@ -94,11 +94,17 @@ export function autoplayStreams(
     const descriptor = streamDescriptor(stream);
     // Uncached add-on results can still look like HTTPS media URLs. These
     // labels mean selecting the URL starts a debrid download instead.
-    if (/\[(?:tb|rd|ad)\s+download\]|\bdownload\s+to\s+debrid\b/i.test(descriptor))
+    if (
+      /\[(?:tb|rd|ad)\s+download\]|\bdownload\s+to\s+debrid\b/i.test(descriptor)
+    )
       return false;
     // A missing torrent file index creates a resolver link that cannot point
     // at playable media.
-    if (/\/resolve\/[^/]+\/[^/]+\/[^/]+\/[^/]+\/undefined(?:\/|$)/i.test(stream.url ?? ""))
+    if (
+      /\/resolve\/[^/]+\/[^/]+\/[^/]+\/[^/]+\/undefined(?:\/|$)/i.test(
+        stream.url ?? "",
+      )
+    )
       return false;
     return true;
   });
