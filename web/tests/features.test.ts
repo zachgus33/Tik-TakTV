@@ -237,6 +237,25 @@ describe("720p+ preference and safe episode matching", () => {
       autoplayStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
     ).toHaveLength(0);
   });
+  it("never autoplays download-to-debrid or malformed resolver results", () => {
+    const ready = {
+      name: "[TB+] Torrentio 720p",
+      title: "Episode \u{1F464} 170 \u{1F4BE} 500 MB",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mkv",
+    };
+    const download = {
+      name: "[TB download] Torrentio 1080p",
+      title: "Episode \u{1F464} 900 \u{1F4BE} 2 GB",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mkv",
+    };
+    const malformed = {
+      name: "[TB+] Torrentio 1080p",
+      title: "Episode \u{1F464} 800 \u{1F4BE} 2 GB",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/undefined/file.mkv",
+    };
+    expect(autoplayStreams([download, malformed, ready], true)).toEqual([ready]);
+    expect(seeders(ready)).toBe(170);
+  });
   it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {
       name: "Support provider",

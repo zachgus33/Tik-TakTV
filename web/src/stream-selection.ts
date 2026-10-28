@@ -22,7 +22,7 @@ export function streamQuality(stream: Stream) {
 export function seeders(stream: Stream): number {
   if (Number.isFinite(stream.seeders)) return Math.max(0, stream.seeders!);
   const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
-  const match = /(?:👤|👥|seeders?\s*[:=]?|seeds?\s*[:=]?)\s*([\d,]+)/i.exec(
+  const match = /(?:\u{1F464}|\u{1F465}|seeders?\s*[:=]?|seeds?\s*[:=]?)\s*([\d,]+)/iu.exec(
     text,
   );
   return match ? Number(match[1].replaceAll(",", "")) : -1;
@@ -100,5 +100,17 @@ export function autoplayStreams(
   streams: Stream[],
   hasTorbox: boolean,
 ): Stream[] {
-  return rankedStreams(streams, hasTorbox).filter(directStream);
+  return rankedStreams(streams, hasTorbox).filter((stream) => {
+    if (!directStream(stream)) return false;
+    const descriptor = streamDescriptor(stream);
+    // Uncached add-on results can still look like HTTPS media URLs. These
+    // labels mean selecting the URL starts a debrid download instead.
+    if (/\[(?:tb|rd|ad)\s+download\]|\bdownload\s+to\s+debrid\b/i.test(descriptor))
+      return false;
+    // A missing torrent file index creates a resolver link that cannot point
+    // at playable media.
+    if (/\/resolve\/[^/]+\/[^/]+\/[^/]+\/[^/]+\/undefined(?:\/|$)/i.test(stream.url ?? ""))
+      return false;
+    return true;
+  });
 }
