@@ -97,6 +97,7 @@ import {
 } from "./stream-selection";
 import { save } from "./storage";
 import type { FriendTemplate } from "./Settings";
+import { joinParty } from "./watch-party";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
@@ -1357,6 +1358,35 @@ export default function App() {
   const [offline, setOffline] = useState(!navigator.onLine);
   const [update, setUpdate] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const partyAttemptedRef = useRef("");
+  useEffect(() => {
+    if (!profileReady || playback) return;
+    const id = new URL(location.href).searchParams.get("party")?.trim() ?? "";
+    if (!id || id === partyAttemptedRef.current) return;
+    partyAttemptedRef.current = id;
+    void joinParty(id).then(
+      (session) => {
+        setDetail(null);
+        setPlayback({
+          ...session.playback,
+          prepared: true,
+          resume: session.state.position,
+          party: { id: session.id, host: session.host },
+        });
+        setToast(
+          session.host
+            ? "Watch Together room restored."
+            : "Joined Watch Together. Playback will follow the host.",
+        );
+      },
+      (e) => {
+        partyAttemptedRef.current = "";
+        setToast(
+          e instanceof Error ? e.message : "Could not join Watch Together.",
+        );
+      },
+    );
+  }, [profileReady, playback]);
   const navigate = (next: Page) => {
     location.hash = next;
     setQuery("");
@@ -2607,6 +2637,12 @@ export default function App() {
           <Player
             playback={playback}
             onClose={() => {
+              const url = new URL(location.href);
+              if (url.searchParams.has("party")) {
+                url.searchParams.delete("party");
+                history.replaceState(null, "", url);
+                partyAttemptedRef.current = "";
+              }
               setPlayback(null);
               setProgress(read("progress", []));
             }}

@@ -191,12 +191,13 @@ export function rewritePlaylist(text, base, link) {
     })
     .join("\n");
 }
-export function createService({ token, origins }) {
+export function createService({ token, origins, authorizeAccount }) {
   if (!token || token.length < 32)
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
   const jobs = new Map();
   const tickets = new Map();
   const accountTokens = new Map();
+  const parties = new Map();
   const friendAttempts = new Map();
   const friendOwner = process.env.FRIEND_OWNER_USER_ID ?? "";
   const friendVaultPath =
@@ -309,8 +310,22 @@ export function createService({ token, origins }) {
         jobs.delete(id);
         if (j.dir) void rm(j.dir, { recursive: true, force: true });
       }
+    for (const [id, party] of parties)
+      if (party.expires < Date.now()) parties.delete(id);
   }, 30000);
   sweep.unref();
+  function partyResponse(party, userId) {
+    const now = Date.now();
+    for (const [member, seen] of party.members)
+      if (now - seen > 30_000) party.members.delete(member);
+    return {
+      id: party.id,
+      host: party.host === userId,
+      participants: party.members.size,
+      playback: party.playback,
+      state: { ...party.state, serverTime: now },
+    };
+  }
   const authorized = async (req) => {
     const a = Buffer.from(req.headers.authorization ?? "");
     const b = Buffer.from(`Bearer ${token}`);
@@ -320,6 +335,7 @@ export function createService({ token, origins }) {
       "",
     );
     if (!bearer || bearer.length > 4096) return false;
+    if (authorizeAccount) return authorizeAccount(bearer);
     const cached = accountTokens.get(bearer);
     if (cached && cached.expires > Date.now()) return cached.userId;
     try {
@@ -625,6 +641,94 @@ export function createService({ token, origins }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/party") {
+        const action = String(body.action ?? "");
+        if (action === "create") {
+          if (userId === "service")
+            return send(403, { error: "Sign in before starting Watch Together." });
+          const source = body.playback;
+          const item = source?.item;
+          let parsedUrl;
+          try {
+            parsedUrl = new URL(String(source?.url ?? ""));
+          } catch {
+            return send(400, { error: "This source cannot be shared." });
+          }
+          if (
+            !source ||
+            !item ||
+            item.type === "live" ||
+            !["https:", "http:"].includes(parsedUrl.protocol) ||
+            String(source.url).length > 8192 ||
+            typeof item.id !== "string" ||
+            typeof item.name !== "string" ||
+            item.id.length > 500 ||
+            item.name.length > 500
+          )
+            return send(400, {
+              error: "Watch Together is available for movies and episodes.",
+            });
+          if (parties.size >= 500)
+            return send(503, { error: "Watch Together is currently full." });
+          const id = randomBytes(18).toString("base64url");
+          const now = Date.now();
+          const playback = {
+            item: {
+              id: item.id,
+              name: item.name,
+              type: item.type,
+              source: item.source,
+              provider: item.provider,
+              poster: item.poster,
+              background: item.background,
+              year: item.year,
+            },
+            url: String(source.url),
+            episode: source.episode,
+            hls: !!source.hls,
+            mode: source.mode,
+            subtitles: Array.isArray(source.subtitles)
+              ? source.subtitles.slice(0, 12)
+              : [],
+            prepared: true,
+          };
+          const party = {
+            id,
+            host: userId,
+            playback,
+            state: {
+              position: Math.max(0, Number(body.position) || 0),
+              paused: body.paused !== false,
+              updatedAt: now,
+              revision: 1,
+            },
+            members: new Map([[userId, now]]),
+            expires: now + 6 * 60 * 60_000,
+          };
+          parties.set(id, party);
+          return send(200, partyResponse(party, userId));
+        }
+        const id = String(body.id ?? "");
+        const party = parties.get(id);
+        if (!/^[A-Za-z0-9_-]{24}$/.test(id) || !party)
+          return send(404, { error: "This Watch Together link expired." });
+        if (userId === "service")
+          return send(403, { error: "Sign in before joining Watch Together." });
+        const now = Date.now();
+        party.members.set(userId, now);
+        party.expires = now + 6 * 60 * 60_000;
+        if (action === "state" && body.update && party.host === userId) {
+          party.state = {
+            position: Math.max(0, Number(body.update.position) || 0),
+            paused: body.update.paused !== false,
+            updatedAt: now,
+            revision: party.state.revision + 1,
+          };
+        } else if (!["join", "state"].includes(action)) {
+          return send(400, { error: "Invalid Watch Together request." });
+        }
+        return send(200, partyResponse(party, userId));
+      }
       if (route.pathname === "/friend/status") {
         const vault = await readFriendVault();
         return send(200, {

@@ -570,6 +570,123 @@ test("phone autoplay chooses the highest quality stream and normalizes HEVC", as
   expect(prepared.live).toBe(false);
   expect(prepared.url).toBe("https://cdn.example/episode.x265.mp4");
 });
+test("Watch Together creates a shareable room from the resolved source", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            seeders: 100,
+            url: "https://cdn.example/movie.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/movie.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  let createRequest: Record<string, unknown> = {};
+  let sharedPlayback: Record<string, unknown> = {};
+  await page.route("https://playback.example/party", async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.action === "create") {
+      createRequest = request;
+      sharedPlayback = request.playback as Record<string, unknown>;
+    }
+    await route.fulfill({
+      json: {
+        id: "abcdefghijklmnopqrstuvwx",
+        host: true,
+        participants: 1,
+        playback: sharedPlayback,
+        state: {
+          position: 0,
+          paused: false,
+          updatedAt: Date.now(),
+          serverTime: Date.now(),
+          revision: 1,
+        },
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Watch Together" }).click();
+  await expect(page.getByText("You control this room", { exact: false })).toBeVisible();
+  expect(createRequest.action).toBe("create");
+  expect((createRequest.playback as Record<string, unknown>).url).toBe(
+    "https://cdn.example/movie.mp4",
+  );
+  await expect(page).toHaveURL(/party=abcdefghijklmnopqrstuvwx/);
+});
+test("a Watch Together invite opens the host source and timeline", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://playback.example/party", async (route) => {
+    const request = route.request().postDataJSON();
+    expect(["join", "state"]).toContain(request.action);
+    await route.fulfill({
+      json: {
+        id: "abcdefghijklmnopqrstuvwx",
+        host: false,
+        participants: 2,
+        playback: {
+          item: {
+            id: "tt-test",
+            name: "The Test Movie",
+            type: "movie",
+            source: "addon",
+          },
+          url: "https://cdn.example/party.mp4",
+          prepared: true,
+        },
+        state: {
+          position: 84,
+          paused: true,
+          updatedAt: Date.now(),
+          serverTime: Date.now(),
+          revision: 2,
+        },
+      },
+    });
+  });
+  await page.route("https://cdn.example/party.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/?party=abcdefghijklmnopqrstuvwx#home");
+  await expect(page.getByRole("heading", { name: "The Test Movie" })).toBeVisible();
+  await expect(page.getByText("Following the host", { exact: false })).toBeVisible();
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/party.mp4",
+  );
+});
 test("downloads the best ranked movie stream automatically as an MP4", async ({
   page,
   browserName,

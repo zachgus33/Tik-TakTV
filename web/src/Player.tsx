@@ -2,6 +2,9 @@ import { getService, prepareMedia, sourceFetch } from "./connection";
 import { useEffect, useRef, useState } from "react";
 import {
   Airplay,
+  Check,
+  Copy,
+  Link,
   Maximize,
   Pause,
   PictureInPicture2,
@@ -14,6 +17,12 @@ import type { Episode, Item, Subtitle } from "./types";
 import { safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
+import {
+  createParty,
+  partyLink,
+  partyState,
+  type PartySession,
+} from "./watch-party";
 
 export type Playback = {
   item: Item;
@@ -24,6 +33,8 @@ export type Playback = {
   hls?: boolean;
   mode?: "direct" | "remux" | "transcode";
   subtitles?: Subtitle[];
+  prepared?: boolean;
+  party?: { id: string; host: boolean };
 };
 function srtToVtt(text: string) {
   return `WEBVTT\n\n${text
@@ -63,10 +74,31 @@ function VideoPlayer({
   const [audioTracks, setAudioTracks] = useState<
     { label: string; value: number; source: "hls" | "native" }[]
   >([]);
+  const [party, setParty] = useState<PartySession | null>(null);
+  const [partyBusy, setPartyBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const subtitleRef = useRef(subtitles);
   subtitleRef.current = subtitles;
+  useEffect(() => {
+    if (!playback.party) return;
+    setParty((current) =>
+      current ?? {
+        id: playback.party!.id,
+        host: playback.party!.host,
+        participants: 1,
+        playback,
+        state: {
+          position: playback.resume ?? 0,
+          paused: false,
+          updatedAt: Date.now(),
+          serverTime: Date.now(),
+          revision: 0,
+        },
+      },
+    );
+  }, [playback]);
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
@@ -307,6 +339,87 @@ function VideoPlayer({
       video.load();
     };
   }, [playback, retry]);
+  useEffect(() => {
+    if (!party) return;
+    let disposed = false;
+    let syncing = false;
+    const synchronize = async () => {
+      if (disposed || syncing) return;
+      const video = videoRef.current;
+      if (!video) return;
+      syncing = true;
+      try {
+        const result = await partyState(
+          party.id,
+          party.host
+            ? { position: video.currentTime || 0, paused: video.paused }
+            : undefined,
+        );
+        if (disposed) return;
+        setParty(result);
+        if (!party.host) {
+          const elapsed = result.state.paused
+            ? 0
+            : Math.max(0, result.state.serverTime - result.state.updatedAt) /
+              1000;
+          const target = Math.max(0, result.state.position + elapsed);
+          if (Math.abs((video.currentTime || 0) - target) > 1.25)
+            video.currentTime = target;
+          if (result.state.paused) {
+            if (!video.paused) video.pause();
+          } else if (video.paused) {
+            await video.play().catch(() =>
+              setNotice("Tap Play once to join the synchronized playback."),
+            );
+          }
+        }
+      } catch (e) {
+        if (!disposed)
+          setNotice(
+            e instanceof Error ? e.message : "Watch Together disconnected.",
+          );
+      } finally {
+        syncing = false;
+      }
+    };
+    void synchronize();
+    const timer = window.setInterval(synchronize, 1000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [party?.id, party?.host]);
+
+  async function startParty() {
+    const video = videoRef.current;
+    if (!video || partyBusy) return;
+    setPartyBusy(true);
+    try {
+      const session = await createParty(
+        { ...playback, prepared: true, party: undefined },
+        video.currentTime || 0,
+        video.paused,
+      );
+      setParty(session);
+      const link = partyLink(session.id);
+      history.replaceState(null, "", link);
+      await navigator.clipboard.writeText(link).catch(() => undefined);
+      setCopied(true);
+      setNotice("Watch Together link copied. Your playback controls the room.");
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Could not start Watch Together.");
+    } finally {
+      setPartyBusy(false);
+    }
+  }
+
+  async function copyPartyLink() {
+    if (!party) return;
+    await navigator.clipboard.writeText(partyLink(party.id));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
+  }
   async function fullscreen() {
     const v = videoRef.current as HTMLVideoElement & {
       webkitEnterFullscreen?: () => void;
@@ -434,6 +547,19 @@ function VideoPlayer({
           <span>{formatPlayerTime(seekEnd)}</span>
         </div>
       )}
+      {party && (
+        <div className="party-status" role="status">
+          <span>
+            <strong>Watch Together</strong>
+            {party.host ? "You control this room" : "Following the host"} ·{" "}
+            {party.participants} watching
+          </span>
+          <button type="button" onClick={() => void copyPartyLink()}>
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? "Copied" : "Copy invite"}
+          </button>
+        </div>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
@@ -446,6 +572,12 @@ function VideoPlayer({
         </p>
       )}
       <div className="player-tools">
+        {playback.item.type !== "live" && !party && (
+          <button disabled={partyBusy} onClick={() => void startParty()}>
+            <Link size={18} />
+            {partyBusy ? "Starting room…" : "Watch Together"}
+          </button>
+        )}
         <button onClick={airplay}>
           <Airplay size={18} /> AirPlay
         </button>
@@ -568,6 +700,10 @@ export default function Player({
     const c = new AbortController();
     setReady(null);
     setError("");
+    if (playback.prepared) {
+      setReady(playback);
+      return () => c.abort();
+    }
     void prepareMedia(
       playback.url,
       playback.requestHeaders,

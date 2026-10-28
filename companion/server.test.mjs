@@ -134,3 +134,84 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
     await new Promise((r) => server.close(r));
   }
 });
+
+test("watch parties share one prepared source and keep guests on the host timeline", async () => {
+  const token = "a".repeat(40);
+  const server = createService({
+    token,
+    origins: ["https://site.example"],
+    authorizeAccount: async (bearer) =>
+      bearer === "host-token"
+        ? "host-user"
+        : bearer === "guest-token"
+          ? "guest-user"
+          : false,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = "http://127.0.0.1:" + server.address().port;
+  const request = (bearer, body) =>
+    fetch(base + "/party", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        "Content-Type": "application/json",
+        Origin: "https://site.example",
+      },
+      body: JSON.stringify(body),
+    });
+  try {
+    const createdResponse = await request("host-token", {
+      action: "create",
+      position: 42,
+      paused: false,
+      playback: {
+        item: {
+          id: "tt123",
+          name: "Test Movie",
+          type: "movie",
+          source: "addon",
+        },
+        url: "https://media.example/movie/master.m3u8",
+        hls: true,
+        prepared: true,
+        requestHeaders: { Authorization: "must-not-leak" },
+      },
+    });
+    assert.equal(createdResponse.status, 200);
+    const created = await createdResponse.json();
+    assert.equal(created.host, true);
+    assert.equal(created.playback.url, "https://media.example/movie/master.m3u8");
+    assert.equal(created.playback.requestHeaders, undefined);
+    assert.equal(created.state.position, 42);
+
+    const joinedResponse = await request("guest-token", {
+      action: "join",
+      id: created.id,
+    });
+    assert.equal(joinedResponse.status, 200);
+    const joined = await joinedResponse.json();
+    assert.equal(joined.host, false);
+    assert.equal(joined.participants, 2);
+    assert.equal(joined.playback.url, created.playback.url);
+
+    const updatedResponse = await request("host-token", {
+      action: "state",
+      id: created.id,
+      update: { position: 75.5, paused: true },
+    });
+    const updated = await updatedResponse.json();
+    assert.equal(updated.state.position, 75.5);
+    assert.equal(updated.state.paused, true);
+
+    const stateResponse = await request("guest-token", {
+      action: "state",
+      id: created.id,
+    });
+    const state = await stateResponse.json();
+    assert.equal(state.state.position, 75.5);
+    assert.equal(state.state.paused, true);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
