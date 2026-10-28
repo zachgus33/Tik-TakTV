@@ -456,8 +456,8 @@ export default function Settings(props: Props) {
               </label>
               <p className="hint">
                 Quality is matched from add-on labels (720p, 1080p, 1440p,
-                2160p/4K, 4320p/8K). Highest reported seeder count wins, then
-                resolution. Episode files must match the selected season and
+                2160p/4K, 4320p/8K). The highest quality wins, then the highest
+                reported seeder count. Episode files must match the selected season and
                 episode. Unknown quality or ambiguous files stay in the picker.
                 Safari may still require a tap on its video play button.
               </p>
