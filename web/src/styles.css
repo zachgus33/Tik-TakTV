@@ -2276,6 +2276,26 @@ body:has(dialog[open]) {
   width: min(820px, calc(100% - 36px));
   max-height: 90dvh;
 }
+.detail-preparing {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 30px;
+  text-align: center;
+  background: #0b090ee8;
+  backdrop-filter: blur(12px);
+}
+.detail-preparing strong {
+  font-size: 18px;
+}
+.detail-preparing > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
 .close-detail {
   position: absolute;
   top: 15px;
@@ -2499,6 +2519,22 @@ body:has(dialog[open]) {
   width: min(1200px, calc(100% - 30px));
   max-height: 96dvh;
   padding: 20px;
+}
+.player-preparing {
+  width: min(460px, calc(100% - 30px));
+  padding: 34px;
+  text-align: center;
+}
+.player-preparing .spinner {
+  margin: 0 auto 8px;
+}
+.player-preparing h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.player-preparing p {
+  color: var(--muted);
+  font-size: 12px;
 }
 .player-top {
   display: flex;

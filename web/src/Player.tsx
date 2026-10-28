@@ -13,8 +13,8 @@ import {
   X,
 } from "lucide-react";
 import type Hls from "hls.js";
-import type { Episode, Item, Subtitle } from "./types";
-import { safeUrl } from "./api";
+import type { Addon, Episode, Item, Subtitle } from "./types";
+import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
@@ -33,6 +33,7 @@ export type Playback = {
   hls?: boolean;
   mode?: "direct" | "remux" | "transcode";
   subtitles?: Subtitle[];
+  subtitleRequest?: { addons: Addon[]; id: string };
   prepared?: boolean;
   party?: { id: string; host: boolean };
 };
@@ -67,6 +68,9 @@ function VideoPlayer({
   const [seekEnd, setSeekEnd] = useState(0);
   const [subtitles, setSubtitles] = useState<{ url: string; name: string }[]>(
     [],
+  );
+  const [subtitleCandidates, setSubtitleCandidates] = useState<Subtitle[]>(
+    playback.subtitles ?? [],
   );
   const [quality, setQuality] = useState<{ label: string; value: number }[]>(
     [],
@@ -113,7 +117,21 @@ function VideoPlayer({
   }, []);
   useEffect(() => {
     const c = new AbortController();
-    const candidates = playback.subtitles?.slice(0, 12) ?? [];
+    setSubtitleCandidates(playback.subtitles ?? []);
+    if (playback.subtitleRequest)
+      void addonSubtitles(
+        playback.subtitleRequest.addons,
+        playback.item,
+        playback.subtitleRequest.id,
+        c.signal,
+      ).then((loaded) => {
+        if (!c.signal.aborted) setSubtitleCandidates(loaded);
+      });
+    return () => c.abort();
+  }, [playback]);
+  useEffect(() => {
+    const c = new AbortController();
+    const candidates = subtitleCandidates.slice(0, 12);
     if (!candidates.length) return () => c.abort();
     void Promise.allSettled(
       candidates.map(async (candidate, index) => {
@@ -144,7 +162,7 @@ function VideoPlayer({
       });
     });
     return () => c.abort();
-  }, [playback.subtitles]);
+  }, [subtitleCandidates]);
   useEffect(() => {
     const video = videoRef.current!;
     let disposed = false;
@@ -737,11 +755,21 @@ export default function Player({
   }, [playback]);
   if (ready) return <VideoPlayer playback={ready} onClose={onClose} />;
   return (
-    <dialog open className="player-dialog" aria-label="Preparing playback">
+    <dialog
+      open
+      className="player-dialog player-preparing"
+      aria-label="Preparing playback"
+    >
+      <span className="spinner" />
+      <h2>
+        {error
+          ? "Could not prepare playback"
+          : `Preparing ${playback.item.name}`}
+      </h2>
       <p role={error ? "alert" : "status"}>
-        {error || "Preparing your stream..."}
+        {error || "Optimizing the selected source for your browser…"}
       </p>
-      <button onClick={onClose}>Close player</button>
+      <button onClick={onClose}>{error ? "Close player" : "Cancel"}</button>
     </dialog>
   );
 }

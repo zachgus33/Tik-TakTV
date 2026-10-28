@@ -50,7 +50,6 @@ import {
 import {
   addonDetail,
   addonStreams,
-  addonSubtitles,
   catalog,
   categories,
   defaultAddon,
@@ -626,6 +625,7 @@ function Detail({
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
   const [downloadMode, setDownloadMode] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
   const [person, setPerson] = useState<{ name: string; items: Item[] } | null>(
     null,
@@ -636,6 +636,20 @@ function Detail({
     episode?: Episode;
   } | null>(null);
   const controller = useRef<AbortController | null>(null);
+  const streamRequests = useRef(
+    new Map<string, ReturnType<typeof addonStreams>>(),
+  );
+  function requestStreams(target: Item, id: string, signal?: AbortSignal) {
+    const key = `${target.type}:${id}`;
+    const existing = streamRequests.current.get(key);
+    if (existing) return existing;
+    const request = addonStreams(addons, target, id, signal).catch((error) => {
+      streamRequests.current.delete(key);
+      throw error;
+    });
+    streamRequests.current.set(key, request);
+    return request;
+  }
   useEffect(() => {
     ref.current?.showModal();
     const c = new AbortController();
@@ -661,6 +675,16 @@ function Detail({
         setItem(result.item);
         setEpisodes(result.episodes);
         setSeason(result.episodes[0]?.season ?? null);
+        if (result.item.source === "addon") {
+          const preloadId =
+            result.item.type === "movie"
+              ? result.item.id
+              : resume?.episode?.id;
+          if (preloadId)
+            void requestStreams(result.item, preloadId, c.signal).catch(
+              () => undefined,
+            );
+        }
         if (result.item.type !== "live")
           void import("./tmdb")
             .then(async ({ peopleByName, titleCredits }) => {
@@ -700,8 +724,6 @@ function Detail({
       const compatibilityMode = getService()
         ? compatibilityPlaybackMode(stream)
         : undefined;
-      const subtitleId = ep?.id ?? item.id;
-      const subtitles = await addonSubtitles(addons, item, subtitleId, signal);
       onPlay({
         item,
         episode: ep,
@@ -712,7 +734,7 @@ function Detail({
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
         )?.request,
-        subtitles,
+        subtitleRequest: { addons, id: ep?.id ?? item.id },
       });
       return;
     }
@@ -733,12 +755,6 @@ function Detail({
       signal,
     );
     if (!signal?.aborted) {
-      const subtitles = await addonSubtitles(
-        addons,
-        item,
-        ep?.id ?? item.id,
-        signal,
-      );
       const compatibilityMode =
         getService() && !/\.(?:mp4|m4v|webm)$/i.test(prepared.selected.name)
           ? "transcode"
@@ -748,7 +764,7 @@ function Detail({
         episode: ep,
         url,
         resume: position,
-        subtitles,
+        subtitleRequest: { addons, id: ep?.id ?? item.id },
         mode: compatibilityMode,
       });
     }
@@ -868,13 +884,9 @@ function Detail({
     const c = new AbortController();
     controller.current = c;
     setBusy(true);
+    setPreparing(auto && !downloadBest);
     try {
-      const result = await addonStreams(
-        addons,
-        item,
-        ep?.id ?? item.id,
-        c.signal,
-      );
+      const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
       const ranked = rankedStreams(result.streams, !!torboxKey);
       const autoplayRanked = autoplayStreams(result.streams, !!torboxKey);
@@ -882,10 +894,20 @@ function Detail({
         if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
         else setDownloadMode(false);
       } else {
-        setStreams(result.streams);
-        setStreamsLoaded(true);
-        if (auto && autoplayRanked.length)
-          await chooseStream(autoplayRanked[0], ep, c.signal);
+        if (auto && autoplayRanked.length) {
+          try {
+            await chooseStream(autoplayRanked[0], ep, c.signal);
+          } catch (error) {
+            if (!c.signal.aborted) {
+              setStreams(result.streams);
+              setStreamsLoaded(true);
+            }
+            throw error;
+          }
+        } else {
+          setStreams(result.streams);
+          setStreamsLoaded(true);
+        }
       }
       if (!result.count)
         setError(
@@ -903,7 +925,10 @@ function Detail({
         setError(message(e));
       }
     } finally {
-      if (!c.signal.aborted) setBusy(false);
+      if (!c.signal.aborted) {
+        setBusy(false);
+        setPreparing(false);
+      }
     }
   }
   function download(ep?: Episode) {
@@ -919,6 +944,13 @@ function Detail({
   const seasons = [...new Set(episodes.map((e) => e.season))];
   return (
     <dialog ref={ref} className="detail-dialog" onCancel={onClose}>
+      {preparing && (
+        <div className="detail-preparing" role="status" aria-live="polite">
+          <span className="spinner" />
+          <strong>Preparing {item.name}</strong>
+          <span>Choosing the best source and opening the player…</span>
+        </div>
+      )}
       <button
         autoFocus
         className="icon-button close-detail"
@@ -2621,7 +2653,10 @@ export default function App() {
           saved={saved(detail)}
           toggleSave={toggleSave}
           onClose={() => setDetail(null)}
-          onPlay={setPlayback}
+          onPlay={(next) => {
+            setDetail(null);
+            setPlayback(next);
+          }}
           onSelectItem={setDetail}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />

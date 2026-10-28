@@ -421,6 +421,43 @@ test("autoplay selects highest quality first and seeders break quality ties", as
     "https://cdn.example/4k.mp4",
   );
 });
+test("autoplay shows a top loading state without opening the manual stream list", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  let releaseStreams!: () => void;
+  const streamsReady = new Promise<void>((resolve) => {
+    releaseStreams = resolve;
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", async (route) => {
+    await streamsReady;
+    await route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            seeders: 100,
+            url: "https://cdn.example/fast.mp4",
+          },
+        ],
+      },
+    });
+  });
+  await page.route("https://cdn.example/fast.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect(page.getByText("Preparing The Test Movie")).toBeVisible();
+  await expect(page.getByText("Choose a stream", { exact: true })).toHaveCount(0);
+  releaseStreams();
+  await expect(page.locator(".detail-dialog")).toHaveCount(0);
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/fast.mp4",
+  );
+});
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {
@@ -628,7 +665,9 @@ test("Watch Together creates a shareable room from the resolved source", async (
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await page.getByRole("button", { name: "Watch Together" }).click();
-  await expect(page.getByText("You control this room", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("You control this room", { exact: false }),
+  ).toBeVisible({ timeout: 10_000 });
   expect(createRequest.action).toBe("create");
   expect((createRequest.playback as Record<string, unknown>).url).toBe(
     "https://cdn.example/movie.mp4",

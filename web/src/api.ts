@@ -47,12 +47,16 @@ export function normalizeServer(value: string): string {
   u.hash = "";
   return u.href.replace(/\/$/, "");
 }
-export async function json<T>(url: string, signal?: AbortSignal): Promise<T> {
+export async function json<T>(
+  url: string,
+  signal?: AbortSignal,
+  timeoutMs = 20000,
+): Promise<T> {
   const controller = new AbortController();
   const cancel = () => controller.abort();
   if (signal?.aborted) controller.abort();
   signal?.addEventListener("abort", cancel, { once: true });
-  const timer = setTimeout(cancel, 20000);
+  const timer = setTimeout(cancel, timeoutMs);
   try {
     const r = await sourceFetch(url, {
       signal: controller.signal,
@@ -420,6 +424,7 @@ export async function addonStreams(
       const data = await json<{ streams?: Stream[] }>(
         `${a.base}/stream/${item.type}/${encodeURIComponent(id)}.json`,
         signal,
+        6000,
       );
       return (data.streams ?? []).map((s) => ({
         ...s,
