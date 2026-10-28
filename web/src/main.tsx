@@ -32,7 +32,7 @@ createRoot(document.getElementById("root")!).render(
 );
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
+  const registerServiceWorker = () => {
     let refreshing = false;
     const replacingExistingWorker = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
@@ -56,5 +56,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
       .catch(() => {
         /* App remains usable when storage is disabled. */
       });
-  });
+  };
+  if (document.readyState === "complete") registerServiceWorker();
+  else window.addEventListener("load", registerServiceWorker, { once: true });
 }
