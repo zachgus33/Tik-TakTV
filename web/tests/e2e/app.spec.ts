@@ -173,6 +173,65 @@ test("home Random Pick opens a title from the loaded catalogs", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("dialog")).toContainText("The Test Movie");
 });
+test("Discover Random Pick opens a title from the active results", async ({
+  page,
+}) => {
+  await page.goto("/#discover");
+  await expect(
+    page.locator(".media-card strong").filter({ hasText: "The Test Movie" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Random Pick" }).click();
+  await expect(page.getByRole("dialog")).toContainText("The Test Movie");
+});
+test("a title can be removed from watch history", async ({ page }) => {
+  await page.addInitScript(
+    (item) => {
+      localStorage.setItem(
+        "nuvio:progress",
+        JSON.stringify([
+          {
+            item,
+            seconds: 300,
+            duration: 1800,
+            at: Date.now(),
+          },
+        ]),
+      );
+    },
+    {
+      id: meta.id,
+      name: meta.name,
+      type: meta.type,
+      source: "addon",
+      provider: "https://v3-cinemeta.strem.io",
+      description: meta.description,
+      year: meta.year,
+    },
+  );
+  await page.goto("/#home");
+  const continueSection = page.locator(".media-row", {
+    has: page.getByRole("heading", { name: "Pick up where you left off" }),
+  });
+  await continueSection
+    .locator(".media-card strong", { hasText: "The Test Movie" })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Remove from watch history" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Remove from watch history" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Pick up where you left off" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("nuvio:progress")!),
+    ),
+  ).toEqual([]);
+});
 test("Xtream session login, channels, guide, favorites and disconnect", async ({
   page,
 }) => {
@@ -450,7 +509,9 @@ test("autoplay shows a top loading state without opening the manual stream list"
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect(page.getByText("Preparing The Test Movie")).toBeVisible();
-  await expect(page.getByText("Choose a stream", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Choose a stream", { exact: true })).toHaveCount(
+    0,
+  );
   releaseStreams();
   await expect(page.locator(".detail-dialog")).toHaveCount(0);
   await expect(page.locator("video")).toHaveAttribute(
@@ -551,7 +612,9 @@ test("browser-incompatible MKV is normalized before playback", async ({
   await expect.poll(() => prepared.mode).toBe("transcode");
   expect(prepared.live).toBe(false);
   expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
-  await expect(page.getByRole("button", { name: "Rewind 10 seconds" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Rewind 10 seconds" }),
+  ).toBeVisible();
   await expect(page.locator("video")).not.toHaveAttribute("controls", "");
 });
 test("phone autoplay chooses the highest quality stream and normalizes HEVC", async ({
@@ -719,8 +782,12 @@ test("a Watch Together invite opens the host source and timeline", async ({
     route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
   );
   await page.goto("/?party=abcdefghijklmnopqrstuvwx#home");
-  await expect(page.getByRole("heading", { name: "The Test Movie" })).toBeVisible();
-  await expect(page.getByText("Following the host", { exact: false })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "The Test Movie" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Following the host", { exact: false }),
+  ).toBeVisible();
   await expect(page.locator("video")).toHaveAttribute(
     "src",
     "https://cdn.example/party.mp4",

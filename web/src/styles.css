@@ -1086,6 +1086,15 @@ label {
   padding: 12px 20px;
   min-height: 46px;
 }
+.actions .remove-history {
+  color: #e7aab7;
+  border-color: color-mix(in srgb, #d85b76 36%, var(--line));
+}
+.actions .remove-history:hover {
+  color: #ffd6df;
+  border-color: color-mix(in srgb, #e76a84 64%, var(--line));
+  background: color-mix(in srgb, #7c2639 22%, var(--panel));
+}
 .hero-footer {
   position: absolute;
   bottom: 24px;

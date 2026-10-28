@@ -45,6 +45,7 @@ import {
   Sparkles,
   Star,
   Tv,
+  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -61,7 +62,7 @@ import {
   streamUrl,
 } from "./api";
 import { readLiveCache, writeLiveCache } from "./live-cache";
-import { cleanItem, getProvider, read, useStored } from "./storage";
+import { cleanItem, getProvider, read, save, useStored } from "./storage";
 import {
   itemKey,
   type Addon,
@@ -94,7 +95,6 @@ import {
   streamQuality,
   seeders,
 } from "./stream-selection";
-import { save } from "./storage";
 import type { FriendTemplate } from "./Settings";
 import { joinParty } from "./watch-party";
 
@@ -599,6 +599,7 @@ function Detail({
   onClose,
   onPlay,
   onSelectItem,
+  onRemoveProgress,
   resume,
   torboxKey,
   autoplay,
@@ -611,6 +612,7 @@ function Detail({
   onClose: () => void;
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
+  onRemoveProgress: (item: Item) => void;
   resume?: Progress;
   torboxKey: string;
   autoplay: boolean;
@@ -677,9 +679,7 @@ function Detail({
         setSeason(result.episodes[0]?.season ?? null);
         if (result.item.source === "addon") {
           const preloadId =
-            result.item.type === "movie"
-              ? result.item.id
-              : resume?.episode?.id;
+            result.item.type === "movie" ? result.item.id : resume?.episode?.id;
           if (preloadId)
             void requestStreams(result.item, preloadId, c.signal).catch(
               () => undefined,
@@ -1032,6 +1032,15 @@ function Detail({
             {saved ? <Check size={18} /> : <Plus size={18} />}{" "}
             {saved ? "In my library" : "My library"}
           </button>
+          {resume && (
+            <button
+              className="remove-history"
+              onClick={() => onRemoveProgress(item)}
+            >
+              <Trash2 size={18} />
+              Remove from watch history
+            </button>
+          )}
         </div>
         {(credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
           <section className="cast-section" aria-label="Cast">
@@ -1737,6 +1746,26 @@ export default function App() {
       ),
     [deferredQuery, favoritesOnly, items, library, page, region],
   );
+  const randomDiscoverPick = () => {
+    const choices = filtered.filter((item) => item.type !== "live");
+    if (!choices.length) {
+      setToast(
+        loading
+          ? "These titles are still loading. Try Random Pick again shortly."
+          : "There are no titles in the current selection to pick from.",
+      );
+      return;
+    }
+    setDetail(choices[Math.floor(Math.random() * choices.length)]);
+  };
+  const removeFromHistory = (item: Item) => {
+    const next = progress.filter(
+      (entry) => itemKey(entry.item) !== itemKey(item),
+    );
+    save("progress", next);
+    setProgress(next);
+    setToast(`${item.name} was removed from your watch history.`);
+  };
   const guideState = useGuide(
     provider,
     page === "live" ? filtered : [],
@@ -2207,6 +2236,10 @@ export default function App() {
                       ))}
                     </select>
                   )}
+                  <button onClick={randomDiscoverPick} disabled={loading}>
+                    <Dices size={17} />
+                    Random Pick
+                  </button>
                 </div>
               )}
               {page === "library" && progress.length > 0 && (
@@ -2215,7 +2248,7 @@ export default function App() {
                     <h2>Continue watching</h2>
                     <button
                       onClick={() => {
-                        localStorage.removeItem("nuvio:progress");
+                        save("progress", []);
                         setProgress([]);
                       }}
                     >
@@ -2658,6 +2691,7 @@ export default function App() {
             setPlayback(next);
           }}
           onSelectItem={setDetail}
+          onRemoveProgress={removeFromHistory}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />
       )}
