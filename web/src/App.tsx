@@ -819,7 +819,7 @@ function Detail({
       if (!c.signal.aborted) setBusy(false);
     }
   }
-  async function play(ep?: Episode, auto = autoplay) {
+  async function play(ep?: Episode, auto = autoplay, downloadBest = false) {
     setEpisode(ep);
     setError("");
     setStreams([]);
@@ -861,10 +861,15 @@ function Detail({
         c.signal,
       );
       if (c.signal.aborted) return;
-      setStreams(result.streams);
-      setStreamsLoaded(true);
       const ranked = rankedStreams(result.streams, !!torboxKey);
-      if (auto && ranked.length) await chooseStream(ranked[0], ep, c.signal);
+      if (downloadBest) {
+        if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
+        else setDownloadMode(false);
+      } else {
+        setStreams(result.streams);
+        setStreamsLoaded(true);
+        if (auto && ranked.length) await chooseStream(ranked[0], ep, c.signal);
+      }
       if (!result.count)
         setError(
           result.installedStreaming
@@ -876,7 +881,10 @@ function Detail({
           `${result.failed} add-on${result.failed === 1 ? "" : "s"} could not be reached. Other results are shown below.`,
         );
     } catch (e) {
-      if (!c.signal.aborted) setError(message(e));
+      if (!c.signal.aborted) {
+        if (downloadBest) setDownloadMode(false);
+        setError(message(e));
+      }
     } finally {
       if (!c.signal.aborted) setBusy(false);
     }
@@ -884,10 +892,12 @@ function Detail({
   function download(ep?: Episode) {
     setDownloadMode(true);
     if (item.type === "series" && !ep) {
-      setError("Choose an episode below to select its download stream.");
+      setError(
+        "Choose an episode below. TikTak TV will download its best available stream.",
+      );
       return;
     }
-    void play(ep, false);
+    void play(ep, false, true);
   }
   const seasons = [...new Set(episodes.map((e) => e.season))];
   return (

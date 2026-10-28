@@ -414,7 +414,7 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
     "https://cdn.example/best.mp4",
   );
 });
-test("downloads a selected movie stream as an MP4 through the playback service", async ({
+test("downloads the best ranked movie stream automatically as an MP4", async ({
   page,
   browserName,
 }) => {
@@ -433,7 +433,21 @@ test("downloads a selected movie stream as an MP4 through the playback service",
     route.fulfill({
       json: {
         streams: [
-          { name: "1080p download", url: "https://cdn.example/movie.mkv" },
+          {
+            name: "4K low seeds",
+            seeders: 3,
+            url: "https://cdn.example/4k.mkv",
+          },
+          {
+            name: "720p most seeds",
+            seeders: 200,
+            url: "https://cdn.example/best.mkv",
+          },
+          {
+            name: "480p high seeds",
+            seeders: 999,
+            url: "https://cdn.example/sd.mkv",
+          },
         ],
       },
     }),
@@ -454,13 +468,12 @@ test("downloads a selected movie stream as an MP4 through the playback service",
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Download", exact: true }).click();
   const transfer =
     browserName === "chromium"
       ? page.waitForEvent("download")
       : page.waitForRequest("https://playback.example/media/job/download.mp4");
-  await page.getByRole("button", { name: /1080p download/ }).click();
-  await expect.poll(() => requested.url).toBe("https://cdn.example/movie.mkv");
+  await page.getByRole("button", { name: "Download", exact: true }).click();
+  await expect.poll(() => requested.url).toBe("https://cdn.example/best.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
   const result = await transfer;
   if (browserName === "chromium")
