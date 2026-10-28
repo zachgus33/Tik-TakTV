@@ -112,6 +112,15 @@ export function sourceHeaders(value = {}) {
   }
   return result;
 }
+export function safeDownloadName(value) {
+  const cleaned = String(value ?? "TikTak TV download.mp4")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+\s*/, "")
+    .trim()
+    .slice(0, 180);
+  return (cleaned || "TikTak TV download").replace(/\.mp4$/i, "") + ".mp4";
+}
 export function rewritePlaylist(text, base, link) {
   if (/\bURI=(?!")/i.test(text)) throw new Error("Invalid HLS URI attribute");
   return text
@@ -235,6 +244,47 @@ export function createService({ token, origins }) {
         const job = jobs.get(id);
         if (job) {
           const file = route.pathname.split("/")[3];
+          if (job.kind === "download") {
+            if (file !== "download.mp4")
+              return send(404, { error: "Unknown media file" });
+            const encodedName = encodeURIComponent(job.filename);
+            res.writeHead(200, {
+              "Content-Type": "video/mp4",
+              "Content-Disposition": `attachment; filename="TikTak-TV.mp4"; filename*=UTF-8''${encodedName}`,
+              "Cache-Control": "no-store",
+            });
+            if (req.method === "HEAD") return res.end();
+            job.touched = Date.now();
+            job.process?.kill();
+            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
+              stdio: ["ignore", "pipe", "pipe"],
+              windowsHide: true,
+            });
+            job.process = child;
+            job.running = true;
+            const stop = () => {
+              if (job.process === child) {
+                job.process = null;
+                job.running = false;
+              }
+              child.kill();
+            };
+            res.once("close", stop);
+            child.stdout.on("data", () => {
+              job.touched = Date.now();
+            });
+            child.once("error", () => res.destroy());
+            child.once("exit", (code) => {
+              if (job.process === child) {
+                job.process = null;
+                job.running = false;
+              }
+              if (code && !res.destroyed) res.destroy();
+              else if (!res.writableEnded) res.end();
+            });
+            child.stdout.pipe(res);
+            return;
+          }
           if (job.kind === "webm") {
             if (file !== "stream.webm")
               return send(404, { error: "Unknown media file" });
@@ -450,6 +500,90 @@ export function createService({ token, origins }) {
           await result.close();
         }
         return;
+      }
+      if (route.pathname === "/download") {
+        await resolveTarget(body.url);
+        const runningJobs = [...jobs.values()].filter((job) => job.running);
+        if (runningJobs.length >= 2)
+          return send(429, {
+            error:
+              "Two media conversions are already active. Wait for one to finish and retry.",
+          });
+        const headers = sourceHeaders(body.headers);
+        if (
+          !Object.keys(headers).some(
+            (name) => name.toLowerCase() === "user-agent",
+          )
+        )
+          headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
+        const id = randomBytes(24).toString("base64url");
+        const input = ticket(body.url, headers);
+        const address = server.address();
+        const sourcePath = new URL(body.url).pathname.toLowerCase();
+        const inputFile = sourcePath.endsWith(".m3u8")
+          ? "stream.m3u8"
+          : "stream.ts";
+        const inputUrl =
+          "http://127.0.0.1:" +
+          address.port +
+          "/media/" +
+          input +
+          "/" +
+          inputFile;
+        const hlsInputArgs =
+          inputFile === "stream.m3u8"
+            ? [
+                "-allowed_extensions",
+                "ALL",
+                "-allowed_segment_extensions",
+                "ALL",
+                "-extension_picky",
+                "0",
+              ]
+            : [];
+        jobs.set(id, {
+          kind: "download",
+          filename: safeDownloadName(body.filename),
+          args: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-y",
+            "-fflags",
+            "+genpts+discardcorrupt",
+            ...hlsInputArgs,
+            "-i",
+            inputUrl,
+            "-map",
+            "0:v:0?",
+            "-map",
+            "0:a:0?",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "23",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "160k",
+            "-ac",
+            "2",
+            "-movflags",
+            "frag_keyframe+empty_moov+default_base_moof",
+            "-f",
+            "mp4",
+            "pipe:1",
+          ],
+          process: null,
+          touched: Date.now(),
+          running: false,
+        });
+        return send(200, { path: `/media/${id}/download.mp4` });
       }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);

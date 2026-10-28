@@ -209,3 +209,34 @@ export async function prepareMedia(
     throw new Error("Invalid playback service response.");
   return `${config.url}${data.path}`;
 }
+
+export async function prepareDownload(
+  url: string,
+  filename: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+) {
+  const config = getService();
+  if (!config)
+    throw new Error(
+      "Connect the TikTak TV playback service in Settings before downloading.",
+    );
+  const response = await serviceRequest(
+    "/download",
+    { url, filename, headers },
+    signal,
+    config,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof data.error === "string"
+        ? data.error
+        : `Download service returned HTTP ${response.status}.`,
+    );
+  }
+  const data = await response.json();
+  if (typeof data.path !== "string" || !data.path.startsWith("/media/"))
+    throw new Error("Invalid download service response.");
+  return `${config.url}${data.path}`;
+}

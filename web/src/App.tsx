@@ -1,4 +1,8 @@
-import { getService, refreshPlaybackEndpoint } from "./connection";
+import {
+  getService,
+  prepareDownload,
+  refreshPlaybackEndpoint,
+} from "./connection";
 import { storeProvider } from "./storage";
 import {
   account,
@@ -26,6 +30,7 @@ import {
   Clapperboard,
   Compass,
   Dices,
+  Download,
   Film,
   Heart,
   Home,
@@ -615,6 +620,7 @@ function Detail({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
+  const [downloadMode, setDownloadMode] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
   const [person, setPerson] = useState<{ name: string; items: Item[] } | null>(
     null,
@@ -731,6 +737,72 @@ function Detail({
       onPlay({ item, episode: ep, url, resume: position, subtitles });
     }
   }
+  function downloadFilename(ep?: Episode) {
+    const clean = (value: string) =>
+      value
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const suffix = ep
+      ? ` - S${String(ep.season).padStart(2, "0")}E${String(ep.episode).padStart(2, "0")} - ${ep.name}`
+      : "";
+    return `${clean(item.name + suffix) || "TikTak TV download"}.mp4`;
+  }
+  async function startDownload(
+    url: string,
+    ep?: Episode,
+    headers?: Record<string, string>,
+    signal?: AbortSignal,
+  ) {
+    const filename = downloadFilename(ep);
+    const downloadUrl = await prepareDownload(url, filename, headers, signal);
+    if (signal?.aborted) return;
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setDownloadMode(false);
+  }
+  async function chooseDownload(
+    stream: Stream,
+    ep?: Episode,
+    signal?: AbortSignal,
+  ) {
+    setError("");
+    setFiles(null);
+    if (directStream(stream)) {
+      await startDownload(
+        stream.url!,
+        ep,
+        (
+          stream.behaviorHints?.proxyHeaders as
+            { request?: Record<string, string> } | undefined
+        )?.request,
+        signal,
+      );
+      return;
+    }
+    if (!torboxKey)
+      throw new Error(
+        "Connect TorBox in Settings, or choose an HTTPS stream from an installed add-on.",
+      );
+    const prepared = await prepareTorbox(torboxKey, stream, ep, signal);
+    if (signal?.aborted) return;
+    if (!prepared.selected) {
+      setFiles({ ...prepared, episode: ep });
+      return;
+    }
+    const url = await torboxLink(
+      torboxKey,
+      prepared.torrentId,
+      prepared.selected.id,
+      signal,
+    );
+    await startDownload(url, ep, undefined, signal);
+  }
   async function manualStream(stream: Stream) {
     controller.current?.abort();
     const c = new AbortController();
@@ -738,7 +810,8 @@ function Detail({
     setBusy(true);
     setError("");
     try {
-      await chooseStream(stream, episode, c.signal);
+      if (downloadMode) await chooseDownload(stream, episode, c.signal);
+      else await chooseStream(stream, episode, c.signal);
     } catch (e) {
       if (!c.signal.aborted) setError(message(e));
     } finally {
@@ -806,6 +879,14 @@ function Detail({
     } finally {
       if (!c.signal.aborted) setBusy(false);
     }
+  }
+  function download(ep?: Episode) {
+    setDownloadMode(true);
+    if (item.type === "series" && !ep) {
+      setError("Choose an episode below to select its download stream.");
+      return;
+    }
+    void play(ep, false);
   }
   const seasons = [...new Set(episodes.map((e) => e.season))];
   return (
@@ -875,6 +956,16 @@ function Detail({
           {autoplay && item.source === "addon" && item.type === "movie" && (
             <button disabled={busy} onClick={() => void play(undefined, false)}>
               Find streams
+            </button>
+          )}
+          {item.source === "addon" && (
+            <button
+              disabled={busy}
+              className={downloadMode ? "selected" : undefined}
+              onClick={() => download()}
+            >
+              <Download size={18} />
+              Download
             </button>
           )}
           <button onClick={() => toggleSave(item)}>
@@ -999,16 +1090,25 @@ function Detail({
                         file.id,
                         c.signal,
                       );
-                      if (!c.signal.aborted)
-                        onPlay({
-                          item,
-                          episode: files.episode,
-                          url,
-                          resume:
-                            resume?.episode?.id === files.episode?.id
-                              ? resume?.seconds
-                              : undefined,
-                        });
+                      if (!c.signal.aborted) {
+                        if (downloadMode)
+                          await startDownload(
+                            url,
+                            files.episode,
+                            undefined,
+                            c.signal,
+                          );
+                        else
+                          onPlay({
+                            item,
+                            episode: files.episode,
+                            url,
+                            resume:
+                              resume?.episode?.id === files.episode?.id
+                                ? resume?.seconds
+                                : undefined,
+                          });
+                      }
                     } catch (e) {
                       if (!c.signal.aborted) setError(message(e));
                     } finally {
@@ -1016,7 +1116,7 @@ function Detail({
                     }
                   }}
                 >
-                  <Play size={18} />
+                  {downloadMode ? <Download size={18} /> : <Play size={18} />}
                   <span>{file.short_name ?? file.name}</span>
                 </button>
               ))}
@@ -1045,11 +1145,13 @@ function Detail({
                   <button
                     key={ep.id}
                     disabled={busy}
-                    onClick={() => void play(ep)}
+                    onClick={() =>
+                      downloadMode ? download(ep) : void play(ep)
+                    }
                   >
                     <span className="episode-number">{ep.episode}</span>
                     <span>{ep.name}</span>
-                    <Play size={18} />
+                    {downloadMode ? <Download size={18} /> : <Play size={18} />}
                   </button>
                 ))}
             </div>
@@ -1061,7 +1163,8 @@ function Detail({
         {streamsLoaded && (
           <div className="stream-results">
             <h2>
-              Choose a stream{episode ? ` · Episode ${episode.episode}` : ""}
+              {downloadMode ? "Choose a stream to download" : "Choose a stream"}
+              {episode ? ` · Episode ${episode.episode}` : ""}
             </h2>
             {streams.length === 0 && (
               <p className="muted">No streams found. Try another source.</p>
@@ -1074,7 +1177,7 @@ function Detail({
                   disabled={!playable || busy}
                   onClick={() => void manualStream(s)}
                 >
-                  <Play size={20} />
+                  {downloadMode ? <Download size={20} /> : <Play size={20} />}
                   <span>
                     <strong>{s.name ?? "Stream"}</strong>
                     <small>

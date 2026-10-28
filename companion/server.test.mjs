@@ -5,6 +5,7 @@ import {
   publicAddress,
   resolveTarget,
   rewritePlaylist,
+  safeDownloadName,
   sourceHeaders,
 } from "./server.mjs";
 test("blocks loopback, RFC1918, metadata and mapped IPv6 destinations", async () => {
@@ -50,6 +51,14 @@ test("rejects arbitrary injected headers", () => {
     "User-Agent": "Player",
   });
 });
+test("sanitizes download filenames and always emits MP4", () => {
+  assert.equal(
+    safeDownloadName("../Rebel Ridge: Director's Cut?.mkv"),
+    "Rebel Ridge Director's Cut .mkv.mp4",
+  );
+  assert.equal(safeDownloadName("movie.mp4"), "movie.mp4");
+  assert.equal(safeDownloadName("\r\n"), "TikTak TV download.mp4");
+});
 test("auth and origin gates, bounded paths and SSRF prevention apply to API and media preparation", async () => {
   const token = "a".repeat(40);
   const server = createService({ token, origins: ["https://site.example"] });
@@ -89,6 +98,19 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
           method: "POST",
           headers,
           body: JSON.stringify({ url: "http://127.0.0.1:80/" }),
+        })
+      ).status,
+      502,
+    );
+    assert.equal(
+      (
+        await fetch(base + "/download", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: "http://127.0.0.1/private.mp4",
+            filename: "private.mp4",
+          }),
         })
       ).status,
       502,

@@ -414,6 +414,52 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
     "https://cdn.example/best.mp4",
   );
 });
+test("downloads a selected movie stream as an MP4 through the playback service", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "x".repeat(40),
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          { name: "1080p download", url: "https://cdn.example/movie.mkv" },
+        ],
+      },
+    }),
+  );
+  let requested: Record<string, unknown> = {};
+  await page.route("https://playback.example/download", async (route) => {
+    requested = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({ json: { path: "/media/job/download.mp4" } });
+  });
+  await page.route("https://playback.example/media/job/download.mp4", (route) =>
+    route.fulfill({
+      contentType: "video/mp4",
+      headers: {
+        "Content-Disposition": 'attachment; filename="The Test Movie.mp4"',
+      },
+      body: "mp4",
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Download", exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: /1080p download/ }).click();
+  await expect.poll(() => requested.url).toBe("https://cdn.example/movie.mkv");
+  expect(requested.filename).toBe("The Test Movie.mp4");
+  expect((await download).suggestedFilename()).toBe("The Test Movie.mp4");
+});
 test("raw torrent is resolved through cached-only TorBox and correct file id", async ({
   page,
 }) => {
