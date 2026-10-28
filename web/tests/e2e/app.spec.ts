@@ -237,6 +237,7 @@ test("catalog manager creates, renames, reorders and hides Home rows", async ({
 }) => {
   await page.goto("/#settings");
   await page.getByRole("button", { name: /^Collections/ }).click();
+  await page.getByText("Advanced add-on Home rows", { exact: true }).click();
   await page.getByRole("button", { name: "Create layout" }).click();
 
   const manager = page.locator(".catalog-manager");
@@ -265,6 +266,7 @@ test("catalog manager creates, renames, reorders and hides Home rows", async ({
 
   await page.reload();
   await page.getByRole("button", { name: /^Collections/ }).click();
+  await page.getByText("Advanced add-on Home rows", { exact: true }).click();
   await expect(page.getByLabel("Title for Popular movies")).toHaveValue(
     "Friday night movies",
   );
@@ -462,7 +464,8 @@ test("imports native collections and opens their addon catalogs", async ({
   ).toBeVisible();
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Collections/ }).click();
-  await page.getByRole("checkbox", { name: "Cinema nights" }).uncheck();
+  await page.getByRole("button", { name: "Edit Cinema nights" }).click();
+  await page.getByRole("checkbox", { name: "Show on Home" }).uncheck();
   await page.goto("/#home");
   await expect(
     page.getByRole("button", { name: "Open Cinema nights: Movies" }),
