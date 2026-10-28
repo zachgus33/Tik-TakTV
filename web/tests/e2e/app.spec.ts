@@ -281,6 +281,7 @@ test("live TV sends the provider transport stream through browser-safe Pi transc
     .click();
   await expect.poll(() => prepared).toBeTruthy();
   expect(prepared.mode).toBe("transcode");
+  expect(prepared.live).toBe(true);
   expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
 });
 test("channels without guide data stay out of the live guide", async ({
@@ -511,6 +512,7 @@ test("browser-incompatible MKV is normalized before playback", async ({
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect.poll(() => prepared.mode).toBe("transcode");
+  expect(prepared.live).toBe(false);
   expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
 });
 test("phone autoplay prefers H.264 and normalizes MKV instead of choosing HEVC", async ({
@@ -563,6 +565,7 @@ test("phone autoplay prefers H.264 and normalizes MKV instead of choosing HEVC",
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect.poll(() => prepared.mode).toBe("transcode");
+  expect(prepared.live).toBe(false);
   expect(prepared.url).toBe("https://cdn.example/resolve");
 });
 test("downloads the best ranked movie stream automatically as an MP4", async ({

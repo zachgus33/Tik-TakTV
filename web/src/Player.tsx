@@ -471,6 +471,7 @@ export default function Player({
       playback.mode === "transcode"
         ? liveAudioCodec(navigator.userAgent)
         : undefined,
+      playback.item.type === "live",
     ).then(
       (url) => {
         if (!c.signal.aborted)
