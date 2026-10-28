@@ -37,6 +37,15 @@ export function directStream(stream: Stream): boolean {
     (stream.behaviorHints?.notWebReady !== true || !!service)
   );
 }
+export function needsCompatibilityTranscode(stream: Stream): boolean {
+  const source = [stream.url, stream.behaviorHints?.filename]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    stream.behaviorHints?.notWebReady === true ||
+    /\.(?:mkv|avi|wmv|flv|ts)(?:[?#\s]|$)/i.test(source)
+  );
+}
 function sourcePriority(stream: Stream): number {
   const text = `${stream.name ?? ""} ${stream.title ?? ""}`;
   if (/\[TB\+\].*torrentio/i.test(text)) return 3;
@@ -55,6 +64,8 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     .sort(
       (a, b) =>
         Number(directStream(b)) - Number(directStream(a)) ||
+        Number(!needsCompatibilityTranscode(b)) -
+          Number(!needsCompatibilityTranscode(a)) ||
         sourcePriority(b) - sourcePriority(a) ||
         seeders(b) - seeders(a) ||
         streamQuality(b) - streamQuality(a),

@@ -11,6 +11,7 @@ import {
   directStream,
   quality,
   rankedStreams,
+  needsCompatibilityTranscode,
   seeders,
 } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
@@ -263,6 +264,22 @@ describe("720p+ preference and safe episode matching", () => {
       infoHash: "a".repeat(40),
     };
     expect(rankedStreams([raw, direct], true)[0]).toBe(direct);
+  });
+  it("prefers browser-ready video before a higher-seeded MKV conversion", () => {
+    const mkv = {
+      name: "[TB+] Torrentio 1080p",
+      title: "Show 1080p seeders: 500",
+      url: "https://cdn.example/video",
+      behaviorHints: { filename: "Show.S01E01.1080p.mkv" },
+    };
+    const mp4 = {
+      name: "[TB+] Torrentio 720p",
+      title: "Show 720p seeders: 50",
+      url: "https://cdn.example/video.mp4",
+    };
+    expect(needsCompatibilityTranscode(mkv)).toBe(true);
+    expect(needsCompatibilityTranscode(mp4)).toBe(false);
+    expect(rankedStreams([mkv, mp4], true)[0]).toBe(mp4);
   });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {

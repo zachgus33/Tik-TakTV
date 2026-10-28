@@ -88,6 +88,7 @@ import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
 import { DEFAULT_TMDB_KEY } from "./config";
 import {
   directStream,
+  needsCompatibilityTranscode,
   rankedStreams,
   streamQuality,
   seeders,
@@ -693,13 +694,8 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
-      const streamName = [stream.url, stream.behaviorHints?.filename]
-        .filter(Boolean)
-        .join(" ");
       const compatibilityMode =
-        getService() &&
-        (stream.behaviorHints?.notWebReady === true ||
-          /\.(?:mkv|avi|wmv|flv|ts)(?:[?#\s]|$)/i.test(streamName))
+        getService() && needsCompatibilityTranscode(stream)
           ? "transcode"
           : undefined;
       const subtitleId = ep?.id ?? item.id;
@@ -893,7 +889,7 @@ function Detail({
             ? "Your streaming add-ons do not support this title ID. Try the title from an IMDb-based catalog or refresh your installed manifests in Settings."
             : "No streaming add-on is installed in this browser profile. Sign in to Nuvio to sync your add-ons, or install a configured manifest in Settings. Localhost and your website have separate settings.",
         );
-      else if (result.failed)
+      else if (result.failed && !ranked.length)
         setError(
           `${result.failed} add-on${result.failed === 1 ? "" : "s"} could not be reached. Other results are shown below.`,
         );

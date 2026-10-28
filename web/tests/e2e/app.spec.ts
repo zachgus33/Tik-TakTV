@@ -397,6 +397,12 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
       json: {
         streams: [
           { name: "4K", seeders: 3, url: "https://cdn.example/4k.mp4" },
+          {
+            name: "1080p MKV",
+            seeders: 500,
+            url: "https://cdn.example/video",
+            behaviorHints: { filename: "Movie.1080p.mkv" },
+          },
           { name: "720p", seeders: 200, url: "https://cdn.example/best.mp4" },
           { name: "480p", seeders: 999, url: "https://cdn.example/sd.mp4" },
         ],
