@@ -1,13 +1,29 @@
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns/promises";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGzip } from "node:zlib";
@@ -142,6 +158,97 @@ export function createService({ token, origins }) {
   const jobs = new Map();
   const tickets = new Map();
   const accountTokens = new Map();
+  const friendAttempts = new Map();
+  const friendOwner = process.env.FRIEND_OWNER_USER_ID ?? "";
+  const friendVaultPath =
+    process.env.FRIEND_VAULT_PATH ??
+    join(process.cwd(), "runtime", "friend-vault.json");
+  const friendKey = (() => {
+    try {
+      const value = Buffer.from(process.env.FRIEND_VAULT_KEY ?? "", "base64");
+      return value.length === 32 ? value : null;
+    } catch {
+      return null;
+    }
+  })();
+  let friendVaultCache;
+  async function readFriendVault() {
+    if (friendVaultCache) return friendVaultCache;
+    if (!friendKey) return null;
+    try {
+      const stored = JSON.parse(await readFile(friendVaultPath, "utf8"));
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        friendKey,
+        Buffer.from(stored.iv, "base64"),
+      );
+      decipher.setAuthTag(Buffer.from(stored.tag, "base64"));
+      const plaintext = Buffer.concat([
+        decipher.update(Buffer.from(stored.data, "base64")),
+        decipher.final(),
+      ]);
+      friendVaultCache = JSON.parse(plaintext.toString("utf8"));
+      return friendVaultCache;
+    } catch {
+      return null;
+    }
+  }
+  async function writeFriendVault(value) {
+    if (!friendKey)
+      throw new Error("Friend vault encryption is not configured");
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", friendKey, iv);
+    const data = Buffer.concat([
+      cipher.update(JSON.stringify(value), "utf8"),
+      cipher.final(),
+    ]);
+    await mkdir(join(friendVaultPath, ".."), { recursive: true });
+    const output = JSON.stringify({
+      version: 1,
+      iv: iv.toString("base64"),
+      tag: cipher.getAuthTag().toString("base64"),
+      data: data.toString("base64"),
+    });
+    const temporary = `${friendVaultPath}.${randomBytes(6).toString("hex")}`;
+    await writeFile(temporary, output, { mode: 0o600 });
+    await rename(temporary, friendVaultPath);
+    friendVaultCache = value;
+  }
+  function friendGrant(userId, version) {
+    if (!friendKey) throw new Error("Friend access is not configured");
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: userId,
+        exp: Date.now() + 30 * 24 * 60 * 60_000,
+        version,
+      }),
+    ).toString("base64url");
+    const signature = createHmac("sha256", friendKey)
+      .update(payload)
+      .digest("base64url");
+    return `${payload}.${signature}`;
+  }
+  function validFriendGrant(value, userId, version) {
+    if (!friendKey || typeof value !== "string") return false;
+    try {
+      const [payload, signature] = value.split(".");
+      const expected = createHmac("sha256", friendKey).update(payload).digest();
+      const supplied = Buffer.from(signature, "base64url");
+      if (
+        supplied.length !== expected.length ||
+        !timingSafeEqual(supplied, expected)
+      )
+        return false;
+      const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+      return (
+        data.sub === userId &&
+        Number(data.exp) > Date.now() &&
+        Number(data.version) === Number(version)
+      );
+    } catch {
+      return false;
+    }
+  }
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
     if (tickets.size > 5000) throw new Error("Playback capacity reached");
@@ -168,14 +275,14 @@ export function createService({ token, origins }) {
   const authorized = async (req) => {
     const a = Buffer.from(req.headers.authorization ?? "");
     const b = Buffer.from(`Bearer ${token}`);
-    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    if (a.length === b.length && timingSafeEqual(a, b)) return "service";
     const bearer = String(req.headers.authorization ?? "").replace(
       /^Bearer\s+/i,
       "",
     );
     if (!bearer || bearer.length > 4096) return false;
     const cached = accountTokens.get(bearer);
-    if (cached && cached > Date.now()) return true;
+    if (cached && cached.expires > Date.now()) return cached.userId;
     try {
       const response = await upstreamFetch(
         "https://api.nuvio.tv/auth/v1/user",
@@ -190,11 +297,14 @@ export function createService({ token, origins }) {
       if (!response.ok) return false;
       const user = await response.json();
       if (!user?.id) return false;
-      accountTokens.set(bearer, Date.now() + 5 * 60_000);
+      accountTokens.set(bearer, {
+        userId: user.id,
+        expires: Date.now() + 5 * 60_000,
+      });
       if (accountTokens.size > 200)
-        for (const [key, expires] of accountTokens)
-          if (expires < Date.now()) accountTokens.delete(key);
-      return true;
+        for (const [key, entry] of accountTokens)
+          if (entry.expires < Date.now()) accountTokens.delete(key);
+      return user.id;
     } catch {
       return false;
     }
@@ -236,6 +346,47 @@ export function createService({ token, origins }) {
         if (!(await authorized(req)))
           return send(401, { error: "Playback service key required" });
         return send(200, { ok: true, version: 1 });
+      }
+      if (route.pathname.startsWith("/friend/addon/")) {
+        if (!["GET", "HEAD"].includes(req.method))
+          return send(405, { error: "Method not allowed" });
+        const userId = await authorized(req);
+        if (!userId || userId === "service")
+          return send(401, { error: "Sign in to use this shared add-on." });
+        const parts = route.pathname.split("/").filter(Boolean);
+        const grant = parts[2];
+        const index = Number(parts[3]);
+        const resourcePath = parts.slice(4).join("/");
+        const vault = await readFriendVault();
+        if (
+          !vault ||
+          !validFriendGrant(grant, userId, vault.updated) ||
+          !Number.isInteger(index) ||
+          index < 0 ||
+          index >= vault.template.addons.length ||
+          !/^(?:manifest\.json|(?:catalog|meta|stream|subtitles)\/[^/]+\/[^/]+\.json)$/.test(
+            resourcePath,
+          )
+        )
+          return send(403, { error: "Shared add-on access expired." });
+        const addon = vault.template.addons[index];
+        const target = `${String(addon.base).replace(/\/$/, "")}/${resourcePath}${route.search}`;
+        const result = await fetchSafe(target, {
+          method: req.method,
+          signal: controller.signal,
+        });
+        try {
+          res.writeHead(result.response.status, {
+            "Content-Type":
+              result.response.headers.get("content-type") ??
+              "application/json; charset=utf-8",
+          });
+          if (req.method === "HEAD" || !result.response.body) res.end();
+          else await pipeline(Readable.fromWeb(result.response.body), res);
+        } finally {
+          await result.close();
+        }
+        return;
       }
       if (route.pathname.startsWith("/media/")) {
         if (!["GET", "HEAD"].includes(req.method))
@@ -426,11 +577,103 @@ export function createService({ token, origins }) {
         }
         return;
       }
-      if (!(await authorized(req)))
-        return send(401, { error: "Playback service key required" });
+      const userId = await authorized(req);
+      if (!userId) return send(401, { error: "Playback service key required" });
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/friend/status") {
+        const vault = await readFriendVault();
+        return send(200, {
+          available: !!vault,
+          owner: userId === friendOwner,
+        });
+      }
+      if (route.pathname === "/friend/setup") {
+        if (!friendOwner || userId !== friendOwner)
+          return send(403, {
+            error: "Only the TikTak TV owner can publish this setup.",
+          });
+        if (!friendKey)
+          return send(503, {
+            error: "Friend vault encryption is not configured.",
+          });
+        const code = String(body.code ?? "").trim();
+        const torboxKey = String(body.torboxKey ?? "").trim();
+        const template = body.template;
+        if (!/^\d{6,12}$/.test(code))
+          return send(400, { error: "Use a 6 to 12 digit friend code." });
+        if (!torboxKey || torboxKey.startsWith("friend:"))
+          return send(400, {
+            error: "Connect the owner TorBox key before publishing.",
+          });
+        if (
+          !template ||
+          !Array.isArray(template.addons) ||
+          template.addons.length > 100 ||
+          !Array.isArray(template.collections) ||
+          !Array.isArray(template.homeCatalogs)
+        )
+          return send(400, { error: "The shared setup is invalid." });
+        const salt = randomBytes(16);
+        const codeHash = scryptSync(code, salt, 32);
+        await writeFriendVault({
+          codeSalt: salt.toString("base64"),
+          codeHash: codeHash.toString("base64"),
+          torboxKey,
+          template,
+          updated: Date.now(),
+        });
+        return send(200, { ok: true });
+      }
+      if (route.pathname === "/friend/redeem") {
+        if (userId === "service")
+          return send(403, {
+            error: "Sign in to Nuvio before using a friend code.",
+          });
+        const attemptKey = `${userId}:${req.socket.remoteAddress ?? "unknown"}`;
+        const attempt = friendAttempts.get(attemptKey) ?? {
+          count: 0,
+          reset: Date.now() + 15 * 60_000,
+        };
+        if (attempt.reset < Date.now()) {
+          attempt.count = 0;
+          attempt.reset = Date.now() + 15 * 60_000;
+        }
+        if (attempt.count >= 6)
+          return send(429, {
+            error: "Too many attempts. Try again in 15 minutes.",
+          });
+        attempt.count += 1;
+        friendAttempts.set(attemptKey, attempt);
+        const vault = await readFriendVault();
+        const code = String(body.code ?? "").trim();
+        if (!vault || !/^\d{6,12}$/.test(code))
+          return send(403, { error: "That friend code was not accepted." });
+        const actual = scryptSync(
+          code,
+          Buffer.from(vault.codeSalt, "base64"),
+          32,
+        );
+        const expected = Buffer.from(vault.codeHash, "base64");
+        if (
+          actual.length !== expected.length ||
+          !timingSafeEqual(actual, expected)
+        )
+          return send(403, { error: "That friend code was not accepted." });
+        friendAttempts.delete(attemptKey);
+        const grant = friendGrant(userId, vault.updated);
+        return send(200, {
+          template: {
+            ...vault.template,
+            addons: vault.template.addons.map((addon, index) => ({
+              ...addon,
+              base: `https://friend.tiktaktv.invalid/${grant}/${index}`,
+            })),
+          },
+          torboxKey: `friend:${grant}`,
+        });
+      }
       if (route.pathname === "/guide") {
         const url = new URL(body.url);
         if (!/\/xmltv\.php$/.test(url.pathname))
@@ -841,6 +1084,23 @@ export function createService({ token, origins }) {
             error: "Only add-on and IPTV API paths are allowed",
           });
         const headers = sourceHeaders(body.headers);
+        if (isTorbox) {
+          const supplied = String(
+            headers.Authorization ?? headers.authorization ?? "",
+          ).replace(/^Bearer\s+/i, "");
+          if (supplied.startsWith("friend:")) {
+            const grant = supplied.slice("friend:".length);
+            const vault = await readFriendVault();
+            if (!vault || !validFriendGrant(grant, userId, vault.updated))
+              return send(403, {
+                error: "Friend access expired. Enter the friend code again.",
+              });
+            headers.Authorization = `Bearer ${vault.torboxKey}`;
+            delete headers.authorization;
+            if (url.pathname.endsWith("/requestdl"))
+              url.searchParams.set("token", vault.torboxKey);
+          }
+        }
         let data;
         if (body.form) {
           if (

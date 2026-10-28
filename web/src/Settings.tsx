@@ -1,17 +1,19 @@
 import ConnectionPanel from "./ConnectionPanel";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Blocks,
   CheckCircle2,
   ExternalLink,
   Globe2,
   LibraryBig,
+  KeyRound,
   Palette,
   PlayCircle,
   Plus,
   Radio,
   ShieldCheck,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { connectProvider, installAddon, parsePlaylist, safeUrl } from "./api";
 import { storeProvider, save } from "./storage";
@@ -20,6 +22,19 @@ import { type Collection, type Transfer, addonUrls } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
 import { validateTorboxKey } from "./torbox";
 import DataTools from "./DataTools";
+import {
+  friendAccessStatus,
+  publishFriendSetup,
+  redeemFriendSetup,
+} from "./connection";
+import type { HomeCatalogSetting } from "./account";
+
+export type FriendTemplate = {
+  addons: Addon[];
+  collections: Collection[];
+  autoplay: boolean;
+  homeCatalogs: HomeCatalogSetting[];
+};
 
 type Props = {
   provider: Provider | null;
@@ -41,6 +56,11 @@ type Props = {
   playbackConnected: boolean;
   tmdbKey: string;
   onTmdbKey: (key: string) => void;
+  friendTemplate: FriendTemplate;
+  onFriendTemplate: (
+    template: FriendTemplate,
+    torboxKey: string,
+  ) => Promise<void>;
 };
 type SettingsSection =
   "addons" | "collections" | "live" | "playback" | "general";
@@ -83,6 +103,19 @@ export default function Settings(props: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [remember, setRemember] = useState(false);
+  const [friendStatus, setFriendStatus] = useState<{
+    available: boolean;
+    owner: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!props.playbackConnected) {
+      setFriendStatus(null);
+      return;
+    }
+    void friendAccessStatus()
+      .then(setFriendStatus)
+      .catch(() => setFriendStatus(null));
+  }, [props.playbackConnected]);
   async function run(name: string, fn: () => Promise<void>) {
     setBusy(name);
     setError("");
@@ -142,6 +175,124 @@ export default function Settings(props: Props) {
           </header>
           <div hidden={section !== "playback"}>
             <ConnectionPanel restored={props.playbackConnected} />
+            <section className="settings-card">
+              <div className="card-heading">
+                <UsersRound />
+                <div>
+                  <h2>Friend setup</h2>
+                  <p>Install the owner’s complete streaming configuration.</p>
+                </div>
+                {friendStatus?.available && (
+                  <span className="badge connected">Available</span>
+                )}
+              </div>
+              <p>
+                Enter the private code to copy every configured add-on, catalog
+                order, collection, filter, and playback preference to this Nuvio
+                profile. TorBox access is granted through the encrypted TikTak
+                TV service without revealing the owner key.
+              </p>
+              <form
+                className="inline-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = event.currentTarget;
+                  const code = String(new FormData(form).get("friendCode"));
+                  void run("friend-redeem", async () => {
+                    const result = await redeemFriendSetup<FriendTemplate>(
+                      code.trim(),
+                    );
+                    await props.onFriendTemplate(
+                      result.template,
+                      result.torboxKey,
+                    );
+                    form.reset();
+                    setSuccess(
+                      "Friend setup installed and saved to this Nuvio profile.",
+                    );
+                  });
+                }}
+              >
+                <label className="grow">
+                  Friend code
+                  <input
+                    name="friendCode"
+                    inputMode="numeric"
+                    pattern="[0-9]{6,12}"
+                    autoComplete="one-time-code"
+                    placeholder="6–12 digit code"
+                    required
+                  />
+                </label>
+                <button disabled={!!busy || !props.playbackConnected}>
+                  <KeyRound size={18} />
+                  {busy === "friend-redeem" ? "Installing…" : "Install setup"}
+                </button>
+              </form>
+              {!props.playbackConnected && (
+                <p className="hint">
+                  Connect the TikTak TV playback service above before entering a
+                  friend code.
+                </p>
+              )}
+              {friendStatus?.owner && (
+                <details>
+                  <summary>Owner controls</summary>
+                  <p className="hint">
+                    Publishing replaces the shared template and friend code.
+                    Personal library items, watch history, profiles, and IPTV
+                    credentials are excluded.
+                  </p>
+                  <form
+                    className="inline-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const form = event.currentTarget;
+                      const code = String(
+                        new FormData(form).get("ownerFriendCode"),
+                      ).trim();
+                      void run("friend-publish", async () => {
+                        await publishFriendSetup(
+                          code,
+                          props.torboxKey,
+                          props.friendTemplate as unknown as Record<
+                            string,
+                            unknown
+                          >,
+                        );
+                        setFriendStatus({ available: true, owner: true });
+                        form.reset();
+                        setSuccess(
+                          "Friend code updated with your current add-ons and catalog setup.",
+                        );
+                      });
+                    }}
+                  >
+                    <label className="grow">
+                      New friend code
+                      <input
+                        name="ownerFriendCode"
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]{6,12}"
+                        autoComplete="new-password"
+                        required
+                      />
+                    </label>
+                    <button disabled={!!busy || !props.torboxKey}>
+                      {busy === "friend-publish"
+                        ? "Encrypting…"
+                        : "Publish current setup"}
+                    </button>
+                  </form>
+                  {!props.torboxKey && (
+                    <p className="hint">
+                      Connect your TorBox key below before publishing.
+                    </p>
+                  )}
+                </details>
+              )}
+            </section>
             <section className="settings-card">
               <h2>Torrentio & TorBox playback</h2>
               <p>

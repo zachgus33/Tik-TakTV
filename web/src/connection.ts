@@ -155,6 +155,22 @@ export async function sourceFetch(
   forceService = false,
 ): Promise<Response> {
   const config = getService();
+  try {
+    const shared = new URL(url);
+    if (shared.hostname === "friend.tiktaktv.invalid") {
+      if (!config)
+        throw new Error("Connect the TikTak TV playback service first.");
+      return serviceRequest(
+        `/friend/addon${shared.pathname}${shared.search}`,
+        undefined,
+        options.signal ?? undefined,
+        config,
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("playback service"))
+      throw error;
+  }
   const relay = () =>
     serviceRequest(
       "/request",
@@ -240,3 +256,37 @@ export async function prepareDownload(
     throw new Error("Invalid download service response.");
   return `${config.url}${data.path}`;
 }
+
+async function friendRequest<T>(
+  path: "/friend/status" | "/friend/setup" | "/friend/redeem",
+  body: Record<string, unknown> = {},
+) {
+  const config = getService();
+  if (!config) throw new Error("Connect the TikTak TV playback service first.");
+  const response = await serviceRequest(path, body, undefined, config);
+  const data = (await response.json().catch(() => ({}))) as T & {
+    error?: string;
+  };
+  if (!response.ok)
+    throw new Error(
+      data.error || `Friend access returned HTTP ${response.status}.`,
+    );
+  return data;
+}
+
+export const friendAccessStatus = () =>
+  friendRequest<{ available: boolean; owner: boolean }>("/friend/status");
+
+export const publishFriendSetup = (
+  code: string,
+  torboxKey: string,
+  template: Record<string, unknown>,
+) =>
+  friendRequest<{ ok: boolean }>("/friend/setup", {
+    code,
+    torboxKey,
+    template,
+  });
+
+export const redeemFriendSetup = <T>(code: string) =>
+  friendRequest<{ template: T; torboxKey: string }>("/friend/redeem", { code });

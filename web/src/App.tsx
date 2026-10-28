@@ -93,6 +93,7 @@ import {
   seeders,
 } from "./stream-selection";
 import { save } from "./storage";
+import type { FriendTemplate } from "./Settings";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
@@ -2486,6 +2487,25 @@ export default function App() {
                   playbackConnected={!!getService()}
                   tmdbKey={tmdbKey}
                   onTmdbKey={setTmdbKey}
+                  friendTemplate={{
+                    addons,
+                    collections,
+                    autoplay,
+                    homeCatalogs,
+                  }}
+                  onFriendTemplate={async (
+                    template: FriendTemplate,
+                    friendTorboxKey: string,
+                  ) => {
+                    setAddons(template.addons);
+                    setCollections(template.collections);
+                    setAutoplay(template.autoplay);
+                    setHomeCatalogs(template.homeCatalogs);
+                    setTorboxKey(friendTorboxKey);
+                    save("torbox-key", friendTorboxKey);
+                    sessionStorage.removeItem("nuvio:torbox-key");
+                    setRevision((value) => value + 1);
+                  }}
                 />
               </Suspense>
             )}

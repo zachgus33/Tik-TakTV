@@ -468,6 +468,71 @@ test("downloads a selected movie stream as an MP4 through the playback service",
       "The Test Movie.mp4",
     );
 });
+test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "x".repeat(40),
+      }),
+    ),
+  );
+  await page.route("https://playback.example/friend/status", (route) =>
+    route.fulfill({ json: { available: true, owner: false } }),
+  );
+  let submittedCode = "";
+  await page.route("https://playback.example/friend/redeem", async (route) => {
+    submittedCode = JSON.parse(route.request().postData() ?? "{}").code;
+    await route.fulfill({
+      json: {
+        torboxKey: "friend:signed-grant",
+        template: {
+          addons: [
+            {
+              base: "https://v3-cinemeta.strem.io",
+              manifest: {
+                id: "com.linvo.cinemeta",
+                name: "Owner catalog",
+                resources: ["catalog", "meta", "stream"],
+                types: ["movie", "series"],
+                catalogs: [{ id: "top", type: "movie" }],
+              },
+            },
+          ],
+          collections: [],
+          autoplay: false,
+          homeCatalogs: [
+            {
+              addon_id: "com.linvo.cinemeta",
+              type: "movie",
+              catalog_id: "top",
+              enabled: true,
+              order: 0,
+              custom_title: "Owner picks",
+            },
+          ],
+        },
+      },
+    });
+  });
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Playback/ }).click();
+  await page.getByLabel("Friend code").fill("389853");
+  await page.getByRole("button", { name: "Install setup" }).click();
+  await expect(page.getByText(/Friend setup installed/)).toBeVisible();
+  expect(submittedCode).toBe("389853");
+  const stored = await page.evaluate(() => ({
+    addons: JSON.parse(localStorage.getItem("nuvio:addons") ?? "[]"),
+    catalogs: JSON.parse(localStorage.getItem("nuvio:home-catalogs") ?? "[]"),
+    torbox: JSON.parse(localStorage.getItem("nuvio:torbox-key") ?? '""'),
+  }));
+  expect(stored.addons[0].manifest.name).toBe("Owner catalog");
+  expect(stored.catalogs[0].custom_title).toBe("Owner picks");
+  expect(stored.torbox).toBe("friend:signed-grant");
+});
 test("raw torrent is resolved through cached-only TorBox and correct file id", async ({
   page,
 }) => {
