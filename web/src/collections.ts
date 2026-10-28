@@ -15,6 +15,10 @@ export type CollectionFolder = {
   sources?: CollectionSource[];
   catalogSources?: CollectionSource[];
   itemKeys?: string[];
+  layout?: "wide" | "poster";
+  tileShape?: "LANDSCAPE" | "POSTER" | string;
+  coverImageUrl?: string;
+  coverEmoji?: string;
   [key: string]: unknown;
 };
 export type Collection = {
@@ -22,6 +26,10 @@ export type Collection = {
   title: string;
   folders: CollectionFolder[];
   showOnHome?: boolean;
+  backdropImageUrl?: string;
+  pinToTop?: boolean;
+  viewMode?: "FOLLOW_LAYOUT" | "TABS" | "tabs" | "rows" | string;
+  showAllTab?: boolean;
   [key: string]: unknown;
 };
 export type Transfer = {

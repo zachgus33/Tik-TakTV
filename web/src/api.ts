@@ -290,7 +290,7 @@ export const defaultAddon: Addon = {
   base: "https://v3-cinemeta.strem.io",
   manifest: {
     id: "com.linvo.cinemeta",
-    name: "Cinemeta",
+    name: "Nuvio Catalog Addon",
     types: ["movie", "series"],
     resources: ["catalog", "meta"],
     catalogs: [

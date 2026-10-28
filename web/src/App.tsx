@@ -438,9 +438,10 @@ function ProfileGate({
               </button>
               {authMode === "signup" && (
                 <p className="profile-auth-note">
-                  Your account starts with Cinemeta, English subtitles from
-                  OpenSubtitles v3. Add your preferred streaming source in
-                  Settings when you are ready to watch.
+                  Your account starts with Nuvio Catalog Addon, English
+                  subtitles from OpenSubtitles v3, and shared TMDB metadata. Add
+                  your preferred streaming source in Settings when you are ready
+                  to watch.
                 </p>
               )}
             </form>
@@ -1366,9 +1367,9 @@ export default function App() {
     if (s.playbackService)
       window.dispatchEvent(new Event("connections-changed"));
     const accountTmdbKey = s.tmdbKey?.trim();
-    setTmdbKey(accountTmdbKey || DEFAULT_TMDB_KEY);
-    if (accountTmdbKey) localStorage.setItem("nuvio:tmdb-key", accountTmdbKey);
-    else localStorage.removeItem("nuvio:tmdb-key");
+    const resolvedTmdbKey = accountTmdbKey || DEFAULT_TMDB_KEY;
+    setTmdbKey(resolvedTmdbKey);
+    localStorage.setItem("nuvio:tmdb-key", resolvedTmdbKey);
     setAddons(s.addons);
     const collectionSettings =
       s.homeCatalogs?.filter((x) => x.is_collection) ?? [];

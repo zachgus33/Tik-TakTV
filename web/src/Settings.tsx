@@ -30,6 +30,7 @@ import {
 } from "./connection";
 import type { HomeCatalogSetting } from "./account";
 import CatalogManager from "./CatalogManager";
+import CollectionManager from "./CollectionManager";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -728,11 +729,20 @@ export default function Settings(props: Props) {
             </section>
           </div>
           <div hidden={section !== "collections"}>
-            <CatalogManager
+            <CollectionManager
+              collections={props.collections}
+              onChange={props.onCollections}
               addons={props.addons}
-              value={props.homeCatalogs}
-              onChange={props.onHomeCatalogs}
+              library={props.library}
             />
+            <details className="advanced-catalog-settings">
+              <summary>Advanced add-on Home rows</summary>
+              <CatalogManager
+                addons={props.addons}
+                value={props.homeCatalogs}
+                onChange={props.onHomeCatalogs}
+              />
+            </details>
             <section className="settings-card">
               <h2>TMDB collections</h2>
               <p>
@@ -772,40 +782,6 @@ export default function Settings(props: Props) {
                   {busy === "tmdb" ? "Checking…" : "Connect TMDB"}
                 </button>
               </form>
-            </section>
-            <section className="settings-card">
-              <h2>Home collections</h2>
-              <p>
-                Choose which synced collections appear on Home. Hidden
-                collections stay in your Nuvio account and can be turned back on
-                here.
-              </p>
-              {props.collections.length ? (
-                <div className="setting-list">
-                  {props.collections.map((collection) => (
-                    <label key={collection.id}>
-                      <input
-                        type="checkbox"
-                        checked={collection.showOnHome !== false}
-                        onChange={(event) =>
-                          props.onCollections(
-                            props.collections.map((item) =>
-                              item.id === collection.id
-                                ? { ...item, showOnHome: event.target.checked }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                      {collection.title}
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="hint">
-                  Sign in to Nuvio or import collections first.
-                </p>
-              )}
             </section>
           </div>
           <div hidden={section !== "general"}>

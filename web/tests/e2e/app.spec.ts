@@ -75,7 +75,7 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByLabel("Confirm password")).toBeVisible();
   await expect(
-    page.getByText(/starts with Cinemeta.*OpenSubtitles v3/),
+    page.getByText(/starts with Nuvio Catalog Addon.*OpenSubtitles v3/),
   ).toBeVisible();
 });
 
@@ -1321,6 +1321,9 @@ test.describe("authenticated integrations", () => {
     ]);
     await page.getByRole("button", { name: /Home/ }).click();
     await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("nuvio:tmdb-key")))
+      .toBe("c49921f8195461e369d52a70a15fc8e1");
+    await expect
       .poll(() =>
         addonsPayload?.p_addons?.every(
           (addon: { name?: string; url?: string }) =>
@@ -1328,6 +1331,12 @@ test.describe("authenticated integrations", () => {
         ),
       )
       .toBe(true);
+    expect(addonsPayload?.p_addons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "Nuvio Catalog Addon" }),
+        expect.objectContaining({ name: "OpenSubtitles v3" }),
+      ]),
+    );
     await page.goto("/#settings");
     await page.getByRole("button", { name: /Add-ons/ }).click();
     await expect(page.getByText("PenguPlay", { exact: true })).toHaveCount(0);
@@ -1356,10 +1365,14 @@ test.describe("authenticated integrations", () => {
     const collection = {
       id: "services",
       title: "Streaming Services",
+      pinToTop: true,
+      viewMode: "FOLLOW_LAYOUT",
+      showAllTab: true,
       folders: [
         {
           id: "prime",
           title: "Prime Video",
+          tileShape: "LANDSCAPE",
           sources: [
             {
               provider: "addon",
@@ -1460,6 +1473,30 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
+    await page.getByRole("button", { name: /^Collections/ }).click();
+    await expect(
+      page.getByRole("button", { name: /Streaming Services/ }).first(),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Edit Streaming Services" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Streaming Services" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("View mode")).toHaveValue("FOLLOW_LAYOUT");
+    await page
+      .getByLabel("Backdrop image")
+      .fill("https://images.example/streaming-services.jpg");
+    await expect
+      .poll(() =>
+        pushes.some(
+          (entry) =>
+            entry.path.endsWith("sync_push_collections") &&
+            entry.body.p_collections_json?.[0]?.backdropImageUrl ===
+              "https://images.example/streaming-services.jpg" &&
+            entry.body.p_collections_json?.[0]?.viewMode === "FOLLOW_LAYOUT" &&
+            entry.body.p_collections_json?.[0]?.showAllTab === true,
+        ),
+      )
+      .toBe(true);
     await page.goto("/#account");
     await page.getByText("Show selector", { exact: true }).click();
     await page.goto("/#home");
