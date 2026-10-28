@@ -416,6 +416,7 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
 });
 test("downloads a selected movie stream as an MP4 through the playback service", async ({
   page,
+  browserName,
 }) => {
   await streamingAddon(page);
   await page.addInitScript(() =>
@@ -454,11 +455,18 @@ test("downloads a selected movie stream as an MP4 through the playback service",
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Download", exact: true }).click();
-  const download = page.waitForEvent("download");
+  const transfer =
+    browserName === "chromium"
+      ? page.waitForEvent("download")
+      : page.waitForRequest("https://playback.example/media/job/download.mp4");
   await page.getByRole("button", { name: /1080p download/ }).click();
   await expect.poll(() => requested.url).toBe("https://cdn.example/movie.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
-  expect((await download).suggestedFilename()).toBe("The Test Movie.mp4");
+  const result = await transfer;
+  if (browserName === "chromium")
+    expect("suggestedFilename" in result && result.suggestedFilename()).toBe(
+      "The Test Movie.mp4",
+    );
 });
 test("raw torrent is resolved through cached-only TorBox and correct file id", async ({
   page,
