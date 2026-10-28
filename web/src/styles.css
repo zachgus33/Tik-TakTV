@@ -3270,6 +3270,13 @@ body:has(dialog[open]) {
     border-radius: 16px;
     background: color-mix(in srgb, var(--panel) 88%, transparent);
   }
+  .filter-toolbar .tabs {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+  }
   .filter-toolbar > button,
   .filter-toolbar > select {
     width: 100%;

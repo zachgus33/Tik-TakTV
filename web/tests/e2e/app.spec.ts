@@ -414,6 +414,99 @@ test("autoplay selects 720p with most seeders over 4K and SD", async ({
     "https://cdn.example/best.mp4",
   );
 });
+test("search uses every searchable catalog even when a trending catalog is selected", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://search.example",
+          manifest: {
+            id: "search-test",
+            name: "Search test",
+            types: ["series"],
+            resources: ["catalog", "meta"],
+            catalogs: [
+              { id: "trending", type: "series", name: "Trending Series" },
+              {
+                id: "find",
+                type: "series",
+                name: "Series search",
+                extra: [{ name: "search" }],
+              },
+            ],
+          },
+        },
+      ]),
+    ),
+  );
+  let searched = "";
+  await page.route("https://search.example/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes("/catalog/series/find/search=")) searched = path;
+    return route.fulfill({
+      json: {
+        metas: path.includes("/catalog/series/find/search=")
+          ? [{ ...meta, id: "tt7587890", name: "The Rookie", type: "series" }]
+          : [],
+      },
+    });
+  });
+  await page.goto("/#discover");
+  await page.getByRole("button", { name: "Series" }).click();
+  await page.getByLabel("Search titles or channels").fill("the rookie");
+  await expect(page.locator(".media-card strong")).toHaveText("The Rookie");
+  expect(searched).toContain("search=the%20rookie");
+  await expect(page.getByLabel("Catalog")).toHaveValue(/trending/);
+});
+test("browser-incompatible add-on video is transcoded before playback", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            seeders: 100,
+            url: "https://cdn.example/the-rookie.mkv",
+          },
+        ],
+      },
+    }),
+  );
+  let prepared: Record<string, unknown> = {};
+  await page.route("https://playback.example/prepare", async (route) => {
+    prepared = route.request().postDataJSON();
+    await route.fulfill({ json: { path: "/media/rookie/index.m3u8" } });
+  });
+  await page.route(
+    "https://playback.example/media/rookie/index.m3u8",
+    (route) =>
+      route.fulfill({
+        contentType: "application/vnd.apple.mpegurl",
+        body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+      }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect.poll(() => prepared.mode).toBe("transcode");
+  expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
+});
 test("downloads the best ranked movie stream automatically as an MP4", async ({
   page,
   browserName,

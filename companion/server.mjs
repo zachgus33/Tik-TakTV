@@ -364,7 +364,7 @@ export function createService({ token, origins }) {
           !Number.isInteger(index) ||
           index < 0 ||
           index >= vault.template.addons.length ||
-          !/^(?:manifest\.json|(?:catalog|meta|stream|subtitles)\/[^/]+\/[^/]+\.json)$/.test(
+          !/^(?:manifest\.json|catalog\/[^/]+\/[^/]+(?:\/[^/]+)?\.json|(?:meta|stream|subtitles)\/[^/]+\/[^/]+\.json)$/.test(
             resourcePath,
           )
         )

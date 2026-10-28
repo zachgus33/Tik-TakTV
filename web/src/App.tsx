@@ -693,6 +693,15 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
+      const streamName = [stream.url, stream.behaviorHints?.filename]
+        .filter(Boolean)
+        .join(" ");
+      const compatibilityMode =
+        getService() &&
+        (stream.behaviorHints?.notWebReady === true ||
+          /\.(?:mkv|avi|wmv|flv|ts)(?:[?#\s]|$)/i.test(streamName))
+          ? "transcode"
+          : undefined;
       const subtitleId = ep?.id ?? item.id;
       const subtitles = await addonSubtitles(addons, item, subtitleId, signal);
       onPlay({
@@ -700,10 +709,7 @@ function Detail({
         episode: ep,
         url: stream.url!,
         resume: position,
-        mode:
-          stream.behaviorHints?.notWebReady && getService()
-            ? "transcode"
-            : undefined,
+        mode: compatibilityMode,
         requestHeaders: (
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
@@ -735,7 +741,18 @@ function Detail({
         ep?.id ?? item.id,
         signal,
       );
-      onPlay({ item, episode: ep, url, resume: position, subtitles });
+      const compatibilityMode =
+        getService() && !/\.(?:mp4|m4v|webm)$/i.test(prepared.selected.name)
+          ? "transcode"
+          : undefined;
+      onPlay({
+        item,
+        episode: ep,
+        url,
+        resume: position,
+        subtitles,
+        mode: compatibilityMode,
+      });
     }
   }
   function downloadFilename(ep?: Episode) {
@@ -1532,16 +1549,50 @@ export default function App() {
         } else {
           const chosen =
             catalogs.find((x) => x.key === selectedCatalog) ?? catalogs[0];
-          if (chosen)
+          if (deferredQuery) {
+            const searchable = catalogs.filter((entry) =>
+              entry.catalog.extra?.some((extra) => extra.name === "search"),
+            );
+            const searches = await Promise.allSettled(
+              searchable.map((entry) =>
+                catalog(
+                  entry.addon,
+                  kind,
+                  entry.catalog.id,
+                  deferredQuery,
+                  c.signal,
+                ),
+              ),
+            );
+            result = [
+              ...new Map(
+                searches
+                  .flatMap((entry) =>
+                    entry.status === "fulfilled" ? entry.value : [],
+                  )
+                  .map((item) => [itemKey(item), item]),
+              ).values(),
+            ];
+            if (!result.length) {
+              const failure = searches.find(
+                (entry): entry is PromiseRejectedResult =>
+                  entry.status === "rejected",
+              );
+              if (
+                failure &&
+                searches.every((entry) => entry.status === "rejected")
+              )
+                throw failure.reason;
+            }
+          } else if (chosen) {
             result = await catalog(
               chosen.addon,
               kind,
               chosen.catalog.id,
-              chosen.catalog.extra?.some((e) => e.name === "search")
-                ? deferredQuery
-                : "",
+              "",
               c.signal,
             );
+          }
         }
         if (!c.signal.aborted) setItems(result);
       } catch (e) {
