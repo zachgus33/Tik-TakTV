@@ -87,6 +87,7 @@ import { installMany, mergeAddons } from "./addon-import";
 import { prepareTorbox, torboxLink, type TorboxFile } from "./torbox";
 import { DEFAULT_TMDB_KEY } from "./config";
 import {
+  autoplayStreams,
   compatibilityPlaybackMode,
   directStream,
   needsCompatibilityTranscode,
@@ -875,13 +876,15 @@ function Detail({
       );
       if (c.signal.aborted) return;
       const ranked = rankedStreams(result.streams, !!torboxKey);
+      const autoplayRanked = autoplayStreams(result.streams, !!torboxKey);
       if (downloadBest) {
         if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
         else setDownloadMode(false);
       } else {
         setStreams(result.streams);
         setStreamsLoaded(true);
-        if (auto && ranked.length) await chooseStream(ranked[0], ep, c.signal);
+        if (auto && autoplayRanked.length)
+          await chooseStream(autoplayRanked[0], ep, c.signal);
       }
       if (!result.count)
         setError(

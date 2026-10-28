@@ -8,6 +8,7 @@ import {
   mergeCollections,
 } from "../src/collections";
 import {
+  autoplayStreams,
   codecCompatibility,
   compatibilityPlaybackMode,
   directStream,
@@ -232,6 +233,9 @@ describe("720p+ preference and safe episode matching", () => {
     expect(
       rankedStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
     ).toHaveLength(1);
+    expect(
+      autoplayStreams([{ name: "1080p", infoHash: "a".repeat(40) }], true),
+    ).toHaveLength(0);
   });
   it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {

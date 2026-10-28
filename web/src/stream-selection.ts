@@ -96,3 +96,9 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
         streamQuality(b) - streamQuality(a),
     );
 }
+export function autoplayStreams(
+  streams: Stream[],
+  hasTorbox: boolean,
+): Stream[] {
+  return rankedStreams(streams, hasTorbox).filter(directStream);
+}
