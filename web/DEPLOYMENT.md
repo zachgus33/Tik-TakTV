@@ -37,7 +37,7 @@ For this Actions deployment, GitHub does not require a repository `CNAME` file. 
 
 ### TikTak TV production records
 
-The production site uses `tiktaktv.me` as its GitHub Pages custom domain. Configure these records at IONOS and remove any parking/forwarding record for the same host first:
+The production site uses `www.tiktaktv.me` as its GitHub Pages custom domain, with `tiktaktv.me` redirected to it. Configure these records at IONOS and remove any parking/forwarding record for the same host first:
 
 | Type | Host | Value |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ The production site uses `tiktaktv.me` as its GitHub Pages custom domain. Config
 | A | `@` | `185.199.111.153` |
 | CNAME | `www` | `zachgus33.github.io` |
 
-GitHub redirects `www.tiktaktv.me` to the root custom domain once both records resolve. After GitHub provisions the certificate, enable **Enforce HTTPS** in repository **Settings > Pages**. Keep `play.tiktaktv.me` unused until the permanent Cloudflare Tunnel is configured; it must not point at GitHub Pages.
+GitHub redirects `tiktaktv.me` to the `www` custom domain once the root records resolve. After GitHub provisions the certificate, enable **Enforce HTTPS** in repository **Settings > Pages**. Keep `play.tiktaktv.me` unused until the permanent Cloudflare Tunnel is configured; it must not point at GitHub Pages.
 
 ## iPhone / iPad acceptance checks
 
