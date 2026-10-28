@@ -57,6 +57,22 @@ export function codecCompatibility(stream: Stream): number {
   if (/\.(?:mp4|m4v)(?:[?#\s]|$)/i.test(source)) return 1;
   return 0;
 }
+export function languageCompatibility(stream: Stream): number {
+  const source = streamDescriptor(stream);
+  if (
+    /\b(?:eng(?:lish)?|dual[ ._-]*audio|multi[ ._-]*(?:audio|lang)|dub(?:bed)?)\b|🇬🇧|🇺🇸/iu.test(
+      source,
+    )
+  )
+    return 2;
+  if (
+    /\b(?:ita(?:lian)?|french|fra|rus(?:sian)?|spanish|castellano|latino|german|deu|japanese|jpn|hindi|polish|portuguese|korean)\b|🇮🇹|🇫🇷|🇷🇺|🇪🇸|🇩🇪|🇯🇵|🇮🇳|🇵🇱|🇵🇹|🇰🇷/iu.test(
+      source,
+    )
+  )
+    return -2;
+  return 0;
+}
 export function compatibilityPlaybackMode(
   stream: Stream,
 ): "remux" | "transcode" | undefined {
@@ -91,6 +107,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     .sort(
       (a, b) =>
         Number(directStream(b)) - Number(directStream(a)) ||
+        languageCompatibility(b) - languageCompatibility(a) ||
         codecCompatibility(b) - codecCompatibility(a) ||
         Number(!needsCompatibilityTranscode(b)) -
           Number(!needsCompatibilityTranscode(a)) ||

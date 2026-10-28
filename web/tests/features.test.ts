@@ -11,6 +11,7 @@ import {
   autoplayStreams,
   codecCompatibility,
   compatibilityPlaybackMode,
+  languageCompatibility,
   directStream,
   quality,
   rankedStreams,
@@ -255,6 +256,26 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(autoplayStreams([download, malformed, ready], true)).toEqual([ready]);
     expect(seeders(ready)).toBe(170);
+  });
+  it("prefers English and dubbed audio over foreign-only releases", () => {
+    const english = {
+      name: "1080p",
+      title: "VisionQuest S01E01 English 👤 12",
+      url: "https://cdn.example/english.mp4",
+    };
+    const foreign = {
+      name: "1080p",
+      title: "VisionQuest S01E01 ITALIAN 🇮🇹 👤 900",
+      url: "https://cdn.example/italian.mp4",
+    };
+    const animeDub = {
+      name: "1080p Dual Audio Dubbed",
+      title: "Anime S01E01 Japanese English",
+      url: "https://cdn.example/dubbed.mp4",
+    };
+    expect(rankedStreams([foreign, english], false)[0]).toBe(english);
+    expect(languageCompatibility(animeDub)).toBe(2);
+    expect(languageCompatibility(foreign)).toBe(-2);
   });
   it("skips helper links and non-web-ready entries without a relay", () => {
     const helper = {

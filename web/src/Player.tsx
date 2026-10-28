@@ -40,6 +40,9 @@ function VideoPlayer({
   const [quality, setQuality] = useState<{ label: string; value: number }[]>(
     [],
   );
+  const [audioTracks, setAudioTracks] = useState<
+    { label: string; value: number; source: "hls" | "native" }[]
+  >([]);
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const subtitleRef = useRef(subtitles);
@@ -93,6 +96,7 @@ function VideoPlayer({
     setError("");
     setNotice("");
     setQuality([]);
+    setAudioTracks([]);
     const url =
       safeUrl(playback.url) ??
       (getService()?.url.startsWith("http://127.0.0.1:") &&
@@ -125,6 +129,25 @@ function VideoPlayer({
         video.currentTime = Math.min(
           playback.resume,
           Math.max(0, video.duration - 1),
+        );
+      const nativeTracks = (
+        video as HTMLVideoElement & {
+          audioTracks?: {
+            length: number;
+            [index: number]: { label?: string; language?: string };
+          };
+        }
+      ).audioTracks;
+      if (nativeTracks?.length && nativeTracks.length > 1)
+        setAudioTracks(
+          Array.from({ length: nativeTracks.length }, (_, value) => ({
+            value,
+            source: "native" as const,
+            label:
+              nativeTracks[value].label ||
+              nativeTracks[value].language ||
+              `Audio ${value + 1}`,
+          })),
         );
     };
     const failed = () => {
@@ -176,6 +199,15 @@ function VideoPlayer({
                   : `${Math.round(level.bitrate / 1000)} kbps`,
               })),
             );
+            if (hls.audioTracks.length > 1)
+              setAudioTracks(
+                hls.audioTracks.map((track, value) => ({
+                  value,
+                  source: "hls" as const,
+                  label:
+                    track.name || track.lang || `Audio ${value + 1}`,
+                })),
+              );
             void play();
           });
           hls.on(HlsClass.Events.ERROR, (_, data) => {
@@ -350,6 +382,36 @@ function VideoPlayer({
             {quality.map((q) => (
               <option key={q.value} value={q.value}>
                 {q.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {audioTracks.length > 1 && (
+          <select
+            aria-label="Audio language"
+            onChange={(e) => {
+              const selected = audioTracks[Number(e.target.value)];
+              if (!selected) return;
+              if (selected.source === "hls" && hlsRef.current) {
+                hlsRef.current.audioTrack = selected.value;
+                return;
+              }
+              const nativeTracks = (
+                videoRef.current as HTMLVideoElement & {
+                  audioTracks?: {
+                    length: number;
+                    [index: number]: { enabled: boolean };
+                  };
+                }
+              )?.audioTracks;
+              if (nativeTracks)
+                for (let i = 0; i < nativeTracks.length; i += 1)
+                  nativeTracks[i].enabled = i === selected.value;
+            }}
+          >
+            {audioTracks.map((track, index) => (
+              <option key={`${track.source}-${track.value}`} value={index}>
+                {track.label}
               </option>
             ))}
           </select>
