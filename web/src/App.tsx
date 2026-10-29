@@ -1569,6 +1569,9 @@ export default function App() {
     read("progress", []),
   );
   function loadAccountSetup(s: Setup) {
+    // Failure history belongs to the previous browser profile and must never
+    // suppress an add-on for a different Nuvio user.
+    localStorage.removeItem("tiktak:addon-health");
     if (s.playbackService)
       localStorage.setItem(
         "nuvio:playback-service",
@@ -2964,6 +2967,7 @@ export default function App() {
                       "nuvio:torbox-key",
                       "nuvio:realdebrid-key",
                       "nuvio:playback-service",
+                      "tiktak:addon-health",
                     ]) {
                       localStorage.removeItem(key);
                       sessionStorage.removeItem(key);
