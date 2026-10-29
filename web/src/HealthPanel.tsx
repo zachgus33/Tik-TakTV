@@ -8,6 +8,11 @@ import {
 } from "lucide-react";
 import type { Addon, Provider } from "./types";
 import { runHealthChecks, type HealthResult } from "./reliability";
+import {
+  addonHealth,
+  clearAddonQuarantine,
+  type AddonHealthState,
+} from "./addon-health";
 
 export default function HealthPanel(props: {
   addons: Addon[];
@@ -18,6 +23,7 @@ export default function HealthPanel(props: {
   const [results, setResults] = useState<HealthResult[]>([]);
   const [running, setRunning] = useState(false);
   const [checkedAt, setCheckedAt] = useState(0);
+  const [quarantined, setQuarantined] = useState<AddonHealthState[]>([]);
   const run = () => {
     const controller = new AbortController();
     setRunning(true);
@@ -35,6 +41,17 @@ export default function HealthPanel(props: {
     props.realDebridKey,
     props.provider,
   ]);
+  useEffect(() => {
+    const refresh = () =>
+      setQuarantined(
+        addonHealth(props.addons).filter(
+          (state) => state.quarantinedUntil > Date.now(),
+        ),
+      );
+    window.addEventListener("addon-health-changed", refresh);
+    refresh();
+    return () => window.removeEventListener("addon-health-changed", refresh);
+  }, [props.addons]);
   return (
     <section className="settings-card health-panel">
       <div className="card-heading">
@@ -80,6 +97,27 @@ export default function HealthPanel(props: {
           );
         })}
       </div>
+      {quarantined.length > 0 && (
+        <div className="connection warning" role="status">
+          <div>
+            <strong>Temporarily paused add-ons</strong>
+            <p>
+              {quarantined.map((state) => state.name).join(", ")} failed three
+              times and will be retried automatically after 15 minutes.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              clearAddonQuarantine();
+              setQuarantined([]);
+              run();
+            }}
+          >
+            Retry now
+          </button>
+        </div>
+      )}
     </section>
   );
 }

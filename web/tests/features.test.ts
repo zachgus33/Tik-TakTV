@@ -35,8 +35,64 @@ import {
   updateDownloadJob,
   downloadJobs,
 } from "../src/reliability";
+import { decryptSetup, encryptSetup } from "../src/encrypted-backup";
+import {
+  addonQuarantined,
+  clearAddonQuarantine,
+  recordAddonFailure,
+} from "../src/addon-health";
 
 afterEach(() => vi.restoreAllMocks());
+describe("encrypted setup backups", () => {
+  it("round-trips private setup and rejects the wrong passphrase", async () => {
+    const setup = {
+      transfer: {
+        format: "nuvio-enhanced-web" as const,
+        version: 1 as const,
+        addons: ["https://addon.example/manifest.json"],
+        collections: [],
+        library: [],
+        progress: [],
+      },
+      provider: {
+        kind: "xtream" as const,
+        server: "https://tv.example",
+        username: "friend",
+        password: "private-password",
+      },
+      torboxKey: "private-torbox",
+      realDebridKey: "private-rd",
+      autoplay: true,
+      homeCatalogs: [],
+      tmdbKey: "private-tmdb",
+    };
+    const encrypted = await encryptSetup(setup, "correct horse battery staple");
+    expect(encrypted).not.toContain("private-torbox");
+    expect(encrypted).not.toContain("private-password");
+    expect(await decryptSetup(encrypted, "correct horse battery staple")).toEqual(setup);
+    await expect(decryptSetup(encrypted, "wrong passphrase")).rejects.toThrow(/incorrect|damaged/i);
+  });
+});
+
+describe("add-on failure quarantine", () => {
+  it("pauses a repeatedly failing add-on and supports an immediate retry", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    const addon = defaultAddons[0];
+    recordAddonFailure(addon, new Error("offline"));
+    recordAddonFailure(addon, new Error("offline"));
+    expect(addonQuarantined(addon)).toBe(false);
+    recordAddonFailure(addon, new Error("offline"));
+    expect(addonQuarantined(addon)).toBe(true);
+    clearAddonQuarantine();
+    expect(addonQuarantined(addon)).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
 describe("UI text encoding", () => {
   it("does not contain common UTF-8 mojibake sequences", () => {
     const source = ["App.tsx", "Settings.tsx"]

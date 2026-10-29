@@ -1123,7 +1123,11 @@ function Detail({
           setStreamsLoaded(true);
         }
       }
-      if (!result.count)
+      if (result.quarantined)
+        setError(
+          `${result.quarantined} streaming add-on${result.quarantined === 1 ? " is" : "s are"} temporarily paused after repeated failures. Open Settings → Health check to retry now.`,
+        );
+      else if (!result.count)
         setError(
           result.installedStreaming
             ? "Your streaming add-ons do not support this title ID. Try the title from an IMDb-based catalog or refresh your installed manifests in Settings."
@@ -1632,7 +1636,9 @@ export default function App() {
   useEffect(() => {
     const refresh = () => void refreshPlaybackEndpoint();
     refresh();
-    const timer = window.setInterval(refresh, 30_000);
+    // GitHub's unauthenticated contents API allows 60 requests/hour/IP.
+    // Two-minute polling leaves capacity for failure and visibility refreshes.
+    const timer = window.setInterval(refresh, 120_000);
     const visible = () => {
       if (document.visibilityState === "visible") refresh();
     };

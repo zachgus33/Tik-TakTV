@@ -5,9 +5,20 @@ const [logPath, outputPath] = process.argv.slice(2);
 const token = process.env.PLAYBACK_TOKEN;
 if (!logPath || !outputPath || !token) process.exit(2);
 
-const log = await readFile(logPath, "utf8");
-const urls = log.match(/https:\/\/[-a-z0-9]+\.trycloudflare\.com/g) ?? [];
-const url = urls.at(-1);
+const configured = process.env.PUBLIC_PLAYBACK_URL?.trim().replace(/\/$/, "");
+let url;
+if (configured) {
+  const candidate = new URL(configured);
+  if (
+    candidate.protocol !== "https:" || candidate.username || candidate.password ||
+    candidate.search || candidate.hash || candidate.pathname !== "/"
+  ) process.exit(4);
+  url = candidate.origin;
+} else {
+  const log = await readFile(logPath, "utf8");
+  const urls = log.match(/https:\/\/[-a-z0-9]+\.trycloudflare\.com/g) ?? [];
+  url = urls.at(-1);
+}
 if (!url) process.exit(3);
 
 let previous;

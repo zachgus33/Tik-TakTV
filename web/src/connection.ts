@@ -5,9 +5,10 @@ export type PlaybackService = {
   account?: boolean;
 };
 const endpointRecord =
-  "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json";
+  "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json?ref=main";
 const bootstrapEndpoint =
   "https://magnificent-tongue-composed-bears.trycloudflare.com";
+const permanentEndpoint = "https://api.tiktaktv.me";
 
 function accountToken() {
   try {
@@ -24,7 +25,8 @@ function accountToken() {
 
 async function discoveredService(config: PlaybackService) {
   try {
-    const response = await fetch(`${endpointRecord}?t=${Date.now()}`, {
+    const response = await fetch(`${endpointRecord}&t=${Date.now()}`, {
+      headers: { Accept: "application/vnd.github.raw+json" },
       cache: "no-store",
       credentials: "omit",
       referrerPolicy: "no-referrer",
@@ -36,7 +38,9 @@ async function discoveredService(config: PlaybackService) {
       signature?: string;
     };
     if (
-      !record.url?.endsWith(".trycloudflare.com") ||
+      !record.url ||
+      (!record.url.endsWith(".trycloudflare.com") &&
+        serviceUrl(record.url) !== permanentEndpoint) ||
       !Number.isFinite(record.updated) ||
       !/^[a-f0-9]{64}$/i.test(record.signature ?? "")
     )

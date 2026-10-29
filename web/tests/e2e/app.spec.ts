@@ -1787,7 +1787,7 @@ test.describe("authenticated integrations", () => {
       route.fulfill({ status: 503, body: "expired" }),
     );
     await page.route(
-      "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json**",
+      "**/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json**",
       (route) =>
         route.request().url().includes("endpoint.json?")
           ? route.fulfill({ json: { url, updated, signature } })

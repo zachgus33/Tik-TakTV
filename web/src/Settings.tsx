@@ -1080,8 +1080,35 @@ export default function Settings(props: Props) {
               addons={props.addons}
               collections={props.collections}
               library={props.library}
+              provider={props.provider}
+              torboxKey={props.torboxKey}
+              realDebridKey={props.realDebridKey}
+              autoplay={props.autoplay}
+              homeCatalogs={props.homeCatalogs}
+              tmdbKey={props.tmdbKey}
               onCollections={props.onCollections}
               onRestore={props.onRestore}
+              onSecureRestore={async (setup) => {
+                const summary = await props.onRestore(setup.transfer);
+                storeProvider(setup.provider, true);
+                props.onProvider(setup.provider);
+                save("torbox-key", setup.torboxKey);
+                sessionStorage.removeItem("nuvio:torbox-key");
+                props.onTorboxKey(setup.torboxKey);
+                save("realdebrid-key", setup.realDebridKey);
+                sessionStorage.removeItem("nuvio:realdebrid-key");
+                props.onRealDebridKey(setup.realDebridKey);
+                save("autoplay", setup.autoplay);
+                props.onAutoplay(setup.autoplay);
+                save("home-catalogs", setup.homeCatalogs);
+                props.onHomeCatalogs(setup.homeCatalogs);
+                if (setup.tmdbKey) {
+                  localStorage.setItem("nuvio:tmdb-key", setup.tmdbKey);
+                  props.onTmdbKey(setup.tmdbKey);
+                }
+                window.dispatchEvent(new Event("connections-changed"));
+                return `${summary} Private connections and playback preferences restored.`;
+              }}
             />
           </div>
           <div hidden={section !== "live"}>

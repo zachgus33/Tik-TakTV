@@ -238,3 +238,13 @@ export function downloadJson(name: string, value: unknown) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
+export function downloadText(name: string, value: string) {
+  const url = URL.createObjectURL(
+    new Blob([value], { type: "application/json" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}

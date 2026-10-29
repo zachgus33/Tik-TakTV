@@ -12,6 +12,24 @@ import {
   sourceHeaders,
 } from "./server.mjs";
 
+test("public liveness endpoint exposes no private configuration", async () => {
+  const server = createService({
+    token: "z".repeat(40),
+    origins: ["https://site.example"],
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const response = await fetch(`${base}/healthz`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, version: 2 });
+    assert.equal((await fetch(`${base}/health`)).status, 401);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("account-owned friend codes stay isolated and can be revoked", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tiktak-friends-"));
   const previous = {

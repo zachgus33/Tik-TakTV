@@ -43,7 +43,7 @@ Wants=tiktaktv-playback.service
 [Service]
 Type=simple
 WorkingDirectory=$base
-ExecStart=$HOME/.local/bin/cloudflared tunnel --no-autoupdate --logfile $base/runtime/tunnel.log --url http://127.0.0.1:3101
+ExecStart=/bin/sh $base/run-tunnel.sh
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
@@ -88,5 +88,6 @@ if [ -f "$base/runtime/playback.pid" ]; then kill "$(cat "$base/runtime/playback
 if [ -f "$base/runtime/tunnel.pid" ]; then kill "$(cat "$base/runtime/tunnel.pid")" 2>/dev/null || true; fi
 systemctl --user daemon-reload
 systemctl --user enable --now tiktaktv-playback.service tiktaktv-tunnel.service tiktaktv-watchdog.timer
+systemctl --user restart tiktaktv-playback.service tiktaktv-tunnel.service
 systemctl --user start tiktaktv-watchdog.service
 systemctl --user --no-pager status tiktaktv-playback.service tiktaktv-tunnel.service tiktaktv-watchdog.timer

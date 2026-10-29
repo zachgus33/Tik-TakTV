@@ -493,6 +493,11 @@ export function createService({ token, origins, authorizeAccount }) {
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (route.pathname === "/healthz") {
+      if (!['GET', 'HEAD'].includes(req.method))
+        return send(405, { error: "Method not allowed" });
+      return send(200, { ok: true, version: 2 });
+    }
     const controller = new AbortController();
     res.on("close", () => controller.abort());
     try {

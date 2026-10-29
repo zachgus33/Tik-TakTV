@@ -43,6 +43,23 @@ For a temporary test without Docker, install Node 24 and `cloudflared` in the us
 
 ## Permanent domain
 
+For the native Pi services, create a named tunnel in Cloudflare Zero Trust,
+route `api.tiktaktv.me` to `http://localhost:3101`, and copy its connector
+token. Keep the domain registered at IONOS, but use the Cloudflare nameservers
+shown when adding the domain to Cloudflare so the tunnel hostname receives a
+valid certificate. Then run on the Pi:
+
+```sh
+cd /home/zach/tiktaktv
+sh configure-named-tunnel.sh 'PASTE_CONNECTOR_TOKEN_HERE' https://api.tiktaktv.me
+sh install-native-services.sh
+```
+
+The token is written to `.env.tunnel` with owner-only permissions and is never
+printed or committed. Until it is configured, `run-tunnel.sh` intentionally
+falls back to the signed Quick Tunnel discovery flow, so current playback keeps
+working.
+
 Create a named Cloudflare Tunnel in your own Cloudflare account after adding the domain's DNS to Cloudflare. Set its public hostname (for example `playback.example.com`) to service `http://playback:3101`. Put its tunnel token in `.env` as `TUNNEL_TOKEN`. Then:
 
 ```sh
@@ -67,7 +84,14 @@ sudo docker compose ps
 sudo docker compose logs --tail 30 playback
 ```
 
-The `/health` endpoint requires the service key; an unauthenticated 401 is expected. The web connection test verifies it using the key.
+The `/health` endpoint requires the service key; an unauthenticated 401 is expected. The web connection test verifies it using the key. `/healthz` is a public liveness check that returns only `{ "ok": true, "version": 2 }` for uptime monitoring.
+
+The `Production uptime and account smoke` GitHub Actions workflow runs every 30
+minutes. It checks the deployed app shell and assets, PWA files, signed endpoint
+record, and the Pi liveness endpoint. Add repository secrets
+`NUVIO_SMOKE_EMAIL`, `NUVIO_SMOKE_PASSWORD`, and optionally
+`NUVIO_SMOKE_FRIEND_CODE` to extend each run through real Nuvio authentication
+and friend-service redemption without changing the test account's profile.
 
 The service rejects private/link-local destinations and pins DNS resolution per request, including redirects. It rewrites HLS variants, segments, maps and key URLs into short-lived opaque tickets. It does not implement DRM or a torrent engine. TorBox additions remain cached-only. Account sync talks directly to Nuvio's existing backend.
 

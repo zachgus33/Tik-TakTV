@@ -1,0 +1,29 @@
+name: Production uptime and account smoke
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Check production site, companion, account, and friend service
+        run: node web/tests/production-smoke.mjs
+        env:
+          SITE_URL: https://www.tiktaktv.me
+          NUVIO_SMOKE_EMAIL: ${{ secrets.NUVIO_SMOKE_EMAIL }}
+          NUVIO_SMOKE_PASSWORD: ${{ secrets.NUVIO_SMOKE_PASSWORD }}
+          NUVIO_SMOKE_FRIEND_CODE: ${{ secrets.NUVIO_SMOKE_FRIEND_CODE }}

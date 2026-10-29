@@ -11,6 +11,11 @@ import type {
   Stream,
   Subtitle,
 } from "./types";
+import {
+  addonQuarantined,
+  recordAddonFailure,
+  recordAddonSuccess,
+} from "./addon-health";
 
 const responseCache = new Map<string, { expires: number; value: unknown }>();
 const cacheableRequest = (url: string) =>
@@ -433,23 +438,31 @@ export async function addonStreams(
               r.idPrefixes.some((p) => id.startsWith(p))),
       ),
   );
+  const active = eligible.filter((addon) => !addonQuarantined(addon));
   const results = await Promise.allSettled(
-    eligible.map(async (a) => {
-      const data = await json<{ streams?: Stream[] }>(
-        `${a.base}/stream/${item.type}/${encodeURIComponent(id)}.json`,
-        signal,
-        6000,
-      );
-      return (data.streams ?? []).map((s) => ({
-        ...s,
-        name: s.name ?? a.manifest.name,
-      }));
+    active.map(async (a) => {
+      try {
+        const data = await json<{ streams?: Stream[] }>(
+          `${a.base}/stream/${item.type}/${encodeURIComponent(id)}.json`,
+          signal,
+          6000,
+        );
+        recordAddonSuccess(a);
+        return (data.streams ?? []).map((s) => ({
+          ...s,
+          name: s.name ?? a.manifest.name,
+        }));
+      } catch (error) {
+        recordAddonFailure(a, error);
+        throw error;
+      }
     }),
   );
   return {
     streams: results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     failed: results.filter((r) => r.status === "rejected").length,
-    count: eligible.length,
+    count: active.length,
+    quarantined: eligible.length - active.length,
     installedStreaming: addons.filter(
       (a) =>
         a.enabled !== false &&

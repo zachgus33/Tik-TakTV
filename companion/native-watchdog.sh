@@ -3,6 +3,7 @@ set -eu
 base="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 set -a
 . "$base/.env.native"
+if [ -f "$base/.env.tunnel" ]; then . "$base/.env.tunnel"; fi
 set +a
 
 if ! curl -fsS --max-time 12 \
