@@ -3267,6 +3267,56 @@ body:has(dialog[open]) {
   font-size: 10px;
   padding: 9px 11px;
 }
+.party-status > div:first-child {
+  min-width: 0;
+}
+.party-members {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+.party-members > span {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 180px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-members img,
+.party-members b {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 55%, #25202b);
+  color: white;
+}
+.party-members button {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 2px;
+  margin-left: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.party-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
 .player-tools button,
 .player-tools .button,
 .player-tools select {
@@ -4676,6 +4726,58 @@ button.primary:hover,
 .setup-summary span {
   color: var(--muted);
 }
+.setup-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+.setup-paths button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  align-items: center;
+  min-height: 106px;
+  padding: 17px;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.025);
+}
+.setup-paths button.active {
+  border-color: color-mix(in srgb, var(--accent) 72%, white 5%);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.setup-paths svg {
+  grid-row: 1 / 3;
+  color: var(--accent);
+}
+.setup-paths small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.settings-owner-strip {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+}
+.settings-owner-strip svg {
+  flex: none;
+  color: var(--accent);
+}
+.settings-owner-strip div {
+  display: grid;
+  gap: 4px;
+}
+.settings-owner-strip span {
+  color: var(--muted);
+  line-height: 1.45;
+}
 .setup-list,
 .setup-checks {
   display: grid;
@@ -4904,6 +5006,7 @@ button.primary:hover,
   }
   .setup-summary,
   .health-grid,
+  .setup-paths,
   .privacy-grid {
     grid-template-columns: 1fr;
   }

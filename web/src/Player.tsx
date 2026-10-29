@@ -19,8 +19,11 @@ import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
   createParty,
+  endParty,
   partyLink,
   partyState,
+  removePartyMember,
+  type PartyIdentity,
   type PartySession,
 } from "./watch-party";
 
@@ -60,10 +63,12 @@ function VideoPlayer({
   playback,
   onClose,
   onFailure,
+  partyIdentity,
 }: {
   playback: Playback;
   onClose: () => void;
   onFailure?: () => boolean;
+  partyIdentity: PartyIdentity;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -102,6 +107,14 @@ function VideoPlayer({
           id: playback.party!.id,
           host: playback.party!.host,
           participants: 1,
+          members: [
+            {
+              key: "self",
+              ...partyIdentity,
+              host: playback.party!.host,
+              self: true,
+            },
+          ],
           playback,
           state: {
             position: playback.resume ?? 0,
@@ -411,6 +424,7 @@ function VideoPlayer({
           party.host
             ? { position: video.currentTime || 0, paused: video.paused }
             : undefined,
+          partyIdentity,
         );
         if (disposed) return;
         setParty(result);
@@ -433,10 +447,18 @@ function VideoPlayer({
           }
         }
       } catch (e) {
-        if (!disposed)
-          setNotice(
-            e instanceof Error ? e.message : "Watch Together disconnected.",
-          );
+        if (!disposed) {
+          const message =
+            e instanceof Error ? e.message : "Watch Together disconnected.";
+          if (/host ended/i.test(message)) {
+            video.pause();
+            setParty(null);
+            const url = new URL(location.href);
+            url.searchParams.delete("party");
+            history.replaceState(null, "", url);
+          }
+          setNotice(message);
+        }
       } finally {
         syncing = false;
       }
@@ -458,6 +480,7 @@ function VideoPlayer({
         { ...playback, prepared: true, party: undefined },
         video.currentTime || 0,
         video.paused,
+        partyIdentity,
       );
       setParty(session);
       const link = partyLink(session.id);
@@ -480,6 +503,39 @@ function VideoPlayer({
     await navigator.clipboard.writeText(partyLink(party.id));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2500);
+  }
+  async function stopParty() {
+    if (!party?.host || partyBusy) return;
+    setPartyBusy(true);
+    try {
+      await endParty(party.id);
+      setParty(null);
+      const url = new URL(location.href);
+      url.searchParams.delete("party");
+      history.replaceState(null, "", url);
+      setNotice("Watch Together room ended. Your video will keep playing.");
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error ? reason.message : "Could not end the room.",
+      );
+    } finally {
+      setPartyBusy(false);
+    }
+  }
+  async function removeMember(memberKey: string) {
+    if (!party?.host || partyBusy) return;
+    setPartyBusy(true);
+    try {
+      setParty(await removePartyMember(party.id, memberKey));
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error
+          ? reason.message
+          : "Could not remove that participant.",
+      );
+    } finally {
+      setPartyBusy(false);
+    }
   }
   async function fullscreen() {
     const v = videoRef.current as HTMLVideoElement & {
@@ -611,17 +667,55 @@ function VideoPlayer({
       )}
       {party && (
         <div className="party-status" role="status">
-          <span>
+          <div>
             <strong>Watch Together</strong>
-            {party.host
-              ? "Host · You control this room"
-              : "Guest · Following the host"}{" "}
-            · {party.participants} watching
-          </span>
-          <button type="button" onClick={() => void copyPartyLink()}>
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Copied" : "Copy invite"}
-          </button>
+            <span>
+              {party.host
+                ? "Host · You control this room"
+                : "Guest · Following the host"}{" "}
+              · {party.participants} watching
+            </span>
+            <div className="party-members" aria-label="People in this room">
+              {(party.members ?? []).map((member, index) => (
+                <span
+                  key={member.key || `${member.name}-${index}`}
+                  title={member.name}
+                >
+                  {member.avatar ? (
+                    <img
+                      src={member.avatar}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <b>{member.name.slice(0, 1).toUpperCase()}</b>
+                  )}
+                  {member.name}
+                  {member.host ? " · Host" : ""}
+                  {party.host && !member.host && !member.self && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${member.name} from room`}
+                      onClick={() => void removeMember(member.key)}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="party-actions">
+            <button type="button" onClick={() => void copyPartyLink()}>
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+              {copied ? "Copied" : "Copy invite"}
+            </button>
+            {party.host && (
+              <button type="button" onClick={() => void stopParty()}>
+                End room
+              </button>
+            )}
+          </div>
         </div>
       )}
       {error && (
@@ -807,9 +901,11 @@ function VideoPlayer({
 export default function Player({
   playback,
   onClose,
+  partyIdentity,
 }: {
   playback: Playback;
   onClose: () => void;
+  partyIdentity: PartyIdentity;
 }) {
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
@@ -927,6 +1023,7 @@ export default function Player({
         playback={ready}
         onClose={onClose}
         onFailure={recoverWithCompatibility}
+        partyIdentity={partyIdentity}
       />
     );
   return (

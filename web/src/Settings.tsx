@@ -49,6 +49,7 @@ export type FriendTemplate = {
 };
 
 type Props = {
+  profileName: string;
   provider: Provider | null;
   onProvider: (p: Provider | null) => void;
   addons: Addon[];
@@ -182,6 +183,26 @@ export default function Settings(props: Props) {
         </div>
         <ShieldCheck className="section-icon" />
       </div>
+      <section className="settings-owner-strip" aria-label="Active setup owner">
+        <ShieldCheck size={19} />
+        <div>
+          <strong>{props.profileName || "Current profile"}</strong>
+          <span>
+            This profile owns {props.addons.length} add-ons,{" "}
+            {props.collections.length} collections,{" "}
+            {props.torboxKey
+              ? "a TorBox connection"
+              : props.realDebridKey
+                ? "a Real-Debrid connection"
+                : "no direct debrid key"}
+            , and{" "}
+            {props.provider
+              ? "its own Live TV connection"
+              : "no Live TV connection"}
+            .
+          </span>
+        </div>
+      </section>
       {error && (
         <div className="error" role="alert">
           {error}
@@ -663,7 +684,6 @@ export default function Settings(props: Props) {
                     <input
                       name="server"
                       type="url"
-                      defaultValue="https://vpn.trx-pro-iptvstore.cc"
                       placeholder="https://your-provider.com:443"
                       required
                       autoCapitalize="none"

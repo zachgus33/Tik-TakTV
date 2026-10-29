@@ -48,6 +48,9 @@ async function mockSources(page: Page) {
 async function connect(page: Page) {
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Live TV/ }).click();
+  await page
+    .getByLabel("Server address", { exact: true })
+    .fill("https://vpn.trx-pro-iptvstore.cc");
   await page.getByLabel("Username", { exact: true }).fill("test-user");
   await page.getByLabel("Password", { exact: true }).fill("test-password");
   await page.getByRole("button", { name: "Test & connect" }).click();
@@ -77,6 +80,18 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await expect(
     page.getByText(/starts with Nuvio Catalog Addon.*OpenSubtitles v3/),
   ).toBeVisible();
+});
+test("a clean profile starts without another user's IPTV connection", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
+  await expect(page.getByLabel("Server address", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect(page.getByText("My IPTV", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Username", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
 });
 
 test("offline app shell retains library and never caches provider requests", async ({
@@ -368,6 +383,9 @@ test("bad credentials show a useful error and are never saved", async ({
   );
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Live TV/ }).click();
+  await page
+    .getByLabel("Server address", { exact: true })
+    .fill("https://vpn.trx-pro-iptvstore.cc");
   await page.getByLabel("Username", { exact: true }).fill("wrong");
   await page.getByLabel("Password", { exact: true }).fill("wrong");
   await page.getByRole("button", { name: "Test & connect" }).click();

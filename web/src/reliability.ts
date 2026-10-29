@@ -79,17 +79,37 @@ export async function runHealthChecks(input: {
     }
   }
   let serviceReady = false;
+  let serviceDetail = "";
   if (service) {
     try {
       const response = await serviceRequest("/health", undefined, input.signal);
       serviceReady = response.ok;
+      const health = (await response.json().catch(() => ({}))) as {
+        version?: number;
+        uptimeSeconds?: number;
+      };
+      if (serviceReady) {
+        const hours = Math.floor(Number(health.uptimeSeconds ?? 0) / 3600);
+        serviceDetail = `Connected to companion protocol v${health.version ?? 1}${hours ? ` · up ${hours}h` : ""}. Relays, conversion, downloads, and Watch Together are available.`;
+        try {
+          const statusResponse = await serviceRequest(
+            "/status",
+            {},
+            input.signal,
+          );
+          const status = (await statusResponse.json()) as {
+            load?: { jobs?: number; parties?: number };
+            capacity?: { jobs?: number; parties?: number };
+          };
+          if (statusResponse.ok && status.load && status.capacity)
+            serviceDetail += ` Current load: ${status.load.jobs ?? 0}/${status.capacity.jobs ?? "?"} media jobs and ${status.load.parties ?? 0}/${status.capacity.parties ?? "?"} rooms.`;
+        } catch {
+          // Older companion versions remain supported by the health check.
+        }
+      }
     } catch {
       try {
-        const response = await serviceRequest(
-          "/status",
-          undefined,
-          input.signal,
-        );
+        const response = await serviceRequest("/status", {}, input.signal);
         serviceReady = response.ok;
       } catch {
         serviceReady = false;
@@ -134,7 +154,8 @@ export async function runHealthChecks(input: {
       label: "Compatibility service",
       status: serviceReady ? "ready" : service ? "error" : "warning",
       detail: serviceReady
-        ? "Connected and available for remuxing, transcoding, downloads, and relays."
+        ? serviceDetail ||
+          "Connected and available for remuxing, transcoding, downloads, and relays."
         : service
           ? "Configured, but it did not answer the health check."
           : "Not connected. Direct browser-compatible streams still work.",

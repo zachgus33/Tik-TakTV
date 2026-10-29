@@ -1655,7 +1655,10 @@ export default function App() {
     const id = new URL(location.href).searchParams.get("party")?.trim() ?? "";
     if (!id || id === partyAttemptedRef.current) return;
     partyAttemptedRef.current = id;
-    void joinParty(id).then(
+    void joinParty(id, {
+      name: activeProfileView?.name || "Guest",
+      avatar: activeProfileView?.image,
+    }).then(
       (session) => {
         setDetail(null);
         setPlayback({
@@ -1677,7 +1680,12 @@ export default function App() {
         );
       },
     );
-  }, [profileReady, playback]);
+  }, [
+    profileReady,
+    playback,
+    activeProfileView?.name,
+    activeProfileView?.image,
+  ]);
   const navigate = (next: Page) => {
     location.hash = next;
     setQuery("");
@@ -2965,6 +2973,7 @@ export default function App() {
             {page === "settings" && (
               <Suspense fallback={<Loading />}>
                 <Settings
+                  profileName={activeProfileView?.name ?? ""}
                   provider={provider}
                   onProvider={(p) => {
                     setProvider(p);
@@ -3076,6 +3085,10 @@ export default function App() {
         >
           <Player
             playback={playback}
+            partyIdentity={{
+              name: activeProfileView?.name || "Guest",
+              avatar: activeProfileView?.image,
+            }}
             onClose={() => {
               const url = new URL(location.href);
               if (url.searchParams.has("party")) {

@@ -34,10 +34,16 @@ function probeAudioTracks(inputUrl, inputArgs = []) {
     const child = spawn(
       process.env.FFPROBE_PATH ?? "ffprobe",
       [
-        "-v", "error", ...inputArgs,
-        "-select_streams", "a",
-        "-show_entries", "stream=index:stream_tags=language,title",
-        "-of", "json", inputUrl,
+        "-v",
+        "error",
+        ...inputArgs,
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=index:stream_tags=language,title",
+        "-of",
+        "json",
+        inputUrl,
       ],
       { stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
     );
@@ -55,12 +61,16 @@ function probeAudioTracks(inputUrl, inputArgs = []) {
       if (code) return finish([]);
       try {
         const streams = JSON.parse(output).streams ?? [];
-        finish(streams.map((stream, audioIndex) => ({
-          audioIndex,
-          language: String(stream.tags?.language ?? "und")
-            .toLowerCase().replace(/[^a-z0-9-]/g, "") || "und",
-          title: String(stream.tags?.title ?? "").trim(),
-        })));
+        finish(
+          streams.map((stream, audioIndex) => ({
+            audioIndex,
+            language:
+              String(stream.tags?.language ?? "und")
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, "") || "und",
+            title: String(stream.tags?.title ?? "").trim(),
+          })),
+        );
       } catch {
         finish([]);
       }
@@ -198,6 +208,15 @@ export function createService({ token, origins, authorizeAccount }) {
   const tickets = new Map();
   const accountTokens = new Map();
   const parties = new Map();
+  const endedParties = new Map();
+  const partyCreates = new Map();
+  const startedAt = Date.now();
+  const limits = Object.freeze({
+    jobs: 24,
+    tickets: 5000,
+    parties: 500,
+    partyMembers: 12,
+  });
   const friendAttempts = new Map();
   const friendOwner = process.env.FRIEND_OWNER_USER_ID ?? "";
   const friendVaultPath =
@@ -291,7 +310,8 @@ export function createService({ token, origins, authorizeAccount }) {
   }
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
-    if (tickets.size > 5000) throw new Error("Playback capacity reached");
+    if (tickets.size >= limits.tickets)
+      throw new Error("Playback capacity reached");
     const id = randomBytes(24).toString("base64url");
     tickets.set(id, {
       url,
@@ -312,16 +332,51 @@ export function createService({ token, origins, authorizeAccount }) {
       }
     for (const [id, party] of parties)
       if (party.expires < Date.now()) parties.delete(id);
+    for (const [id, endedAt] of endedParties)
+      if (Date.now() - endedAt > 10 * 60_000) endedParties.delete(id);
+    for (const [userId, createdAt] of partyCreates)
+      if (Date.now() - createdAt > 60_000) partyCreates.delete(userId);
   }, 30000);
   sweep.unref();
+  function partyIdentity(value) {
+    const name =
+      String(value?.name ?? "Guest")
+        .replace(/[\u0000-\u001f\u007f]/g, "")
+        .trim()
+        .slice(0, 48) || "Guest";
+    let avatar = "";
+    try {
+      const parsed = new URL(String(value?.avatar ?? ""));
+      if (
+        parsed.protocol === "https:" &&
+        !parsed.username &&
+        !parsed.password
+      ) {
+        parsed.search = "";
+        parsed.hash = "";
+        avatar = parsed.href.slice(0, 1000);
+      }
+    } catch {}
+    return { name, avatar };
+  }
   function partyResponse(party, userId) {
     const now = Date.now();
-    for (const [member, seen] of party.members)
-      if (now - seen > 30_000) party.members.delete(member);
+    for (const [member, details] of party.members)
+      if (now - details.seen > 30_000) party.members.delete(member);
     return {
       id: party.id,
       host: party.host === userId,
       participants: party.members.size,
+      members: [...party.members].map(([id, details]) => ({
+        key: createHmac("sha256", token)
+          .update(id)
+          .digest("base64url")
+          .slice(0, 16),
+        name: details.name,
+        avatar: details.avatar,
+        host: party.host === id,
+        self: userId === id,
+      })),
       playback: party.playback,
       state: { ...party.state, serverTime: now },
     };
@@ -400,7 +455,19 @@ export function createService({ token, origins, authorizeAccount }) {
       if (route.pathname === "/health") {
         if (!(await authorized(req)))
           return send(401, { error: "Playback service key required" });
-        return send(200, { ok: true, version: 1 });
+        return send(200, {
+          ok: true,
+          version: 2,
+          uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+          features: {
+            relay: true,
+            conversion: true,
+            downloads: true,
+            watchTogether: true,
+            friendSetup: !!friendKey,
+            xmltv: true,
+          },
+        });
       }
       if (route.pathname.startsWith("/friend/addon/")) {
         if (!["GET", "HEAD"].includes(req.method))
@@ -641,11 +708,36 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/status") {
+        return send(200, {
+          ok: true,
+          version: 2,
+          uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+          load: {
+            jobs: jobs.size,
+            tickets: tickets.size,
+            parties: parties.size,
+          },
+          capacity: limits,
+          features: {
+            relay: true,
+            conversion: true,
+            downloads: true,
+            watchTogether: true,
+            participantNames: true,
+            hostEndedRoom: true,
+            friendSetup: !!friendKey,
+            xmltv: true,
+          },
+        });
+      }
       if (route.pathname === "/party") {
         const action = String(body.action ?? "");
         if (action === "create") {
           if (userId === "service")
-            return send(403, { error: "Sign in before starting Watch Together." });
+            return send(403, {
+              error: "Sign in before starting Watch Together.",
+            });
           const source = body.playback;
           const item = source?.item;
           let parsedUrl;
@@ -668,8 +760,14 @@ export function createService({ token, origins, authorizeAccount }) {
             return send(400, {
               error: "Watch Together is available for movies and episodes.",
             });
-          if (parties.size >= 500)
+          if (parties.size >= limits.parties)
             return send(503, { error: "Watch Together is currently full." });
+          const previousCreate = partyCreates.get(userId) ?? 0;
+          if (Date.now() - previousCreate < 5_000)
+            return send(429, {
+              error: "Please wait a few seconds before creating another room.",
+            });
+          partyCreates.set(userId, Date.now());
           const id = randomBytes(18).toString("base64url");
           const now = Date.now();
           const playback = {
@@ -692,6 +790,7 @@ export function createService({ token, origins, authorizeAccount }) {
               : [],
             prepared: true,
           };
+          const identity = partyIdentity(body.member);
           const party = {
             id,
             host: userId,
@@ -702,7 +801,8 @@ export function createService({ token, origins, authorizeAccount }) {
               updatedAt: now,
               revision: 1,
             },
-            members: new Map([[userId, now]]),
+            members: new Map([[userId, { ...identity, seen: now }]]),
+            kicked: new Set(),
             expires: now + 6 * 60 * 60_000,
           };
           parties.set(id, party);
@@ -710,21 +810,57 @@ export function createService({ token, origins, authorizeAccount }) {
         }
         const id = String(body.id ?? "");
         const party = parties.get(id);
+        if (endedParties.has(id))
+          return send(410, {
+            error: "The host ended this Watch Together room.",
+          });
         if (!/^[A-Za-z0-9_-]{24}$/.test(id) || !party)
           return send(404, { error: "This Watch Together link expired." });
         if (userId === "service")
           return send(403, { error: "Sign in before joining Watch Together." });
+        if (party.kicked.has(userId))
+          return send(403, { error: "The host removed you from this room." });
         const now = Date.now();
-        party.members.set(userId, now);
+        const currentMember = party.members.get(userId);
+        if (!currentMember && party.members.size >= limits.partyMembers)
+          return send(503, { error: "This Watch Together room is full." });
+        party.members.set(userId, {
+          ...partyIdentity(body.member ?? currentMember),
+          seen: now,
+        });
         party.expires = now + 6 * 60 * 60_000;
-        if (action === "state" && body.update && party.host === userId) {
+        if (action === "end") {
+          if (party.host !== userId)
+            return send(403, { error: "Only the host can end this room." });
+          parties.delete(id);
+          endedParties.set(id, now);
+          return send(200, { ok: true, ended: true });
+        } else if (action === "kick") {
+          if (party.host !== userId)
+            return send(403, {
+              error: "Only the host can remove participants.",
+            });
+          const memberKey = String(body.memberKey ?? "");
+          const member = [...party.members.keys()].find(
+            (id) =>
+              id !== party.host &&
+              createHmac("sha256", token)
+                .update(id)
+                .digest("base64url")
+                .slice(0, 16) === memberKey,
+          );
+          if (!member)
+            return send(404, { error: "That participant already left." });
+          party.members.delete(member);
+          party.kicked.add(member);
+        } else if (action === "state" && body.update && party.host === userId) {
           party.state = {
             position: Math.max(0, Number(body.update.position) || 0),
             paused: body.update.paused !== false,
             updatedAt: now,
             revision: party.state.revision + 1,
           };
-        } else if (!["join", "state"].includes(action)) {
+        } else if (!["join", "state", "kick"].includes(action)) {
           return send(400, { error: "Invalid Watch Together request." });
         }
         return send(200, partyResponse(party, userId));
@@ -912,6 +1048,10 @@ export function createService({ token, origins, authorizeAccount }) {
       }
       if (route.pathname === "/download") {
         await resolveTarget(body.url);
+        if (jobs.size >= limits.jobs)
+          return send(503, {
+            error: "Playback service job capacity reached. Retry shortly.",
+          });
         const runningJobs = [...jobs.values()].filter((job) => job.running);
         if (runningJobs.length >= 2)
           return send(429, {
@@ -1004,6 +1144,10 @@ export function createService({ token, origins, authorizeAccount }) {
         )
           headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
         if (body.mode === "remux" || body.mode === "transcode") {
+          if (jobs.size >= limits.jobs)
+            return send(503, {
+              error: "Playback service job capacity reached. Retry shortly.",
+            });
           const runningJobs = [...jobs.values()].filter((job) => job.running);
           if (runningJobs.length >= 2)
             return send(429, {

@@ -84,6 +84,9 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       },
     });
     assert.equal(health.status, 200);
+    const healthBody = await health.json();
+    assert.equal(healthBody.version, 2);
+    assert.equal(healthBody.features.watchTogether, true);
     assert.equal(
       health.headers.get("access-control-allow-origin"),
       "https://site.example",
@@ -92,6 +95,16 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       Authorization: "Bearer " + token,
       "Content-Type": "application/json",
     };
+    const statusResponse = await fetch(base + "/status", {
+      method: "POST",
+      headers,
+      body: "{}",
+    });
+    assert.equal(statusResponse.status, 200);
+    const status = await statusResponse.json();
+    assert.equal(status.features.participantNames, true);
+    assert.equal(status.features.hostEndedRoom, true);
+    assert.equal(status.capacity.partyMembers, 12);
     assert.equal(
       (
         await fetch(base + "/prepare", {
@@ -176,23 +189,35 @@ test("watch parties share one prepared source and keep guests on the host timeli
         prepared: true,
         requestHeaders: { Authorization: "must-not-leak" },
       },
+      member: { name: "Host profile", avatar: "https://img.example/host.png" },
     });
     assert.equal(createdResponse.status, 200);
     const created = await createdResponse.json();
     assert.equal(created.host, true);
-    assert.equal(created.playback.url, "https://media.example/movie/master.m3u8");
+    assert.equal(
+      created.playback.url,
+      "https://media.example/movie/master.m3u8",
+    );
     assert.equal(created.playback.requestHeaders, undefined);
     assert.equal(created.state.position, 42);
+    assert.equal(created.members[0].name, "Host profile");
+    assert.equal(created.members[0].avatar, "https://img.example/host.png");
+    assert.equal(created.members[0].host, true);
+    assert.equal(created.members[0].self, true);
+    assert.match(created.members[0].key, /^[A-Za-z0-9_-]{16}$/);
 
     const joinedResponse = await request("guest-token", {
       action: "join",
       id: created.id,
+      member: { name: "Guest profile", avatar: "javascript:alert(1)" },
     });
     assert.equal(joinedResponse.status, 200);
     const joined = await joinedResponse.json();
     assert.equal(joined.host, false);
     assert.equal(joined.participants, 2);
     assert.equal(joined.playback.url, created.playback.url);
+    assert.equal(joined.members[1].name, "Guest profile");
+    assert.equal(joined.members[1].avatar, "");
 
     const updatedResponse = await request("host-token", {
       action: "state",
@@ -210,6 +235,23 @@ test("watch parties share one prepared source and keep guests on the host timeli
     const state = await stateResponse.json();
     assert.equal(state.state.position, 75.5);
     assert.equal(state.state.paused, true);
+
+    const guestEnd = await request("guest-token", {
+      action: "end",
+      id: created.id,
+    });
+    assert.equal(guestEnd.status, 403);
+    const hostEnd = await request("host-token", {
+      action: "end",
+      id: created.id,
+    });
+    assert.equal(hostEnd.status, 200);
+    const afterEnd = await request("guest-token", {
+      action: "state",
+      id: created.id,
+    });
+    assert.equal(afterEnd.status, 410);
+    assert.match((await afterEnd.json()).error, /host ended/i);
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));

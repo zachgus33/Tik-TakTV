@@ -71,6 +71,14 @@ The `/health` endpoint requires the service key; an unauthenticated 401 is expec
 
 The service rejects private/link-local destinations and pins DNS resolution per request, including redirects. It rewrites HLS variants, segments, maps and key URLs into short-lived opaque tickets. It does not implement DRM or a torrent engine. TorBox additions remain cached-only. Account sync talks directly to Nuvio's existing backend.
 
+## What the Pi is responsible for
+
+The public website and browser-compatible direct streams keep working without the Pi. The Pi is the private compatibility layer for sources that a browser cannot use directly. It relays protected requests without exposing credentials, remuxes or transcodes incompatible media for Safari and other browsers, prepares MP4 downloads, relays XMLTV, stores encrypted friend setup data, and coordinates Watch Together rooms.
+
+The authenticated `/status` response reports only safe operational data: protocol version, uptime, enabled capabilities, active media jobs, active rooms, and capacity. It never returns source URLs, add-on URLs, API keys, IPTV credentials, account identifiers, or viewing history. Media conversions are limited to two active FFmpeg sessions, Watch Together rooms hold at most twelve active members, and abandoned rooms expire after six hours.
+
+Native systemd units apply memory, CPU, task and file-descriptor limits. The watchdog checks the service and tunnel every minute, republishes a changed tunnel address, and bounds local tunnel and FFmpeg logs. Re-run `sh install-native-services.sh` after updating these unit definitions, then verify with `systemctl --user status tiktaktv-playback tiktaktv-tunnel tiktaktv-watchdog.timer`.
+
 ## Validation limits
 
 Automated tests cover authentication, origin restrictions, SSRF checks, header validation and playlist rewriting. A public sample HLS playlist was fetched and rewritten through the actual relay on Windows. ARM64 image startup, real provider media, and FFmpeg throughput must be checked on your Pi before calling the setup complete.

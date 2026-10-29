@@ -21,6 +21,14 @@ Restart=always
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$base/runtime
+MemoryMax=1G
+CPUQuota=300%
+TasksMax=128
+LimitNOFILE=8192
+UMask=0077
 
 [Install]
 WantedBy=default.target
@@ -38,6 +46,13 @@ WorkingDirectory=$base
 ExecStart=$HOME/.local/bin/cloudflared tunnel --no-autoupdate --logfile $base/runtime/tunnel.log --url http://127.0.0.1:3101
 Restart=always
 RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$base/runtime
+MemoryMax=256M
+TasksMax=64
+UMask=0077
 
 [Install]
 WantedBy=default.target
@@ -52,6 +67,8 @@ After=tiktaktv-tunnel.service
 Type=oneshot
 WorkingDirectory=$base
 ExecStart=/bin/sh $base/native-watchdog.sh
+NoNewPrivileges=true
+UMask=0077
 EOF
 
 cat > "$units/tiktaktv-watchdog.timer" <<'EOF'
