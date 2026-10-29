@@ -52,9 +52,9 @@ run active-active.
 Keep a Raspberry Pi standby current with `sh install-pi-standby.sh`. Its
 one-minute timer copies only the already-encrypted friend vault through a
 read-only `rrsync` account. The Pi tunnel and watchdog remain disabled during
-normal operation. Run `activate-standby.sh` after a primary outage, and run
-`deactivate-standby.sh` after the VPS primary has recovered and the vault has
-been reconciled.
+normal operation. Three consecutive failed production health checks activate
+the Pi automatically. Run `deactivate-standby.sh` only after the VPS primary
+has recovered and the vault has been reconciled back from the Pi.
 
 ## Permanent domain
 
