@@ -1,11 +1,12 @@
 name: Production uptime and account smoke
 on:
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: production-smoke
@@ -28,3 +29,67 @@ jobs:
           NUVIO_SMOKE_EMAIL: ${{ secrets.NUVIO_SMOKE_EMAIL }}
           NUVIO_SMOKE_PASSWORD: ${{ secrets.NUVIO_SMOKE_PASSWORD }}
           NUVIO_SMOKE_FRIEND_CODE: ${{ secrets.NUVIO_SMOKE_FRIEND_CODE }}
+      - name: Open or update production incident
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "[monitor] TikTak TV production smoke is failing";
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            const body = [
+              "The scheduled production monitor detected a failure.",
+              "",
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `Detected: ${new Date().toISOString()}`,
+              "",
+              "The monitor checks the website, built assets, permanent companion, CORS, Nuvio login, friend-code redemption, source discovery, and playback preparation when the smoke-account secrets are configured.",
+            ].join("\n");
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
+      - name: Close recovered production incident
+        if: success()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "[monitor] TikTak TV production smoke is failing";
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Production recovered in run ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: "closed",
+                state_reason: "completed",
+              });
+            }

@@ -71,6 +71,11 @@ assert.equal(
   siteOrigin,
   "Companion CORS does not allow the production website",
 );
+assert.equal(
+  healthResponse.headers.get("x-tiktak-companion"),
+  "2",
+  "Companion response marker is missing",
+);
 const health = await healthResponse.json();
 assert.deepEqual(health, { ok: true, version: 2 });
 
@@ -108,10 +113,32 @@ if (email && password) {
     "Smoke account did not receive a session",
   );
   const status = await checkedFetch(`${record.url}/friend/status`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
   });
   const friend = await status.json();
   assert.equal(typeof friend.available, "boolean");
+  const relayedManifest = await checkedFetch(`${record.url}/request`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+      Origin: siteOrigin,
+    },
+    body: JSON.stringify({
+      url: "https://v3-cinemeta.strem.io/manifest.json",
+      method: "GET",
+    }),
+  });
+  assert.equal(
+    relayedManifest.headers.get("x-tiktak-companion"),
+    "2",
+    "Authenticated add-on relay did not reach the companion",
+  );
   const code = process.env.NUVIO_SMOKE_FRIEND_CODE;
   if (code) {
     const redeemed = await checkedFetch(`${record.url}/friend/redeem`, {
@@ -132,7 +159,17 @@ if (email && password) {
     let discovered = 0;
     for (let index = 0; index < setup.template.addons.length; index += 1) {
       const addon = setup.template.addons[index];
-      if (!addon?.manifest?.resources?.includes?.("stream")) continue;
+      const resources = Array.isArray(addon?.manifest?.resources)
+        ? addon.manifest.resources
+        : [];
+      if (
+        !resources.some(
+          (resource) =>
+            resource === "stream" ||
+            (resource && typeof resource === "object" && resource.name === "stream"),
+        )
+      )
+        continue;
       const shared = new URL(addon.base);
       const response = await fetch(
         `${record.url}/friend/addon${shared.pathname}/stream/movie/${contentId}.json`,

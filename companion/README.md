@@ -86,7 +86,7 @@ sudo docker compose logs --tail 30 playback
 
 The `/health` endpoint requires the service key; an unauthenticated 401 is expected. The web connection test verifies it using the key. `/healthz` is a public liveness check that returns only `{ "ok": true, "version": 2 }` for uptime monitoring.
 
-The `Production uptime and account smoke` GitHub Actions workflow runs every 30
+The `Production uptime and account smoke` GitHub Actions workflow runs every 10
 minutes. It checks the deployed app shell and assets, PWA files, signed endpoint
 record, and the Pi liveness endpoint. Add repository secrets
 `NUVIO_SMOKE_EMAIL`, `NUVIO_SMOKE_PASSWORD`, and optionally

@@ -1,12 +1,46 @@
 import {
+  CircleAlert,
+  CircleCheck,
   ExternalLink,
   LockKeyhole,
+  RefreshCw,
   ServerCog,
   ShieldCheck,
 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { getService } from "./connection";
 
 export default function PrivacyStatus() {
+  const [service, setService] = useState<"checking" | "online" | "offline">(
+    "checking",
+  );
+  const [checkedAt, setCheckedAt] = useState("");
+  const checkService = useCallback(async () => {
+    setService("checking");
+    try {
+      const response = await fetch("https://api.tiktaktv.me/healthz", {
+        cache: "no-store",
+        credentials: "omit",
+        signal: AbortSignal.timeout(8_000),
+      });
+      const result = response.ok ? await response.json() : null;
+      setService(
+        result?.ok === true && result?.version === 2 ? "online" : "offline",
+      );
+    } catch {
+      setService("offline");
+    } finally {
+      setCheckedAt(
+        new Intl.DateTimeFormat(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        }).format(new Date()),
+      );
+    }
+  }, []);
+  useEffect(() => {
+    void checkService();
+  }, [checkService]);
   return (
     <div className="privacy-status">
       <section className="settings-card">
@@ -67,21 +101,47 @@ export default function PrivacyStatus() {
           </li>
           <li>
             <span>Compatibility service</span>
+            <strong className={service === "offline" ? "failed" : ""}>
+              {service === "checking"
+                ? "Checking…"
+                : service === "online"
+                  ? "Online · protocol v2"
+                  : "Temporarily unavailable"}
+            </strong>
+          </li>
+          <li>
+            <span>Current profile</span>
             <strong>
-              {getService() ? "Configured" : "Optional / not connected"}
+              {getService() ? "Companion access ready" : "Direct play only"}
             </strong>
           </li>
           <li>
             <span>Browser storage</span>
             <strong>Available on this device</strong>
           </li>
+          <li>
+            <span>External monitor</span>
+            <strong>GitHub · every 10 minutes</strong>
+          </li>
         </ul>
+        <button type="button" onClick={() => void checkService()}>
+          {service === "checking" ? (
+            <RefreshCw className="spin" />
+          ) : service === "online" ? (
+            <CircleCheck />
+          ) : (
+            <CircleAlert />
+          )}
+          {service === "checking"
+            ? "Checking services…"
+            : `Check again${checkedAt ? ` · ${checkedAt}` : ""}`}
+        </button>
         <a
-          href="https://github.com/zachgus33/Tik-TakTV/actions/workflows/web-pages.yml"
+          href="https://github.com/zachgus33/Tik-TakTV/actions/workflows/production-smoke.yml"
           target="_blank"
           rel="noreferrer"
         >
-          Deployment status <ExternalLink size={15} />
+          Production monitor <ExternalLink size={15} />
         </a>
       </section>
       <section className="settings-card public-launch-card">
