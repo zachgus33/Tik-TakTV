@@ -48,6 +48,50 @@ export function storeProvider(p: Provider | null, remember: boolean) {
       "Browser storage is unavailable. Allow site storage to save this connection.",
     );
 }
+
+const accountScopedKeys = [
+  "addons",
+  "collections",
+  "library",
+  "progress",
+  "torbox-key",
+  "realdebrid-key",
+  "playback-service",
+  "provider",
+  "home-catalogs",
+  "tmdb-key",
+  "discovered-url",
+];
+
+const transientProfileKeys = ["recent-channels", "downloads"];
+
+const transientProfileRawKeys = [
+  "tiktak:addon-health",
+  "tiktak:stream-preferences",
+  "tiktak:playback-reports",
+  "tiktak:friend-attempts",
+  "tiktak:last-party-create",
+];
+
+export function clearProfileTransientStorage() {
+  for (const storage of [localStorage, sessionStorage]) {
+    for (const key of transientProfileKeys) storage.removeItem(`nuvio:${key}`);
+    for (const key of transientProfileRawKeys) storage.removeItem(key);
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("downloads-changed"));
+    window.dispatchEvent(new Event("addon-health-changed"));
+  }
+}
+
+/** Remove data owned by the current Nuvio profile before another user enters. */
+export function clearAccountStorage() {
+  clearProfileTransientStorage();
+  for (const storage of [localStorage, sessionStorage]) {
+    for (const key of accountScopedKeys) storage.removeItem(`nuvio:${key}`);
+    storage.removeItem("tiktak:last-sync");
+  }
+}
 export function cleanItem(item: Item): Item {
   // Saved library records never include playback URLs (which can contain passwords).
   const { url: _url, ...rest } = item;

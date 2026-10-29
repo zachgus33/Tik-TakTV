@@ -18,6 +18,7 @@ import {
 } from "./addon-health";
 
 const responseCache = new Map<string, { expires: number; value: unknown }>();
+export const clearSourceCache = () => responseCache.clear();
 const cacheableRequest = (url: string) =>
   /\/manifest\.json(?:[?#]|$)|\/catalog\/|\/meta\//i.test(url);
 

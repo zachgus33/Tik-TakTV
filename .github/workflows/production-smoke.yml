@@ -24,6 +24,7 @@ jobs:
         run: node web/tests/production-smoke.mjs
         env:
           SITE_URL: https://www.tiktaktv.me
+          ENDPOINT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUVIO_SMOKE_EMAIL: ${{ secrets.NUVIO_SMOKE_EMAIL }}
           NUVIO_SMOKE_PASSWORD: ${{ secrets.NUVIO_SMOKE_PASSWORD }}
           NUVIO_SMOKE_FRIEND_CODE: ${{ secrets.NUVIO_SMOKE_FRIEND_CODE }}

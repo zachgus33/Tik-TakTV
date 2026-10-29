@@ -41,8 +41,62 @@ import {
   clearAddonQuarantine,
   recordAddonFailure,
 } from "../src/addon-health";
+import { persistableSetup } from "../src/account-isolation";
+import { clearAccountStorage } from "../src/storage";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe("account isolation", () => {
+  it("never persists a live Nuvio bearer as a playback-service secret", () => {
+    const setup = {
+      playbackService: {
+        url: "https://api.tiktaktv.me",
+        token: "live-account-bearer",
+        account: true as const,
+      },
+      addons: [],
+      collections: [],
+      library: [],
+      progress: [],
+      provider: null,
+      torboxKey: "",
+      realDebridKey: "",
+      autoplay: true,
+    };
+    expect(persistableSetup(setup).playbackService).toBeNull();
+  });
+
+  it("clears credentials and account-owned caches from both storage scopes", () => {
+    const makeStorage = () => {
+      const values = new Map<string, string>();
+      return {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      };
+    };
+    const local = makeStorage();
+    const session = makeStorage();
+    vi.stubGlobal("localStorage", local);
+    vi.stubGlobal("sessionStorage", session);
+    for (const storage of [local, session]) {
+      storage.setItem("nuvio:torbox-key", "private");
+      storage.setItem("nuvio:provider", "private");
+      storage.setItem("nuvio:home-catalogs", "private");
+      storage.setItem("tiktak:stream-preferences", "private");
+    }
+    clearAccountStorage();
+    for (const storage of [local, session]) {
+      expect(storage.getItem("nuvio:torbox-key")).toBeNull();
+      expect(storage.getItem("nuvio:provider")).toBeNull();
+      expect(storage.getItem("nuvio:home-catalogs")).toBeNull();
+      expect(storage.getItem("tiktak:stream-preferences")).toBeNull();
+    }
+  });
+});
 describe("encrypted setup backups", () => {
   it("round-trips private setup and rejects the wrong passphrase", async () => {
     const setup = {
@@ -69,8 +123,12 @@ describe("encrypted setup backups", () => {
     const encrypted = await encryptSetup(setup, "correct horse battery staple");
     expect(encrypted).not.toContain("private-torbox");
     expect(encrypted).not.toContain("private-password");
-    expect(await decryptSetup(encrypted, "correct horse battery staple")).toEqual(setup);
-    await expect(decryptSetup(encrypted, "wrong passphrase")).rejects.toThrow(/incorrect|damaged/i);
+    expect(
+      await decryptSetup(encrypted, "correct horse battery staple"),
+    ).toEqual(setup);
+    await expect(decryptSetup(encrypted, "wrong passphrase")).rejects.toThrow(
+      /incorrect|damaged/i,
+    );
   });
 });
 

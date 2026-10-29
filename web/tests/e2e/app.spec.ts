@@ -598,9 +598,8 @@ test("autoplay selects highest quality first and seeders break quality ties", as
     .poll(() =>
       page.evaluate(
         () =>
-          (
-            window as typeof window & { __testMediaSources?: string[] }
-          ).__testMediaSources?.[0],
+          (window as typeof window & { __testMediaSources?: string[] })
+            .__testMediaSources?.[0],
       ),
     )
     .toBe("https://cdn.example/4k.mp4");
@@ -1647,14 +1646,9 @@ test.describe("authenticated integrations", () => {
     ).toBeVisible();
     await expect
       .poll(() =>
-        page.evaluate(() => {
-          const raw = localStorage.getItem("nuvio:playback-service");
-          if (!raw) return false;
-          const service = JSON.parse(raw);
-          return /^https:\/\//.test(service.url) && !!service.token;
-        }),
+        page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
       )
-      .toBe(true);
+      .toBeNull();
     const setupClose = page.getByRole("button", { name: "Close setup" });
     if (await setupClose.isVisible().catch(() => false))
       await setupClose.click();

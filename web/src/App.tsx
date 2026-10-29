@@ -56,6 +56,7 @@ import {
   categories,
   defaultAddon,
   defaultAddons,
+  clearSourceCache,
   epg,
   providerDetail,
   providerItems,
@@ -63,7 +64,15 @@ import {
   streamUrl,
 } from "./api";
 import { readLiveCache, writeLiveCache } from "./live-cache";
-import { cleanItem, getProvider, read, save, useStored } from "./storage";
+import {
+  cleanItem,
+  clearAccountStorage,
+  clearProfileTransientStorage,
+  getProvider,
+  read,
+  save,
+  useStored,
+} from "./storage";
 import {
   itemKey,
   type Addon,
@@ -196,7 +205,7 @@ function ProfileGate({
   onGuest,
   skipSelection,
 }: {
-  onEnter: (setup: Setup, profile: Profile) => void;
+  onEnter: (setup: Setup, profile: Profile, ownerId: string) => void;
   onGuest: () => void;
   skipSelection: boolean;
 }) {
@@ -245,7 +254,7 @@ function ProfileGate({
           String(profile.profile_index),
         );
       sessionStorage.setItem("tiktak:profile-active", "1");
-      onEnter(result.setup, profile);
+      onEnter(result.setup, profile, data.session?.user.id ?? "local");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open this profile.");
     } finally {
@@ -1571,14 +1580,16 @@ export default function App() {
   function loadAccountSetup(s: Setup) {
     // Failure history belongs to the previous browser profile and must never
     // suppress an add-on for a different Nuvio user.
-    localStorage.removeItem("tiktak:addon-health");
-    if (s.playbackService)
+    clearProfileTransientStorage();
+    clearSourceCache();
+    setRecentChannels([]);
+    if (s.playbackService && !s.playbackService.account)
       localStorage.setItem(
         "nuvio:playback-service",
         JSON.stringify(s.playbackService),
       );
-    if (s.playbackService)
-      window.dispatchEvent(new Event("connections-changed"));
+    else localStorage.removeItem("nuvio:playback-service");
+    window.dispatchEvent(new Event("connections-changed"));
     const accountTmdbKey = s.tmdbKey?.trim();
     const resolvedTmdbKey = accountTmdbKey || DEFAULT_TMDB_KEY;
     setTmdbKey(resolvedTmdbKey);
@@ -2157,7 +2168,7 @@ export default function App() {
       <ProfileGate
         skipSelection={skipProfileSelection && !forceProfileSelection}
         onGuest={() => setProfileReady(true)}
-        onEnter={(setup, profile) => {
+        onEnter={(setup, profile, ownerId) => {
           setForceProfileSelection(false);
           setActiveProfileView({
             name: profile.name,
@@ -2165,7 +2176,7 @@ export default function App() {
             color: profile.avatar_color_hex,
           });
           loadAccountSetup(setup);
-          const wizardKey = `tiktak:setup-wizard-v2:${profile.profile_index}`;
+          const wizardKey = `tiktak:setup-wizard-v2:${ownerId}:${profile.profile_index}`;
           if (localStorage.getItem(wizardKey) !== "complete")
             setSetupWizardKey(wizardKey);
           location.hash = "home";
@@ -2958,27 +2969,19 @@ export default function App() {
                   skipProfileSelection={skipProfileSelection}
                   onSkipProfileSelection={setSkipProfileSelection}
                   onChangeUser={() => {
-                    storeProvider(null, false);
-                    for (const key of [
-                      "nuvio:addons",
-                      "nuvio:collections",
-                      "nuvio:library",
-                      "nuvio:progress",
-                      "nuvio:torbox-key",
-                      "nuvio:realdebrid-key",
-                      "nuvio:playback-service",
-                      "tiktak:addon-health",
-                    ]) {
-                      localStorage.removeItem(key);
-                      sessionStorage.removeItem(key);
-                    }
+                    clearAccountStorage();
+                    clearSourceCache();
                     setProvider(null);
                     setAddons(defaultAddons);
                     setCollections([]);
                     setLibrary([]);
                     setProgress([]);
+                    setHomeCatalogs([]);
+                    setRecentChannels([]);
                     setTorboxKey("");
                     setRealDebridKey("");
+                    setTmdbKey(DEFAULT_TMDB_KEY);
+                    setAutoplay(true);
                     setPlaylist([]);
                     setPlayback(null);
                     setDetail(null);

@@ -254,9 +254,9 @@ export default function Settings(props: Props) {
               </div>
               <p>
                 Enter a private code to install its add-ons, catalog order,
-                collections, filters, playback preferences, and protected
-                debrid access. Keys and credential-bearing add-on URLs stay
-                encrypted on the TikTak TV service.
+                collections, filters, playback preferences, and protected debrid
+                access. Keys and credential-bearing add-on URLs stay encrypted
+                on the TikTak TV service.
               </p>
               <form
                 className="inline-form"
@@ -309,11 +309,11 @@ export default function Settings(props: Props) {
                     : "Create your own friend code"}
                 </summary>
                 <p className="hint">
-                  Choose a private code to share your current add-ons,
-                  catalogs, collections, settings, and your own TorBox or
-                  Real-Debrid access. Personal library items, watch history,
-                  profiles, and IPTV credentials are excluded. Publishing a
-                  new code immediately replaces your previous one.
+                  Choose a private code to share your current add-ons, catalogs,
+                  collections, settings, and your own TorBox or Real-Debrid
+                  access. Personal library items, watch history, profiles, and
+                  IPTV credentials are excluded. Publishing a new code
+                  immediately replaces your previous one.
                 </p>
                 <form
                   className="inline-form"
@@ -384,11 +384,12 @@ export default function Settings(props: Props) {
                 {(props.torboxKey.startsWith("friend:") ||
                   props.realDebridKey.startsWith("friend-rd:")) &&
                   !friendStatus?.owner && (
-                  <p className="hint">
-                    This profile currently uses someone else?s shared access.
-                    Connect your own debrid account before creating a code.
-                  </p>
-                )}
+                    <p className="hint">
+                      This profile currently uses someone else&apos;s shared
+                      access. Connect your own debrid account before creating a
+                      code.
+                    </p>
+                  )}
                 {friendStatus?.published && (
                   <button
                     className="danger-button"

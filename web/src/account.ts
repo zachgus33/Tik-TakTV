@@ -7,6 +7,7 @@ import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
+import { persistableSetup } from "./account-isolation";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -56,6 +57,7 @@ export type HomeCatalogSetting = {
   collection_id?: string;
   key?: string;
 };
+
 const platform = "tiktak_web";
 const baselines = new Map<
   number,
@@ -232,7 +234,12 @@ export async function loadSetup(
   // the account-owned storage location, so secondary profiles can read the
   // connection without making it available to any other account.
   const sharedProvider = resolveAccountProvider(id, ownWeb, accountWeb);
-  if (!getService() && web.playbackService?.url && web.playbackService?.token)
+  localStorage.removeItem("nuvio:playback-service");
+  if (
+    web.playbackService?.account !== true &&
+    web.playbackService?.url &&
+    web.playbackService?.token
+  )
     localStorage.setItem(
       "nuvio:playback-service",
       JSON.stringify(web.playbackService),
@@ -403,10 +410,13 @@ export async function loadSetup(
 }
 export async function saveSetup(profile: Profile, setup: Setup) {
   const id = profile.profile_index;
+  const safeSetup = persistableSetup(setup);
   // Read/merge the native platform blob so unknown settings are retained.
   const blob = await settings(id);
   const profileSetup =
-    id === 1 ? { ...setup, accountProvider: setup.provider } : setup;
+    id === 1
+      ? { ...safeSetup, accountProvider: safeSetup.provider }
+      : safeSetup;
   await rpc("sync_push_profile_settings_blob", {
     p_profile_id: id,
     p_platform: platform,

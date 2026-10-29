@@ -6,8 +6,6 @@ export type PlaybackService = {
 };
 const endpointRecord =
   "https://api.github.com/repos/zachgus33/Tik-TakTV-Endpoint/contents/endpoint.json?ref=main";
-const bootstrapEndpoint =
-  "https://magnificent-tongue-composed-bears.trycloudflare.com";
 const permanentEndpoint = "https://api.tiktaktv.me";
 
 function accountToken() {
@@ -90,7 +88,9 @@ export function getService(): PlaybackService | null {
     const token = accountToken();
     if (token)
       return {
-        url: localStorage.getItem("nuvio:discovered-url") || bootstrapEndpoint,
+        // Signed-in accounts use the stable named tunnel immediately. Endpoint
+        // discovery remains available for verified future migrations.
+        url: permanentEndpoint,
         token,
         account: true,
       };
@@ -270,10 +270,7 @@ export async function prepareDownload(
 
 async function friendRequest<T>(
   path:
-    | "/friend/status"
-    | "/friend/setup"
-    | "/friend/redeem"
-    | "/friend/revoke",
+    "/friend/status" | "/friend/setup" | "/friend/redeem" | "/friend/revoke",
   body: Record<string, unknown> = {},
 ) {
   if (path === "/friend/redeem") {
