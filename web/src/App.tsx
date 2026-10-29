@@ -1355,9 +1355,14 @@ function Detail({
           <div className="error" role="alert">
             {error}
             {error.startsWith("No streaming add-on") && (
-              <a className="button-link" href="#settings" onClick={onClose}>
+              <button
+                onClick={() => {
+                  onClose();
+                  location.hash = "settings";
+                }}
+              >
                 Open setup and friend codes
-              </a>
+              </button>
             )}
           </div>
         )}
