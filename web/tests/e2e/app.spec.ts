@@ -1037,36 +1037,37 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
     requested = JSON.parse(route.request().postData() ?? "{}");
     await route.fulfill({ json: { path: "/media/job/download.mp4" } });
   });
-  await page.route("https://playback.example/media/job/download.mp4", (route) =>
-    route.fulfill({
-      contentType: "video/mp4",
-      headers: {
-        "Content-Disposition": 'attachment; filename="The Test Movie.mp4"',
-      },
-      body: "mp4",
-    }),
-  );
+  let mediaRequests = 0;
+  await page
+    .context()
+    .route("https://playback.example/media/job/download.mp4", (route) => {
+      mediaRequests += 1;
+      return route.fulfill({
+        contentType: "video/mp4",
+        headers: {
+          "Content-Disposition": 'attachment; filename="The Test Movie.mp4"',
+        },
+        body: "mp4",
+      });
+    });
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   const transfer =
-    browserName === "chromium"
-      ? page.waitForEvent("download")
-      : page
-          .context()
-          .waitForEvent("page")
-          .then((downloadPage) =>
-            downloadPage.waitForRequest(
-              "https://playback.example/media/job/download.mp4",
-            ),
-          );
+    browserName === "chromium" ? page.waitForEvent("download") : null;
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await expect.poll(() => requested.url).toBe("https://cdn.example/4k.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
-  const result = await transfer;
-  if (browserName === "chromium")
+  const appleTouchBrowser = await page.evaluate(() =>
+    /iPad|iPhone|iPod/i.test(navigator.userAgent),
+  );
+  if (appleTouchBrowser)
+    await page.getByRole("link", { name: "Open MP4 / Save to Files" }).click();
+  if (browserName === "chromium") {
+    const result = await transfer!;
     expect("suggestedFilename" in result && result.suggestedFilename()).toBe(
       "The Test Movie.mp4",
     );
+  } else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
 });
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,

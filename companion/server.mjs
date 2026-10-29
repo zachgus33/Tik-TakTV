@@ -573,12 +573,15 @@ export function createService({ token, origins, authorizeAccount }) {
             if (file !== "download.mp4")
               return send(404, { error: "Unknown media file" });
             const encodedName = encodeURIComponent(job.filename);
-            res.writeHead(200, {
+            const downloadHeaders = {
               "Content-Type": "video/mp4",
               "Content-Disposition": `attachment; filename="TikTak-TV.mp4"; filename*=UTF-8''${encodedName}`,
               "Cache-Control": "no-store",
-            });
-            if (req.method === "HEAD") return res.end();
+            };
+            if (req.method === "HEAD") {
+              res.writeHead(200, downloadHeaders);
+              return res.end();
+            }
             job.touched = Date.now();
             job.process?.kill();
             const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
@@ -587,6 +590,8 @@ export function createService({ token, origins, authorizeAccount }) {
             });
             job.process = child;
             job.running = true;
+            let responseStarted = false;
+            let errorOutput = "";
             const stop = () => {
               if (job.process === child) {
                 job.process = null;
@@ -595,19 +600,42 @@ export function createService({ token, origins, authorizeAccount }) {
               child.kill();
             };
             res.once("close", stop);
+            child.stderr.on("data", (chunk) => {
+              errorOutput = (errorOutput + chunk.toString()).slice(-2000);
+            });
+            child.stdout.once("data", (chunk) => {
+              if (res.destroyed) return stop();
+              responseStarted = true;
+              res.writeHead(200, downloadHeaders);
+              res.write(chunk);
+              child.stdout.pipe(res);
+            });
             child.stdout.on("data", () => {
               job.touched = Date.now();
             });
-            child.once("error", () => res.destroy());
+            child.once("error", () => {
+              if (responseStarted) res.destroy();
+              else if (!res.writableEnded)
+                send(502, {
+                  error:
+                    "The MP4 converter could not start. Try another source.",
+                });
+            });
             child.once("exit", (code) => {
               if (job.process === child) {
                 job.process = null;
                 job.running = false;
               }
-              if (code && !res.destroyed) res.destroy();
-              else if (!res.writableEnded) res.end();
+              if (code && !res.destroyed && !res.writableEnded) {
+                if (responseStarted) res.destroy();
+                else
+                  send(502, {
+                    error: /401|403|forbidden|unauthorized/i.test(errorOutput)
+                      ? "The source rejected the download. Refresh its stream link and try again."
+                      : "This source could not be converted to MP4. Try another source.",
+                  });
+              } else if (!res.writableEnded) res.end();
             });
-            child.stdout.pipe(res);
             return;
           }
           if (job.kind === "webm") {

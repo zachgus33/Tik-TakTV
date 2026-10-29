@@ -64,7 +64,11 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     addons: [
       {
         base: "https://addon.example/configured-secret",
-        manifest: { id: "stream.one", name: "Stream one", resources: ["stream"] },
+        manifest: {
+          id: "stream.one",
+          name: "Stream one",
+          resources: ["stream"],
+        },
       },
     ],
     collections: [],
@@ -97,10 +101,17 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     const shared = await redeemed.json();
     assert.match(shared.torboxKey, /^friend:/);
     assert.match(shared.realDebridKey, /^friend-rd:/);
-    assert.match(shared.template.addons[0].base, /^https:\/\/friend\.tiktaktv\.invalid\//);
+    assert.match(
+      shared.template.addons[0].base,
+      /^https:\/\/friend\.tiktaktv\.invalid\//,
+    );
     assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
     assert.ok(!JSON.stringify(shared).includes("configured-secret"));
-    assert.ok(!(await readFile(join(directory, "users.json"), "utf8")).includes("owner-one-torbox"));
+    assert.ok(
+      !(await readFile(join(directory, "users.json"), "utf8")).includes(
+        "owner-one-torbox",
+      ),
+    );
 
     assert.equal((await request("owner-one", "/friend/revoke")).status, 200);
     assert.equal(
@@ -169,6 +180,37 @@ test("sanitizes download filenames and always emits MP4", () => {
   );
   assert.equal(safeDownloadName("movie.mp4"), "movie.mp4");
   assert.equal(safeDownloadName("\r\n"), "TikTak TV download.mp4");
+});
+test("does not report a successful download before the converter emits bytes", async () => {
+  const previous = process.env.FFMPEG_PATH;
+  process.env.FFMPEG_PATH = process.execPath;
+  const token = "d".repeat(40);
+  const server = createService({ token, origins: ["https://site.example"] });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const prepared = await fetch(base + "/download", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: "https://example.com/video.mp4",
+        filename: "video.mp4",
+      }),
+    });
+    assert.equal(prepared.status, 200);
+    const { path } = await prepared.json();
+    const transfer = await fetch(base + path);
+    assert.equal(transfer.status, 502);
+    assert.match((await transfer.json()).error, /converted|source/i);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    if (previous === undefined) delete process.env.FFMPEG_PATH;
+    else process.env.FFMPEG_PATH = previous;
+  }
 });
 test("auth and origin gates, bounded paths and SSRF prevention apply to API and media preparation", async () => {
   const token = "a".repeat(40);

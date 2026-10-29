@@ -215,9 +215,10 @@ export function streamCompatibility(stream: Stream) {
 export type DownloadJob = {
   id: string;
   name: string;
-  status: "preparing" | "started" | "failed";
+  status: "preparing" | "ready" | "started" | "failed";
   detail: string;
   at: number;
+  url?: string;
 };
 const DOWNLOADS_KEY = "nuvio:downloads";
 export function downloadJobs(): DownloadJob[] {

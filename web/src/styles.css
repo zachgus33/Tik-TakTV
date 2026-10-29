@@ -4371,6 +4371,42 @@ body:has(dialog[open]) {
   font-size: 0.86rem;
   pointer-events: none;
 }
+.download-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+.download-ready p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.download-ready a,
+.download-job-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.download-job-action {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .download-ready {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 [hidden] {
   display: none !important;
 }

@@ -792,6 +792,11 @@ function Detail({
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
   const [downloadMode, setDownloadMode] = useState(false);
+  const [readyDownload, setReadyDownload] = useState<{
+    url: string;
+    filename: string;
+    persistentUrl?: string;
+  } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
   const [person, setPerson] = useState<import("./tmdb").PersonProfile | null>(
@@ -803,7 +808,6 @@ function Detail({
     episode?: Episode;
   } | null>(null);
   const controller = useRef<AbortController | null>(null);
-  const pendingDownloadWindow = useRef<Window | null>(null);
   const downloadJobId = useRef("");
   const streamRequests = useRef(
     new Map<string, ReturnType<typeof addonStreams>>(),
@@ -998,29 +1002,65 @@ function Detail({
     const filename = downloadFilename(ep);
     const downloadUrl = await prepareDownload(url, filename, headers, signal);
     if (signal?.aborted) return;
+    const service = getService();
+    const persistentUrl = (() => {
+      try {
+        const candidate = new URL(downloadUrl);
+        return service &&
+          candidate.origin === new URL(service.url).origin &&
+          /^\/media\/[A-Za-z0-9_-]+\/download\.mp4$/.test(candidate.pathname)
+          ? candidate.href
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    setReadyDownload({ url: downloadUrl, filename, persistentUrl });
     if (downloadJobId.current)
       updateDownloadJob({
         id: downloadJobId.current,
         name: filename,
-        status: "started",
-        detail: "MP4 prepared and handed to the browser download manager.",
+        status: "ready",
+        detail:
+          "MP4 is ready. Use Download MP4 if the browser does not start it automatically.",
         at: Date.now(),
+        url: persistentUrl,
       });
-    const reservedWindow = pendingDownloadWindow.current;
-    pendingDownloadWindow.current = null;
-    if (reservedWindow && !reservedWindow.closed) {
-      reservedWindow.location.replace(downloadUrl);
-      setDownloadMode(false);
-      return;
-    }
+    setDownloadMode(false);
+    if (appleTouchBrowser()) return;
+    handoffDownload(downloadUrl, filename);
+    markDownloadStarted(filename, persistentUrl);
+  }
+  function markDownloadStarted(filename: string, url?: string) {
+    if (!downloadJobId.current) return;
+    updateDownloadJob({
+      id: downloadJobId.current,
+      name: filename,
+      status: "started",
+      detail:
+        "Download requested. If it was blocked, use Download MP4 in the Download Center.",
+      at: Date.now(),
+      url,
+    });
+  }
+  function handoffDownload(downloadUrl: string, filename: string) {
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = filename;
     link.rel = "noopener";
+    if (appleTouchBrowser()) link.target = "_blank";
     document.body.append(link);
     link.click();
     link.remove();
-    setDownloadMode(false);
+  }
+  function openReadyDownload(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (appleTouchBrowser()) {
+      event.preventDefault();
+      const opened = window.open(readyDownload!.url, "_blank");
+      if (opened) opened.opener = null;
+      else window.location.assign(readyDownload!.url);
+    }
+    markDownloadStarted(readyDownload!.filename, readyDownload!.persistentUrl);
   }
   async function chooseDownload(
     stream: Stream,
@@ -1167,8 +1207,6 @@ function Detail({
       if (!c.signal.aborted) {
         if (downloadBest) {
           setDownloadMode(false);
-          pendingDownloadWindow.current?.close();
-          pendingDownloadWindow.current = null;
           if (downloadJobId.current)
             updateDownloadJob({
               id: downloadJobId.current,
@@ -1189,6 +1227,7 @@ function Detail({
   }
   function download(ep?: Episode) {
     setDownloadMode(true);
+    setReadyDownload(null);
     if (item.type === "series" && !ep) {
       setError(
         "Choose an episode below. TikTak TV will download its best available stream.",
@@ -1203,20 +1242,13 @@ function Detail({
       detail: "Selecting the best 720p+ source and preparing an MP4.",
       at: Date.now(),
     });
-    const appleTouchBrowser =
-      /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    if (appleTouchBrowser) {
-      pendingDownloadWindow.current?.close();
-      pendingDownloadWindow.current = window.open("about:blank", "_blank");
-      if (pendingDownloadWindow.current) {
-        pendingDownloadWindow.current.opener = null;
-        pendingDownloadWindow.current.document.title = "Preparing download";
-        pendingDownloadWindow.current.document.body.textContent =
-          "TikTak TV is preparing your MP4 download…";
-      }
-    }
     void play(ep, false, true);
+  }
+  function appleTouchBrowser() {
+    return (
+      /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
   }
   const seasons = [...new Set(episodes.map((e) => e.season))];
   return (
@@ -1394,6 +1426,29 @@ function Detail({
                 Open setup and friend codes
               </button>
             )}
+          </div>
+        )}
+        {readyDownload && (
+          <div className="download-ready" role="status">
+            <div>
+              <strong>Your MP4 is ready</strong>
+              <p>
+                {appleTouchBrowser()
+                  ? "Tap below to open the file, then use Share → Save to Files if Safari shows the video."
+                  : "If your browser did not start automatically, download it here."}
+              </p>
+            </div>
+            <a
+              className="primary"
+              href={readyDownload.url}
+              download={readyDownload.filename}
+              target={appleTouchBrowser() ? "_blank" : undefined}
+              rel="noopener"
+              onClick={openReadyDownload}
+            >
+              <Download size={18} />
+              {appleTouchBrowser() ? "Open MP4 / Save to Files" : "Save MP4"}
+            </a>
           </div>
         )}
         {busy && <Loading />}
