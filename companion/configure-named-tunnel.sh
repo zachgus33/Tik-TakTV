@@ -13,8 +13,11 @@ case "$public_url" in
   *) echo "Use an HTTPS public URL." >&2; exit 2 ;;
 esac
 umask 077
+token_file="$base/.cloudflared-token"
+printf '%s\n' "$token" > "$token_file"
+chmod 600 "$token_file"
 cat > "$base/.env.tunnel" <<EOF
-TUNNEL_TOKEN=$token
+TUNNEL_TOKEN_FILE=$token_file
 PUBLIC_PLAYBACK_URL=$public_url
 EOF
 chmod 600 "$base/.env.tunnel"
