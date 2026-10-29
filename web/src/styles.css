@@ -2107,6 +2107,91 @@ button.selected {
 .addon-symbol svg {
   width: 18px;
 }
+.addon {
+  grid-template-columns: auto minmax(0, 1fr) repeat(4, auto);
+}
+.source-preferences {
+  margin-top: 18px;
+}
+.source-preferences .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.recent-channels {
+  margin: 18px 0 8px;
+}
+.recent-channels .section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+.recent-channels h2 {
+  margin: 3px 0 8px;
+  font-size: 1.1rem;
+}
+.update-banner {
+  position: fixed;
+  z-index: 3000;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(620px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, white 12%);
+  border-radius: 14px;
+  background: #11141cf2;
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(18px);
+}
+.update-banner span {
+  flex: 1;
+}
+.public-launch-card details {
+  border-top: 1px solid var(--soft-border);
+  padding: 13px 0;
+}
+.public-launch-card details p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 75%, white);
+  outline-offset: 3px;
+}
+@media (min-width: 1400px) and (pointer: coarse) {
+  button,
+  select,
+  input {
+    min-height: 52px;
+    font-size: 1rem;
+  }
+  .nav-link {
+    min-height: 58px;
+  }
+}
+@media (max-width: 680px) {
+  .source-preferences .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .addon {
+    grid-template-columns: auto minmax(0, 1fr) repeat(2, auto);
+  }
+  .addon button:nth-of-type(1),
+  .addon button:nth-of-type(2) {
+    display: none;
+  }
+  .update-banner {
+    flex-wrap: wrap;
+  }
+  .update-banner span {
+    flex-basis: 100%;
+  }
+}
 .file-button {
   width: fit-content;
   position: relative;

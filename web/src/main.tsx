@@ -45,10 +45,18 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
       .then((registration) => {
         const activate = () =>
           registration.waiting?.postMessage({ type: "SKIP_WAITING" });
-        activate();
+        (
+          window as Window & { applyTikTakUpdate?: () => void }
+        ).applyTikTakUpdate = activate;
+        if (registration.waiting && replacingExistingWorker)
+          window.dispatchEvent(new Event("tiktak:update-ready"));
         registration.addEventListener("updatefound", () =>
           registration.installing?.addEventListener("statechange", () => {
-            if (registration.installing?.state === "installed") activate();
+            if (registration.installing?.state === "installed") {
+              if (replacingExistingWorker)
+                window.dispatchEvent(new Event("tiktak:update-ready"));
+              else activate();
+            }
           }),
         );
         void registration.update();

@@ -1640,8 +1640,13 @@ export default function App() {
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [recentChannels, setRecentChannels] = useStored<Item[]>(
+    "recent-channels",
+    [],
+  );
   const [toast, setToast] = useState("");
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [updateReady, setUpdateReady] = useState(false);
   const [update, setUpdate] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const partyAttemptedRef = useRef("");
@@ -1687,6 +1692,11 @@ export default function App() {
     };
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
+  }, []);
+  useEffect(() => {
+    const ready = () => setUpdateReady(true);
+    window.addEventListener("tiktak:update-ready", ready);
+    return () => window.removeEventListener("tiktak:update-ready", ready);
   }, []);
   useEffect(() => {
     document.documentElement.style.setProperty("--accent", accent);
@@ -2060,6 +2070,12 @@ export default function App() {
     ),
   ];
   function playChannel(item: Item) {
+    setRecentChannels((current) =>
+      [
+        cleanItem(item),
+        ...current.filter((channel) => itemKey(channel) !== itemKey(item)),
+      ].slice(0, 12),
+    );
     if (item.source === "xtream") {
       if (!provider || provider.scope !== item.provider) {
         setToast("Connect this channel’s IPTV account in Settings.");
@@ -2685,6 +2701,35 @@ export default function App() {
                       {filtered.length.toLocaleString()} channels
                     </span>
                   </div>
+                  {recentChannels.length > 0 && (
+                    <section
+                      className="recent-channels"
+                      aria-label="Recently watched channels"
+                    >
+                      <div className="section-heading">
+                        <div>
+                          <span className="eyebrow">QUICK ACCESS</span>
+                          <h2>Recently watched</h2>
+                        </div>
+                        <button onClick={() => setRecentChannels([])}>
+                          Clear
+                        </button>
+                      </div>
+                      <div className="cast-row">
+                        {recentChannels.map((channel) => (
+                          <button
+                            className="cast-person"
+                            key={itemKey(channel)}
+                            onClick={() => playChannel(channel)}
+                          >
+                            <Art item={channel} />
+                            <strong>{channel.name}</strong>
+                            <small>Live</small>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <p className="guide-status" role="status">
                     {guideState.loading
                       ? "Loading your Xtream guide automatically..."
@@ -2884,6 +2929,29 @@ export default function App() {
                   skipProfileSelection={skipProfileSelection}
                   onSkipProfileSelection={setSkipProfileSelection}
                   onChangeUser={() => {
+                    storeProvider(null, false);
+                    for (const key of [
+                      "nuvio:addons",
+                      "nuvio:collections",
+                      "nuvio:library",
+                      "nuvio:progress",
+                      "nuvio:torbox-key",
+                      "nuvio:realdebrid-key",
+                      "nuvio:playback-service",
+                    ]) {
+                      localStorage.removeItem(key);
+                      sessionStorage.removeItem(key);
+                    }
+                    setProvider(null);
+                    setAddons(defaultAddons);
+                    setCollections([]);
+                    setLibrary([]);
+                    setProgress([]);
+                    setTorboxKey("");
+                    setRealDebridKey("");
+                    setPlaylist([]);
+                    setPlayback(null);
+                    setDetail(null);
                     sessionStorage.removeItem("tiktak:profile-active");
                     setForceProfileSelection(true);
                     setProfileReady(false);
@@ -3042,6 +3110,22 @@ export default function App() {
       {toast && (
         <div className="toast" role="status">
           {toast}
+        </div>
+      )}
+      {updateReady && (
+        <div className="update-banner" role="status">
+          <span>A new TikTak TV version is ready.</span>
+          <button
+            onClick={() => {
+              sessionStorage.setItem("tiktak:return-url", location.href);
+              (
+                window as Window & { applyTikTakUpdate?: () => void }
+              ).applyTikTakUpdate?.();
+            }}
+          >
+            Update now
+          </button>
+          <button onClick={() => setUpdateReady(false)}>Later</button>
         </div>
       )}
     </div>

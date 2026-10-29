@@ -46,6 +46,39 @@ function streamDescriptor(stream: Stream): string {
     .filter(Boolean)
     .join(" ");
 }
+export type StreamPreferences = {
+  maxQuality: number;
+  maxSizeGb: number;
+  excludedTerms: string[];
+  codec: "any" | "h264";
+};
+export function streamPreferences(): StreamPreferences {
+  if (typeof localStorage === "undefined")
+    return { maxQuality: 4320, maxSizeGb: 0, excludedTerms: [], codec: "any" };
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem("tiktak:stream-preferences") || "{}",
+    ) as Partial<StreamPreferences>;
+    return {
+      maxQuality: Number(saved.maxQuality) || 4320,
+      maxSizeGb: Math.max(0, Number(saved.maxSizeGb) || 0),
+      excludedTerms: Array.isArray(saved.excludedTerms)
+        ? saved.excludedTerms.map(String).filter(Boolean)
+        : [],
+      codec: saved.codec === "h264" ? "h264" : "any",
+    };
+  } catch {
+    return { maxQuality: 4320, maxSizeGb: 0, excludedTerms: [], codec: "any" };
+  }
+}
+function sizeGb(stream: Stream) {
+  const match = /(?:^|\s)([\d.]+)\s*(GB|MB)(?:\s|$)/i.exec(
+    streamDescriptor(stream),
+  );
+  if (!match) return 0;
+  const value = Number(match[1]);
+  return match[2].toUpperCase() === "MB" ? value / 1024 : value;
+}
 export function debridStream(stream: Stream): boolean {
   return /\[(?:tb|rd|ad)\+?\]|\b(?:torbox|real[ -]?debrid|all[ -]?debrid)\b|\/resolve\/(?:torbox|realdebrid|real-debrid|alldebrid)\//i.test(
     streamDescriptor(stream),
@@ -75,10 +108,21 @@ export function compatibilityPlaybackMode(
   return undefined;
 }
 export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
+  const preferences = streamPreferences();
   return streams
     .filter(
       (s) =>
         streamQuality(s) >= 720 &&
+        streamQuality(s) <= preferences.maxQuality &&
+        (!preferences.maxSizeGb ||
+          !sizeGb(s) ||
+          sizeGb(s) <= preferences.maxSizeGb) &&
+        !preferences.excludedTerms.some((term) =>
+          streamDescriptor(s)
+            .toLocaleLowerCase()
+            .includes(term.toLocaleLowerCase()),
+        ) &&
+        (preferences.codec !== "h264" || codecCompatibility(s) >= 1) &&
         (directStream(s) || (!!s.infoHash && hasTorbox)),
     )
     .sort(

@@ -58,6 +58,35 @@ describe("new account defaults", () => {
     );
   });
 });
+describe("per-profile source controls", () => {
+  it("applies quality, size, codec and excluded-term limits", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    storage.set(
+      "tiktak:stream-preferences",
+      JSON.stringify({
+        maxQuality: 1080,
+        maxSizeGb: 5,
+        codec: "h264",
+        excludedTerms: ["CAM"],
+      }),
+    );
+    const streams = [
+      { name: "2160p H264 4 GB", url: "https://cdn.example/4k.mp4" },
+      { name: "1080p H265 4 GB", url: "https://cdn.example/hevc.mp4" },
+      { name: "1080p H264 8 GB", url: "https://cdn.example/large.mp4" },
+      { name: "1080p H264 CAM 4 GB", url: "https://cdn.example/cam.mp4" },
+      { name: "1080p H264 4 GB", url: "https://cdn.example/good.mp4" },
+    ];
+    expect(rankedStreams(streams, false).map((stream) => stream.url)).toEqual([
+      "https://cdn.example/good.mp4",
+    ]);
+    vi.unstubAllGlobals();
+  });
+});
 describe("browser downloads", () => {
   it("allows a direct MP4 download without requiring the companion service", async () => {
     await expect(

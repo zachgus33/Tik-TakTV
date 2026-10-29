@@ -87,6 +87,9 @@ function VideoPlayer({
   const [party, setParty] = useState<PartySession | null>(null);
   const [partyBusy, setPartyBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(() =>
+    Number(localStorage.getItem("tiktak:playback-rate") || 1),
+  );
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const subtitleRef = useRef(subtitles);
@@ -199,6 +202,9 @@ function VideoPlayer({
         video.duration,
         playback.episode,
       );
+    const persistVisible = () => {
+      if (document.visibilityState === "hidden") persist();
+    };
     const time = () => {
       setCurrentTime(video.currentTime || 0);
       const available = video.seekable.length
@@ -213,6 +219,7 @@ function VideoPlayer({
       }
     };
     const loaded = () => {
+      video.playbackRate = playbackRate;
       if (
         playback.resume &&
         playback.item.type !== "live" &&
@@ -231,16 +238,26 @@ function VideoPlayer({
         }
       ).audioTracks;
       if (nativeTracks?.length && nativeTracks.length > 1)
-        setAudioTracks(
-          Array.from({ length: nativeTracks.length }, (_, value) => ({
-            value,
-            source: "native" as const,
-            label:
-              nativeTracks[value].label ||
-              nativeTracks[value].language ||
-              `Audio ${value + 1}`,
-          })),
-        );
+        setAudioTracks(() => {
+          const tracks = Array.from(
+            { length: nativeTracks.length },
+            (_, value) => ({
+              value,
+              source: "native" as const,
+              label:
+                nativeTracks[value].label ||
+                nativeTracks[value].language ||
+                `Audio ${value + 1}`,
+            }),
+          );
+          const preferred = localStorage.getItem("tiktak:audio-language");
+          const selected = tracks.find((track) => track.label === preferred);
+          if (selected)
+            for (let index = 0; index < nativeTracks.length; index += 1)
+              (nativeTracks[index] as { enabled?: boolean }).enabled =
+                index === selected.value;
+          return tracks;
+        });
     };
     const failed = () => {
       if (onFailure?.()) return;
@@ -274,6 +291,7 @@ function VideoPlayer({
     video.addEventListener("ended", persist);
     video.addEventListener("error", failed);
     window.addEventListener("pagehide", persist);
+    document.addEventListener("visibilitychange", persistVisible);
     const isHls = playback.hls || /\.m3u8(?:[?#]|$)/i.test(playback.url);
     const nativeHls =
       video.canPlayType("application/vnd.apple.mpegurl") !== "" &&
@@ -305,14 +323,19 @@ function VideoPlayer({
                   : `${Math.round(level.bitrate / 1000)} kbps`,
               })),
             );
-            if (hls.audioTracks.length > 1)
-              setAudioTracks(
-                hls.audioTracks.map((track, value) => ({
-                  value,
-                  source: "hls" as const,
-                  label: track.lang || track.name || `Audio ${value + 1}`,
-                })),
+            if (hls.audioTracks.length > 1) {
+              const tracks = hls.audioTracks.map((track, value) => ({
+                value,
+                source: "hls" as const,
+                label: track.lang || track.name || `Audio ${value + 1}`,
+              }));
+              setAudioTracks(tracks);
+              const preferred = localStorage.getItem("tiktak:audio-language");
+              const selected = tracks.find(
+                (track) => track.label === preferred,
               );
+              if (selected) hls.audioTrack = selected.value;
+            }
             void play();
           });
           hls.on(HlsClass.Events.ERROR, (_, data) => {
@@ -365,6 +388,7 @@ function VideoPlayer({
       video.removeEventListener("ended", persist);
       video.removeEventListener("error", failed);
       window.removeEventListener("pagehide", persist);
+      document.removeEventListener("visibilitychange", persistVisible);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.pause();
@@ -589,8 +613,10 @@ function VideoPlayer({
         <div className="party-status" role="status">
           <span>
             <strong>Watch Together</strong>
-            {party.host ? "You control this room" : "Following the host"} ·{" "}
-            {party.participants} watching
+            {party.host
+              ? "Host · You control this room"
+              : "Guest · Following the host"}{" "}
+            · {party.participants} watching
           </span>
           <button type="button" onClick={() => void copyPartyLink()}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
@@ -625,6 +651,24 @@ function VideoPlayer({
         <button onClick={fullscreen}>
           <Maximize size={18} /> Fullscreen
         </button>
+        {playback.item.type !== "live" && (
+          <select
+            aria-label="Playback speed"
+            value={playbackRate}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setPlaybackRate(value);
+              localStorage.setItem("tiktak:playback-rate", String(value));
+              if (videoRef.current) videoRef.current.playbackRate = value;
+            }}
+          >
+            {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}×
+              </option>
+            ))}
+          </select>
+        )}
         {quality.length > 0 && (
           <select
             aria-label="Video quality"
@@ -649,6 +693,7 @@ function VideoPlayer({
               if (!selected) return;
               if (selected.source === "hls" && hlsRef.current) {
                 hlsRef.current.audioTrack = selected.value;
+                localStorage.setItem("tiktak:audio-language", selected.label);
                 return;
               }
               const nativeTracks = (
@@ -662,6 +707,7 @@ function VideoPlayer({
               if (nativeTracks)
                 for (let i = 0; i < nativeTracks.length; i += 1)
                   nativeTracks[i].enabled = i === selected.value;
+              localStorage.setItem("tiktak:audio-language", selected.label);
             }}
           >
             {audioTracks.map((track, index) => (
@@ -682,6 +728,10 @@ function VideoPlayer({
               for (let index = 0; index < tracks.length; index += 1)
                 tracks[index].mode =
                   index === selected ? "showing" : "disabled";
+              localStorage.setItem(
+                "tiktak:subtitle-language",
+                subtitles[selected]?.name ?? "",
+              );
             }}
           >
             {subtitles.map((subtitle, index) => (
@@ -720,6 +770,35 @@ function VideoPlayer({
             }}
           />
         </label>
+        <button
+          type="button"
+          onClick={() => {
+            const report = {
+              at: new Date().toISOString(),
+              title: playback.item.name,
+              mediaType: playback.item.type,
+              episode: playback.episode
+                ? `S${playback.episode.season}E${playback.episode.episode}`
+                : undefined,
+              mode: playback.mode ?? "direct",
+              hls: !!playback.hls,
+              browser: navigator.userAgent,
+              error: error || notice || "User reported playback trouble",
+            };
+            const reports = JSON.parse(
+              localStorage.getItem("tiktak:playback-reports") || "[]",
+            ) as unknown[];
+            localStorage.setItem(
+              "tiktak:playback-reports",
+              JSON.stringify([report, ...reports].slice(0, 20)),
+            );
+            setNotice(
+              "Playback report saved without the stream URL or credentials.",
+            );
+          }}
+        >
+          Report playback issue
+        </button>
       </div>
     </dialog>
   );

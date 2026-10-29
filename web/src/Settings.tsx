@@ -13,6 +13,8 @@ import {
   Radio,
   ShieldCheck,
   Activity,
+  ArrowDown,
+  ArrowUp,
   Download,
   LockKeyhole,
   Trash2,
@@ -37,6 +39,7 @@ import CollectionManager from "./CollectionManager";
 import HealthPanel from "./HealthPanel";
 import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
+import { streamPreferences } from "./stream-selection";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -141,6 +144,7 @@ export default function Settings(props: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [remember, setRemember] = useState(false);
+  const [sourcePreferences, setSourcePreferences] = useState(streamPreferences);
   const [friendStatus, setFriendStatus] = useState<{
     available: boolean;
     owner: boolean;
@@ -411,6 +415,93 @@ export default function Settings(props: Props) {
                 a torrent can add its cached entry to your TorBox account. No
                 uncached download is started.
               </p>
+              <details className="source-preferences">
+                <summary>Advanced source controls</summary>
+                <div className="form-grid">
+                  <label>
+                    Maximum quality
+                    <select
+                      value={sourcePreferences.maxQuality}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          maxQuality: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      <option value="720">720p</option>
+                      <option value="1080">1080p</option>
+                      <option value="1440">1440p</option>
+                      <option value="2160">4K</option>
+                      <option value="4320">8K / no practical limit</option>
+                    </select>
+                  </label>
+                  <label>
+                    Maximum file size (GB, 0 for unlimited)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={sourcePreferences.maxSizeGb}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          maxSizeGb: Number(event.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Codec preference
+                    <select
+                      value={sourcePreferences.codec}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          codec: event.target.value === "h264" ? "h264" : "any",
+                        }))
+                      }
+                    >
+                      <option value="any">Any compatible codec</option>
+                      <option value="h264">H.264 / AVC only</option>
+                    </select>
+                  </label>
+                  <label>
+                    Excluded terms (comma separated)
+                    <input
+                      value={sourcePreferences.excludedTerms.join(", ")}
+                      placeholder="CAM, telesync, dubbed"
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          excludedTerms: event.target.value
+                            .split(",")
+                            .map((term) => term.trim())
+                            .filter(Boolean),
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.setItem(
+                      "tiktak:stream-preferences",
+                      JSON.stringify(sourcePreferences),
+                    );
+                    setSuccess(
+                      "Source preferences saved for this browser profile.",
+                    );
+                  }}
+                >
+                  Save source controls
+                </button>
+                <p className="hint">
+                  Ranking remains quality first and seeders second within these
+                  limits. H.264 is the safest option for Safari and older TVs.
+                </p>
+              </details>
               {props.realDebridKey && (
                 <div className="connection">
                   <strong>Real-Debrid connected</strong>
@@ -663,8 +754,30 @@ export default function Settings(props: Props) {
                 Refresh installed manifests
               </button>
               <div className="addon-list">
-                {props.addons.map((a) => (
-                  <div className="addon" key={a.base}>
+                {props.addons.map((a, index) => (
+                  <div
+                    className="addon"
+                    key={a.base}
+                    draggable
+                    onDragStart={(event) =>
+                      event.dataTransfer.setData(
+                        "text/addon-index",
+                        String(index),
+                      )
+                    }
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const from = Number(
+                        event.dataTransfer.getData("text/addon-index"),
+                      );
+                      if (!Number.isInteger(from) || from === index) return;
+                      const next = [...props.addons];
+                      const [moved] = next.splice(from, 1);
+                      next.splice(index, 0, moved);
+                      props.onAddons(next);
+                    }}
+                  >
                     <div className="addon-symbol">
                       <Globe2 />
                     </div>
@@ -676,12 +789,61 @@ export default function Settings(props: Props) {
                             ? r === "stream"
                             : r.name === "stream",
                         )
-                          ? "Streaming enabled"
-                          : "Catalog / metadata only"}{" "}
-                        ? {a.manifest.catalogs?.length ?? 0} catalogs ·{" "}
+                          ? "Streaming source"
+                          : a.manifest.resources?.some(
+                                (r) =>
+                                  (typeof r === "string" ? r : r.name) ===
+                                  "subtitles",
+                              )
+                            ? "Subtitle provider"
+                            : "Catalog / metadata only"}{" "}
+                        · {a.manifest.catalogs?.length ?? 0} catalogs ·{" "}
                         {(a.manifest.types ?? []).join(", ")}
                       </p>
                     </div>
+                    <button
+                      className="icon-button"
+                      disabled={index === 0}
+                      aria-label={`Move ${a.manifest.name} up`}
+                      onClick={() => {
+                        const next = [...props.addons];
+                        [next[index - 1], next[index]] = [
+                          next[index],
+                          next[index - 1],
+                        ];
+                        props.onAddons(next);
+                      }}
+                    >
+                      <ArrowUp size={18} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      disabled={index === props.addons.length - 1}
+                      aria-label={`Move ${a.manifest.name} down`}
+                      onClick={() => {
+                        const next = [...props.addons];
+                        [next[index], next[index + 1]] = [
+                          next[index + 1],
+                          next[index],
+                        ];
+                        props.onAddons(next);
+                      }}
+                    >
+                      <ArrowDown size={18} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      disabled={!!busy}
+                      aria-label={`Test ${a.manifest.name}`}
+                      onClick={() =>
+                        void run(`test-${index}`, async () => {
+                          await installAddon(`${a.base}/manifest.json`);
+                          setSuccess(`${a.manifest.name} is reachable.`);
+                        })
+                      }
+                    >
+                      <Activity size={18} />
+                    </button>
                     <button
                       className="icon-button"
                       aria-label={`Remove ${a.manifest.name}`}
