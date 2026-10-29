@@ -1100,6 +1100,60 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
   expect(stored.catalogs[0].custom_title).toBe("Owner picks");
   expect(stored.torbox).toBe("friend:signed-grant");
 });
+test("a signed-in user can publish and revoke an isolated TorBox and Real-Debrid friend code", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "x".repeat(40),
+      }),
+    );
+    sessionStorage.setItem("nuvio:torbox-key", JSON.stringify("own-torbox"));
+    sessionStorage.setItem(
+      "nuvio:realdebrid-key",
+      JSON.stringify("own-real-debrid"),
+    );
+  });
+  await page.route("https://playback.example/friend/status", (route) =>
+    route.fulfill({
+      json: { available: true, owner: false, published: false },
+    }),
+  );
+  let published: Record<string, unknown> = {};
+  await page.route("https://playback.example/friend/setup", async (route) => {
+    published = JSON.parse(route.request().postData() ?? "{}");
+    await route.fulfill({
+      json: {
+        ok: true,
+        torboxKey: "friend:owner-grant",
+        realDebridKey: "friend-rd:owner-grant",
+      },
+    });
+  });
+  let revoked = false;
+  await page.route("https://playback.example/friend/revoke", async (route) => {
+    revoked = true;
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Playback/ }).click();
+  await page.getByLabel("Your private share code").fill("654321");
+  await page.getByRole("button", { name: "Create code" }).click();
+  await expect(page.getByText(/encrypted friend code is active/)).toBeVisible();
+  expect(published.code).toBe("654321");
+  expect(published.torboxKey).toBe("own-torbox");
+  expect(published.realDebridKey).toBe("own-real-debrid");
+  expect(
+    Array.isArray((published.template as { addons?: unknown[] }).addons),
+  ).toBe(true);
+  await page.getByText("Manage your friend code", { exact: true }).click();
+  await page.getByRole("button", { name: "Revoke my code" }).click();
+  await expect(page.getByText(/friend code was revoked/)).toBeVisible();
+  expect(revoked).toBe(true);
+});
 test("manual raw torrent is resolved cached-only without autoplaying it", async ({
   page,
 }) => {
