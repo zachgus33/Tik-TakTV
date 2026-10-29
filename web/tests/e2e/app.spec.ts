@@ -543,6 +543,30 @@ test("autoplay selects highest quality first and seeders break quality ties", as
   page,
 }) => {
   await streamingAddon(page);
+  await page.addInitScript(() => {
+    const attempted: string[] = [];
+    Object.defineProperty(window, "__testMediaSources", { value: attempted });
+    const capture = (node: Node) => {
+      if (node instanceof HTMLVideoElement && node.getAttribute("src"))
+        attempted.push(node.getAttribute("src")!);
+      if (node instanceof Element)
+        node.querySelectorAll("video[src]").forEach((video) => {
+          const source = video.getAttribute("src");
+          if (source) attempted.push(source);
+        });
+    };
+    new MutationObserver((records) =>
+      records.forEach((record) => {
+        if (record.type === "attributes") capture(record.target);
+        record.addedNodes.forEach(capture);
+      }),
+    ).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["src"],
+    });
+  });
   await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
     route.fulfill({
       json: {
@@ -566,10 +590,20 @@ test("autoplay selects highest quality first and seeders break quality ties", as
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect(page.locator("video")).toHaveAttribute(
-    "src",
-    "https://cdn.example/4k.mp4",
-  );
+  // The empty media fixture intentionally fails decoding and can trigger the
+  // player's automatic fallback before a normal DOM assertion runs on slower
+  // CI workers. Assert the first assigned source instead: that is the ranking
+  // behavior this test owns, while fallback has its own test below.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & { __testMediaSources?: string[] }
+          ).__testMediaSources?.[0],
+      ),
+    )
+    .toBe("https://cdn.example/4k.mp4");
 });
 test("autoplay shows a top loading state without opening the manual stream list", async ({
   page,
