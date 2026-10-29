@@ -1617,6 +1617,11 @@ export function createService({ token, origins, authorizeAccount }) {
         });
         try {
           const text = await limitedText(result.response, 64_000_000);
+          if (result.response.status >= 500)
+            return send(424, {
+              error: "The add-on is temporarily unavailable.",
+              upstreamStatus: result.response.status,
+            });
           res.writeHead(result.response.status, {
             "Content-Type":
               result.response.headers.get("content-type") ?? "application/json",
