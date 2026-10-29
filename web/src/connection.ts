@@ -265,7 +265,11 @@ export async function prepareDownload(
 }
 
 async function friendRequest<T>(
-  path: "/friend/status" | "/friend/setup" | "/friend/redeem",
+  path:
+    | "/friend/status"
+    | "/friend/setup"
+    | "/friend/redeem"
+    | "/friend/revoke",
   body: Record<string, unknown> = {},
 ) {
   if (path === "/friend/redeem") {
@@ -294,18 +298,27 @@ async function friendRequest<T>(
 }
 
 export const friendAccessStatus = () =>
-  friendRequest<{ available: boolean; owner: boolean }>("/friend/status");
+  friendRequest<{ available: boolean; owner: boolean; published: boolean }>(
+    "/friend/status",
+  );
 
 export const publishFriendSetup = (
   code: string,
   torboxKey: string,
+  realDebridKey: string,
   template: Record<string, unknown>,
 ) =>
-  friendRequest<{ ok: boolean; torboxKey: string }>("/friend/setup", {
-    code,
-    torboxKey,
-    template,
-  });
+  friendRequest<{
+    ok: boolean;
+    torboxKey: string;
+    realDebridKey: string;
+  }>("/friend/setup", { code, torboxKey, realDebridKey, template });
 
 export const redeemFriendSetup = <T>(code: string) =>
-  friendRequest<{ template: T; torboxKey: string }>("/friend/redeem", { code });
+  friendRequest<{ template: T; torboxKey: string; realDebridKey: string }>(
+    "/friend/redeem",
+    { code },
+  );
+
+export const revokeFriendSetup = () =>
+  friendRequest<{ ok: boolean }>("/friend/revoke");

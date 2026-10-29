@@ -1354,6 +1354,11 @@ function Detail({
         {error && (
           <div className="error" role="alert">
             {error}
+            {error.startsWith("No streaming add-on") && (
+              <a className="button-link" href="#settings" onClick={onClose}>
+                Open setup and friend codes
+              </a>
+            )}
           </div>
         )}
         {busy && <Loading />}
@@ -3021,6 +3026,7 @@ export default function App() {
                   onFriendTemplate={async (
                     template: FriendTemplate,
                     friendTorboxKey: string,
+                    friendRealDebridKey: string,
                   ) => {
                     setAddons(template.addons);
                     setCollections(template.collections);
@@ -3029,6 +3035,9 @@ export default function App() {
                     setTorboxKey(friendTorboxKey);
                     save("torbox-key", friendTorboxKey);
                     sessionStorage.removeItem("nuvio:torbox-key");
+                    setRealDebridKey(friendRealDebridKey);
+                    save("realdebrid-key", friendRealDebridKey);
+                    sessionStorage.removeItem("nuvio:realdebrid-key");
                     setRevision((value) => value + 1);
                   }}
                 />

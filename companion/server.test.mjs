@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createService,
   publicAddress,
@@ -8,6 +11,95 @@ import {
   safeDownloadName,
   sourceHeaders,
 } from "./server.mjs";
+
+test("account-owned friend codes stay isolated and can be revoked", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-friends-"));
+  const previous = {
+    key: process.env.FRIEND_VAULT_KEY,
+    vault: process.env.FRIEND_VAULT_PATH,
+    vaults: process.env.FRIEND_VAULTS_PATH,
+  };
+  process.env.FRIEND_VAULT_KEY = Buffer.alloc(32, 7).toString("base64");
+  process.env.FRIEND_VAULT_PATH = join(directory, "legacy.json");
+  process.env.FRIEND_VAULTS_PATH = join(directory, "users.json");
+  const token = "a".repeat(40);
+  const server = createService({
+    token,
+    origins: ["https://site.example"],
+    authorizeAccount: async (bearer) =>
+      ["owner-one", "owner-two", "guest"].includes(bearer) ? bearer : false,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const request = (user, path, body = {}) =>
+    fetch(base + path, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${user}`,
+        Origin: "https://site.example",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  const template = {
+    addons: [
+      {
+        base: "https://addon.example/configured-secret",
+        manifest: { id: "stream.one", name: "Stream one", resources: ["stream"] },
+      },
+    ],
+    collections: [],
+    homeCatalogs: [],
+    autoplay: true,
+  };
+  try {
+    const published = await request("owner-one", "/friend/setup", {
+      code: "123456",
+      torboxKey: "owner-one-torbox",
+      realDebridKey: "owner-one-rd",
+      template,
+    });
+    assert.equal(published.status, 200);
+    const ownerAccess = await published.json();
+    assert.match(ownerAccess.torboxKey, /^friend:/);
+    assert.match(ownerAccess.realDebridKey, /^friend-rd:/);
+
+    const collision = await request("owner-two", "/friend/setup", {
+      code: "123456",
+      torboxKey: "owner-two-torbox",
+      template,
+    });
+    assert.equal(collision.status, 409);
+
+    const redeemed = await request("guest", "/friend/redeem", {
+      code: "123456",
+    });
+    assert.equal(redeemed.status, 200);
+    const shared = await redeemed.json();
+    assert.match(shared.torboxKey, /^friend:/);
+    assert.match(shared.realDebridKey, /^friend-rd:/);
+    assert.match(shared.template.addons[0].base, /^https:\/\/friend\.tiktaktv\.invalid\//);
+    assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
+    assert.ok(!JSON.stringify(shared).includes("configured-secret"));
+    assert.ok(!(await readFile(join(directory, "users.json"), "utf8")).includes("owner-one-torbox"));
+
+    assert.equal((await request("owner-one", "/friend/revoke")).status, 200);
+    assert.equal(
+      (await request("guest", "/friend/redeem", { code: "123456" })).status,
+      403,
+    );
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    if (previous.key === undefined) delete process.env.FRIEND_VAULT_KEY;
+    else process.env.FRIEND_VAULT_KEY = previous.key;
+    if (previous.vault === undefined) delete process.env.FRIEND_VAULT_PATH;
+    else process.env.FRIEND_VAULT_PATH = previous.vault;
+    if (previous.vaults === undefined) delete process.env.FRIEND_VAULTS_PATH;
+    else process.env.FRIEND_VAULTS_PATH = previous.vaults;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 test("blocks loopback, RFC1918, metadata and mapped IPv6 destinations", async () => {
   for (const ip of [
     "127.0.0.1",

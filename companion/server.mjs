@@ -222,6 +222,9 @@ export function createService({ token, origins, authorizeAccount }) {
   const friendVaultPath =
     process.env.FRIEND_VAULT_PATH ??
     join(process.cwd(), "runtime", "friend-vault.json");
+  const friendVaultsPath =
+    process.env.FRIEND_VAULTS_PATH ??
+    join(process.cwd(), "runtime", "friend-vaults.json");
   const friendKey = (() => {
     try {
       const value = Buffer.from(process.env.FRIEND_VAULT_KEY ?? "", "base64");
@@ -231,28 +234,24 @@ export function createService({ token, origins, authorizeAccount }) {
     }
   })();
   let friendVaultCache;
-  async function readFriendVault() {
-    if (friendVaultCache) return friendVaultCache;
+  let friendVaultsCache;
+  async function decryptVaultFile(path) {
     if (!friendKey) return null;
-    try {
-      const stored = JSON.parse(await readFile(friendVaultPath, "utf8"));
-      const decipher = createDecipheriv(
-        "aes-256-gcm",
-        friendKey,
-        Buffer.from(stored.iv, "base64"),
-      );
-      decipher.setAuthTag(Buffer.from(stored.tag, "base64"));
-      const plaintext = Buffer.concat([
+    const stored = JSON.parse(await readFile(path, "utf8"));
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      friendKey,
+      Buffer.from(stored.iv, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(stored.tag, "base64"));
+    return JSON.parse(
+      Buffer.concat([
         decipher.update(Buffer.from(stored.data, "base64")),
         decipher.final(),
-      ]);
-      friendVaultCache = JSON.parse(plaintext.toString("utf8"));
-      return friendVaultCache;
-    } catch {
-      return null;
-    }
+      ]).toString("utf8"),
+    );
   }
-  async function writeFriendVault(value) {
+  async function encryptVaultFile(path, value) {
     if (!friendKey)
       throw new Error("Friend vault encryption is not configured");
     const iv = randomBytes(12);
@@ -261,25 +260,53 @@ export function createService({ token, origins, authorizeAccount }) {
       cipher.update(JSON.stringify(value), "utf8"),
       cipher.final(),
     ]);
-    await mkdir(join(friendVaultPath, ".."), { recursive: true });
+    await mkdir(join(path, ".."), { recursive: true });
     const output = JSON.stringify({
       version: 1,
       iv: iv.toString("base64"),
       tag: cipher.getAuthTag().toString("base64"),
       data: data.toString("base64"),
     });
-    const temporary = `${friendVaultPath}.${randomBytes(6).toString("hex")}`;
+    const temporary = `${path}.${randomBytes(6).toString("hex")}`;
     await writeFile(temporary, output, { mode: 0o600 });
-    await rename(temporary, friendVaultPath);
-    friendVaultCache = value;
+    await rename(temporary, path);
   }
-  function friendGrant(userId, version) {
+  async function readFriendVault() {
+    if (friendVaultCache) return friendVaultCache;
+    if (!friendKey) return null;
+    try {
+      friendVaultCache = await decryptVaultFile(friendVaultPath);
+      return friendVaultCache;
+    } catch {
+      return null;
+    }
+  }
+  async function readFriendVaults() {
+    if (friendVaultsCache) return friendVaultsCache;
+    try {
+      friendVaultsCache = await decryptVaultFile(friendVaultsPath);
+    } catch {
+      friendVaultsCache = { version: 2, vaults: {} };
+    }
+    return friendVaultsCache;
+  }
+  async function writeFriendVaults(value) {
+    await encryptVaultFile(friendVaultsPath, value);
+    friendVaultsCache = value;
+  }
+  function friendCodeId(code) {
+    return createHmac("sha256", friendKey)
+      .update(`friend-code:${code}`)
+      .digest("base64url");
+  }
+  function friendGrant(userId, version, vaultId = "") {
     if (!friendKey) throw new Error("Friend access is not configured");
     const payload = Buffer.from(
       JSON.stringify({
         sub: userId,
         exp: Date.now() + 30 * 24 * 60 * 60_000,
         version,
+        vault: vaultId,
       }),
     ).toString("base64url");
     const signature = createHmac("sha256", friendKey)
@@ -287,7 +314,7 @@ export function createService({ token, origins, authorizeAccount }) {
       .digest("base64url");
     return `${payload}.${signature}`;
   }
-  function validFriendGrant(value, userId, version) {
+  function decodeFriendGrant(value, userId) {
     if (!friendKey || typeof value !== "string") return false;
     try {
       const [payload, signature] = value.split(".");
@@ -299,14 +326,31 @@ export function createService({ token, origins, authorizeAccount }) {
       )
         return false;
       const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-      return (
-        data.sub === userId &&
-        Number(data.exp) > Date.now() &&
-        Number(data.version) === Number(version)
-      );
+      return data.sub === userId && Number(data.exp) > Date.now() ? data : null;
     } catch {
-      return false;
+      return null;
     }
+  }
+  async function vaultForGrant(grant, userId) {
+    const data = decodeFriendGrant(grant, userId);
+    if (!data) return null;
+    if (data.vault) {
+      const database = await readFriendVaults();
+      const vault = database.vaults?.[data.vault];
+      return vault && Number(vault.updated) === Number(data.version)
+        ? { vault, vaultId: data.vault }
+        : null;
+    }
+    const vault = await readFriendVault();
+    return vault && Number(vault.updated) === Number(data.version)
+      ? { vault, vaultId: "" }
+      : null;
+  }
+  function codeMatchesVault(code, vault) {
+    if (!vault?.codeSalt || !vault?.codeHash) return false;
+    const actual = scryptSync(code, Buffer.from(vault.codeSalt, "base64"), 32);
+    const expected = Buffer.from(vault.codeHash, "base64");
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
@@ -479,10 +523,10 @@ export function createService({ token, origins, authorizeAccount }) {
         const grant = parts[2];
         const index = Number(parts[3]);
         const resourcePath = parts.slice(4).join("/");
-        const vault = await readFriendVault();
+        const access = await vaultForGrant(grant, userId);
+        const vault = access?.vault;
         if (
           !vault ||
-          !validFriendGrant(grant, userId, vault.updated) ||
           !Number.isInteger(index) ||
           index < 0 ||
           index >= vault.template.addons.length ||
@@ -866,67 +910,127 @@ export function createService({ token, origins, authorizeAccount }) {
         return send(200, partyResponse(party, userId));
       }
       if (route.pathname === "/friend/status") {
-        const vault = await readFriendVault();
+        const [vault, database] = await Promise.all([
+          readFriendVault(),
+          readFriendVaults(),
+        ]);
+        const owned = Object.values(database.vaults ?? {}).find(
+          (item) => item.ownerUserId === userId,
+        );
         return send(200, {
-          available: !!vault,
-          owner: userId === friendOwner,
+          available: !!vault || Object.keys(database.vaults ?? {}).length > 0,
+          owner: userId === friendOwner || !!owned,
+          published: !!owned || (!!vault && userId === friendOwner),
         });
       }
       if (route.pathname === "/friend/setup") {
-        if (!friendOwner || userId !== friendOwner)
-          return send(403, {
-            error: "Only the TikTak TV owner can publish this setup.",
-          });
+        if (userId === "service")
+          return send(403, { error: "Sign in before creating a friend code." });
         if (!friendKey)
           return send(503, {
             error: "Friend vault encryption is not configured.",
           });
         const code = String(body.code ?? "").trim();
         let torboxKey = String(body.torboxKey ?? "").trim();
+        let realDebridKey = String(body.realDebridKey ?? "").trim();
         const template = body.template;
         if (!/^\d{6,12}$/.test(code))
           return send(400, { error: "Use a 6 to 12 digit friend code." });
         if (torboxKey.startsWith("friend:")) {
-          const existing = await readFriendVault();
+          const access = await vaultForGrant(
+            torboxKey.slice("friend:".length),
+            userId,
+          );
           if (
-            !existing ||
-            !validFriendGrant(
-              torboxKey.slice("friend:".length),
-              userId,
-              existing.updated,
-            )
+            !access?.vault?.torboxKey ||
+            (access.vault.ownerUserId && access.vault.ownerUserId !== userId) ||
+            (!access.vault.ownerUserId && userId !== friendOwner)
           )
             return send(403, {
-              error: "Owner access expired. Connect the TorBox key again.",
+              error: "Connect your own TorBox key before sharing your setup.",
             });
-          torboxKey = existing.torboxKey;
+          torboxKey = access.vault.torboxKey;
         }
-        if (!torboxKey)
-          return send(400, {
-            error: "Connect the owner TorBox key before publishing.",
-          });
+        if (realDebridKey.startsWith("friend-rd:")) {
+          const access = await vaultForGrant(
+            realDebridKey.slice("friend-rd:".length),
+            userId,
+          );
+          if (
+            !access?.vault?.realDebridKey ||
+            access.vault.ownerUserId !== userId
+          )
+            return send(403, {
+              error: "Connect your own Real-Debrid key before sharing your setup.",
+            });
+          realDebridKey = access.vault.realDebridKey;
+        }
         if (
           !template ||
           !Array.isArray(template.addons) ||
           template.addons.length > 100 ||
           !Array.isArray(template.collections) ||
-          !Array.isArray(template.homeCatalogs)
+          template.collections.length > 250 ||
+          !Array.isArray(template.homeCatalogs) ||
+          template.homeCatalogs.length > 500
         )
           return send(400, { error: "The shared setup is invalid." });
+        const legacyVault = await readFriendVault();
+        if (codeMatchesVault(code, legacyVault))
+          return send(409, {
+            error: "That friend code is reserved. Choose another code.",
+          });
         const salt = randomBytes(16);
         const codeHash = scryptSync(code, salt, 32);
-        await writeFriendVault({
+        const database = await readFriendVaults();
+        const vaultId = friendCodeId(code);
+        if (
+          database.vaults[vaultId] &&
+          database.vaults[vaultId].ownerUserId !== userId
+        )
+          return send(409, {
+            error: "That friend code is already in use. Choose another code.",
+          });
+        const ownsExisting = Object.values(database.vaults ?? {}).some(
+          (existing) => existing.ownerUserId === userId,
+        );
+        if (!ownsExisting && Object.keys(database.vaults ?? {}).length >= 5000)
+          return send(503, {
+            error: "Friend-code capacity is full. Try again later.",
+          });
+        for (const [id, existing] of Object.entries(database.vaults ?? {}))
+          if (existing.ownerUserId === userId) delete database.vaults[id];
+        database.vaults[vaultId] = {
+          ownerUserId: userId,
           codeSalt: salt.toString("base64"),
           codeHash: codeHash.toString("base64"),
           torboxKey,
+          realDebridKey,
           template,
           updated: Date.now(),
-        });
-        const vault = await readFriendVault();
+        };
+        await writeFriendVaults(database);
+        const vault = database.vaults[vaultId];
+        const grant = friendGrant(userId, vault.updated, vaultId);
         return send(200, {
           ok: true,
-          torboxKey: `friend:${friendGrant(userId, vault.updated)}`,
+          torboxKey: torboxKey ? `friend:${grant}` : "",
+          realDebridKey: realDebridKey ? `friend-rd:${grant}` : "",
         });
+      }
+      if (route.pathname === "/friend/revoke") {
+        if (userId === "service")
+          return send(403, { error: "Sign in before changing a friend code." });
+        const database = await readFriendVaults();
+        let removed = false;
+        for (const [id, vault] of Object.entries(database.vaults ?? {})) {
+          if (vault.ownerUserId === userId) {
+            delete database.vaults[id];
+            removed = true;
+          }
+        }
+        if (removed) await writeFriendVaults(database);
+        return send(200, { ok: true });
       }
       if (route.pathname === "/friend/redeem") {
         if (userId === "service")
@@ -948,23 +1052,26 @@ export function createService({ token, origins, authorizeAccount }) {
           });
         attempt.count += 1;
         friendAttempts.set(attemptKey, attempt);
-        const vault = await readFriendVault();
         const code = String(body.code ?? "").trim();
-        if (!vault || !/^\d{6,12}$/.test(code))
+        if (!friendKey)
+          return send(503, {
+            error: "Friend setup is temporarily unavailable.",
+          });
+        if (!/^\d{6,12}$/.test(code))
           return send(403, { error: "That friend code was not accepted." });
-        const actual = scryptSync(
-          code,
-          Buffer.from(vault.codeSalt, "base64"),
-          32,
-        );
-        const expected = Buffer.from(vault.codeHash, "base64");
-        if (
-          actual.length !== expected.length ||
-          !timingSafeEqual(actual, expected)
-        )
+        const database = await readFriendVaults();
+        let vaultId = friendCodeId(code);
+        let vault = database.vaults?.[vaultId];
+        if (!vault) {
+          vault = await readFriendVault();
+          vaultId = "";
+        }
+        if (!vault)
+          return send(403, { error: "That friend code was not accepted." });
+        if (!codeMatchesVault(code, vault))
           return send(403, { error: "That friend code was not accepted." });
         friendAttempts.delete(attemptKey);
-        const grant = friendGrant(userId, vault.updated);
+        const grant = friendGrant(userId, vault.updated, vaultId);
         return send(200, {
           template: {
             ...vault.template,
@@ -973,7 +1080,8 @@ export function createService({ token, origins, authorizeAccount }) {
               base: `https://friend.tiktaktv.invalid/${grant}/${index}`,
             })),
           },
-          torboxKey: `friend:${grant}`,
+          torboxKey: vault.torboxKey ? `friend:${grant}` : "",
+          realDebridKey: vault.realDebridKey ? `friend-rd:${grant}` : "",
         });
       }
       if (route.pathname === "/guide") {
@@ -1447,8 +1555,9 @@ export function createService({ token, origins, authorizeAccount }) {
           ).replace(/^Bearer\s+/i, "");
           if (supplied.startsWith("friend:")) {
             const grant = supplied.slice("friend:".length);
-            const vault = await readFriendVault();
-            if (!vault || !validFriendGrant(grant, userId, vault.updated))
+            const access = await vaultForGrant(grant, userId);
+            const vault = access?.vault;
+            if (!vault?.torboxKey)
               return send(403, {
                 error: "Friend access expired. Enter the friend code again.",
               });
@@ -1456,6 +1565,22 @@ export function createService({ token, origins, authorizeAccount }) {
             delete headers.authorization;
             if (url.pathname.endsWith("/requestdl"))
               url.searchParams.set("token", vault.torboxKey);
+          }
+        }
+        if (isRealDebrid) {
+          const supplied = String(
+            headers.Authorization ?? headers.authorization ?? "",
+          ).replace(/^Bearer\s+/i, "");
+          if (supplied.startsWith("friend-rd:")) {
+            const grant = supplied.slice("friend-rd:".length);
+            const access = await vaultForGrant(grant, userId);
+            const vault = access?.vault;
+            if (!vault?.realDebridKey)
+              return send(403, {
+                error: "Friend access expired. Enter the friend code again.",
+              });
+            headers.Authorization = `Bearer ${vault.realDebridKey}`;
+            delete headers.authorization;
           }
         }
         let data;

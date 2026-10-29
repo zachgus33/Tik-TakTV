@@ -32,6 +32,7 @@ import {
   friendAccessStatus,
   publishFriendSetup,
   redeemFriendSetup,
+  revokeFriendSetup,
 } from "./connection";
 import type { HomeCatalogSetting } from "./account";
 import CatalogManager from "./CatalogManager";
@@ -75,6 +76,7 @@ type Props = {
   onFriendTemplate: (
     template: FriendTemplate,
     torboxKey: string,
+    realDebridKey: string,
   ) => Promise<void>;
   homeCatalogs: HomeCatalogSetting[];
   onHomeCatalogs: (value: HomeCatalogSetting[]) => void;
@@ -149,6 +151,7 @@ export default function Settings(props: Props) {
   const [friendStatus, setFriendStatus] = useState<{
     available: boolean;
     owner: boolean;
+    published: boolean;
   } | null>(null);
   useEffect(() => {
     if (!props.playbackConnected) {
@@ -243,17 +246,17 @@ export default function Settings(props: Props) {
                 <UsersRound />
                 <div>
                   <h2>Friend setup</h2>
-                  <p>Install the owner’s complete streaming configuration.</p>
+                  <p>Share a complete streaming setup with people you trust.</p>
                 </div>
-                {friendStatus?.available && (
-                  <span className="badge connected">Available</span>
+                {friendStatus?.published && (
+                  <span className="badge connected">Your code is active</span>
                 )}
               </div>
               <p>
-                Enter the private code to copy every configured add-on, catalog
-                order, collection, filter, and playback preference to this Nuvio
-                profile. TorBox access is granted through the encrypted TikTak
-                TV service without revealing the owner key.
+                Enter a private code to install its add-ons, catalog order,
+                collections, filters, playback preferences, and protected
+                debrid access. Keys and credential-bearing add-on URLs stay
+                encrypted on the TikTak TV service.
               </p>
               <form
                 className="inline-form"
@@ -267,11 +270,12 @@ export default function Settings(props: Props) {
                     );
                     await props.onFriendTemplate(
                       result.template,
-                      result.torboxKey,
+                      result.torboxKey ?? "",
+                      result.realDebridKey ?? "",
                     );
                     form.reset();
                     setSuccess(
-                      "Friend setup installed and saved to this Nuvio profile.",
+                      "Friend setup installed and saved to this Nuvio profile. You can play a title now.",
                     );
                   });
                 }}
@@ -283,13 +287,13 @@ export default function Settings(props: Props) {
                     inputMode="numeric"
                     pattern="[0-9]{6,12}"
                     autoComplete="one-time-code"
-                    placeholder="6–12 digit code"
+                    placeholder="6?12 digit code"
                     required
                   />
                 </label>
                 <button disabled={!!busy || !props.playbackConnected}>
                   <KeyRound size={18} />
-                  {busy === "friend-redeem" ? "Installing…" : "Install setup"}
+                  {busy === "friend-redeem" ? "Installing?" : "Install setup"}
                 </button>
               </form>
               {!props.playbackConnected && (
@@ -298,67 +302,116 @@ export default function Settings(props: Props) {
                   friend code.
                 </p>
               )}
-              {friendStatus?.owner && (
-                <details>
-                  <summary>Owner controls</summary>
-                  <p className="hint">
-                    Publishing replaces the shared template and friend code.
-                    Personal library items, watch history, profiles, and IPTV
-                    credentials are excluded.
-                  </p>
-                  <form
-                    className="inline-form"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const form = event.currentTarget;
-                      const code = String(
-                        new FormData(form).get("ownerFriendCode"),
-                      ).trim();
-                      void run("friend-publish", async () => {
-                        const result = await publishFriendSetup(
-                          code,
-                          props.torboxKey,
-                          props.friendTemplate as unknown as Record<
-                            string,
-                            unknown
-                          >,
-                        );
-                        localStorage.removeItem("nuvio:torbox-key");
-                        sessionStorage.removeItem("nuvio:torbox-key");
+              <details open={!friendStatus?.published}>
+                <summary>
+                  {friendStatus?.published
+                    ? "Manage your friend code"
+                    : "Create your own friend code"}
+                </summary>
+                <p className="hint">
+                  Choose a private code to share your current add-ons,
+                  catalogs, collections, settings, and your own TorBox or
+                  Real-Debrid access. Personal library items, watch history,
+                  profiles, and IPTV credentials are excluded. Publishing a
+                  new code immediately replaces your previous one.
+                </p>
+                <form
+                  className="inline-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const form = event.currentTarget;
+                    const code = String(
+                      new FormData(form).get("ownerFriendCode"),
+                    ).trim();
+                    void run("friend-publish", async () => {
+                      const result = await publishFriendSetup(
+                        code,
+                        props.torboxKey,
+                        props.realDebridKey,
+                        props.friendTemplate as unknown as Record<
+                          string,
+                          unknown
+                        >,
+                      );
+                      if (result.torboxKey) {
                         save("torbox-key", result.torboxKey);
                         props.onTorboxKey(result.torboxKey);
-                        setFriendStatus({ available: true, owner: true });
-                        form.reset();
-                        setSuccess(
-                          "Friend code updated with your current add-ons and catalog setup.",
-                        );
+                      }
+                      if (result.realDebridKey) {
+                        save("realdebrid-key", result.realDebridKey);
+                        props.onRealDebridKey(result.realDebridKey);
+                      }
+                      setFriendStatus({
+                        available: true,
+                        owner: true,
+                        published: true,
                       });
-                    }}
+                      form.reset();
+                      setSuccess(
+                        "Your encrypted friend code is active. Share the code only with people you trust.",
+                      );
+                    });
+                  }}
+                >
+                  <label className="grow">
+                    Your private share code
+                    <input
+                      name="ownerFriendCode"
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]{6,12}"
+                      autoComplete="new-password"
+                      placeholder="Choose 6?12 digits"
+                      required
+                    />
+                  </label>
+                  <button
+                    disabled={
+                      !!busy ||
+                      !props.playbackConnected ||
+                      ((props.torboxKey.startsWith("friend:") ||
+                        props.realDebridKey.startsWith("friend-rd:")) &&
+                        !friendStatus?.owner)
+                    }
                   >
-                    <label className="grow">
-                      New friend code
-                      <input
-                        name="ownerFriendCode"
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]{6,12}"
-                        autoComplete="new-password"
-                        required
-                      />
-                    </label>
-                    <button disabled={!!busy || !props.torboxKey}>
-                      {busy === "friend-publish"
-                        ? "Encrypting…"
-                        : "Publish current setup"}
-                    </button>
-                  </form>
-                  {!props.torboxKey && (
-                    <p className="hint">
-                      Connect your TorBox key below before publishing.
-                    </p>
-                  )}
-                </details>
-              )}
+                    {busy === "friend-publish"
+                      ? "Encrypting?"
+                      : friendStatus?.published
+                        ? "Replace code"
+                        : "Create code"}
+                  </button>
+                </form>
+                {(props.torboxKey.startsWith("friend:") ||
+                  props.realDebridKey.startsWith("friend-rd:")) &&
+                  !friendStatus?.owner && (
+                  <p className="hint">
+                    This profile currently uses someone else?s shared access.
+                    Connect your own debrid account before creating a code.
+                  </p>
+                )}
+                {friendStatus?.published && (
+                  <button
+                    className="danger-button"
+                    disabled={!!busy}
+                    onClick={() =>
+                      void run("friend-revoke", async () => {
+                        await revokeFriendSetup();
+                        setFriendStatus((current) =>
+                          current
+                            ? { ...current, owner: false, published: false }
+                            : current,
+                        );
+                        setSuccess(
+                          "Your friend code was revoked. Existing shared access has expired.",
+                        );
+                      })
+                    }
+                  >
+                    <Trash2 size={17} />
+                    Revoke my code
+                  </button>
+                )}
+              </details>
             </section>
             <section className="settings-card">
               <h2>Debrid playback</h2>
