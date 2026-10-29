@@ -14,6 +14,11 @@ fi
 if ! systemctl --user is-active --quiet tiktaktv-tunnel.service; then
   systemctl --user restart tiktaktv-tunnel.service
 fi
+if [ -n "${PUBLIC_PLAYBACK_URL:-}" ] &&
+   ! curl -fsS --max-time 12 "$PUBLIC_PLAYBACK_URL/healthz" >/dev/null; then
+  # Keep the last known-good discovery record until the named hostname is live.
+  exit 0
+fi
 # Quick-tunnel discovery needs this file, but it must not grow forever.
 if [ -f "$base/runtime/tunnel.log" ] &&
    [ "$(wc -c < "$base/runtime/tunnel.log")" -gt 5242880 ]; then

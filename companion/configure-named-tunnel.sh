@@ -19,6 +19,20 @@ PUBLIC_PLAYBACK_URL=$public_url
 EOF
 chmod 600 "$base/.env.tunnel"
 systemctl --user restart tiktaktv-tunnel.service
-systemctl --user start tiktaktv-watchdog.service
-echo "Named tunnel configured for $public_url"
+ready=0
+attempt=0
+while [ "$attempt" -lt 12 ]; do
+  if curl -fsS --max-time 5 "$public_url/healthz" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 5
+done
+if [ "$ready" -eq 1 ]; then
+  systemctl --user start tiktaktv-watchdog.service
+  echo "Named tunnel is healthy and published at $public_url"
+else
+  echo "Connector started, but $public_url is not routed yet. Add the public hostname in Cloudflare; the watchdog will publish it after it becomes healthy."
+fi
 
