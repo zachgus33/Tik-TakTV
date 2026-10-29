@@ -41,6 +41,21 @@ The default mode relays original media. If a file has unsupported audio or a con
 
 For a temporary test without Docker, install Node 24 and `cloudflared` in the user account, then run `sh run-native.sh`. This writes logs and process IDs under `runtime/` and keeps the private token in `.env.native`. Docker remains the recommended permanent setup because it restarts the service after a reboot.
 
+For an Ubuntu VPS, copy the companion into `/opt/tiktaktv`, provide the same
+encrypted vault environment and named-tunnel token as the active companion, and
+run `sh install-vps-services.sh` as root. This creates hardened system services
+for the companion, tunnel, and one-minute watchdog. Start the tunnel only after
+the local authenticated health check succeeds and the previous tunnel connector
+is ready to be stopped, so stateful friend-code and Watch Party requests never
+run active-active.
+
+Keep a Raspberry Pi standby current with `sh install-pi-standby.sh`. Its
+one-minute timer copies only the already-encrypted friend vault through a
+read-only `rrsync` account. The Pi tunnel and watchdog remain disabled during
+normal operation. Run `activate-standby.sh` after a primary outage, and run
+`deactivate-standby.sh` after the VPS primary has recovered and the vault has
+been reconciled.
+
 ## Permanent domain
 
 For the native Pi services, create a named tunnel in Cloudflare Zero Trust,
