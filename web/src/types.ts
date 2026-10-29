@@ -57,7 +57,7 @@ export type Provider = {
   name: string;
 };
 export type Category = { id: string; name: string };
-export type Addon = { base: string; manifest: Manifest };
+export type Addon = { base: string; manifest: Manifest; enabled?: boolean };
 export type Manifest = {
   id: string;
   name: string;

@@ -803,6 +803,21 @@ export default function Settings(props: Props) {
                     </div>
                     <button
                       className="icon-button"
+                      aria-label={`${a.enabled === false ? "Enable" : "Disable"} ${a.manifest.name}`}
+                      onClick={() =>
+                        props.onAddons(
+                          props.addons.map((addon, addonIndex) =>
+                            addonIndex === index
+                              ? { ...addon, enabled: addon.enabled === false }
+                              : addon,
+                          ),
+                        )
+                      }
+                    >
+                      {a.enabled === false ? "Off" : "On"}
+                    </button>
+                    <button
+                      className="icon-button"
                       disabled={index === 0}
                       aria-label={`Move ${a.manifest.name} up`}
                       onClick={() => {

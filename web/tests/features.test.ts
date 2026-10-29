@@ -87,6 +87,15 @@ describe("per-profile source controls", () => {
     vi.unstubAllGlobals();
   });
 });
+describe("add-on controls", () => {
+  it("keeps disabled add-ons out of catalog choices", () => {
+    const addon = defaultAddons[0];
+    expect(catalogChoices([{ ...addon, enabled: false }])).toEqual([]);
+    expect(
+      catalogChoices([{ ...addon, enabled: true }]).length,
+    ).toBeGreaterThan(0);
+  });
+});
 describe("browser downloads", () => {
   it("allows a direct MP4 download without requiring the companion service", async () => {
     await expect(

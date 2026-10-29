@@ -1728,19 +1728,21 @@ export default function App() {
   useEffect(() => {
     setLimit(60);
   }, [page, deferredQuery, category, region, kind, source, favoritesOnly]);
-  const catalogs = addons.flatMap((a) =>
-    (a.manifest.catalogs ?? [])
-      .filter(
-        (c) =>
-          c.type === kind &&
-          !c.extra?.some((e) => e.isRequired && e.name !== "search"),
-      )
-      .map((c) => ({
-        addon: a,
-        catalog: c,
-        key: `${a.base}|${c.type}|${c.id}`,
-      })),
-  );
+  const catalogs = addons
+    .filter((a) => a.enabled !== false)
+    .flatMap((a) =>
+      (a.manifest.catalogs ?? [])
+        .filter(
+          (c) =>
+            c.type === kind &&
+            !c.extra?.some((e) => e.isRequired && e.name !== "search"),
+        )
+        .map((c) => ({
+          addon: a,
+          catalog: c,
+          key: `${a.base}|${c.type}|${c.id}`,
+        })),
+    );
   useEffect(() => {
     if (page !== "home") return;
     const c = new AbortController();

@@ -238,7 +238,7 @@ export async function loadSetup(
       JSON.stringify(web.playbackService),
     );
   const urls = (addonRows.data ?? [])
-    .filter((a) => a.enabled !== false && !isRemovedPenguPlay(a.url))
+    .filter((a) => !isRemovedPenguPlay(a.url))
     .map((a) => String(a.url));
   const installed = await installMany(urls);
   const restoredAddons = mergeAddons(
@@ -246,7 +246,15 @@ export async function loadSetup(
     Array.isArray(web.addons)
       ? web.addons.filter((addon) => !isRemovedPenguPlay(addon.base))
       : [],
-  );
+  ).map((addon) => ({
+    ...addon,
+    enabled:
+      (addonRows.data ?? []).find(
+        (row) =>
+          safeUrl(String(row.url).replace(/\/manifest\.json$/, "")) ===
+          addon.base,
+      )?.enabled !== false,
+  }));
   const warnings = installed.failed
     ? [
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
@@ -427,10 +435,9 @@ export async function saveSetup(profile: Profile, setup: Setup) {
         ...setup.addons.map((a, index) => ({
           url: `${a.base}/manifest.json`,
           name: a.manifest.name,
-          enabled: true,
+          enabled: a.enabled !== false,
           sort_order: index,
         })),
-        ...previous.rows.filter((r) => r.enabled === false),
       ],
       p_origin_client_id: origin,
     });

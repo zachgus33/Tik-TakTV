@@ -421,14 +421,17 @@ export async function addonStreams(
   id: string,
   signal?: AbortSignal,
 ) {
-  const eligible = addons.filter((a) =>
-    a.manifest.resources?.some((r) =>
-      typeof r === "string"
-        ? r === "stream"
-        : r.name === "stream" &&
-          (!r.types?.length || r.types.includes(item.type)) &&
-          (!r.idPrefixes?.length || r.idPrefixes.some((p) => id.startsWith(p))),
-    ),
+  const eligible = addons.filter(
+    (a) =>
+      a.enabled !== false &&
+      a.manifest.resources?.some((r) =>
+        typeof r === "string"
+          ? r === "stream"
+          : r.name === "stream" &&
+            (!r.types?.length || r.types.includes(item.type)) &&
+            (!r.idPrefixes?.length ||
+              r.idPrefixes.some((p) => id.startsWith(p))),
+      ),
   );
   const results = await Promise.allSettled(
     eligible.map(async (a) => {
@@ -447,10 +450,12 @@ export async function addonStreams(
     streams: results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     failed: results.filter((r) => r.status === "rejected").length,
     count: eligible.length,
-    installedStreaming: addons.filter((a) =>
-      a.manifest.resources?.some((r) =>
-        typeof r === "string" ? r === "stream" : r.name === "stream",
-      ),
+    installedStreaming: addons.filter(
+      (a) =>
+        a.enabled !== false &&
+        a.manifest.resources?.some((r) =>
+          typeof r === "string" ? r === "stream" : r.name === "stream",
+        ),
     ).length,
   };
 }
@@ -460,14 +465,17 @@ export async function addonSubtitles(
   id: string,
   signal?: AbortSignal,
 ): Promise<Subtitle[]> {
-  const eligible = addons.filter((a) =>
-    a.manifest.resources?.some((r) =>
-      typeof r === "string"
-        ? r === "subtitles"
-        : r.name === "subtitles" &&
-          (!r.types?.length || r.types.includes(item.type)) &&
-          (!r.idPrefixes?.length || r.idPrefixes.some((p) => id.startsWith(p))),
-    ),
+  const eligible = addons.filter(
+    (a) =>
+      a.enabled !== false &&
+      a.manifest.resources?.some((r) =>
+        typeof r === "string"
+          ? r === "subtitles"
+          : r.name === "subtitles" &&
+            (!r.types?.length || r.types.includes(item.type)) &&
+            (!r.idPrefixes?.length ||
+              r.idPrefixes.some((p) => id.startsWith(p))),
+      ),
   );
   const results = await Promise.allSettled(
     eligible.map(async (a) => {

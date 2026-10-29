@@ -11,22 +11,24 @@ export type CatalogChoice = {
 };
 
 export function catalogChoices(addons: Addon[]): CatalogChoice[] {
-  return addons.flatMap((addon) =>
-    (addon.manifest.catalogs ?? [])
-      .filter(
-        (catalog) =>
-          ["movie", "series"].includes(catalog.type) &&
-          !catalog.extra?.some((extra) => extra.isRequired),
-      )
-      .map((catalog) => ({
-        key: `${addon.base}|${catalog.type}|${catalog.id}`,
-        addonId: addon.manifest.id,
-        addonName: addon.manifest.name,
-        catalogId: catalog.id,
-        catalogName: catalog.name || addon.manifest.name,
-        type: catalog.type,
-      })),
-  );
+  return addons
+    .filter((addon) => addon.enabled !== false)
+    .flatMap((addon) =>
+      (addon.manifest.catalogs ?? [])
+        .filter(
+          (catalog) =>
+            ["movie", "series"].includes(catalog.type) &&
+            !catalog.extra?.some((extra) => extra.isRequired),
+        )
+        .map((catalog) => ({
+          key: `${addon.base}|${catalog.type}|${catalog.id}`,
+          addonId: addon.manifest.id,
+          addonName: addon.manifest.name,
+          catalogId: catalog.id,
+          catalogName: catalog.name || addon.manifest.name,
+          type: catalog.type,
+        })),
+    );
 }
 
 export function settingMatchesChoice(
