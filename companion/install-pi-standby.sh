@@ -40,6 +40,7 @@ cat > "$base/activate-standby.sh" <<'EOF'
 #!/bin/sh
 set -eu
 systemctl --user start tiktaktv-replica-sync.service
+systemctl --user disable --now tiktaktv-replica-sync.timer
 systemctl --user restart tiktaktv-playback.service
 systemctl --user enable --now tiktaktv-tunnel.service tiktaktv-watchdog.timer
 EOF
