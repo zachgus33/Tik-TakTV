@@ -472,7 +472,7 @@ export default function Settings(props: Props) {
                 </label>
                 <button disabled={!!busy}>
                   {busy === "realdebrid"
-                    ? "Connectingâ€¦"
+                    ? "Connecting…"
                     : "Connect Real-Debrid"}
                 </button>
               </form>

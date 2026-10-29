@@ -1,5 +1,6 @@
 import { addonStreams, defaultAddons } from "../src/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { createGuideParser, xmltvTime } from "../src/guide-parser";
 import {
   addonUrls,
@@ -36,6 +37,16 @@ import {
 } from "../src/reliability";
 
 afterEach(() => vi.restoreAllMocks());
+describe("UI text encoding", () => {
+  it("does not contain common UTF-8 mojibake sequences", () => {
+    const source = ["App.tsx", "Settings.tsx"]
+      .map((file) =>
+        readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8"),
+      )
+      .join("\n");
+    expect(source).not.toMatch(/Â|ðŸ|â€|â€™|Ã|ï¿½|�/u);
+  });
+});
 describe("new account defaults", () => {
   it("includes metadata and subtitles without a shared streaming account", () => {
     expect(defaultAddons.map((addon) => addon.manifest.id)).toEqual([

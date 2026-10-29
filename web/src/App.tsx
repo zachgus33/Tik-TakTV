@@ -152,36 +152,42 @@ async function hideUnavailableFutureTitles(
 }
 
 const liveRegions = [
-  ["US", "ðŸ‡ºðŸ‡¸", "United States", /^(US)\||UNITED STATES/i],
-  ["CA", "ðŸ‡¨ðŸ‡¦", "Canada", /^(CA)\||CANADA/i],
-  ["GB", "ðŸ‡¬ðŸ‡§", "United Kingdom", /^(UK)\||UNITED KINGDOM/i],
-  ["IE", "ðŸ‡®ðŸ‡ª", "Ireland", /^(IR)\|.*IRELAND|IRELAND/i],
-  ["FR", "ðŸ‡«ðŸ‡·", "France", /^(FR)\||FRANCE/i],
-  ["ES", "ðŸ‡ªðŸ‡¸", "Spain", /^(ES)\||SPAIN|ESPAÃ‘A/i],
-  ["DE", "ðŸ‡©ðŸ‡ª", "Germany", /^(DE)\||GERMANY/i],
-  ["IT", "ðŸ‡®ðŸ‡¹", "Italy", /^(IT)\||ITALY/i],
-  ["PT", "ðŸ‡µðŸ‡¹", "Portugal", /^(PT)\||PORTUGAL/i],
-  ["NL", "ðŸ‡³ðŸ‡±", "Netherlands", /^(NL)\||NETHERLAND/i],
-  ["BE", "ðŸ‡§ðŸ‡ª", "Belgium", /^(BE)\||BELGIUM/i],
-  ["CH", "ðŸ‡¨ðŸ‡­", "Switzerland", /^(CH)\||SWITZERLAND/i],
-  ["AT", "ðŸ‡¦ðŸ‡¹", "Austria", /^(AT)\||AUSTRIA/i],
-  ["PL", "ðŸ‡µðŸ‡±", "Poland", /^(PL)\||POLAND/i],
-  ["GR", "ðŸ‡¬ðŸ‡·", "Greece", /^(GR)\||GREECE/i],
-  ["CZ", "ðŸ‡¨ðŸ‡¿", "Czechia", /^(CZ)\||CZECH/i],
-  ["SE", "ðŸ‡¸ðŸ‡ª", "Sweden", /^SWEDEN|SWEDEN/i],
-  ["NO", "ðŸ‡³ðŸ‡´", "Norway", /^NORWAY|NORWAY/i],
-  ["DK", "ðŸ‡©ðŸ‡°", "Denmark", /^DENMARK|DENMARK/i],
-  ["FI", "ðŸ‡«ðŸ‡®", "Finland", /^(FI)\||FINLAND/i],
-  ["AU", "ðŸ‡¦ðŸ‡º", "Australia", /^(AU)\||AUSTRALIA/i],
-  ["NZ", "ðŸ‡³ðŸ‡¿", "New Zealand", /^(NZ)\||NEW ZEALAND/i],
-  ["BR", "ðŸ‡§ðŸ‡·", "Brazil", /^(BR)\||BRAZIL/i],
-  ["TR", "ðŸ‡¹ðŸ‡·", "TÃ¼rkiye", /^(TR)\||TURK/i],
-  ["IL", "ðŸ‡®ðŸ‡±", "Israel", /^(IS)\||ISRAEL/i],
-  ["IN", "ðŸ‡®ðŸ‡³", "India", /^ASIA\s*\|.*INDIA|INDIA/i],
+  ["US", "United States", /^(US)\||UNITED STATES/i],
+  ["CA", "Canada", /^(CA)\||CANADA/i],
+  ["GB", "United Kingdom", /^(UK)\||UNITED KINGDOM/i],
+  ["IE", "Ireland", /^(IR)\|.*IRELAND|IRELAND/i],
+  ["FR", "France", /^(FR)\||FRANCE/i],
+  ["ES", "Spain", /^(ES)\||SPAIN|ESPAÑA/i],
+  ["DE", "Germany", /^(DE)\||GERMANY/i],
+  ["IT", "Italy", /^(IT)\||ITALY/i],
+  ["PT", "Portugal", /^(PT)\||PORTUGAL/i],
+  ["NL", "Netherlands", /^(NL)\||NETHERLAND/i],
+  ["BE", "Belgium", /^(BE)\||BELGIUM/i],
+  ["CH", "Switzerland", /^(CH)\||SWITZERLAND/i],
+  ["AT", "Austria", /^(AT)\||AUSTRIA/i],
+  ["PL", "Poland", /^(PL)\||POLAND/i],
+  ["GR", "Greece", /^(GR)\||GREECE/i],
+  ["CZ", "Czechia", /^(CZ)\||CZECH/i],
+  ["SE", "Sweden", /^SWEDEN|SWEDEN/i],
+  ["NO", "Norway", /^NORWAY|NORWAY/i],
+  ["DK", "Denmark", /^DENMARK|DENMARK/i],
+  ["FI", "Finland", /^(FI)\||FINLAND/i],
+  ["AU", "Australia", /^(AU)\||AUSTRALIA/i],
+  ["NZ", "New Zealand", /^(NZ)\||NEW ZEALAND/i],
+  ["BR", "Brazil", /^(BR)\||BRAZIL/i],
+  ["TR", "Türkiye", /^(TR)\||TURK/i],
+  ["IL", "Israel", /^(IS)\||ISRAEL/i],
+  ["IN", "India", /^ASIA\s*\|.*INDIA|INDIA/i],
 ] as const;
 
+function regionFlag(code: string) {
+  return String.fromCodePoint(
+    ...[...code.toUpperCase()].map((letter) => 127397 + letter.charCodeAt(0)),
+  );
+}
+
 function liveRegion(name: string) {
-  return liveRegions.find(([, , , pattern]) => pattern.test(name))?.[0] ?? "";
+  return liveRegions.find(([, , pattern]) => pattern.test(name))?.[0] ?? "";
 }
 
 function ProfileGate({
@@ -434,7 +440,7 @@ function ProfileGate({
               )}
               <button className="primary" disabled={busy}>
                 {busy
-                  ? "Please waitâ€¦"
+                  ? "Please wait…"
                   : authMode === "signup"
                     ? "Create free account"
                     : "Sign in"}
@@ -571,7 +577,7 @@ function Card({
                   : "Movie",
             ]
               .filter(Boolean)
-              .join(" Â· ")}
+              .join(" · ")}
       </span>
     </button>
   );
@@ -607,7 +613,7 @@ function Loading() {
   return (
     <div className="loading" role="status">
       <span className="spinner" />
-      Loading your libraryâ€¦
+      Loading your library…
     </div>
   );
 }
@@ -1454,7 +1460,7 @@ function Detail({
           <div className="stream-results">
             <h2>
               {downloadMode ? "Choose a stream to download" : "Choose a stream"}
-              {episode ? ` Â· Episode ${episode.episode}` : ""}
+              {episode ? ` · Episode ${episode.episode}` : ""}
             </h2>
             {streams.length === 0 && (
               <p className="muted">No streams found. Try another source.</p>
@@ -1483,15 +1489,15 @@ function Detail({
                       {streamQuality(s)
                         ? `${streamQuality(s)}p`
                         : "Quality not reported"}
-                      {seeders(s) >= 0 ? ` Â· ${seeders(s)} seeders` : ""}
-                      {s.infoHash ? " Â· TorBox" : ""}
+                      {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
+                      {s.infoHash ? " · TorBox" : ""}
                     </small>
                     <span>
                       {s.title ??
                         (playable
                           ? "HTTPS video"
                           : s.infoHash
-                            ? "Torrent source â€” requires a separate streaming server"
+                            ? "Torrent source — requires a separate streaming server"
                             : "Not directly playable in a browser")}
                     </span>
                   </span>
@@ -1763,7 +1769,7 @@ export default function App() {
     void Promise.allSettled(
       entries.map(async ({ a, cat, customTitle }) => ({
         title: customTitle || ((cat.name || a.manifest.name) as string) /*
-          `${a.manifest.name} Â· ${cat.type === "movie" ? "Movies" : "Series"}`,
+          `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
           */,
         items: await catalog(a, cat.type, cat.id, "", c.signal),
       })),
@@ -2055,7 +2061,7 @@ export default function App() {
   function playChannel(item: Item) {
     if (item.source === "xtream") {
       if (!provider || provider.scope !== item.provider) {
-        setToast("Connect this channelâ€™s IPTV account in Settings.");
+        setToast("Connect this channel’s IPTV account in Settings.");
         return;
       }
       setPlayback({
@@ -2162,7 +2168,7 @@ export default function App() {
                 : "Your screen. Your sources."}
             </span>
           </div>
-          <span className="version">TikTak TV Â· Web edition</span>
+          <span className="version">TikTak TV · Web edition</span>
         </div>
       </aside>
       <div className="main-shell">
@@ -2183,9 +2189,7 @@ export default function App() {
               ref={searchRef}
               aria-label="Search titles or channels"
               placeholder={
-                page === "live"
-                  ? "Search channelsâ€¦"
-                  : "Search movies, seriesâ€¦"
+                page === "live" ? "Search channels…" : "Search movies, series…"
               }
               value={query}
               onChange={(e) => {
@@ -2219,7 +2223,7 @@ export default function App() {
         </header>
         {offline && (
           <div className="banner" role="status">
-            Youâ€™re offline. Your saved library is available; streaming needs a
+            You’re offline. Your saved library is available; streaming needs a
             connection.
           </div>
         )}
@@ -2657,10 +2661,10 @@ export default function App() {
                       value={region}
                       onChange={(e) => setRegion(e.target.value)}
                     >
-                      <option value="">ðŸŒ All countries</option>
-                      {availableRegions.map(([code, flag, label]) => (
+                      <option value="">🌐 All countries</option>
+                      {availableRegions.map(([code, label]) => (
                         <option key={code} value={code}>
-                          {flag} {label}
+                          {regionFlag(code)} {label}
                         </option>
                       ))}
                     </select>
