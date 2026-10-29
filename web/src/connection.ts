@@ -315,6 +315,7 @@ export const publishFriendSetup = (
   }>("/friend/setup", { code, torboxKey, realDebridKey, template });
 
 export const redeemFriendSetup = <T>(code: string) =>
+  // The service returns short-lived grants; raw owner credentials never enter the browser.
   friendRequest<{ template: T; torboxKey: string; realDebridKey: string }>(
     "/friend/redeem",
     { code },
