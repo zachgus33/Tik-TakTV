@@ -22,6 +22,7 @@ test("public liveness endpoint exposes no private configuration", async () => {
   try {
     const response = await fetch(`${base}/healthz`);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-tiktak-companion"), "2");
     assert.deepEqual(await response.json(), { ok: true, version: 2 });
     assert.equal((await fetch(`${base}/health`)).status, 401);
   } finally {

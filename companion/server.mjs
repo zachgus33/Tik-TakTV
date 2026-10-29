@@ -472,6 +472,9 @@ export function createService({ token, origins, authorizeAccount }) {
     }
     if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
+    // Lets the web client distinguish a response produced by this service
+    // from a gateway-generated 5xx when the tunnel itself is unavailable.
+    res.setHeader("X-TikTak-Companion", "2");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Authorization,Content-Type,Range",
@@ -479,7 +482,7 @@ export function createService({ token, origins, authorizeAccount }) {
     res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
     res.setHeader(
       "Access-Control-Expose-Headers",
-      "Content-Range,Accept-Ranges,Content-Length",
+      "Content-Range,Accept-Ranges,Content-Length,X-TikTak-Companion",
     );
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Referrer-Policy", "no-referrer");

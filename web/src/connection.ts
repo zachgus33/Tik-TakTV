@@ -145,7 +145,13 @@ export async function serviceRequest(
     });
   try {
     const response = await request(config);
-    if (response.status < 500) return response;
+    // A companion-generated 5xx can be the upstream add-on's real response.
+    // Retry discovery only for gateway errors that did not reach the service.
+    if (
+      response.status < 500 ||
+      response.headers.get("X-TikTak-Companion") === "2"
+    )
+      return response;
   } catch (error) {
     if (signal?.aborted) throw error;
   }
