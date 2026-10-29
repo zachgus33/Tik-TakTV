@@ -4355,6 +4355,22 @@ body:has(dialog[open]) {
   color: white;
   font-size: 1.2rem;
 }
+.profile-sync-status {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 9000;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 999px;
+  background: #11131aed;
+  box-shadow: 0 12px 36px #0008;
+  color: #f4f4f7;
+  font-size: 0.86rem;
+  pointer-events: none;
+}
 [hidden] {
   display: none !important;
 }

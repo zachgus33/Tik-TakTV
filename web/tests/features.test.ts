@@ -43,6 +43,7 @@ import {
 } from "../src/addon-health";
 import { persistableSetup } from "../src/account-isolation";
 import { clearAccountStorage } from "../src/storage";
+import { beginProfileSync } from "../src/profile-sync";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -50,6 +51,22 @@ afterEach(() => {
 });
 
 describe("account isolation", () => {
+  it("opens a selected profile before its remote refresh finishes", async () => {
+    let finish!: (value: string) => void;
+    const load = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    const opened = vi.fn();
+    const applied = vi.fn();
+    beginProfileSync(opened, () => load, applied, vi.fn());
+    expect(opened).toHaveBeenCalledOnce();
+    expect(applied).not.toHaveBeenCalled();
+    finish("fresh setup");
+    await load;
+    await Promise.resolve();
+    expect(applied).toHaveBeenCalledWith("fresh setup");
+  });
+
   it("never persists a live Nuvio bearer as a playback-service secret", () => {
     const setup = {
       playbackService: {
@@ -87,6 +104,7 @@ describe("account isolation", () => {
       storage.setItem("nuvio:provider", "private");
       storage.setItem("nuvio:home-catalogs", "private");
       storage.setItem("tiktak:stream-preferences", "private");
+      storage.setItem("tiktak:active-profile-owner", "old-user:1");
     }
     clearAccountStorage();
     for (const storage of [local, session]) {
@@ -94,6 +112,7 @@ describe("account isolation", () => {
       expect(storage.getItem("nuvio:provider")).toBeNull();
       expect(storage.getItem("nuvio:home-catalogs")).toBeNull();
       expect(storage.getItem("tiktak:stream-preferences")).toBeNull();
+      expect(storage.getItem("tiktak:active-profile-owner")).toBeNull();
     }
   });
 });

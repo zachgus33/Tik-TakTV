@@ -65,14 +65,17 @@ import {
 } from "./api";
 import { readLiveCache, writeLiveCache } from "./live-cache";
 import {
+  activeProfileMatches,
   cleanItem,
   clearAccountStorage,
   clearProfileTransientStorage,
   getProvider,
+  markActiveProfile,
   read,
   save,
   useStored,
 } from "./storage";
+import { beginProfileSync } from "./profile-sync";
 import {
   itemKey,
   type Addon,
@@ -202,10 +205,19 @@ function liveRegion(name: string) {
 
 function ProfileGate({
   onEnter,
+  onSetup,
+  onSetupError,
   onGuest,
   skipSelection,
 }: {
-  onEnter: (setup: Setup, profile: Profile, ownerId: string) => void;
+  onEnter: (profile: Profile, ownerId: string) => void;
+  onSetup: (
+    setup: Setup,
+    profile: Profile,
+    ownerId: string,
+    warnings: string[],
+  ) => void;
+  onSetupError: (reason: unknown, profile: Profile, ownerId: string) => void;
   onGuest: () => void;
   skipSelection: boolean;
 }) {
@@ -246,15 +258,20 @@ function ProfileGate({
     setError("");
     try {
       await unlock(profile, pin);
-      const result = await loadSetup(profile);
       const { data } = await account.auth.getSession();
+      const ownerId = data.session?.user.id ?? "local";
       if (data.session)
         localStorage.setItem(
           `tiktak:profile:${data.session.user.id}`,
           String(profile.profile_index),
         );
       sessionStorage.setItem("tiktak:profile-active", "1");
-      onEnter(result.setup, profile, data.session?.user.id ?? "local");
+      beginProfileSync(
+        () => onEnter(profile, ownerId),
+        () => loadSetup(profile),
+        (result) => onSetup(result.setup, profile, ownerId, result.warnings),
+        (reason) => onSetupError(reason, profile, ownerId),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open this profile.");
     } finally {
@@ -1543,6 +1560,7 @@ export default function App() {
       ? (location.hash.slice(1) as Page)
       : "home";
   const [accountLoading, setAccountLoading] = useState(false);
+  const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [activeProfileView, setActiveProfileView] = useState<{
     name: string;
@@ -2168,20 +2186,59 @@ export default function App() {
       <ProfileGate
         skipSelection={skipProfileSelection && !forceProfileSelection}
         onGuest={() => setProfileReady(true)}
-        onEnter={(setup, profile, ownerId) => {
+        onEnter={(profile, ownerId) => {
+          const hasCachedSetup = activeProfileMatches(
+            ownerId,
+            profile.profile_index,
+          );
+          if (!hasCachedSetup) {
+            clearAccountStorage();
+            clearSourceCache();
+            loadAccountSetup({
+              playbackService: getService(),
+              tmdbKey: DEFAULT_TMDB_KEY,
+              addons: defaultAddons,
+              collections: [],
+              library: [],
+              progress: [],
+              provider: null,
+              torboxKey: "",
+              realDebridKey: "",
+              autoplay: true,
+              homeCatalogs: [],
+            });
+          }
+          markActiveProfile(ownerId, profile.profile_index);
           setForceProfileSelection(false);
           setActiveProfileView({
             name: profile.name,
             image: profile.avatar_url ?? undefined,
             color: profile.avatar_color_hex,
           });
-          loadAccountSetup(setup);
-          const wizardKey = `tiktak:setup-wizard-v2:${ownerId}:${profile.profile_index}`;
-          if (localStorage.getItem(wizardKey) !== "complete")
-            setSetupWizardKey(wizardKey);
           location.hash = "home";
           setPage("home");
           setProfileReady(true);
+          setProfileSyncing(true);
+        }}
+        onSetup={(setup, profile, ownerId, warnings) => {
+          if (!activeProfileMatches(ownerId, profile.profile_index)) return;
+          loadAccountSetup(setup);
+          const now = Date.now();
+          localStorage.setItem("tiktak:last-sync", String(now));
+          setProfileSyncing(false);
+          const wizardKey = `tiktak:setup-wizard-v2:${ownerId}:${profile.profile_index}`;
+          if (localStorage.getItem(wizardKey) !== "complete")
+            setSetupWizardKey(wizardKey);
+          if (warnings.length) setToast(warnings.join(" "));
+        }}
+        onSetupError={(reason, profile, ownerId) => {
+          if (!activeProfileMatches(ownerId, profile.profile_index)) return;
+          setProfileSyncing(false);
+          setToast(
+            reason instanceof Error
+              ? `Profile opened from this device. Nuvio refresh failed: ${reason.message}`
+              : "Profile opened from this device, but Nuvio could not refresh it.",
+          );
         }}
       />
     );
@@ -2300,6 +2357,11 @@ export default function App() {
           {accountLoading && (
             <div className="account-loading" role="status">
               Loading your Nuvio profile...
+            </div>
+          )}
+          {profileSyncing && (
+            <div className="profile-sync-status" role="status">
+              Syncing this profile with Nuvio in the background…
             </div>
           )}
           {page === "home" && (

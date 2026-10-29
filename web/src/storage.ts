@@ -73,6 +73,24 @@ const transientProfileRawKeys = [
   "tiktak:last-party-create",
 ];
 
+export function profileOwnerKey(ownerId: string, profileIndex: number) {
+  return `${ownerId}:${profileIndex}`;
+}
+
+export function activeProfileMatches(ownerId: string, profileIndex: number) {
+  return (
+    localStorage.getItem("tiktak:active-profile-owner") ===
+    profileOwnerKey(ownerId, profileIndex)
+  );
+}
+
+export function markActiveProfile(ownerId: string, profileIndex: number) {
+  localStorage.setItem(
+    "tiktak:active-profile-owner",
+    profileOwnerKey(ownerId, profileIndex),
+  );
+}
+
 export function clearProfileTransientStorage() {
   for (const storage of [localStorage, sessionStorage]) {
     for (const key of transientProfileKeys) storage.removeItem(`nuvio:${key}`);
@@ -90,6 +108,7 @@ export function clearAccountStorage() {
   for (const storage of [localStorage, sessionStorage]) {
     for (const key of accountScopedKeys) storage.removeItem(`nuvio:${key}`);
     storage.removeItem("tiktak:last-sync");
+    storage.removeItem("tiktak:active-profile-owner");
   }
 }
 export function cleanItem(item: Item): Item {
