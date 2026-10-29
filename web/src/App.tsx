@@ -181,6 +181,7 @@ const liveRegions = [
 ] as const;
 
 function regionFlag(code: string) {
+  // Generate regional indicators at runtime so source-file encoding cannot corrupt flags.
   return String.fromCodePoint(
     ...[...code.toUpperCase()].map((letter) => 127397 + letter.charCodeAt(0)),
   );
