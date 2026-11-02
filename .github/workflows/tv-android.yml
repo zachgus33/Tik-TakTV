@@ -55,8 +55,8 @@ jobs:
       - name: Launch app and exercise remote keys on Android TV
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          arch: x86_64
+          api-level: 34
+          arch: x86
           target: android-tv
           profile: tv_1080p
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
