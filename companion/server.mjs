@@ -374,7 +374,8 @@ export function createService({ token, origins, authorizeAccount }) {
       if (Date.now() - j.touched > 120000) {
         j.process?.kill();
         jobs.delete(id);
-        if (j.dir) void rm(j.dir, { recursive: true, force: true });
+        if (j.dir)
+          void rm(j.dir, { recursive: true, force: true }).catch(() => {});
       }
     for (const [id, party] of parties)
       if (party.expires < Date.now()) parties.delete(id);
@@ -1298,7 +1299,9 @@ export function createService({ token, origins, authorizeAccount }) {
           if (replaced) {
             replaced.process?.kill("SIGTERM");
             jobs.delete(replaceId);
-            void rm(replaced.dir, { recursive: true, force: true });
+            void rm(replaced.dir, { recursive: true, force: true }).catch(
+              () => {},
+            );
           }
           if (jobs.size >= limits.jobs)
             return send(503, {
@@ -1526,7 +1529,9 @@ export function createService({ token, origins, authorizeAccount }) {
             setTimeout(() => {
               if (jobs.get(id) !== job || job.running) return;
               jobs.delete(id);
-              void rm(job.dir, { recursive: true, force: true });
+              void rm(job.dir, { recursive: true, force: true }).catch(
+                () => {},
+              );
             }, 30000).unref();
           });
           let ready = false;
@@ -1693,7 +1698,8 @@ export function createService({ token, origins, authorizeAccount }) {
     clearInterval(sweep);
     for (const j of jobs.values()) {
       j.process?.kill();
-      if (j.dir) void rm(j.dir, { recursive: true, force: true });
+      if (j.dir)
+        void rm(j.dir, { recursive: true, force: true }).catch(() => {});
     }
   });
   return server;
