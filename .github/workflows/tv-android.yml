@@ -77,14 +77,17 @@ jobs:
             adb shell input keyevent 89
             adb shell input keyevent 90
             sleep 3
-            adb shell pidof com.tiktaktv.tv
-            adb shell dumpsys activity activities | grep -q "com.tiktaktv.tv/.MainActivity"
+            adb shell dumpsys activity activities > tv-activity.txt
             adb logcat -d > tv-app-logcat.txt
+            adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
+            if ! grep -q "mResumedActivity.*com.tiktaktv.tv/.MainActivity" tv-activity.txt; then
+              cat tv-activity.txt
+              exit 1
+            fi
             if grep -A 30 "FATAL EXCEPTION" tv-app-logcat.txt | grep -q "com.tiktaktv.tv"; then
               cat tv-app-logcat.txt
               exit 1
             fi
-            adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
       - name: Upload emulator evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -93,5 +96,6 @@ jobs:
           path: |
             tvApp/build/tv-emulator-smoke.png
             tv-app-logcat.txt
+            tv-activity.txt
           if-no-files-found: warn
           retention-days: 30
