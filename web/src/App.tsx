@@ -2358,6 +2358,7 @@ export default function App() {
             <Search size={18} />
             <input
               ref={searchRef}
+              type="search"
               aria-label="Search titles or channels"
               placeholder={
                 page === "live" ? "Search channels…" : "Search movies, series…"

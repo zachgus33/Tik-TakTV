@@ -29,12 +29,64 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v5
-      - name: Build Fire TV and Android TV development APK
-        run: ./gradlew :tvApp:assembleDebug -Pnuvio.android.distribution=full --stacktrace
+      - name: Test, lint, and build Fire TV and Android TV development APK
+        run: ./gradlew :tvApp:testDebugUnitTest :tvApp:lintDebug :tvApp:assembleDebug -Pnuvio.android.distribution=full --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
           name: TikTak-TV-Android-TV
           path: tvApp/build/outputs/apk/debug/tvApp-debug.apk
           if-no-files-found: error
+          retention-days: 30
+
+  tv-emulator-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: TikTak-TV-Android-TV
+          path: tvApp/build/outputs/apk/debug
+      - name: Launch app and exercise remote keys on Android TV
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: tv_1080p
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r tvApp/build/outputs/apk/debug/tvApp-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.tiktaktv.tv/.MainActivity
+            sleep 15
+            adb shell input keyevent 20
+            adb shell input keyevent 22
+            adb shell input keyevent 23
+            adb shell input keyevent 19
+            adb shell input keyevent 21
+            adb shell input keyevent 82
+            adb shell input keyevent 85
+            adb shell input keyevent 89
+            adb shell input keyevent 90
+            sleep 3
+            adb shell pidof com.tiktaktv.tv
+            adb shell dumpsys activity activities | grep -q "com.tiktaktv.tv/.MainActivity"
+            adb logcat -d > tv-app-logcat.txt
+            if grep -A 30 "FATAL EXCEPTION" tv-app-logcat.txt | grep -q "com.tiktaktv.tv"; then
+              cat tv-app-logcat.txt
+              exit 1
+            fi
+            adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
+      - name: Upload emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TikTak-TV-emulator-smoke
+          path: |
+            tvApp/build/tv-emulator-smoke.png
+            tv-app-logcat.txt
+          if-no-files-found: warn
           retention-days: 30

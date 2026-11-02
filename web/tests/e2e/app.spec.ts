@@ -543,13 +543,40 @@ test("imports native collections and opens their addon catalogs", async ({
 });
 
 test("enables remote focus navigation in TV mode", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/?tv=1#home");
   await expect(page.locator("html")).toHaveClass(/tv-mode/);
+  const home = page.getByRole("link", { name: "Home", exact: true });
+  const discover = page.getByRole("link", { name: "Discover", exact: true });
+  const live = page.getByRole("link", { name: "Live TV", exact: true });
+
+  await home.focus();
+  await expect(home).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect
-    .poll(() => page.evaluate(() => document.activeElement !== document.body))
-    .toBe(true);
-  await expect(page.locator(":focus")).toBeVisible();
+  await expect(discover).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(live).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(discover).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#discover$/);
+  await expect(discover).toHaveAttribute("aria-current", "page");
+});
+
+test("keeps remote arrows inside focused TV form controls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/?tv=1#home");
+  const search = page.getByRole("searchbox");
+  await search.fill("remote search");
+  await search.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("remote search");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#discover$/);
+  await expect(page.locator("html")).toHaveClass(/tv-mode/);
 });
 
 async function streamingAddon(page: Page) {

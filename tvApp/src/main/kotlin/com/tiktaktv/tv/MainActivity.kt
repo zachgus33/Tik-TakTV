@@ -79,13 +79,25 @@ class MainActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (fullscreenView != null) {
-                hideFullscreen()
+        when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> {
+                handleBack()
                 return true
             }
-            if (webView.canGoBack()) {
-                webView.goBack()
+            KeyEvent.KEYCODE_MENU -> {
+                webView.evaluateJavascript(FOCUS_NAVIGATION, null)
+                return true
+            }
+            KeyEvent.KEYCODE_SEARCH -> {
+                webView.evaluateJavascript(FOCUS_SEARCH, null)
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_REWIND,
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                webView.evaluateJavascript(mediaScript(keyCode), null)
                 return true
             }
         }
@@ -118,6 +130,25 @@ class MainActivity : Activity() {
         webView.evaluateJavascript(TV_BOOTSTRAP, null)
     }
 
+    private fun handleBack() {
+        if (fullscreenView != null) {
+            hideFullscreen()
+            return
+        }
+        webView.evaluateJavascript(HANDLE_WEB_BACK) { result ->
+            if (result == "true") return@evaluateJavascript
+            if (webView.canGoBack()) webView.goBack() else finish()
+        }
+    }
+
+    private fun mediaScript(keyCode: Int): String = when (keyCode) {
+        KeyEvent.KEYCODE_MEDIA_PLAY -> MEDIA_PLAY
+        KeyEvent.KEYCODE_MEDIA_PAUSE -> MEDIA_PAUSE
+        KeyEvent.KEYCODE_MEDIA_REWIND -> MEDIA_REWIND
+        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> MEDIA_FAST_FORWARD
+        else -> MEDIA_TOGGLE
+    }
+
     private fun openExternal(uri: Uri) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
     }
@@ -129,7 +160,7 @@ class MainActivity : Activity() {
         mimeType: String?,
     ) {
         val uri = runCatching { Uri.parse(value) }.getOrNull()
-        if (uri == null || !TvUrlPolicy.isDownload(uri)) {
+        if (uri == null || !TvUrlPolicy.isDownload(value)) {
             Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
             return
         }
@@ -178,17 +209,17 @@ class MainActivity : Activity() {
 
     private inner class TvClient : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-            if (TvUrlPolicy.isInternal(request.url)) return false
+            if (TvUrlPolicy.isInternal(request.url.toString())) return false
             openExternal(request.url)
             return true
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-            if (!TvUrlPolicy.isInternal(Uri.parse(url))) view.stopLoading()
+            if (!TvUrlPolicy.isInternal(url)) view.stopLoading()
         }
 
         override fun onPageFinished(view: WebView, url: String) {
-            if (TvUrlPolicy.isInternal(Uri.parse(url))) applyTvMode()
+            if (TvUrlPolicy.isInternal(url)) applyTvMode()
         }
 
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
@@ -222,6 +253,33 @@ class MainActivity : Activity() {
 
     companion object {
         private const val FILE_PICKER_REQUEST = 4107
+        private const val HANDLE_WEB_BACK = """
+            (() => {
+              const dialogs = Array.from(document.querySelectorAll('dialog[open]'));
+              const dialog = dialogs[dialogs.length - 1];
+              if (!dialog) return false;
+              const close = dialog.querySelector('[aria-label*="Close"], .close, button[value="cancel"]');
+              if (close) close.click(); else dialog.close();
+              return true;
+            })();
+        """
+        private const val FOCUS_NAVIGATION = """
+            (() => {
+              const target = document.querySelector('.sidebar button, .sidebar a, nav button, nav a');
+              if (target) { target.focus(); target.scrollIntoView({block:'nearest'}); }
+            })();
+        """
+        private const val FOCUS_SEARCH = """
+            (() => {
+              const target = document.querySelector('input[type="search"], input[aria-label*="Search"]');
+              if (target) target.focus();
+            })();
+        """
+        private const val MEDIA_TOGGLE = """(() => { const v=document.querySelector('video'); if(v) v.paused?v.play():v.pause(); })();"""
+        private const val MEDIA_PLAY = """(() => { const v=document.querySelector('video'); if(v) v.play(); })();"""
+        private const val MEDIA_PAUSE = """(() => { const v=document.querySelector('video'); if(v) v.pause(); })();"""
+        private const val MEDIA_REWIND = """(() => { const v=document.querySelector('video'); if(v) v.currentTime=Math.max(0,v.currentTime-10); })();"""
+        private const val MEDIA_FAST_FORWARD = """(() => { const v=document.querySelector('video'); if(v) v.currentTime=Math.min(v.duration||Infinity,v.currentTime+10); })();"""
         private val TV_BOOTSTRAP = """
             (() => {
               document.documentElement.classList.add('tv-mode');

@@ -14,6 +14,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "START_URL", "\"https://www.tiktaktv.me/?tv=1\"")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -30,4 +31,8 @@ android {
             )
         }
     }
+}
+
+dependencies {
+    testImplementation(libs.junit)
 }
