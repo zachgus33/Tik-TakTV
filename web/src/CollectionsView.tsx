@@ -5,6 +5,7 @@ import { catalog } from "./api";
 import {
   type Collection,
   type CollectionFolder,
+  folderLabel,
   sourceAddon,
 } from "./collections";
 import { itemKey, type Addon, type Item } from "./types";
@@ -191,13 +192,13 @@ export default function CollectionsView({
             </button>
           </div>
           <div className="chips folder-tabs">
-            {collection.folders.map((f) => (
+            {collection.folders.map((f, index) => (
               <button
                 key={f.id}
                 className={f.id === folderId ? "selected" : ""}
                 onClick={() => setFolderId(f.id)}
               >
-                {f.title}
+                {folderLabel(f, index)}
               </button>
             ))}
           </div>
@@ -240,7 +241,9 @@ export default function CollectionsView({
           {folder && (
             <>
               <details className="collection-editor">
-                <summary>Edit {folder.title}</summary>
+                <summary>
+                  Edit {folderLabel(folder, collection.folders.indexOf(folder))}
+                </summary>
                 <form
                   className="inline-form"
                   onSubmit={(e) => {

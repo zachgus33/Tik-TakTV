@@ -424,6 +424,30 @@ describe("Nuvio collections and add-on transfer", () => {
     expect(() => parseCollections([collection, collection])).toThrow("unique");
     expect(() => parseCollections({ theme: "violet" })).toThrow("array");
   });
+  it("preserves image-only Nuvio folders with hidden blank titles", () => {
+    const imported = parseCollections([
+      {
+        id: "services",
+        title: "Streaming Services",
+        folders: [
+          {
+            id: "netflix",
+            title: "",
+            hideTitle: true,
+            coverImageUrl: "https://images.example/netflix-card.png",
+            sources: [],
+          },
+        ],
+      },
+    ]);
+
+    expect(imported[0].folders[0]).toMatchObject({
+      id: "netflix",
+      title: "",
+      hideTitle: true,
+      coverImageUrl: "https://images.example/netflix-card.png",
+    });
+  });
   it("accepts configured addon URLs and native managed add-on records", () => {
     expect(
       addonUrls(

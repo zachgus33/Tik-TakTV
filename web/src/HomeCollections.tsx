@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 import CollectionsView from "./CollectionsView";
 import { safeUrl } from "./api";
-import type { Collection } from "./collections";
+import { folderLabel, type Collection } from "./collections";
 import type { Addon, Item } from "./types";
 export default function HomeCollections(props: {
   collections: Collection[];
@@ -62,8 +62,9 @@ export default function HomeCollections(props: {
               </div>
             </div>
             <div className="service-tiles">
-              {c.folders.map((f) => {
+              {c.folders.map((f, index) => {
                 const cover = safeUrl(f.coverImageUrl);
+                const label = folderLabel(f, index);
                 return (
                   <button
                     key={f.id}
@@ -71,7 +72,7 @@ export default function HomeCollections(props: {
                     onClick={() =>
                       setSelected({ collection: c.id, folder: f.id })
                     }
-                    aria-label={`Open ${c.title}: ${f.title}`}
+                    aria-label={`Open ${c.title}: ${label}`}
                   >
                     {cover ? (
                       <img
@@ -83,12 +84,14 @@ export default function HomeCollections(props: {
                         }}
                       />
                     ) : null}
-                    <span>
-                      {typeof f.coverEmoji === "string"
-                        ? f.coverEmoji + " "
-                        : ""}
-                      {f.title}
-                    </span>
+                    {!f.hideTitle && f.title.trim() && (
+                      <span>
+                        {typeof f.coverEmoji === "string"
+                          ? f.coverEmoji + " "
+                          : ""}
+                        {f.title}
+                      </span>
+                    )}
                   </button>
                 );
               })}

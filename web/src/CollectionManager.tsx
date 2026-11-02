@@ -15,6 +15,7 @@ import type {
   CollectionFolder,
   CollectionSource,
 } from "./collections";
+import { folderLabel } from "./collections";
 import type { Addon, Item } from "./types";
 
 type CatalogChoice = {
@@ -341,7 +342,7 @@ export default function CollectionManager(props: {
                 className="folder-main"
                 onClick={() => setFolderId(item.id)}
               >
-                <strong>{item.title}</strong>
+                <strong>{folderLabel(item, index)}</strong>
                 <span>
                   {
                     (
@@ -355,28 +356,28 @@ export default function CollectionManager(props: {
               </button>
               <div>
                 <button
-                  aria-label={`Move ${item.title} up`}
+                  aria-label={`Move ${folderLabel(item, index)} up`}
                   disabled={index === 0}
                   onClick={() => moveFolder(index, -1)}
                 >
                   <ArrowUp size={14} />
                 </button>
                 <button
-                  aria-label={`Move ${item.title} down`}
+                  aria-label={`Move ${folderLabel(item, index)} down`}
                   disabled={index === selected.folders.length - 1}
                   onClick={() => moveFolder(index, 1)}
                 >
                   <ArrowDown size={14} />
                 </button>
                 <button
-                  aria-label={`Edit ${item.title}`}
+                  aria-label={`Edit ${folderLabel(item, index)}`}
                   onClick={() => setFolderId(item.id)}
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   className="danger-icon"
-                  aria-label={`Delete ${item.title}`}
+                  aria-label={`Delete ${folderLabel(item, index)}`}
                   onClick={() => {
                     updateCollection({
                       folders: selected.folders.filter(

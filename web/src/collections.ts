@@ -19,6 +19,7 @@ export type CollectionFolder = {
   tileShape?: "LANDSCAPE" | "POSTER" | string;
   coverImageUrl?: string;
   coverEmoji?: string;
+  hideTitle?: boolean;
   [key: string]: unknown;
 };
 export type Collection = {
@@ -75,10 +76,9 @@ export function parseCollections(value: unknown): Collection[] {
         !f ||
         typeof f.id !== "string" ||
         typeof f.title !== "string" ||
-        !f.title.trim() ||
         folderIds.has(f.id)
       )
-        throw new Error("Each folder needs a unique ID and title.");
+        throw new Error("Each folder needs a unique ID and a title field.");
       folderIds.add(f.id);
       for (const key of ["sources", "catalogSources"])
         if (
@@ -97,6 +97,9 @@ export function parseCollections(value: unknown): Collection[] {
     });
     return { ...raw, folders } as Collection;
   });
+}
+export function folderLabel(folder: CollectionFolder, index: number): string {
+  return folder.title.trim() || `Folder ${index + 1}`;
 }
 export function mergeCollections(
   current: Collection[],

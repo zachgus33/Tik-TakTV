@@ -1558,7 +1558,9 @@ test.describe("authenticated integrations", () => {
       folders: [
         {
           id: "prime",
-          title: "Prime Video",
+          title: "",
+          hideTitle: true,
+          coverImageUrl: "https://images.example/prime-video-card.png",
           tileShape: "LANDSCAPE",
           sources: [
             {
@@ -1690,7 +1692,7 @@ test.describe("authenticated integrations", () => {
     await page.getByText("Show selector", { exact: true }).click();
     await page.goto("/#home");
     await page
-      .getByRole("button", { name: "Open Streaming Services: Prime Video" })
+      .getByRole("button", { name: "Open Streaming Services: Folder 1" })
       .click();
     await expect(
       page.locator(".collections-section .media-card strong"),
@@ -1698,7 +1700,7 @@ test.describe("authenticated integrations", () => {
     await page.reload();
     await expect(
       page.getByRole("button", {
-        name: "Open Streaming Services: Prime Video",
+        name: "Open Streaming Services: Folder 1",
       }),
     ).toBeVisible();
     await page.goto("/#settings");
