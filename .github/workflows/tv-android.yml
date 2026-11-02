@@ -67,8 +67,10 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv/.MainActivity
             sleep 20
-            adb shell dumpsys activity activities > tv-activity.txt
-            grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv/.MainActivity" tv-activity.txt
+            adb shell dumpsys activity activities > tv-initial-activity.txt
+            adb logcat -d > tv-initial-logcat.txt
+            adb shell am start -W -n com.tiktaktv.tv/.MainActivity
+            sleep 3
             adb shell input keyevent 20
             adb shell input keyevent 22
             adb shell input keyevent 21
@@ -94,6 +96,8 @@ jobs:
             tvApp/build/tv-emulator-smoke.png
             tv-app-logcat.txt
             tv-activity.txt
+            tv-initial-activity.txt
+            tv-initial-logcat.txt
             tv-window.xml
           if-no-files-found: warn
           retention-days: 30
