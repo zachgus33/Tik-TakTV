@@ -30,7 +30,7 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v5
       - name: Build Fire TV and Android TV development APK
-        run: ./gradlew :tvApp:assembleDebug --stacktrace
+        run: ./gradlew :tvApp:assembleDebug -Pnuvio.android.distribution=full --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
