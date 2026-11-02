@@ -108,6 +108,7 @@ import {
   needsCompatibilityTranscode,
   rankedStreams,
   streamQuality,
+  streamAudioLanguages,
   seeders,
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
@@ -1566,6 +1567,7 @@ function Detail({
                 directStream(s) ||
                 (!!s.infoHash && (!!torboxKey || !!realDebridKey));
               const compatibility = streamCompatibility(s);
+              const languages = streamAudioLanguages(s);
               return (
                 <button
                   key={i}
@@ -1587,6 +1589,9 @@ function Detail({
                         : "Quality not reported"}
                       {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
                       {s.infoHash ? " · TorBox" : ""}
+                      {languages.length
+                        ? ` · Audio: ${languages.join(", ")}`
+                        : ""}
                     </small>
                     <span>
                       {s.title ??

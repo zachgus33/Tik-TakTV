@@ -41,6 +41,8 @@ export type Stream = {
     notWebReady?: boolean;
     proxyHeaders?: unknown;
     filename?: string;
+    language?: string;
+    audioLanguages?: string[];
   };
 };
 export type Subtitle = {

@@ -4,6 +4,7 @@ import {
   Airplay,
   Check,
   Copy,
+  FastForward,
   Link,
   Maximize,
   Pause,
@@ -17,6 +18,7 @@ import type { Addon, Episode, Item, Subtitle } from "./types";
 import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
+import { runtimeSeconds, shiftWebVtt } from "./player-utils";
 import {
   createParty,
   endParty,
@@ -41,6 +43,7 @@ export type Playback = {
   relay?: boolean;
   party?: { id: string; host: boolean };
   alternatives?: Playback[];
+  mediaOffset?: number;
 };
 function srtToVtt(text: string) {
   return `WEBVTT\n\n${text
@@ -64,11 +67,13 @@ function VideoPlayer({
   onClose,
   onFailure,
   partyIdentity,
+  onSeek,
 }: {
   playback: Playback;
   onClose: () => void;
   onFailure?: () => boolean;
   partyIdentity: PartyIdentity;
+  onSeek?: (seconds: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -77,9 +82,9 @@ function VideoPlayer({
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [seekEnd, setSeekEnd] = useState(0);
-  const [subtitles, setSubtitles] = useState<{ url: string; name: string }[]>(
-    [],
-  );
+  const [subtitles, setSubtitles] = useState<
+    { url: string; name: string; sourceText: string }[]
+  >([]);
   const [subtitleCandidates, setSubtitleCandidates] = useState<Subtitle[]>(
     playback.subtitles ?? [],
   );
@@ -95,6 +100,12 @@ function VideoPlayer({
   const [playbackRate, setPlaybackRate] = useState(() =>
     Number(localStorage.getItem("tiktak:playback-rate") || 1),
   );
+  const [subtitleOffset, setSubtitleOffset] = useState(() => {
+    const saved = Number(localStorage.getItem("tiktak:subtitle-offset") || 0);
+    return Number.isFinite(saved) ? Math.max(-30, Math.min(30, saved)) : 0;
+  });
+  const subtitleOffsetRef = useRef(subtitleOffset);
+  subtitleOffsetRef.current = subtitleOffset;
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const subtitleRef = useRef(subtitles);
@@ -166,8 +177,13 @@ function VideoPlayer({
         const raw = await response.text();
         const text = raw.trimStart().startsWith("WEBVTT") ? raw : srtToVtt(raw);
         return {
-          url: URL.createObjectURL(new Blob([text], { type: "text/vtt" })),
+          url: URL.createObjectURL(
+            new Blob([shiftWebVtt(text, subtitleOffsetRef.current)], {
+              type: "text/vtt",
+            }),
+          ),
           name: candidate.name ?? `Subtitle ${index + 1}`,
+          sourceText: text,
         };
       }),
     ).then((results) => {
@@ -186,6 +202,25 @@ function VideoPlayer({
     });
     return () => c.abort();
   }, [subtitleCandidates]);
+  function changeSubtitleOffset(value: number) {
+    const next = Math.max(-30, Math.min(30, Math.round(value * 2) / 2));
+    subtitleOffsetRef.current = next;
+    setSubtitleOffset(next);
+    localStorage.setItem("tiktak:subtitle-offset", String(next));
+    setSubtitles((current) =>
+      current.map((subtitle) => {
+        URL.revokeObjectURL(subtitle.url);
+        return {
+          ...subtitle,
+          url: URL.createObjectURL(
+            new Blob([shiftWebVtt(subtitle.sourceText, next)], {
+              type: "text/vtt",
+            }),
+          ),
+        };
+      }),
+    );
+  }
   useEffect(() => {
     const video = videoRef.current!;
     let disposed = false;
@@ -208,24 +243,26 @@ function VideoPlayer({
       setError("This stream needs a secure HTTPS connection.");
       return;
     }
+    const mediaOffset = playback.mediaOffset ?? 0;
+    const absoluteTime = () => mediaOffset + (video.currentTime || 0);
     const persist = () =>
       storeProgress(
         playback.item,
-        video.currentTime,
-        video.duration,
+        absoluteTime(),
+        runtimeSeconds(playback.item.runtime) || video.duration,
         playback.episode,
       );
     const persistVisible = () => {
       if (document.visibilityState === "hidden") persist();
     };
     const time = () => {
-      setCurrentTime(video.currentTime || 0);
+      setCurrentTime(absoluteTime());
       const available = video.seekable.length
         ? video.seekable.end(video.seekable.length - 1)
         : Number.isFinite(video.duration)
           ? video.duration
           : 0;
-      setSeekEnd(available);
+      setSeekEnd(mediaOffset + available);
       if (Date.now() - lastSave > 5000) {
         persist();
         lastSave = Date.now();
@@ -239,7 +276,7 @@ function VideoPlayer({
         Number.isFinite(video.duration)
       )
         video.currentTime = Math.min(
-          playback.resume,
+          Math.max(0, playback.resume - mediaOffset),
           Math.max(0, video.duration - 1),
         );
       const nativeTracks = (
@@ -422,7 +459,11 @@ function VideoPlayer({
         const result = await partyState(
           party.id,
           party.host
-            ? { position: video.currentTime || 0, paused: video.paused }
+            ? {
+                position:
+                  (playback.mediaOffset ?? 0) + (video.currentTime || 0),
+                paused: video.paused,
+              }
             : undefined,
           partyIdentity,
         );
@@ -434,8 +475,12 @@ function VideoPlayer({
             : Math.max(0, result.state.serverTime - result.state.updatedAt) /
               1000;
           const target = Math.max(0, result.state.position + elapsed);
-          if (Math.abs((video.currentTime || 0) - target) > 1.25)
-            video.currentTime = target;
+          const localTarget = target - (playback.mediaOffset ?? 0);
+          if (
+            localTarget >= 0 &&
+            Math.abs((video.currentTime || 0) - localTarget) > 1.25
+          )
+            video.currentTime = localTarget;
           if (result.state.paused) {
             if (!video.paused) video.pause();
           } else if (video.paused) {
@@ -478,7 +523,7 @@ function VideoPlayer({
     try {
       const session = await createParty(
         { ...playback, prepared: true, party: undefined },
-        video.currentTime || 0,
+        (playback.mediaOffset ?? 0) + (video.currentTime || 0),
         video.paused,
         partyIdentity,
       );
@@ -575,11 +620,32 @@ function VideoPlayer({
     if (video)
       storeProgress(
         playback.item,
-        video.currentTime,
-        video.duration,
+        (playback.mediaOffset ?? 0) + video.currentTime,
+        runtimeSeconds(playback.item.runtime) || video.duration,
         playback.episode,
       );
     onClose();
+  }
+  const timelineEnd = Math.max(
+    seekEnd,
+    playback.item.type === "live" ? 0 : runtimeSeconds(playback.item.runtime),
+  );
+  function seekTo(target: number) {
+    const video = videoRef.current;
+    if (!video) return;
+    const bounded = Math.max(0, Math.min(target, timelineEnd || target));
+    const offset = playback.mediaOffset ?? 0;
+    const localTarget = bounded - offset;
+    const localSeekEnd = video.seekable.length
+      ? video.seekable.end(video.seekable.length - 1)
+      : Number.isFinite(video.duration)
+        ? video.duration
+        : 0;
+    if (localTarget >= 0 && localTarget <= localSeekEnd + 0.5) {
+      video.currentTime = localTarget;
+      return;
+    }
+    if (onSeek) onSeek(bounded);
   }
   return (
     <dialog ref={dialogRef} className="player-dialog" onCancel={close}>
@@ -649,20 +715,25 @@ function VideoPlayer({
             <RotateCcw size={18} />
             <span>10</span>
           </button>
+          <button
+            type="button"
+            aria-label="Fast forward 10 seconds"
+            onClick={() => seekTo(currentTime + 10)}
+          >
+            <FastForward size={18} />
+            <span>10</span>
+          </button>
           <span>{formatPlayerTime(currentTime)}</span>
           <input
             type="range"
             aria-label="Playback position"
             min="0"
-            max={Math.max(1, seekEnd)}
+            max={Math.max(1, timelineEnd)}
             step="0.1"
-            value={Math.min(currentTime, Math.max(1, seekEnd))}
-            onChange={(event) => {
-              const video = videoRef.current;
-              if (video) video.currentTime = Number(event.target.value);
-            }}
+            value={Math.min(currentTime, Math.max(1, timelineEnd))}
+            onChange={(event) => seekTo(Number(event.target.value))}
           />
-          <span>{formatPlayerTime(seekEnd)}</span>
+          <span>{formatPlayerTime(timelineEnd)}</span>
         </div>
       )}
       {party && (
@@ -835,6 +906,33 @@ function VideoPlayer({
             ))}
           </select>
         )}
+        {subtitles.length > 0 && (
+          <div className="subtitle-sync" aria-label="Subtitle timing">
+            <button
+              type="button"
+              aria-label="Show subtitles earlier"
+              onClick={() => changeSubtitleOffset(subtitleOffset - 0.5)}
+            >
+              Earlier
+            </button>
+            <button
+              type="button"
+              aria-label="Reset subtitle timing"
+              title="Reset subtitle timing"
+              onClick={() => changeSubtitleOffset(0)}
+            >
+              {subtitleOffset > 0 ? "+" : ""}
+              {subtitleOffset.toFixed(1)}s
+            </button>
+            <button
+              type="button"
+              aria-label="Show subtitles later"
+              onClick={() => changeSubtitleOffset(subtitleOffset + 0.5)}
+            >
+              Later
+            </button>
+          </div>
+        )}
         <label className="button file-button">
           Load subtitles
           <input
@@ -856,9 +954,12 @@ function VideoPlayer({
               setSubtitles([
                 {
                   url: URL.createObjectURL(
-                    new Blob([text], { type: "text/vtt" }),
+                    new Blob([shiftWebVtt(text, subtitleOffsetRef.current)], {
+                      type: "text/vtt",
+                    }),
                   ),
                   name: file.name,
+                  sourceText: text,
                 },
               ]);
             }}
@@ -930,6 +1031,12 @@ export default function Player({
       setReady(selected);
       return cleanup;
     }
+    const effectiveMode = selected.mode ?? getService()?.mode ?? "direct";
+    const conversionStart =
+      selected.item.type !== "live" &&
+      (effectiveMode === "remux" || effectiveMode === "transcode")
+        ? Math.max(0, selected.resume ?? 0)
+        : 0;
     void prepareMedia(
       selected.url,
       selected.requestHeaders,
@@ -940,12 +1047,15 @@ export default function Player({
         : undefined,
       selected.item.type === "live",
       selected.relay,
+      conversionStart,
     ).then(
       (url) => {
         if (!c.signal.aborted)
           setReady({
             ...selected,
             url,
+            mediaOffset: conversionStart,
+            resume: conversionStart ? undefined : selected.resume,
             hls:
               !/\.webm(?:[?#]|$)/i.test(url) &&
               (selected.hls ||
@@ -995,6 +1105,7 @@ export default function Player({
       liveAudioCodec(navigator.userAgent),
       false,
       true,
+      Math.max(0, selected.resume ?? 0),
     ).then(
       (url) => {
         if (!controller.signal.aborted)
@@ -1003,6 +1114,8 @@ export default function Player({
             url,
             hls: !/\.webm(?:[?#]|$)/i.test(url),
             mode: "transcode",
+            mediaOffset: Math.max(0, selected.resume ?? 0),
+            resume: undefined,
             prepared: true,
           });
       },
@@ -1017,6 +1130,47 @@ export default function Player({
     );
     return true;
   };
+  const seekConversion = (seconds: number) => {
+    const mode = ready?.mode ?? selected.mode ?? getService()?.mode;
+    if (mode !== "remux" && mode !== "transcode") return;
+    fallbackController.current?.abort();
+    const controller = new AbortController();
+    fallbackController.current = controller;
+    setReady(null);
+    setError("");
+    void prepareMedia(
+      selected.url,
+      selected.requestHeaders,
+      controller.signal,
+      mode,
+      mode === "transcode" ? liveAudioCodec(navigator.userAgent) : undefined,
+      false,
+      true,
+      seconds,
+      ready?.url,
+    ).then(
+      (url) => {
+        if (!controller.signal.aborted)
+          setReady({
+            ...selected,
+            url,
+            hls: true,
+            mode,
+            mediaOffset: seconds,
+            resume: undefined,
+            prepared: true,
+          });
+      },
+      (reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not seek to that position.",
+          );
+      },
+    );
+  };
   if (ready)
     return (
       <VideoPlayer
@@ -1024,6 +1178,7 @@ export default function Player({
         onClose={onClose}
         onFailure={recoverWithCompatibility}
         partyIdentity={partyIdentity}
+        onSeek={seekConversion}
       />
     );
   return (

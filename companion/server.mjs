@@ -350,7 +350,9 @@ export function createService({ token, origins, authorizeAccount }) {
     if (!vault?.codeSalt || !vault?.codeHash) return false;
     const actual = scryptSync(code, Buffer.from(vault.codeSalt, "base64"), 32);
     const expected = Buffer.from(vault.codeHash, "base64");
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    return (
+      actual.length === expected.length && timingSafeEqual(actual, expected)
+    );
   }
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
@@ -497,7 +499,7 @@ export function createService({ token, origins, authorizeAccount }) {
       res.end(JSON.stringify(data));
     };
     if (route.pathname === "/healthz") {
-      if (!['GET', 'HEAD'].includes(req.method))
+      if (!["GET", "HEAD"].includes(req.method))
         return send(405, { error: "Method not allowed" });
       return send(200, { ok: true, version: 2 });
     }
@@ -997,7 +999,8 @@ export function createService({ token, origins, authorizeAccount }) {
             access.vault.ownerUserId !== userId
           )
             return send(403, {
-              error: "Connect your own Real-Debrid key before sharing your setup.",
+              error:
+                "Connect your own Real-Debrid key before sharing your setup.",
             });
           realDebridKey = access.vault.realDebridKey;
         }
@@ -1288,6 +1291,15 @@ export function createService({ token, origins, authorizeAccount }) {
         )
           headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
         if (body.mode === "remux" || body.mode === "transcode") {
+          const replaceId = /^\/media\/([A-Za-z0-9_-]{32})\//.exec(
+            String(body.replace ?? ""),
+          )?.[1];
+          const replaced = replaceId ? jobs.get(replaceId) : undefined;
+          if (replaced) {
+            replaced.process?.kill("SIGTERM");
+            jobs.delete(replaceId);
+            void rm(replaced.dir, { recursive: true, force: true });
+          }
           if (jobs.size >= limits.jobs)
             return send(503, {
               error: "Playback service job capacity reached. Retry shortly.",
@@ -1324,6 +1336,9 @@ export function createService({ token, origins, authorizeAccount }) {
                   "0",
                 ]
               : [];
+          const start = body.live
+            ? 0
+            : Math.min(24 * 60 * 60, Math.max(0, Number(body.start) || 0));
           const audioTracks = body.live
             ? []
             : await probeAudioTracks(inputUrl, hlsInputArgs);
@@ -1337,6 +1352,7 @@ export function createService({ token, origins, authorizeAccount }) {
               "-y",
               "-re",
               ...hlsInputArgs,
+              ...(start ? ["-ss", String(start)] : []),
               "-i",
               inputUrl,
               "-map",
@@ -1394,6 +1410,7 @@ export function createService({ token, origins, authorizeAccount }) {
             "hls,mpegts,mov,matroska,webm,aac,mp3",
             ...(body.live ? ["-re"] : []),
             ...hlsInputArgs,
+            ...(start ? ["-ss", String(start)] : []),
             "-i",
             inputUrl,
             "-map",

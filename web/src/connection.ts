@@ -213,6 +213,8 @@ export async function prepareMedia(
   audioCodec?: "aac" | "mp3" | "opus" | "webm",
   live = false,
   forceRelay = false,
+  start = 0,
+  replace = "",
 ) {
   const config = getService();
   if (!config) return url;
@@ -228,7 +230,17 @@ export async function prepareMedia(
     return url;
   const response = await serviceRequest(
     "/prepare",
-    { url, headers, mode: selectedMode, audioCodec, live },
+    {
+      url,
+      headers,
+      mode: selectedMode,
+      audioCodec,
+      live,
+      start: live ? 0 : Math.max(0, start),
+      replace: replace.startsWith(`${config.url}/media/`)
+        ? new URL(replace).pathname
+        : undefined,
+    },
     signal,
     config,
   );

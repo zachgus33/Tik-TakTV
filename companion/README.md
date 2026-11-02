@@ -37,7 +37,7 @@ Signed-in Nuvio users may also authenticate with their short-lived Nuvio session
 
 In the website's **Settings > Playback service**, paste that URL and the `PLAYBACK_TOKEN` value from the Pi's `.env`. Read it privately with `nano .env`. Click **Connect playback service**. Then connect TorBox, refresh installed manifests and test a live channel.
 
-The default mode relays original media. If a file has unsupported audio or a container Safari cannot play, choose **Remux to HLS with compatible audio**. This copies video and converts audio to AAC. Use **Convert to 720p H.264** only as a fallback: it consumes CPU, and Pi 5 throughput depends on input resolution/codec/cooling. Conversion exposes a rolling HLS window, not full random-access VOD seeking. It supports at most two conversion sessions.
+The default mode relays original media. If a file has unsupported audio or a container Safari cannot play, choose **Remux to HLS with compatible audio**. This copies video and converts audio to AAC. Use **Convert to 720p H.264** only as a fallback: it consumes CPU, and Pi 5 throughput depends on input resolution/codec/cooling. Converted movies and episodes can seek outside the prepared HLS window; the player restarts conversion at the selected timestamp. It supports at most two conversion sessions.
 
 For a temporary test without Docker, install Node 24 and `cloudflared` in the user account, then run `sh run-native.sh`. This writes logs and process IDs under `runtime/` and keeps the private token in `.env.native`. Docker remains the recommended permanent setup because it restarts the service after a reboot.
 

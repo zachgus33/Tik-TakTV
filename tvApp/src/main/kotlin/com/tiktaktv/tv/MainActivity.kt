@@ -281,8 +281,8 @@ class MainActivity : ComponentActivity() {
         private const val MEDIA_TOGGLE = """(() => { const v=document.querySelector('video'); if(v) v.paused?v.play():v.pause(); })();"""
         private const val MEDIA_PLAY = """(() => { const v=document.querySelector('video'); if(v) v.play(); })();"""
         private const val MEDIA_PAUSE = """(() => { const v=document.querySelector('video'); if(v) v.pause(); })();"""
-        private const val MEDIA_REWIND = """(() => { const v=document.querySelector('video'); if(v) v.currentTime=Math.max(0,v.currentTime-10); })();"""
-        private const val MEDIA_FAST_FORWARD = """(() => { const v=document.querySelector('video'); if(v) v.currentTime=Math.min(v.duration||Infinity,v.currentTime+10); })();"""
+        private const val MEDIA_REWIND = """(() => { const b=document.querySelector('[aria-label="Rewind 10 seconds"]'); if(b) b.click(); else { const v=document.querySelector('video'); if(v) v.currentTime=Math.max(0,v.currentTime-10); } })();"""
+        private const val MEDIA_FAST_FORWARD = """(() => { const b=document.querySelector('[aria-label="Fast forward 10 seconds"]'); if(b) b.click(); else { const v=document.querySelector('video'); if(v) v.currentTime=Math.min(v.duration||Infinity,v.currentTime+10); } })();"""
         private val TV_BOOTSTRAP = """
             (() => {
               document.documentElement.classList.add('tv-mode');

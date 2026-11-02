@@ -8,6 +8,7 @@ const meta = {
   description: "A test catalog title.",
   year: "2026",
   imdbRating: "8.1",
+  runtime: "120 min",
 };
 async function mockSources(page: Page) {
   await page
@@ -853,9 +854,9 @@ test("browser-incompatible MKV is normalized before playback", async ({
       },
     }),
   );
-  let prepared: Record<string, unknown> = {};
+  const prepared: Record<string, unknown>[] = [];
   await page.route("https://playback.example/prepare", async (route) => {
-    prepared = route.request().postDataJSON();
+    prepared.push(route.request().postDataJSON());
     await route.fulfill({ json: { path: "/media/rookie/index.m3u8" } });
   });
   await page.route(
@@ -869,13 +870,83 @@ test("browser-incompatible MKV is normalized before playback", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect.poll(() => prepared.mode).toBe("transcode");
-  expect(prepared.live).toBe(false);
-  expect(prepared.url).toBe("https://cdn.example/the-rookie.mkv");
+  await expect.poll(() => prepared[0]?.mode).toBe("transcode");
+  expect(prepared[0].live).toBe(false);
+  expect(prepared[0].start).toBe(0);
+  expect(prepared[0].url).toBe("https://cdn.example/the-rookie.mkv");
   await expect(
     page.getByRole("button", { name: "Rewind 10 seconds" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Fast forward 10 seconds" }),
+  ).toBeVisible();
+  await page.getByLabel("Playback position").evaluate((element) => {
+    const input = element as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set?.call(input, "3600");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect.poll(() => prepared.at(-1)?.start).toBe(3600);
   await expect(page.locator("video")).not.toHaveAttribute("controls", "");
+});
+test("subtitle timing controls persist the selected offset", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const addons = JSON.parse(localStorage.getItem("nuvio:addons") || "[]");
+    addons[0].manifest.resources.push("subtitles");
+    localStorage.setItem("nuvio:addons", JSON.stringify(addons));
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p English",
+            url: "https://cdn.example/subtitle-test.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://v3-cinemeta.strem.io/subtitles/**", (route) =>
+    route.fulfill({
+      json: {
+        subtitles: [
+          { url: "https://subs.example/en.vtt", lang: "eng", name: "English" },
+        ],
+      },
+    }),
+  );
+  await page.route("https://subs.example/en.vtt", (route) =>
+    route.fulfill({
+      contentType: "text/vtt",
+      body: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello",
+    }),
+  );
+  await page.route("https://cdn.example/subtitle-test.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect(
+    page.getByRole("button", { name: "Show subtitles later" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Show subtitles later" }).click();
+  await page.getByRole("button", { name: "Show subtitles later" }).click();
+  await expect(
+    page.getByRole("button", { name: "Reset subtitle timing" }),
+  ).toHaveText("+1.0s");
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("tiktak:subtitle-offset")),
+    )
+    .toBe("1");
 });
 test("phone autoplay chooses the highest quality stream and normalizes HEVC", async ({
   page,

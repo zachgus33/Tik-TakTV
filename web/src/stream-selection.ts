@@ -19,6 +19,41 @@ export function streamQuality(stream: Stream) {
       .join(" "),
   );
 }
+const languageMatchers: [string, RegExp][] = [
+  ["English", /\b(?:english|eng)\b|(?:^|\s)🇬🇧(?:\s|$)|(?:^|\s)🇺🇸(?:\s|$)/i],
+  ["Spanish", /\b(?:spanish|español|spa)\b|(?:^|\s)🇪🇸(?:\s|$)/i],
+  ["French", /\b(?:french|français|fre|fra)\b|(?:^|\s)🇫🇷(?:\s|$)/i],
+  ["German", /\b(?:german|deutsch|ger|deu)\b|(?:^|\s)🇩🇪(?:\s|$)/i],
+  ["Italian", /\b(?:italian|italiano|ita)\b|(?:^|\s)🇮🇹(?:\s|$)/i],
+  [
+    "Portuguese",
+    /\b(?:portuguese|português|por)\b|(?:^|\s)🇵🇹(?:\s|$)|(?:^|\s)🇧🇷(?:\s|$)/i,
+  ],
+  ["Japanese", /\b(?:japanese|jpn|jap)\b|(?:^|\s)🇯🇵(?:\s|$)/i],
+  ["Korean", /\b(?:korean|kor)\b|(?:^|\s)🇰🇷(?:\s|$)/i],
+  ["Chinese", /\b(?:chinese|mandarin|chi|zho)\b|(?:^|\s)🇨🇳(?:\s|$)/i],
+  ["Hindi", /\b(?:hindi|hin)\b|(?:^|\s)🇮🇳(?:\s|$)/i],
+  ["Arabic", /\b(?:arabic|ara)\b|(?:^|\s)🇸🇦(?:\s|$)/i],
+  ["Russian", /\b(?:russian|rus)\b|(?:^|\s)🇷🇺(?:\s|$)/i],
+];
+export function streamAudioLanguages(stream: Stream): string[] {
+  const supplied = [
+    ...(stream.behaviorHints?.audioLanguages ?? []),
+    stream.behaviorHints?.language,
+  ]
+    .flatMap((value) => String(value ?? "").split(/[,/|]/))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const text = [stream.name, stream.title, stream.behaviorHints?.filename]
+    .filter(Boolean)
+    .join(" ");
+  const detected = languageMatchers
+    .filter(([, pattern]) => pattern.test(text))
+    .map(([name]) => name);
+  if (/\b(?:multi[ -]?(?:audio|dub)|dual[ -]?audio)\b/i.test(text))
+    detected.push("Multiple");
+  return [...new Set([...supplied, ...detected])];
+}
 export function seeders(stream: Stream): number {
   if (Number.isFinite(stream.seeders)) return Math.max(0, stream.seeders!);
   const text = `${stream.name ?? ""} ${stream.title ?? ""}`;

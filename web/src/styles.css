@@ -3211,7 +3211,7 @@ body:has(dialog[open]) {
 }
 .vod-controls {
   display: grid;
-  grid-template-columns: auto auto auto minmax(120px, 1fr) auto;
+  grid-template-columns: auto auto auto auto minmax(120px, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 10px 4px 0;
@@ -3239,6 +3239,24 @@ body:has(dialog[open]) {
   flex-wrap: wrap;
   gap: 9px;
   margin-top: 18px;
+}
+.subtitle-sync {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input);
+}
+.subtitle-sync button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+}
+.subtitle-sync button:nth-child(2) {
+  min-width: 58px;
+  color: var(--accent-2);
 }
 .party-status {
   display: flex;
