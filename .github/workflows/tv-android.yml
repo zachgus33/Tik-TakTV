@@ -70,8 +70,6 @@ jobs:
             adb shell input keyevent 20
             adb shell input keyevent 22
             adb shell input keyevent 23
-            adb shell input keyevent 19
-            adb shell input keyevent 21
             sleep 3
             adb shell dumpsys activity activities > tv-activity.txt
             adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
