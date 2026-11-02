@@ -80,7 +80,7 @@ jobs:
             adb shell dumpsys activity activities > tv-activity.txt
             adb logcat -d > tv-app-logcat.txt
             adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
-            if ! grep -q "mResumedActivity.*com.tiktaktv.tv/.MainActivity" tv-activity.txt; then
+            if ! grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv/.MainActivity" tv-activity.txt; then
               cat tv-activity.txt
               exit 1
             fi
