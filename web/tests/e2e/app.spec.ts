@@ -481,6 +481,14 @@ test("imports native collections and opens their addon catalogs", async ({
                   addonId: "com.linvo.cinemeta",
                   type: "movie",
                   catalogId: "top",
+                  title: "Netflix (Movies)",
+                },
+                {
+                  provider: "addon",
+                  addonId: "com.linvo.cinemeta",
+                  type: "movie",
+                  catalogId: "top",
+                  title: "Netflix (Series)",
                 },
               ],
             },
@@ -499,8 +507,21 @@ test("imports native collections and opens their addon catalogs", async ({
     .getByRole("button", { name: "Open Cinema nights: Movies" })
     .click();
   await expect(
-    page.locator(".collections-section .media-card strong"),
-  ).toHaveText("The Test Movie");
+    page.locator(".collection-browser .media-card strong"),
+  ).toHaveText(["The Test Movie", "The Test Movie"]);
+  await expect(
+    page.getByRole("heading", { name: "Netflix (Movies)" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Netflix (Series)" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Back to Home" }),
+  ).toBeVisible();
+  await expect(page.getByText("New folder", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Remove collection", { exact: true }),
+  ).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth + 1,
@@ -1695,7 +1716,7 @@ test.describe("authenticated integrations", () => {
       .getByRole("button", { name: "Open Streaming Services: Folder 1" })
       .click();
     await expect(
-      page.locator(".collections-section .media-card strong"),
+      page.locator(".collection-browser .media-card strong"),
     ).toHaveText("The Test Movie");
     await page.reload();
     await expect(

@@ -20,6 +20,10 @@ export type CollectionFolder = {
   coverImageUrl?: string;
   coverEmoji?: string;
   hideTitle?: boolean;
+  heroBackdropUrl?: string;
+  heroVideoUrl?: string;
+  titleLogoUrl?: string;
+  focusGifUrl?: string;
   [key: string]: unknown;
 };
 export type Collection = {

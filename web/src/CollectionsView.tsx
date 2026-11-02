@@ -1,424 +1,265 @@
-import { tmdbCollection } from "./tmdb";
-import { useEffect, useState } from "react";
-import { Folder, Plus, ArrowLeft, Trash2 } from "lucide-react";
-import { catalog } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Folder, Play } from "lucide-react";
+import { catalog, safeUrl } from "./api";
 import {
   type Collection,
   type CollectionFolder,
+  type CollectionSource,
   folderLabel,
   sourceAddon,
 } from "./collections";
+import { tmdbCollection } from "./tmdb";
 import { itemKey, type Addon, type Item } from "./types";
 
+type SourceRow = {
+  key: string;
+  title: string;
+  items: Item[];
+  loading: boolean;
+  error?: string;
+};
+
+function sources(folder: CollectionFolder): CollectionSource[] {
+  return (
+    (folder.sources?.length ? folder.sources : folder.catalogSources) ?? []
+  );
+}
+
+function rowTitle(
+  source: CollectionSource,
+  index: number,
+  folder: CollectionFolder,
+  folderIndex: number,
+  addons: Addon[],
+) {
+  const explicit = typeof source.title === "string" ? source.title.trim() : "";
+  if (explicit) return explicit;
+  const addon = sourceAddon(source, addons);
+  const catalogName = addon?.manifest.catalogs?.find(
+    (entry) => entry.id === source.catalogId && entry.type === source.type,
+  )?.name;
+  if (catalogName) return catalogName;
+  const media = ["tv", "series"].includes(
+    String(source.mediaType ?? source.type).toLowerCase(),
+  )
+    ? "Series"
+    : "Movies";
+  return `${folderLabel(folder, folderIndex)} (${media}${index ? ` ${index + 1}` : ""})`;
+}
+
+async function resolveSource(
+  source: CollectionSource,
+  addons: Addon[],
+  signal: AbortSignal,
+) {
+  if (source.provider?.toLowerCase() === "tmdb")
+    return tmdbCollection(source, signal);
+  if (source.provider && source.provider !== "addon")
+    throw new Error(`${source.provider} is not available in the web app.`);
+  const addon = sourceAddon(source, addons);
+  if (!addon) throw new Error("The add-on used by this row is not installed.");
+  if (!source.catalogId || !source.type)
+    throw new Error("This Nuvio source is missing its catalog information.");
+  return catalog(
+    addon,
+    source.type,
+    source.catalogId,
+    "",
+    signal,
+    source.genre,
+  );
+}
+
+function MediaCard({
+  item,
+  onOpen,
+}: {
+  item: Item;
+  onOpen: (item: Item) => void;
+}) {
+  const poster = safeUrl(item.poster);
+  return (
+    <button className="media-card" onClick={() => onOpen(item)}>
+      <div className="poster">
+        {poster ? (
+          <img
+            src={poster}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="art-fallback">
+            <Folder />
+          </div>
+        )}
+      </div>
+      <strong>{item.name}</strong>
+      <span className="card-meta">
+        {[item.year, item.type === "series" ? "Series" : "Movie"]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </button>
+  );
+}
+
 export default function CollectionsView({
-  collections,
-  onChange,
+  collection,
+  folder,
+  folderIndex,
   addons,
   library,
   onOpen,
-  initialSelection,
+  onBack,
 }: {
-  collections: Collection[];
-  onChange: (c: Collection[]) => void;
+  collection: Collection;
+  folder: CollectionFolder;
+  folderIndex: number;
   addons: Addon[];
   library: Item[];
   onOpen: (item: Item) => void;
-  initialSelection?: { collection: string; folder: string };
+  onBack: () => void;
 }) {
-  const [selected, setSelected] = useState(initialSelection?.collection ?? "");
-  const [folderId, setFolderId] = useState(initialSelection?.folder ?? "");
-  const [items, setItems] = useState<Item[]>([]);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [limit, setLimit] = useState(60);
-  const collection = collections.find((c) => c.id === selected);
-  const folder = collection?.folders.find((f) => f.id === folderId);
-  function updateFolder(change: Partial<CollectionFolder>) {
-    if (!collection || !folder) return;
-    onChange(
-      collections.map((c) =>
-        c.id === collection.id
-          ? {
-              ...c,
-              folders: c.folders.map((f) =>
-                f.id === folder.id ? { ...f, ...change } : f,
-              ),
-            }
-          : c,
-      ),
-    );
-  }
+  const [rows, setRows] = useState<SourceRow[]>([]);
+  const folderSources = useMemo(() => sources(folder), [folder]);
+
   useEffect(() => {
-    if (!folder) {
-      setItems([]);
-      return;
-    }
-    const c = new AbortController();
-    setBusy(true);
-    setError("");
-    setLimit(60);
-    const sources =
-      (folder.sources?.length ? folder.sources : folder.catalogSources) ?? [];
-    const local = library.filter((i) => folder.itemKeys?.includes(itemKey(i)));
-    void Promise.allSettled(
-      sources.map(async (s) => {
-        if (s.provider?.toLowerCase() === "tmdb")
-          return tmdbCollection(s, c.signal);
-        if (s.provider && s.provider !== "addon")
-          throw new Error(
-            `${s.provider} collection sources need their own account integration. Add an equivalent add-on catalog here; the imported source is preserved for export.`,
-          );
-        const addon = sourceAddon(s, addons);
-        if (!addon)
-          throw new Error(
-            `Install the add-on for this collection source (${s.addonId ?? "unknown"}).`,
-          );
-        if (!s.catalogId || !s.type)
-          throw new Error("This source is missing its catalog ID or type.");
-        return catalog(addon, s.type, s.catalogId, "", c.signal, s.genre);
-      }),
-    ).then((results) => {
-      if (c.signal.aborted) return;
-      setItems([
-        ...new Map(
-          [
-            ...local,
-            ...results.flatMap((r) =>
-              r.status === "fulfilled" ? r.value : [],
+    const controller = new AbortController();
+    const local = library.filter((item) =>
+      folder.itemKeys?.includes(itemKey(item)),
+    );
+    const initial: SourceRow[] = folderSources.map((source, index) => ({
+      key: `${index}:${source.provider ?? "addon"}:${source.catalogId ?? "catalog"}`,
+      title: rowTitle(source, index, folder, folderIndex, addons),
+      items: [],
+      loading: true,
+    }));
+    if (local.length)
+      initial.unshift({
+        key: "saved",
+        title: `${folderLabel(folder, folderIndex)} — Saved`,
+        items: local,
+        loading: false,
+      });
+    setRows(initial);
+    folderSources.forEach((source, sourceIndex) => {
+      const key = `${sourceIndex}:${source.provider ?? "addon"}:${source.catalogId ?? "catalog"}`;
+      void resolveSource(source, addons, controller.signal).then(
+        (items) => {
+          if (controller.signal.aborted) return;
+          setRows((current) =>
+            current.map((row) =>
+              row.key === key
+                ? {
+                    ...row,
+                    items: [
+                      ...new Map(
+                        items.map((item) => [itemKey(item), item]),
+                      ).values(),
+                    ],
+                    loading: false,
+                  }
+                : row,
             ),
-          ].map((i) => [itemKey(i), i]),
-        ).values(),
-      ]);
-      setError(
-        results
-          .flatMap((r) =>
-            r.status === "rejected"
-              ? [
-                  r.reason instanceof Error
-                    ? r.reason.message
-                    : "Source unavailable",
-                ]
-              : [],
-          )
-          .join(" "),
+          );
+        },
+        (reason) => {
+          if (controller.signal.aborted) return;
+          setRows((current) =>
+            current.map((row) =>
+              row.key === key
+                ? {
+                    ...row,
+                    loading: false,
+                    error:
+                      reason instanceof Error
+                        ? reason.message
+                        : "This row is temporarily unavailable.",
+                  }
+                : row,
+            ),
+          );
+        },
       );
-      setBusy(false);
     });
-    return () => c.abort();
-  }, [folder, addons, library]);
-  const choices = addons.flatMap((a) =>
-    (a.manifest.catalogs ?? []).map((c) => ({
-      addon: a.manifest.id,
-      type: c.type,
-      catalogId: c.id,
-      name: `${a.manifest.name} · ${c.name ?? c.id}`,
-    })),
+    return () => controller.abort();
+  }, [addons, folder, folderIndex, folderSources, library]);
+
+  const allItems = rows.flatMap((row) => row.items);
+  const featured =
+    allItems.find((item) => safeUrl(item.background)) ?? allItems[0];
+  const backdrop =
+    safeUrl(folder.heroBackdropUrl) ?? safeUrl(featured?.background);
+  const visibleRows = rows.filter(
+    (row) => row.loading || row.error || row.items.length,
   );
+
   return (
-    <section className="collections-section">
-      <div className="row-heading">
-        <h2>Collections</h2>
-        {collection && (
-          <button
-            onClick={() => {
-              setSelected("");
-              setFolderId("");
-            }}
-          >
-            <ArrowLeft size={16} />
-            All collections
-          </button>
-        )}
-      </div>
-      {!collection ? (
-        <>
-          <div className="collection-grid">
-            {collections.map((c) => (
-              <button
-                key={c.id}
-                className="collection-tile"
-                onClick={() => {
-                  setSelected(c.id);
-                  setFolderId(c.folders[0]?.id ?? "");
-                }}
-              >
-                <Folder />
-                <strong>{c.title}</strong>
-                <small>{c.folders.length} folders</small>
-              </button>
-            ))}
-          </div>
-          <form
-            className="inline-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const title = String(new FormData(form).get("title")).trim();
-              if (!title) return;
-              const id = crypto.randomUUID();
-              onChange([...collections, { id, title, folders: [] }]);
-              setSelected(id);
-              form.reset();
-            }}
-          >
-            <label className="grow">
-              New collection
-              <input
-                name="title"
-                placeholder="Movie nights"
-                maxLength={100}
-                required
-              />
-            </label>
-            <button>
-              <Plus size={16} />
-              Create collection
-            </button>
-          </form>
-        </>
-      ) : (
-        <>
-          <div className="row-heading">
-            <h3>{collection.title}</h3>
-            <button
-              onClick={() => {
-                onChange(collections.filter((c) => c.id !== collection.id));
-                setSelected("");
-                setFolderId("");
-              }}
-            >
-              <Trash2 size={15} />
-              Remove collection
-            </button>
-          </div>
-          <div className="chips folder-tabs">
-            {collection.folders.map((f, index) => (
-              <button
-                key={f.id}
-                className={f.id === folderId ? "selected" : ""}
-                onClick={() => setFolderId(f.id)}
-              >
-                {folderLabel(f, index)}
-              </button>
-            ))}
-          </div>
-          <form
-            className="inline-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const title = String(new FormData(form).get("folder")).trim();
-              if (!title) return;
-              const id = crypto.randomUUID();
-              onChange(
-                collections.map((c) =>
-                  c.id === collection.id
-                    ? {
-                        ...c,
-                        folders: [
-                          ...c.folders,
-                          { id, title, sources: [], itemKeys: [] },
-                        ],
-                      }
-                    : c,
-                ),
-              );
-              setFolderId(id);
-              form.reset();
-            }}
-          >
-            <label className="grow">
-              New folder
-              <input
-                name="folder"
-                placeholder="Favorites"
-                maxLength={100}
-                required
-              />
-            </label>
-            <button>Add folder</button>
-          </form>
-          {folder && (
+    <section
+      className="collection-browser"
+      aria-label={`${collection.title}: ${folderLabel(folder, folderIndex)}`}
+    >
+      <div
+        className="collection-browser-hero"
+        style={backdrop ? { backgroundImage: `url("${backdrop}")` } : undefined}
+      >
+        <div className="collection-browser-shade" />
+        <button className="collection-browser-back" onClick={onBack}>
+          <ArrowLeft size={17} /> Back to Home
+        </button>
+        <div className="collection-browser-copy">
+          <span className="eyebrow">{folderLabel(folder, folderIndex)}</span>
+          <h1>{featured?.name ?? folderLabel(folder, folderIndex)}</h1>
+          {featured && (
             <>
-              <details className="collection-editor">
-                <summary>
-                  Edit {folderLabel(folder, collection.folders.indexOf(folder))}
-                </summary>
-                <form
-                  className="inline-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const form = new FormData(e.currentTarget);
-                    const choice = choices[Number(form.get("catalog"))];
-                    if (!choice) return;
-                    const source = {
-                      provider: "addon",
-                      addonId: choice.addon,
-                      type: choice.type,
-                      catalogId: choice.catalogId,
-                      genre:
-                        String(form.get("genre") ?? "").trim() || undefined,
-                    };
-                    updateFolder({
-                      sources: [
-                        ...((folder.sources?.length
-                          ? folder.sources
-                          : folder.catalogSources) ?? []),
-                        source,
-                      ],
-                      catalogSources: [],
-                    });
-                  }}
-                >
-                  <label className="grow">
-                    Add catalog
-                    <select name="catalog">
-                      {choices.map((c, i) => (
-                        <option key={i} value={i}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Genre (optional)
-                    <input name="genre" placeholder="Exact source genre" />
-                  </label>
-                  <button disabled={!choices.length}>Add catalog</button>
-                </form>
-                <div className="source-list">
-                  {(
-                    (folder.sources?.length
-                      ? folder.sources
-                      : folder.catalogSources) ?? []
-                  ).map((s, i) => (
-                    <div key={i}>
-                      <span>
-                        {(s.title as string) ?? s.catalogId ?? s.provider}{" "}
-                        {s.genre ? `· ${s.genre}` : ""}
-                      </span>
-                      <button
-                        aria-label={`Remove source ${i + 1}`}
-                        onClick={() =>
-                          updateFolder({
-                            sources: (
-                              (folder.sources?.length
-                                ? folder.sources
-                                : folder.catalogSources) ?? []
-                            ).filter((_, n) => n !== i),
-                            catalogSources: [],
-                          })
-                        }
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <label>
-                  Folder name
-                  <input
-                    value={folder.title}
-                    maxLength={100}
-                    onChange={(e) => updateFolder({ title: e.target.value })}
-                  />
-                </label>
-                <p className="hint">
-                  Choose saved titles to include in this folder.
-                </p>
-                <div className="collection-picker">
-                  {library.map((i) => (
-                    <label className="check" key={itemKey(i)}>
-                      <input
-                        type="checkbox"
-                        checked={folder.itemKeys?.includes(itemKey(i)) ?? false}
-                        onChange={(e) =>
-                          updateFolder({
-                            itemKeys: e.target.checked
-                              ? [...(folder.itemKeys ?? []), itemKey(i)]
-                              : (folder.itemKeys ?? []).filter(
-                                  (k) => k !== itemKey(i),
-                                ),
-                          })
-                        }
-                      />
-                      {i.name}
-                    </label>
-                  ))}
-                </div>
-                <button
-                  onClick={() => {
-                    onChange(
-                      collections.map((c) =>
-                        c.id === collection.id
-                          ? {
-                              ...c,
-                              folders: c.folders.filter(
-                                (f) => f.id !== folder.id,
-                              ),
-                            }
-                          : c,
-                      ),
-                    );
-                    setFolderId("");
-                  }}
-                >
-                  Remove folder
-                </button>
-              </details>
-              {error && (
-                <div className="error" role="alert">
-                  {error}
-                </div>
-              )}
-              {busy ? (
-                <p role="status">Loading collection…</p>
-              ) : (
-                <>
-                  <div className="media-grid">
-                    {items.slice(0, limit).map((i) => (
-                      <button
-                        className="media-card"
-                        key={itemKey(i)}
-                        onClick={() => onOpen(i)}
-                      >
-                        <div className="poster">
-                          {i.poster ? (
-                            <img
-                              src={i.poster}
-                              alt=""
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="art-fallback">
-                              <Folder />
-                            </div>
-                          )}
-                        </div>
-                        <strong>{i.name}</strong>
-                        <span className="card-meta">
-                          {i.year} · {i.type}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  {!items.length && (
-                    <p className="muted">
-                      Add a catalog or saved titles to this folder.
-                    </p>
-                  )}
-                  {items.length > limit && (
-                    <button onClick={() => setLimit((n) => n + 60)}>
-                      Show more titles
-                    </button>
-                  )}
-                </>
-              )}
+              <div className="metadata">
+                {featured.year && <span>{featured.year}</span>}
+                <span>{featured.type === "series" ? "Series" : "Movie"}</span>
+                <span className="badge">
+                  {folderLabel(folder, folderIndex)}
+                </span>
+              </div>
+              {featured.description && <p>{featured.description}</p>}
+              <button
+                className="primary collection-browser-play"
+                onClick={() => onOpen(featured)}
+              >
+                <Play size={18} fill="currentColor" /> Explore title
+              </button>
             </>
           )}
-        </>
-      )}
+        </div>
+      </div>
+      <div className="collection-browser-rows">
+        {visibleRows.map((row) => (
+          <section className="media-row" key={row.key} aria-label={row.title}>
+            <div className="row-heading">
+              <h2>{row.title}</h2>
+            </div>
+            {row.loading ? (
+              <div className="collection-row-skeleton" role="status">
+                Loading {row.title}…
+              </div>
+            ) : row.error ? (
+              <p className="collection-row-error">
+                Temporarily unavailable. {row.error}
+              </p>
+            ) : (
+              <div className="rail">
+                {row.items.map((item) => (
+                  <MediaCard key={itemKey(item)} item={item} onOpen={onOpen} />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+        {!visibleRows.length && (
+          <p className="muted collection-browser-empty">
+            This folder has no titles yet.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

@@ -6,24 +6,41 @@ import { folderLabel, type Collection } from "./collections";
 import type { Addon, Item } from "./types";
 export default function HomeCollections(props: {
   collections: Collection[];
-  onChange: (c: Collection[]) => void;
   addons: Addon[];
   library: Item[];
   onOpen: (i: Item) => void;
+  onBrowsingChange?: (browsing: boolean) => void;
 }) {
   const [selected, setSelected] = useState<{
     collection: string;
     folder: string;
   } | null>(null);
-  if (selected)
-    return (
-      <section>
-        <button onClick={() => setSelected(null)}>
-          Back to Home collections
-        </button>
-        <CollectionsView {...props} initialSelection={selected} />
-      </section>
+  if (selected) {
+    const collection = props.collections.find(
+      (entry) => entry.id === selected.collection,
     );
+    const folderIndex =
+      collection?.folders.findIndex((entry) => entry.id === selected.folder) ??
+      -1;
+    const folder =
+      folderIndex >= 0 ? collection?.folders[folderIndex] : undefined;
+    if (collection && folder)
+      return (
+        <CollectionsView
+          collection={collection}
+          folder={folder}
+          folderIndex={folderIndex}
+          addons={props.addons}
+          library={props.library}
+          onOpen={props.onOpen}
+          onBack={() => {
+            setSelected(null);
+            props.onBrowsingChange?.(false);
+            window.scrollTo(0, 0);
+          }}
+        />
+      );
+  }
   const visibleCollections = props.collections
     .filter((collection) => collection.showOnHome !== false)
     .map((collection, index) => ({ collection, index }))
@@ -69,9 +86,11 @@ export default function HomeCollections(props: {
                   <button
                     key={f.id}
                     className={`service-tile service-tile-${f.tileShape === "POSTER" || f.layout === "poster" ? "poster" : "wide"}`}
-                    onClick={() =>
-                      setSelected({ collection: c.id, folder: f.id })
-                    }
+                    onClick={() => {
+                      setSelected({ collection: c.id, folder: f.id });
+                      props.onBrowsingChange?.(true);
+                      window.scrollTo(0, 0);
+                    }}
                     aria-label={`Open ${c.title}: ${label}`}
                   >
                     {cover ? (

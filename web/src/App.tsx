@@ -1625,6 +1625,7 @@ export default function App() {
   const [setupWizardKey, setSetupWizardKey] = useState("");
   const [forceProfileSelection, setForceProfileSelection] = useState(false);
   const [page, setPage] = useState<Page>(route);
+  const [collectionBrowsing, setCollectionBrowsing] = useState(false);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
   const [addons, setAddons] = useStored<Addon[]>("addons", defaultAddons);
   const [library, setLibrary] = useStored<Item[]>("library", []);
@@ -1790,6 +1791,7 @@ export default function App() {
     activeProfileView?.image,
   ]);
   const navigate = (next: Page) => {
+    setCollectionBrowsing(false);
     location.hash = next;
     setQuery("");
     setCategory("");
@@ -2421,199 +2423,219 @@ export default function App() {
           )}
           {page === "home" && (
             <>
-              {hero ? (
-                <section className="hero">
-                  <div className="hero-image">
-                    <Art key={itemKey(hero)} item={hero} wide priority />
-                  </div>
-                  <div className="hero-content">
-                    <span className="hero-tag">
-                      <Sparkles size={14} /> YOUR NEXT GREAT WATCH
-                    </span>
-                    <h1>{hero.name}</h1>
-                    <div className="metadata">
-                      {hero.rating && (
-                        <span className="gold">
-                          <Star size={15} fill="currentColor" />
-                          {hero.rating}
-                        </span>
-                      )}
-                      <span>{hero.year}</span>
-                      <span>{hero.type === "series" ? "Series" : "Movie"}</span>
-                      <span className="badge">DISCOVER</span>
+              {!collectionBrowsing &&
+                (hero ? (
+                  <section className="hero">
+                    <div className="hero-image">
+                      <Art key={itemKey(hero)} item={hero} wide priority />
                     </div>
-                    <p>
-                      {hero.description ||
-                        "Find a new favorite. Explore the details and discover streams from your connected sources."}
-                    </p>
-                    <div className="actions">
-                      <button
-                        className="primary"
-                        onClick={() => setDetail(hero)}
-                      >
-                        <Play size={19} fill="currentColor" /> Explore title
-                      </button>
-                      <button
-                        className="glass"
-                        onClick={() => toggleSave(hero)}
-                      >
-                        {saved(hero) ? <Check size={18} /> : <Plus size={18} />}
-                        My library
-                      </button>
-                    </div>
-                  </div>
-                  <div className="hero-footer">
-                    <span>CURATED BY YOUR ADD-ONS</span>
-                    <div className="hero-navigation">
-                      <button
-                        aria-label="Previous featured title"
-                        onClick={() =>
-                          setHeroIndex(
-                            (heroIndex - 1 + heroItems.length) %
-                              heroItems.length,
-                          )
-                        }
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
-                      <span>
-                        {String(heroIndex + 1).padStart(2, "0")}
-                        <span className="hero-line" />
-                        {String(heroItems.length).padStart(2, "0")}
+                    <div className="hero-content">
+                      <span className="hero-tag">
+                        <Sparkles size={14} /> YOUR NEXT GREAT WATCH
                       </span>
-                      <button
-                        aria-label="Next featured title"
-                        onClick={() =>
-                          setHeroIndex((heroIndex + 1) % heroItems.length)
-                        }
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              ) : loading ? (
-                <div className="hero skeleton">
-                  <Loading />
-                </div>
-              ) : (
-                <section className="welcome">
-                  <span className="eyebrow">WELCOME TO NUVIO</span>
-                  <h1>
-                    A little less searching.
-                    <br />A lot more watching.
-                  </h1>
-                  <p>
-                    Movies, series, and live television. All your sources, in
-                    one place.
-                  </p>
-                  <button
-                    className="primary"
-                    onClick={() => navigate("settings")}
-                  >
-                    <Plus size={18} />
-                    Connect your sources
-                  </button>
-                </section>
-              )}
-              <div className="home-content">
-                <section className="quick-strip">
-                  <div className="quick-strip-copy">
-                    <span className="quick-icon">
-                      <Radio />
-                    </span>
-                    <div>
-                      <strong>Your world, live.</strong>
+                      <h1>{hero.name}</h1>
+                      <div className="metadata">
+                        {hero.rating && (
+                          <span className="gold">
+                            <Star size={15} fill="currentColor" />
+                            {hero.rating}
+                          </span>
+                        )}
+                        <span>{hero.year}</span>
+                        <span>
+                          {hero.type === "series" ? "Series" : "Movie"}
+                        </span>
+                        <span className="badge">DISCOVER</span>
+                      </div>
                       <p>
-                        {provider
-                          ? "Your channels are ready when you are."
-                          : "Connect your IPTV provider and tune in."}
+                        {hero.description ||
+                          "Find a new favorite. Explore the details and discover streams from your connected sources."}
                       </p>
+                      <div className="actions">
+                        <button
+                          className="primary"
+                          onClick={() => setDetail(hero)}
+                        >
+                          <Play size={19} fill="currentColor" /> Explore title
+                        </button>
+                        <button
+                          className="glass"
+                          onClick={() => toggleSave(hero)}
+                        >
+                          {saved(hero) ? (
+                            <Check size={18} />
+                          ) : (
+                            <Plus size={18} />
+                          )}
+                          My library
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="quick-strip-actions">
-                    <button onClick={randomPick}>
-                      <Dices size={17} />
-                      Random Pick
-                    </button>
-                    <button
-                      onClick={() => navigate(provider ? "live" : "settings")}
-                    >
-                      {provider ? "Watch Live TV" : "Connect IPTV"}
-                      <ArrowRight size={17} />
-                    </button>
-                  </div>
-                </section>
-                {error && (
-                  <div className="error" role="alert">
-                    {error}
-                    <button onClick={() => setRevision((v) => v + 1)}>
-                      Retry catalogs
-                    </button>
-                  </div>
-                )}
-                {progress.length > 0 && (
-                  <section className="media-row">
-                    <div className="row-heading">
-                      <h2>Pick up where you left off</h2>
-                      <button onClick={() => navigate("library")}>
-                        My library
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                    <div className="rail">
-                      {progress.slice(0, 12).map((p) => (
-                        <Card
-                          key={itemKey(p.item)}
-                          item={p.item}
-                          progress={p}
-                          onOpen={open}
-                        />
-                      ))}
+                    <div className="hero-footer">
+                      <span>CURATED BY YOUR ADD-ONS</span>
+                      <div className="hero-navigation">
+                        <button
+                          aria-label="Previous featured title"
+                          onClick={() =>
+                            setHeroIndex(
+                              (heroIndex - 1 + heroItems.length) %
+                                heroItems.length,
+                            )
+                          }
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span>
+                          {String(heroIndex + 1).padStart(2, "0")}
+                          <span className="hero-line" />
+                          {String(heroItems.length).padStart(2, "0")}
+                        </span>
+                        <button
+                          aria-label="Next featured title"
+                          onClick={() =>
+                            setHeroIndex((heroIndex + 1) % heroItems.length)
+                          }
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
                     </div>
                   </section>
+                ) : loading ? (
+                  <div className="hero skeleton">
+                    <Loading />
+                  </div>
+                ) : (
+                  <section className="welcome">
+                    <span className="eyebrow">WELCOME TO NUVIO</span>
+                    <h1>
+                      A little less searching.
+                      <br />A lot more watching.
+                    </h1>
+                    <p>
+                      Movies, series, and live television. All your sources, in
+                      one place.
+                    </p>
+                    <button
+                      className="primary"
+                      onClick={() => navigate("settings")}
+                    >
+                      <Plus size={18} />
+                      Connect your sources
+                    </button>
+                  </section>
+                ))}
+              <div
+                className={
+                  collectionBrowsing ? "collection-page-shell" : "home-content"
+                }
+              >
+                {!collectionBrowsing && (
+                  <>
+                    <section className="quick-strip">
+                      <div className="quick-strip-copy">
+                        <span className="quick-icon">
+                          <Radio />
+                        </span>
+                        <div>
+                          <strong>Your world, live.</strong>
+                          <p>
+                            {provider
+                              ? "Your channels are ready when you are."
+                              : "Connect your IPTV provider and tune in."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="quick-strip-actions">
+                        <button onClick={randomPick}>
+                          <Dices size={17} />
+                          Random Pick
+                        </button>
+                        <button
+                          onClick={() =>
+                            navigate(provider ? "live" : "settings")
+                          }
+                        >
+                          {provider ? "Watch Live TV" : "Connect IPTV"}
+                          <ArrowRight size={17} />
+                        </button>
+                      </div>
+                    </section>
+                    {error && (
+                      <div className="error" role="alert">
+                        {error}
+                        <button onClick={() => setRevision((v) => v + 1)}>
+                          Retry catalogs
+                        </button>
+                      </div>
+                    )}
+                    {progress.length > 0 && (
+                      <section className="media-row">
+                        <div className="row-heading">
+                          <h2>Pick up where you left off</h2>
+                          <button onClick={() => navigate("library")}>
+                            My library
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                        <div className="rail">
+                          {progress.slice(0, 12).map((p) => (
+                            <Card
+                              key={itemKey(p.item)}
+                              item={p.item}
+                              progress={p}
+                              onOpen={open}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </>
                 )}
                 <Suspense fallback={null}>
                   <HomeCollections
                     collections={collections}
-                    onChange={setCollections}
                     addons={addons}
                     library={library}
                     onOpen={open}
+                    onBrowsingChange={setCollectionBrowsing}
                   />
                 </Suspense>
-                {homeRows.map((row, i) => (
-                  <section className="media-row" key={i}>
-                    <div className="row-heading">
-                      <h2>{row.title}</h2>
-                      <button
-                        onClick={() => {
-                          setKind(
-                            row.items[0]?.type === "series"
-                              ? "series"
-                              : "movie",
-                          );
-                          navigate("discover");
-                        }}
-                      >
-                        Explore all
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                    <div className="rail">
-                      {row.items.slice(0, 18).map((item) => (
-                        <Card key={itemKey(item)} item={item} onOpen={open} />
-                      ))}
-                    </div>
-                  </section>
-                ))}
-                <footer className="app-footer">
-                  <span>Made for your next great watch.</span>
-                  <button onClick={() => navigate("settings")}>
-                    Manage sources
-                    <ArrowRight size={14} />
-                  </button>
-                </footer>
+                {!collectionBrowsing &&
+                  homeRows.map((row, i) => (
+                    <section className="media-row" key={i}>
+                      <div className="row-heading">
+                        <h2>{row.title}</h2>
+                        <button
+                          onClick={() => {
+                            setKind(
+                              row.items[0]?.type === "series"
+                                ? "series"
+                                : "movie",
+                            );
+                            navigate("discover");
+                          }}
+                        >
+                          Explore all
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                      <div className="rail">
+                        {row.items.slice(0, 18).map((item) => (
+                          <Card key={itemKey(item)} item={item} onOpen={open} />
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                {!collectionBrowsing && (
+                  <footer className="app-footer">
+                    <span>Made for your next great watch.</span>
+                    <button onClick={() => navigate("settings")}>
+                      Manage sources
+                      <ArrowRight size={14} />
+                    </button>
+                  </footer>
+                )}
               </div>
             </>
           )}
