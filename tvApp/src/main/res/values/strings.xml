@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">TikTak TV</string>
+    <string name="download_started">Download started</string>
+    <string name="download_failed">This download could not be started</string>
+</resources>

@@ -542,6 +542,16 @@ test("imports native collections and opens their addon catalogs", async ({
   ).toHaveCount(0);
 });
 
+test("enables remote focus navigation in TV mode", async ({ page }) => {
+  await page.goto("/?tv=1#home");
+  await expect(page.locator("html")).toHaveClass(/tv-mode/);
+  await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement !== document.body))
+    .toBe(true);
+  await expect(page.locator(":focus")).toBeVisible();
+});
+
 async function streamingAddon(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem(

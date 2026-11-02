@@ -5207,3 +5207,52 @@ button.primary:hover,
     gap: 4px;
   }
 }
+
+/* Ten-foot interface, enabled only by the Android TV shell or ?tv=1. */
+.tv-mode {
+  font-size: 18px;
+  scroll-behavior: smooth;
+}
+.tv-mode button,
+.tv-mode a,
+.tv-mode input,
+.tv-mode select,
+.tv-mode textarea,
+.tv-mode [tabindex] {
+  scroll-margin: 12vh 8vw;
+}
+.tv-mode :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 4px solid #ffffff !important;
+  outline-offset: 4px;
+  box-shadow:
+    0 0 0 8px var(--accent),
+    0 14px 38px #000c !important;
+}
+.tv-mode .media-card:focus-visible,
+.tv-mode .service-tile:focus-visible {
+  z-index: 20;
+  transform: scale(1.08);
+}
+.tv-mode .sidebar button,
+.tv-mode .sidebar a {
+  min-height: 52px;
+}
+.tv-mode .topbar,
+.tv-mode .quick-strip,
+.tv-mode .home-content,
+.tv-mode .page-content {
+  padding-left: max(48px, 4vw);
+  padding-right: max(48px, 4vw);
+}
+.tv-mode .rail {
+  gap: 24px;
+  padding-block: 10px 22px;
+}
+.tv-mode .media-card {
+  flex-basis: 190px;
+  width: 190px;
+}
+.tv-mode dialog {
+  max-width: min(1120px, 88vw);
+  max-height: 88vh;
+}
