@@ -7,9 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.view.KeyEvent
+import android.window.OnBackInvokedDispatcher
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -68,6 +70,11 @@ class MainActivity : Activity() {
             ),
         )
         setContentView(root)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            ) { handleBack() }
+        }
         if (savedInstanceState == null) webView.loadUrl(BuildConfig.START_URL)
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
@@ -80,10 +87,6 @@ class MainActivity : Activity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
-            KeyEvent.KEYCODE_BACK -> {
-                handleBack()
-                return true
-            }
             KeyEvent.KEYCODE_MENU -> {
                 webView.evaluateJavascript(FOCUS_NAVIGATION, null)
                 return true
@@ -102,6 +105,12 @@ class MainActivity : Activity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) handleBack()
+        else super.onBackPressed()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
