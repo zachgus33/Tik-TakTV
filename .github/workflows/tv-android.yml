@@ -72,7 +72,6 @@ jobs:
             adb shell input keyevent 23
             adb shell input keyevent 19
             adb shell input keyevent 21
-            adb shell input keyevent 82
             adb shell input keyevent 85
             adb shell input keyevent 89
             adb shell input keyevent 90
