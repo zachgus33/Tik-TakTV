@@ -47,6 +47,14 @@ function rowTitle(
   return `${folderLabel(folder, folderIndex)} (${media}${index ? ` ${index + 1}` : ""})`;
 }
 
+function mediaLabel(source: CollectionSource) {
+  return ["tv", "series"].includes(
+    String(source.mediaType ?? source.type).toLowerCase(),
+  )
+    ? "Series"
+    : "Movies";
+}
+
 async function resolveSource(
   source: CollectionSource,
   addons: Addon[],
@@ -129,12 +137,25 @@ export default function CollectionsView({
     const local = library.filter((item) =>
       folder.itemKeys?.includes(itemKey(item)),
     );
-    const initial: SourceRow[] = folderSources.map((source, index) => ({
-      key: `${index}:${source.provider ?? "addon"}:${source.catalogId ?? "catalog"}`,
-      title: rowTitle(source, index, folder, folderIndex, addons),
-      items: [],
-      loading: true,
-    }));
+    const baseTitles = folderSources.map((source, index) =>
+      rowTitle(source, index, folder, folderIndex, addons),
+    );
+    const titleCounts = new Map<string, number>();
+    for (const title of baseTitles) {
+      const key = title.trim().toLocaleLowerCase();
+      titleCounts.set(key, (titleCounts.get(key) ?? 0) + 1);
+    }
+    const initial: SourceRow[] = folderSources.map((source, index) => {
+      const baseTitle = baseTitles[index];
+      const duplicate =
+        (titleCounts.get(baseTitle.trim().toLocaleLowerCase()) ?? 0) > 1;
+      return {
+        key: `${index}:${source.provider ?? "addon"}:${source.catalogId ?? "catalog"}`,
+        title: duplicate ? `${baseTitle} (${mediaLabel(source)})` : baseTitle,
+        items: [],
+        loading: true,
+      };
+    });
     if (local.length)
       initial.unshift({
         key: "saved",
