@@ -87,6 +87,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+                webView.evaluateJavascript(remoteScript(keyCode), null)
+                return true
+            }
             KeyEvent.KEYCODE_MENU -> {
                 webView.evaluateJavascript(FOCUS_NAVIGATION, null)
                 return true
@@ -105,6 +114,18 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (
+            keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+            keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+            keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+            keyCode == KeyEvent.KEYCODE_ENTER
+        ) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -151,6 +172,23 @@ class MainActivity : ComponentActivity() {
         KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> MEDIA_FAST_FORWARD
         else -> MEDIA_TOGGLE
     }
+
+    private fun remoteScript(keyCode: Int): String = when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP -> remoteArrowScript("ArrowUp")
+        KeyEvent.KEYCODE_DPAD_DOWN -> remoteArrowScript("ArrowDown")
+        KeyEvent.KEYCODE_DPAD_LEFT -> remoteArrowScript("ArrowLeft")
+        KeyEvent.KEYCODE_DPAD_RIGHT -> remoteArrowScript("ArrowRight")
+        else -> REMOTE_ACTIVATE
+    }
+
+    private fun remoteArrowScript(key: String) = """
+        (() => {
+          const target = document.activeElement || document.body;
+          target.dispatchEvent(new KeyboardEvent('keydown', {
+            key: '$key', bubbles: true, cancelable: true
+          }));
+        })();
+    """.trimIndent()
 
     private fun openExternal(uri: Uri) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
@@ -283,6 +321,7 @@ class MainActivity : ComponentActivity() {
         private const val MEDIA_PAUSE = """(() => { const v=document.querySelector('video'); if(v) v.pause(); })();"""
         private const val MEDIA_REWIND = """(() => { const b=document.querySelector('[aria-label="Rewind 10 seconds"]'); if(b) b.click(); else { const v=document.querySelector('video'); if(v) v.currentTime=Math.max(0,v.currentTime-10); } })();"""
         private const val MEDIA_FAST_FORWARD = """(() => { const b=document.querySelector('[aria-label="Fast forward 10 seconds"]'); if(b) b.click(); else { const v=document.querySelector('video'); if(v) v.currentTime=Math.min(v.duration||Infinity,v.currentTime+10); } })();"""
+        private const val REMOTE_ACTIVATE = """(() => { const target=document.activeElement; if(target && target!==document.body && typeof target.click==='function') target.click(); })();"""
         private val TV_BOOTSTRAP = """
             (() => {
               document.documentElement.classList.add('tv-mode');

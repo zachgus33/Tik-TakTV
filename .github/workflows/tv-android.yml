@@ -70,13 +70,20 @@ jobs:
             adb shell dumpsys activity activities > tv-activity.txt
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv/.MainActivity" tv-activity.txt
             adb shell input keyevent 20
+            adb shell input keyevent 22
+            adb shell input keyevent 21
+            adb shell input keyevent 19
+            adb shell input keyevent 23
+            adb shell input keyevent 85
+            adb shell input keyevent 89
+            adb shell input keyevent 90
             sleep 3
             adb shell dumpsys activity activities > tv-activity.txt
             adb exec-out screencap -p > tvApp/build/tv-emulator-smoke.png
-            grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv/.MainActivity" tv-activity.txt
             adb shell uiautomator dump /sdcard/tv-window.xml
             adb pull /sdcard/tv-window.xml tv-window.xml
             adb logcat -d > tv-app-logcat.txt
+            grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv/.MainActivity" tv-activity.txt
             ! grep -A 30 "FATAL EXCEPTION" tv-app-logcat.txt | grep -q "com.tiktaktv.tv"
       - name: Upload emulator evidence
         if: always()
