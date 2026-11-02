@@ -1,17 +1,14 @@
 package com.tiktaktv.tv
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.view.KeyEvent
-import android.window.OnBackInvokedDispatcher
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -25,8 +22,10 @@ import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var webView: WebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
@@ -70,11 +69,12 @@ class MainActivity : Activity() {
             ),
         )
         setContentView(root)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            onBackInvokedDispatcher.registerOnBackInvokedCallback(
-                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-            ) { handleBack() }
-        }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() = handleBack()
+            },
+        )
         if (savedInstanceState == null) webView.loadUrl(BuildConfig.START_URL)
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
@@ -105,12 +105,6 @@ class MainActivity : Activity() {
             }
         }
         return super.onKeyDown(keyCode, event)
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) handleBack()
-        else super.onBackPressed()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
