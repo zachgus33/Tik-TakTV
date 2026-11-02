@@ -62,7 +62,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r tvApp/build/outputs/apk/debug/tvApp-debug.apk
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv/.MainActivity
