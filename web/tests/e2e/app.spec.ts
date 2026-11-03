@@ -52,6 +52,36 @@ async function mockSources(page: Page) {
       await route.fulfill({ json: data });
     },
   );
+  await page.route("https://playback.example/request", async (route) => {
+    const source = new URL(route.request().postDataJSON().url);
+    if (source.pathname === "/xmltv.php")
+      return route.fulfill({ status: 404, body: "No full guide" });
+    const action = source.searchParams.get("action");
+    const data = !action
+      ? { user_info: { auth: 1, status: "Active" } }
+      : action.endsWith("_categories")
+        ? [{ category_id: "1", category_name: "News" }]
+        : action === "get_short_epg"
+          ? {
+              epg_listings: [
+                {
+                  id: "1",
+                  title: btoa("Evening news"),
+                  start_timestamp: Math.floor(Date.now() / 1000) - 100,
+                  stop_timestamp: Math.floor(Date.now() / 1000) + 900,
+                },
+              ],
+            }
+          : [
+              {
+                stream_id: 10,
+                name: "Test News",
+                category_id: "1",
+                epg_channel_id: "test.news",
+              },
+            ];
+    return route.fulfill({ json: data });
+  });
 }
 async function connect(page: Page) {
   await page.goto("/#settings");
@@ -1956,6 +1986,26 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
       });
     },
   );
+  await page.route("https://playback.example/request", (route) => {
+    const source = new URL(route.request().postDataJSON().url);
+    const action = source.searchParams.get("action");
+    if (source.pathname === "/xmltv.php") return route.fulfill({ status: 404 });
+    if (action === "get_short_epg") shortGuideRequests++;
+    return route.fulfill({
+      json: !action
+        ? { user_info: { auth: 1, status: "Active" } }
+        : action === "get_short_epg"
+          ? { epg_listings: [] }
+          : action.endsWith("_categories")
+            ? [{ category_id: "1", category_name: "News" }]
+            : Array.from({ length: 61 }, (_, index) => ({
+                stream_id: index + 1,
+                name: `Channel ${index + 1}`,
+                category_id: "1",
+                epg_channel_id: `channel.${index + 1}`,
+              })),
+    });
+  });
   await connect(page);
   await page.goto("/#live");
   await expect(page.getByText("Guide ready - 61 channel guides")).toBeVisible();
