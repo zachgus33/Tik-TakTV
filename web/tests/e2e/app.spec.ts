@@ -54,6 +54,11 @@ async function mockSources(page: Page) {
   );
   await page.route("https://playback.example/request", async (route) => {
     const source = new URL(route.request().postDataJSON().url);
+    if (
+      source.hostname !== "vpn.trx-pro-iptvstore.cc" ||
+      !/[\\/](?:player_api|xmltv)\.php$/i.test(source.pathname)
+    )
+      return route.fallback();
     if (source.pathname === "/xmltv.php")
       return route.fulfill({ status: 404, body: "No full guide" });
     const action = source.searchParams.get("action");
