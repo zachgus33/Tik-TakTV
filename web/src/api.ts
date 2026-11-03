@@ -514,7 +514,9 @@ export function parsePlaylist(text: string, scope: string): Item[] {
     throw new Error(
       "This is a video manifest. Use Open stream with its HTTPS URL instead.",
     );
-  let meta: { name: string; poster?: string; category?: string } | undefined;
+  let meta:
+    | { name: string; poster?: string; category?: string; epgId?: string }
+    | undefined;
   const items: Item[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
@@ -529,6 +531,7 @@ export function parsePlaylist(text: string, scope: string): Item[] {
           "Channel",
         poster: safeUrl(attrs["tvg-logo"]),
         category: attrs["group-title"] || "Other",
+        epgId: attrs["tvg-id"] || undefined,
       };
     } else if (line && !line.startsWith("#") && meta) {
       // Reject header hacks and insecure URLs rather than quietly dropping requirements.

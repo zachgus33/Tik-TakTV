@@ -920,8 +920,14 @@ test("an independent user's configured Torrentio debrid stream uses the playback
       }),
     ),
   );
-  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
-    route.fulfill({
+  let directStreamCalls = 0;
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) => {
+    directStreamCalls++;
+    return route.abort();
+  });
+  await page.route("https://playback.example/request", (route) => {
+    expect(route.request().postDataJSON().url).toContain("/stream/movie/");
+    return route.fulfill({
       json: {
         streams: [
           {
@@ -931,8 +937,8 @@ test("an independent user's configured Torrentio debrid stream uses the playback
           },
         ],
       },
-    }),
-  );
+    });
+  });
   const preparations: Record<string, unknown>[] = [];
   await page.route("https://playback.example/prepare", async (route) => {
     preparations.push(route.request().postDataJSON());
@@ -945,6 +951,7 @@ test("an independent user's configured Torrentio debrid stream uses the playback
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect.poll(() => preparations.length).toBeGreaterThan(0);
+  expect(directStreamCalls).toBe(0);
   expect(preparations[0].url).toContain("/resolve/torbox/");
   expect(preparations[0].mode).toBe("direct");
   await expect(page.locator("video")).toBeVisible();

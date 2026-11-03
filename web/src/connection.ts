@@ -197,8 +197,27 @@ export async function sourceFetch(
       config,
     );
   if (forceService && config) return relay();
+  const addonPayload = /\/(?:stream|subtitles)\//i.test(new URL(url).pathname);
+  if (addonPayload && config) {
+    try {
+      return await relay();
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      // If the companion is temporarily unavailable, direct access can still
+      // work for add-ons that grant browser CORS access.
+    }
+  }
   try {
-    return await fetch(url, options);
+    const response = await fetch(url, options);
+    if (
+      config &&
+      [401, 403, 408, 425, 429].includes(response.status) &&
+      !options.signal?.aborted
+    ) {
+      const relayed = await relay().catch(() => undefined);
+      if (relayed?.ok) return relayed;
+    }
+    return response;
   } catch (e) {
     if (e instanceof TypeError && config && !options.signal?.aborted)
       return relay();

@@ -177,13 +177,14 @@ describe("errors do not disclose credential URLs", () => {
 describe("playlists and addons", () => {
   it("imports HTTPS channels and skips unsafe or custom-header streams", () => {
     const items = parsePlaylist(
-      '#EXTM3U\n#EXTINF:-1 tvg-logo="https://img.example/logo.png" group-title="News",World News\nhttps://tv.example/live.m3u8\n#EXTINF:-1,Bad\nhttp://insecure.example/live\n#EXTINF:-1,Header\nhttps://tv.example/live|User-Agent=app',
+      '#EXTM3U\n#EXTINF:-1 tvg-id="world.news" tvg-logo="https://img.example/logo.png" group-title="News",World News\nhttps://tv.example/live.m3u8\n#EXTINF:-1,Bad\nhttp://insecure.example/live\n#EXTINF:-1,Header\nhttps://tv.example/live|User-Agent=app',
       "scope",
     );
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       name: "World News",
       category: "News",
+      epgId: "world.news",
       provider: "scope",
     });
   });

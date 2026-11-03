@@ -13,6 +13,13 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     {
+      name: "firefox",
+      use: {
+        ...devices["Desktop Firefox"],
+        serviceWorkers: "block",
+      },
+    },
+    {
       name: "iphone",
       use: {
         ...devices["iPhone 13"],
