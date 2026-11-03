@@ -92,7 +92,11 @@ export default function SetupWizard(props: {
             <span key={value} className={value <= step ? "active" : ""} />
           ))}
         </div>
-        <div className="setup-wizard-body">
+        <div
+          className="setup-wizard-body"
+          tabIndex={0}
+          aria-label="Setup details. Use the up and down buttons to review this section."
+        >
           {step === 0 && (
             <>
               <Sparkles className="setup-hero-icon" />
@@ -227,7 +231,7 @@ export default function SetupWizard(props: {
               <div className="setup-checks">
                 {testing && <span className="spinner" />}
                 {checks.map((check) => (
-                  <div key={check.id} className={check.status}>
+                  <div key={check.id} className={check.status} tabIndex={0}>
                     <CheckCircle2 />
                     <span>
                       <strong>{check.label}</strong>

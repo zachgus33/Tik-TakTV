@@ -22,8 +22,8 @@ android {
         applicationId = "com.tiktaktv.tv"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         buildConfigField("String", "START_URL", "\"https://www.tiktaktv.me/?tv=1\"")
         buildConfigField(
             "String",

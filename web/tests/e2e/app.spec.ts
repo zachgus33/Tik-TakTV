@@ -115,7 +115,7 @@ test("TV onboarding traps remote focus and keeps its controls visible", async ({
     backdrop.innerHTML = `
       <section class="setup-wizard" role="dialog" aria-modal="true" aria-label="Health check">
         <div class="setup-progress">${"<span></span>".repeat(5)}</div>
-        <div class="setup-wizard-body">
+        <div class="setup-wizard-body" tabindex="0">
           <h1>Let's make sure you're ready</h1>
           <div class="setup-checks">${"<div><span><strong>Ready</strong><small>Health check detail</small></span></div>".repeat(12)}</div>
         </div>
@@ -135,11 +135,76 @@ test("TV onboarding traps remote focus and keeps its controls visible", async ({
   await page.keyboard.press("ArrowDown");
   await expect(next).toBeFocused();
   expect(await page.evaluate(() => scrollY)).toBe(scrollBefore);
-  await page.keyboard.press("ArrowLeft");
+  const body = wizard.locator(".setup-wizard-body");
+  await body.focus();
+  await body.evaluate((element) => (element.scrollTop = 0));
+  const bodyScrollBefore = await body.evaluate((element) => element.scrollTop);
+  await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(() => body.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(bodyScrollBefore);
+  await body.evaluate(
+    (element) =>
+      (element.scrollTop = element.scrollHeight - element.clientHeight),
+  );
+  await page.keyboard.press("ArrowDown");
   await expect(
     wizard.getByRole("button", { name: "Review settings" }),
   ).toBeFocused();
   await expect(page.locator("#behind-modal")).not.toBeFocused();
+});
+
+test("TV remote scrolls long pages and Discover uses ten-foot spacing", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?tv=1#discover");
+  await expect(page.locator("html")).toHaveClass(/tv-mode/);
+  const columns = await page
+    .locator(".media-grid")
+    .evaluate(
+      (grid) =>
+        getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean)
+          .length,
+    );
+  expect(columns).toBeLessThanOrEqual(5);
+  await page.evaluate(() => {
+    const spacer = document.createElement("div");
+    spacer.style.height = "1600px";
+    const last = document.createElement("button");
+    last.textContent = "Last TV control";
+    spacer.append(last);
+    document.querySelector(".main-shell")?.append(spacer);
+    document.querySelector<HTMLElement>(".filter-toolbar button")?.focus();
+  });
+  const before = await page.evaluate(() => scrollY);
+  for (let index = 0; index < 6; index++)
+    await page.keyboard.press("ArrowDown");
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before);
+});
+
+test("TV remote keeps horizontal movement in the current row", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?tv=1#home");
+  await page.evaluate(() => {
+    const modal = document.createElement("section");
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "Remote navigation test");
+    modal.style.cssText =
+      "position:fixed;inset:80px;background:#111;z-index:9999;padding:30px";
+    modal.innerHTML = `
+      <button id="row-start" style="position:absolute;left:40px;top:40px">Start</button>
+      <button id="row-right" style="position:absolute;left:340px;top:40px">Right</button>
+      <button id="near-diagonal" style="position:absolute;left:140px;top:180px">Diagonal</button>`;
+    document.body.append(modal);
+    document.querySelector<HTMLElement>("#row-start")?.focus();
+  });
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#row-right")).toBeFocused();
+  await expect(page.locator("#near-diagonal")).not.toBeFocused();
 });
 test("a clean profile starts without another user's IPTV connection", async ({
   page,
