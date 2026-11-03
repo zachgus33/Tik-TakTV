@@ -326,6 +326,7 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
     "Home",
     "Discover",
     "Live TV",
+    "YouTube",
     "My library",
     "Account",
   ]);
