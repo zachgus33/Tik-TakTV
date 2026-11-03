@@ -3,10 +3,8 @@ package com.tiktaktv.tv
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
@@ -29,10 +27,12 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
-import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
@@ -40,19 +40,9 @@ class MainActivity : ComponentActivity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
-    private var updateDownloadId = -1L
     private var pendingUpdateUrl: String? = null
+    private var pendingUpdateSha256: String? = null
     private var updateCheckStarted = false
-    private val updateReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (
-                intent?.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE &&
-                intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) == updateDownloadId
-            ) {
-                openDownloadedUpdate()
-            }
-        }
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +81,6 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContentView(root)
-        registerUpdateReceiver()
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -109,7 +98,9 @@ class MainActivity : ComponentActivity() {
         val url = pendingUpdateUrl ?: return
         if (canInstallPackages()) {
             pendingUpdateUrl = null
-            downloadUpdate(url)
+            val sha256 = pendingUpdateSha256
+            pendingUpdateSha256 = null
+            downloadUpdate(url, sha256)
         }
     }
 
@@ -176,7 +167,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        runCatching { unregisterReceiver(updateReceiver) }
         fileCallback?.onReceiveValue(null)
         fileCallback = null
         webView.stopLoading()
@@ -186,16 +176,6 @@ class MainActivity : ComponentActivity() {
 
     private fun applyTvMode() {
         webView.evaluateJavascript(TV_BOOTSTRAP, null)
-    }
-
-    private fun registerUpdateReceiver() {
-        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        ContextCompat.registerReceiver(
-            this,
-            updateReceiver,
-            filter,
-            ContextCompat.RECEIVER_EXPORTED,
-        )
     }
 
     private fun checkForUpdate() {
@@ -219,7 +199,8 @@ class MainActivity : ComponentActivity() {
                     val versionName =
                         metadata.optString("versionName", versionCode.toString())
                     val apkUrl = metadata.getString("apkUrl")
-                    runOnUiThread { offerUpdate(versionName, apkUrl) }
+                    val sha256 = metadata.optString("sha256").ifBlank { null }
+                    runOnUiThread { offerUpdate(versionName, apkUrl, sha256) }
                 } finally {
                     connection.disconnect()
                 }
@@ -227,25 +208,26 @@ class MainActivity : ComponentActivity() {
         }.start()
     }
 
-    private fun offerUpdate(versionName: String, apkUrl: String) {
+    private fun offerUpdate(versionName: String, apkUrl: String, sha256: String?) {
         if (isFinishing || isDestroyed) return
         AlertDialog.Builder(this)
             .setTitle(R.string.update_available)
             .setMessage(getString(R.string.update_message, versionName))
             .setNegativeButton(R.string.update_later, null)
-            .setPositiveButton(R.string.update_action) { _, _ -> prepareUpdate(apkUrl) }
+            .setPositiveButton(R.string.update_action) { _, _ -> prepareUpdate(apkUrl, sha256) }
             .show()
     }
 
     private fun canInstallPackages(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
 
-    private fun prepareUpdate(apkUrl: String) {
+    private fun prepareUpdate(apkUrl: String, sha256: String?) {
         if (canInstallPackages()) {
-            downloadUpdate(apkUrl)
+            downloadUpdate(apkUrl, sha256)
             return
         }
         pendingUpdateUrl = apkUrl
+        pendingUpdateSha256 = sha256
         Toast.makeText(this, R.string.update_permission, Toast.LENGTH_LONG).show()
         runCatching {
             startActivity(
@@ -256,47 +238,78 @@ class MainActivity : ComponentActivity() {
             )
         }.onFailure {
             pendingUpdateUrl = null
+            pendingUpdateSha256 = null
             Toast.makeText(this, R.string.update_install_failed, Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun downloadUpdate(apkUrl: String) {
-        val uri = runCatching { Uri.parse(apkUrl) }.getOrNull() ?: return
-        val filename = "TikTak-TV-${System.currentTimeMillis()}.apk"
-        val request = DownloadManager.Request(uri)
-            .setTitle(getString(R.string.update_available))
-            .setDescription(getString(R.string.update_downloading))
-            .setMimeType(APK_MIME_TYPE)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalFilesDir(
-                this,
-                Environment.DIRECTORY_DOWNLOADS,
-                filename,
-            )
-        runCatching {
-            updateDownloadId =
-                (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-        }.onSuccess {
-            Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_LONG).show()
-        }.onFailure {
-            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
-        }
+    private fun downloadUpdate(apkUrl: String, expectedSha256: String?) {
+        Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_LONG).show()
+        Thread {
+            val result = runCatching {
+                val updateDir = File(cacheDir, "updates").apply { mkdirs() }
+                val apk = File(updateDir, "TikTak-TV-update.apk")
+                val partial = File(updateDir, "TikTak-TV-update.apk.part")
+                partial.delete()
+                val connection =
+                    (URL(apkUrl).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 15_000
+                        readTimeout = 90_000
+                        instanceFollowRedirects = true
+                        setRequestProperty("Accept", APK_MIME_TYPE)
+                        setRequestProperty("User-Agent", "TikTakTV-AndroidTV/${BuildConfig.VERSION_NAME}")
+                    }
+                try {
+                    if (connection.responseCode !in 200..299) {
+                        error("Update download failed with HTTP ${connection.responseCode}")
+                    }
+                    connection.inputStream.use { input ->
+                        partial.outputStream().buffered().use { output -> input.copyTo(output) }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+                if (partial.length() == 0L) error("Downloaded update is empty")
+                if (!expectedSha256.isNullOrBlank()) {
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    partial.inputStream().buffered().use { input ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            digest.update(buffer, 0, count)
+                        }
+                    }
+                    val actual = digest.digest().joinToString("") { "%02x".format(it) }
+                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                        error("Downloaded update checksum did not match")
+                    }
+                }
+                apk.delete()
+                if (!partial.renameTo(apk)) error("Could not prepare downloaded update")
+                apk
+            }
+            runOnUiThread {
+                result.onSuccess(::openDownloadedUpdate).onFailure {
+                    Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
-    private fun openDownloadedUpdate() {
-        val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val uri = manager.getUriForDownloadedFile(updateDownloadId)
-        if (uri == null) {
-            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
-            return
-        }
-        runCatching {
+    private fun openDownloadedUpdate(apk: File) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.updates", apk)
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+        val installer =
+            Intent(Intent.ACTION_INSTALL_PACKAGE)
+                .setData(uri)
+                .addFlags(flags)
+                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+        runCatching { startActivity(installer) }.recoverCatching {
             startActivity(
                 Intent(Intent.ACTION_VIEW)
                     .setDataAndType(uri, APK_MIME_TYPE)
-                    .addFlags(
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK,
-                    ),
+                    .addFlags(flags),
             )
         }.onFailure {
             Toast.makeText(this, R.string.update_install_failed, Toast.LENGTH_LONG).show()
