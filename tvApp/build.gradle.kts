@@ -22,9 +22,14 @@ android {
         applicationId = "com.tiktaktv.tv"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         buildConfigField("String", "START_URL", "\"https://www.tiktaktv.me/?tv=1\"")
+        buildConfigField(
+            "String",
+            "UPDATE_METADATA_URL",
+            "\"https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.json\"",
+        )
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

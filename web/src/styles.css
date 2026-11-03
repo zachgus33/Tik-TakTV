@@ -4854,6 +4854,9 @@ button.primary:hover,
   );
   box-shadow: 0 32px 100px rgba(0, 0, 0, 0.7);
 }
+.setup-wizard-body {
+  min-height: 0;
+}
 .setup-close {
   position: absolute;
   right: 20px;
@@ -4890,7 +4893,7 @@ button.primary:hover,
   line-height: 1.02;
   margin: 16px 0;
 }
-.setup-wizard > p {
+.setup-wizard-body > p {
   color: var(--muted);
   font-size: 1.04rem;
   line-height: 1.7;
@@ -5273,4 +5276,96 @@ button.primary:hover,
 .tv-mode dialog {
   max-width: min(1120px, 88vw);
   max-height: 88vh;
+}
+.tv-mode .profile-gate {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  place-items: center;
+  gap: 8px;
+  padding: max(20px, 3vh) max(56px, 5vw);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.tv-mode .profile-gate-brand {
+  position: static;
+  justify-self: start;
+  font-size: 1.45rem;
+}
+.tv-mode .profile-gate > section {
+  align-self: center;
+  width: min(880px, 100%);
+}
+.tv-mode .profile-gate h1 {
+  margin: 0 0 0.65rem;
+  font-size: clamp(1.8rem, 4.5vh, 2.6rem);
+}
+.tv-mode .profile-gate-intro {
+  margin: 0 auto 0.9rem;
+}
+.tv-mode .profile-auth-card {
+  width: min(540px, 100%);
+}
+.tv-mode .profile-auth-card .profile-login {
+  gap: 0.65rem;
+  padding: 0.9rem 1.25rem 1.1rem;
+}
+.tv-mode .profile-auth-tabs button {
+  min-height: 40px;
+}
+.tv-mode .profile-login input {
+  min-height: 44px;
+  padding-block: 8px;
+}
+.tv-mode .setup-wizard-backdrop {
+  padding: max(24px, 4vh) max(56px, 5vw);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.tv-mode .setup-wizard {
+  width: min(920px, 90vw);
+  height: min(720px, 90vh);
+  max-height: 90vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 28px 36px 0;
+  overflow: hidden;
+  border-radius: 22px;
+  overscroll-behavior: contain;
+}
+.tv-mode .setup-progress {
+  grid-template-columns: repeat(5, 1fr);
+  margin: 4px 58px 18px 0;
+}
+.tv-mode .setup-wizard-body {
+  overflow-y: auto;
+  padding: 2px 10px 20px 2px;
+  overscroll-behavior: contain;
+}
+.tv-mode .setup-wizard h1 {
+  margin: 10px 0;
+  font-size: clamp(2rem, 5vh, 3rem);
+}
+.tv-mode .setup-wizard-body > p {
+  margin-block: 8px;
+  line-height: 1.5;
+}
+.tv-mode .setup-summary,
+.tv-mode .setup-paths,
+.tv-mode .setup-list,
+.tv-mode .setup-checks {
+  margin-block: 14px;
+}
+.tv-mode .setup-paths button {
+  min-height: 88px;
+  padding: 13px;
+}
+.tv-mode .setup-wizard footer {
+  position: static;
+  z-index: 2;
+  margin: 0 -36px;
+  padding: 16px 36px 20px;
+  background: rgba(14, 12, 19, 0.98);
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.28);
 }

@@ -1,13 +1,18 @@
 package com.tiktaktv.tv
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -24,6 +29,9 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
@@ -31,6 +39,19 @@ class MainActivity : ComponentActivity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
+    private var updateDownloadId = -1L
+    private var pendingUpdateUrl: String? = null
+    private var updateCheckStarted = false
+    private val updateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (
+                intent?.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE &&
+                intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) == updateDownloadId
+            ) {
+                openDownloadedUpdate()
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +74,7 @@ class MainActivity : ComponentActivity() {
                 allowFileAccess = false
                 allowContentAccess = false
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                userAgentString = "$userAgentString TikTakTV-AndroidTV/0.1"
+                userAgentString = "$userAgentString TikTakTV-AndroidTV/${BuildConfig.VERSION_NAME}"
             }
             webViewClient = TvClient()
             webChromeClient = TvChromeClient()
@@ -69,6 +90,7 @@ class MainActivity : ComponentActivity() {
             ),
         )
         setContentView(root)
+        registerUpdateReceiver()
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -78,6 +100,16 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) webView.loadUrl(BuildConfig.START_URL)
         else webView.restoreState(savedInstanceState)
         webView.requestFocus()
+        checkForUpdate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val url = pendingUpdateUrl ?: return
+        if (canInstallPackages()) {
+            pendingUpdateUrl = null
+            downloadUpdate(url)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -143,6 +175,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(updateReceiver) }
         fileCallback?.onReceiveValue(null)
         fileCallback = null
         webView.stopLoading()
@@ -152,6 +185,121 @@ class MainActivity : ComponentActivity() {
 
     private fun applyTvMode() {
         webView.evaluateJavascript(TV_BOOTSTRAP, null)
+    }
+
+    private fun registerUpdateReceiver() {
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(updateReceiver, filter)
+        }
+    }
+
+    private fun checkForUpdate() {
+        if (updateCheckStarted) return
+        updateCheckStarted = true
+        Thread {
+            runCatching {
+                val connection =
+                    (URL(BuildConfig.UPDATE_METADATA_URL).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 8_000
+                        readTimeout = 8_000
+                        instanceFollowRedirects = true
+                        setRequestProperty("Accept", "application/json")
+                    }
+                try {
+                    if (connection.responseCode !in 200..299) return@runCatching
+                    val metadata =
+                        JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    val versionCode = metadata.getLong("versionCode")
+                    if (versionCode <= BuildConfig.VERSION_CODE) return@runCatching
+                    val versionName =
+                        metadata.optString("versionName", versionCode.toString())
+                    val apkUrl = metadata.getString("apkUrl")
+                    runOnUiThread { offerUpdate(versionName, apkUrl) }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+        }.start()
+    }
+
+    private fun offerUpdate(versionName: String, apkUrl: String) {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.update_available)
+            .setMessage(getString(R.string.update_message, versionName))
+            .setNegativeButton(R.string.update_later, null)
+            .setPositiveButton(R.string.update_action) { _, _ -> prepareUpdate(apkUrl) }
+            .show()
+    }
+
+    private fun canInstallPackages(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+
+    private fun prepareUpdate(apkUrl: String) {
+        if (canInstallPackages()) {
+            downloadUpdate(apkUrl)
+            return
+        }
+        pendingUpdateUrl = apkUrl
+        Toast.makeText(this, R.string.update_permission, Toast.LENGTH_LONG).show()
+        runCatching {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
+        }.onFailure {
+            pendingUpdateUrl = null
+            Toast.makeText(this, R.string.update_install_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun downloadUpdate(apkUrl: String) {
+        val uri = runCatching { Uri.parse(apkUrl) }.getOrNull() ?: return
+        val filename = "TikTak-TV-${System.currentTimeMillis()}.apk"
+        val request = DownloadManager.Request(uri)
+            .setTitle(getString(R.string.update_available))
+            .setDescription(getString(R.string.update_downloading))
+            .setMimeType(APK_MIME_TYPE)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(
+                this,
+                Environment.DIRECTORY_DOWNLOADS,
+                filename,
+            )
+        runCatching {
+            updateDownloadId =
+                (getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+        }.onSuccess {
+            Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openDownloadedUpdate() {
+        val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val uri = manager.getUriForDownloadedFile(updateDownloadId)
+        if (uri == null) {
+            Toast.makeText(this, R.string.download_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        runCatching {
+            startActivity(
+                Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, APK_MIME_TYPE)
+                    .addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK,
+                    ),
+            )
+        }.onFailure {
+            Toast.makeText(this, R.string.update_install_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun handleBack() {
@@ -293,6 +441,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val FILE_PICKER_REQUEST = 4107
         private const val HANDLE_WEB_BACK = """
             (() => {

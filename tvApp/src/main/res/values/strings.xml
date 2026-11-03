@@ -2,4 +2,11 @@
     <string name="app_name">TikTak TV</string>
     <string name="download_started">Download started</string>
     <string name="download_failed">This download could not be started</string>
+    <string name="update_available">TikTak TV update available</string>
+    <string name="update_message">Version %1$s is ready. Download and install it now?</string>
+    <string name="update_action">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading TikTak TV update</string>
+    <string name="update_permission">Allow TikTak TV to install updates, then return to the app.</string>
+    <string name="update_install_failed">The update downloaded, but Android could not open the installer.</string>
 </resources>

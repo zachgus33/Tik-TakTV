@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Blocks,
   CheckCircle2,
@@ -22,6 +22,7 @@ export default function SetupWizard(props: {
   onSettings: () => void;
   onComplete: () => void;
 }) {
+  const wizardRef = useRef<HTMLElement>(null);
   const [step, setStep] = useState(0);
   const [checks, setChecks] = useState<HealthResult[]>([]);
   const [testing, setTesting] = useState(false);
@@ -59,9 +60,18 @@ export default function SetupWizard(props: {
     return () => controller.abort();
   }, [step]);
   const ready = checks.filter((item) => item.status === "ready").length;
+  useEffect(() => {
+    const target = wizardRef.current?.querySelector<HTMLElement>(
+      "[data-tv-initial-focus]:not([disabled])",
+    );
+    if (target && document.documentElement.classList.contains("tv-mode")) {
+      requestAnimationFrame(() => target.focus({ preventScroll: false }));
+    }
+  }, [step, testing]);
   return (
     <div className="setup-wizard-backdrop" role="presentation">
       <section
+        ref={wizardRef}
         className="setup-wizard"
         role="dialog"
         aria-modal="true"
@@ -82,173 +92,176 @@ export default function SetupWizard(props: {
             <span key={value} className={value <= step ? "active" : ""} />
           ))}
         </div>
-        {step === 0 && (
-          <>
-            <Sparkles className="setup-hero-icon" />
-            <span className="eyebrow">WELCOME TO TIKTAK TV</span>
-            <h1 id="setup-title">
-              Hi {props.profileName || "there"}. Let’s make sure you’re ready.
-            </h1>
-            <p>
-              Your Nuvio profile has been synced. This quick check confirms your
-              catalogs, streaming sources, and browser compatibility.
-            </p>
-            <div className="setup-summary">
-              <article>
-                <Blocks />
-                <strong>{props.addons.length}</strong>
-                <span>Add-ons imported</span>
-              </article>
-              <article>
-                <Radio />
-                <strong>{props.catalogCount}</strong>
-                <span>Catalogs available</span>
-              </article>
-            </div>
-          </>
-        )}
-        {step === 1 && (
-          <>
-            <KeyRound className="setup-hero-icon" />
-            <span className="eyebrow">HOW YOU WATCH</span>
-            <h1 id="setup-title">Choose your setup path</h1>
-            <p>
-              TikTak TV uses your own Nuvio add-ons and provider accounts. It
-              never gives a new account somebody else’s debrid or IPTV login.
-            </p>
-            <div className="setup-paths">
-              <button
-                className={path === "synced" ? "active" : ""}
-                onClick={() => setPath("synced")}
-              >
-                <Blocks />
-                <strong>Use my Nuvio setup</strong>
-                <small>
-                  Keep the add-ons and catalogs already synced to this profile.
-                </small>
-              </button>
-              <button
-                className={path === "debrid" ? "active" : ""}
-                onClick={() => setPath("debrid")}
-              >
-                <KeyRound />
-                <strong>Connect debrid</strong>
-                <small>
-                  Use your own TorBox or Real-Debrid account and configured
-                  scraper.
-                </small>
-              </button>
-              <button
-                className={path === "addon" ? "active" : ""}
-                onClick={() => setPath("addon")}
-              >
-                <Radio />
-                <strong>Install an add-on</strong>
-                <small>
-                  Add a manifest URL, test it, and choose its source priority.
-                </small>
-              </button>
-              <button
-                className={path === "browse" ? "active" : ""}
-                onClick={() => setPath("browse")}
-              >
-                <Sparkles />
-                <strong>Browse catalogs first</strong>
-                <small>
-                  Explore metadata now and connect a streaming source later.
-                </small>
-              </button>
-            </div>
-          </>
-        )}
-        {step === 2 && (
-          <>
-            <KeyRound className="setup-hero-icon" />
-            <span className="eyebrow">YOUR IMPORT</span>
-            <h1 id="setup-title">Account configuration imported</h1>
-            <div className="setup-list">
-              <div>
-                <CheckCircle2 />
-                <span>
-                  <strong>{props.addons.length} add-ons</strong>
-                  <small>Installed from this Nuvio profile</small>
-                </span>
+        <div className="setup-wizard-body">
+          {step === 0 && (
+            <>
+              <Sparkles className="setup-hero-icon" />
+              <span className="eyebrow">WELCOME TO TIKTAK TV</span>
+              <h1 id="setup-title">
+                Hi {props.profileName || "there"}. Let’s make sure you’re ready.
+              </h1>
+              <p>
+                Your Nuvio profile has been synced. This quick check confirms
+                your catalogs, streaming sources, and browser compatibility.
+              </p>
+              <div className="setup-summary">
+                <article>
+                  <Blocks />
+                  <strong>{props.addons.length}</strong>
+                  <span>Add-ons imported</span>
+                </article>
+                <article>
+                  <Radio />
+                  <strong>{props.catalogCount}</strong>
+                  <span>Catalogs available</span>
+                </article>
               </div>
-              <div>
-                <CheckCircle2 />
-                <span>
-                  <strong>{streamingAddons.length} streaming sources</strong>
-                  <small>Add-ons capable of returning playable results</small>
-                </span>
-              </div>
-              <div
-                className={
-                  props.torboxKey || props.realDebridKey ? "" : "warning"
-                }
-              >
-                <KeyRound />
-                <span>
-                  <strong>
-                    {props.torboxKey
-                      ? "TorBox connected"
-                      : props.realDebridKey
-                        ? "Real-Debrid connected"
-                        : "Debrid not connected"}
-                  </strong>
+            </>
+          )}
+          {step === 1 && (
+            <>
+              <KeyRound className="setup-hero-icon" />
+              <span className="eyebrow">HOW YOU WATCH</span>
+              <h1 id="setup-title">Choose your setup path</h1>
+              <p>
+                TikTak TV uses your own Nuvio add-ons and provider accounts. It
+                never gives a new account somebody else’s debrid or IPTV login.
+              </p>
+              <div className="setup-paths">
+                <button
+                  className={path === "synced" ? "active" : ""}
+                  onClick={() => setPath("synced")}
+                >
+                  <Blocks />
+                  <strong>Use my Nuvio setup</strong>
                   <small>
-                    {props.torboxKey || props.realDebridKey
-                      ? "Personal credentials restored securely"
-                      : "You can connect one in Settings or use a configured streaming add-on"}
+                    Keep the add-ons and catalogs already synced to this
+                    profile.
                   </small>
-                </span>
+                </button>
+                <button
+                  className={path === "debrid" ? "active" : ""}
+                  onClick={() => setPath("debrid")}
+                >
+                  <KeyRound />
+                  <strong>Connect debrid</strong>
+                  <small>
+                    Use your own TorBox or Real-Debrid account and configured
+                    scraper.
+                  </small>
+                </button>
+                <button
+                  className={path === "addon" ? "active" : ""}
+                  onClick={() => setPath("addon")}
+                >
+                  <Radio />
+                  <strong>Install an add-on</strong>
+                  <small>
+                    Add a manifest URL, test it, and choose its source priority.
+                  </small>
+                </button>
+                <button
+                  className={path === "browse" ? "active" : ""}
+                  onClick={() => setPath("browse")}
+                >
+                  <Sparkles />
+                  <strong>Browse catalogs first</strong>
+                  <small>
+                    Explore metadata now and connect a streaming source later.
+                  </small>
+                </button>
               </div>
-            </div>
-          </>
-        )}
-        {step === 3 && (
-          <>
-            <ShieldCheck className="setup-hero-icon" />
-            <span className="eyebrow">DEVICE CHECK</span>
-            <h1 id="setup-title">
-              {testing ? "Testing your setup…" : `${ready} checks ready`}
-            </h1>
-            <div className="setup-checks">
-              {testing && <span className="spinner" />}
-              {checks.map((check) => (
-                <div key={check.id} className={check.status}>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <KeyRound className="setup-hero-icon" />
+              <span className="eyebrow">YOUR IMPORT</span>
+              <h1 id="setup-title">Account configuration imported</h1>
+              <div className="setup-list">
+                <div>
                   <CheckCircle2 />
                   <span>
-                    <strong>{check.label}</strong>
-                    <small>{check.detail}</small>
+                    <strong>{props.addons.length} add-ons</strong>
+                    <small>Installed from this Nuvio profile</small>
                   </span>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-        {step === 4 && (
-          <>
-            <CheckCircle2 className="setup-hero-icon ready" />
-            <span className="eyebrow">READY TO STREAM</span>
-            <h1 id="setup-title">
-              {streamingAddons.length
-                ? "Your profile is ready"
-                : "Catalogs are ready"}
-            </h1>
-            <p>
-              {streamingAddons.length
-                ? "Press Play best stream on any title. TikTak TV will rank sources by quality and seeders, then automatically fall back if the first compatible source fails."
-                : "You can browse now. Install a streaming add-on and connect its required provider before pressing Play best stream."}
-            </p>
-            <div className="setup-ready-note">
-              <ShieldCheck />
-              <span>
-                Your credentials stay attached to your Nuvio account and are
-                never shared with other website users.
-              </span>
-            </div>
-          </>
-        )}
+                <div>
+                  <CheckCircle2 />
+                  <span>
+                    <strong>{streamingAddons.length} streaming sources</strong>
+                    <small>Add-ons capable of returning playable results</small>
+                  </span>
+                </div>
+                <div
+                  className={
+                    props.torboxKey || props.realDebridKey ? "" : "warning"
+                  }
+                >
+                  <KeyRound />
+                  <span>
+                    <strong>
+                      {props.torboxKey
+                        ? "TorBox connected"
+                        : props.realDebridKey
+                          ? "Real-Debrid connected"
+                          : "Debrid not connected"}
+                    </strong>
+                    <small>
+                      {props.torboxKey || props.realDebridKey
+                        ? "Personal credentials restored securely"
+                        : "You can connect one in Settings or use a configured streaming add-on"}
+                    </small>
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <ShieldCheck className="setup-hero-icon" />
+              <span className="eyebrow">DEVICE CHECK</span>
+              <h1 id="setup-title">
+                {testing ? "Testing your setup…" : `${ready} checks ready`}
+              </h1>
+              <div className="setup-checks">
+                {testing && <span className="spinner" />}
+                {checks.map((check) => (
+                  <div key={check.id} className={check.status}>
+                    <CheckCircle2 />
+                    <span>
+                      <strong>{check.label}</strong>
+                      <small>{check.detail}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {step === 4 && (
+            <>
+              <CheckCircle2 className="setup-hero-icon ready" />
+              <span className="eyebrow">READY TO STREAM</span>
+              <h1 id="setup-title">
+                {streamingAddons.length
+                  ? "Your profile is ready"
+                  : "Catalogs are ready"}
+              </h1>
+              <p>
+                {streamingAddons.length
+                  ? "Press Play best stream on any title. TikTak TV will rank sources by quality and seeders, then automatically fall back if the first compatible source fails."
+                  : "You can browse now. Install a streaming add-on and connect its required provider before pressing Play best stream."}
+              </p>
+              <div className="setup-ready-note">
+                <ShieldCheck />
+                <span>
+                  Your credentials stay attached to your Nuvio account and are
+                  never shared with other website users.
+                </span>
+              </div>
+            </>
+          )}
+        </div>
         <footer>
           <button onClick={props.onSettings}>Review settings</button>
           {step > 0 && (
@@ -256,6 +269,7 @@ export default function SetupWizard(props: {
           )}
           <button
             className="primary"
+            data-tv-initial-focus
             onClick={() =>
               step === 4 ? props.onComplete() : setStep((value) => value + 1)
             }

@@ -82,6 +82,65 @@ test("first visit offers Nuvio sign in and account creation", async ({
     page.getByText(/starts with Nuvio Catalog Addon.*OpenSubtitles v3/),
   ).toBeVisible();
 });
+test("TV sign-in and account creation remain inside a 720p viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() =>
+    localStorage.removeItem("tiktak:established-local"),
+  );
+  await page.goto("/?tv=1#home");
+  const card = page.locator(".profile-auth-card");
+  await expect(card).toBeVisible();
+  await expect(card).toBeInViewport();
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByLabel("Confirm password")).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Create free account" }),
+  ).toBeInViewport();
+});
+
+test("TV onboarding traps remote focus and keeps its controls visible", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1152, height: 648 });
+  await page.goto("/?tv=1#home");
+  await page.evaluate(() => {
+    const background = document.createElement("button");
+    background.id = "behind-modal";
+    background.textContent = "Behind modal";
+    document.body.append(background);
+    const backdrop = document.createElement("div");
+    backdrop.className = "setup-wizard-backdrop";
+    backdrop.innerHTML = `
+      <section class="setup-wizard" role="dialog" aria-modal="true" aria-label="Health check">
+        <div class="setup-progress">${"<span></span>".repeat(5)}</div>
+        <div class="setup-wizard-body">
+          <h1>Let's make sure you're ready</h1>
+          <div class="setup-checks">${"<div><span><strong>Ready</strong><small>Health check detail</small></span></div>".repeat(12)}</div>
+        </div>
+        <footer>
+          <button>Review settings</button>
+          <button class="primary" data-tv-initial-focus>Continue</button>
+        </footer>
+      </section>`;
+    document.body.append(backdrop);
+  });
+  const wizard = page.getByRole("dialog", { name: "Health check" });
+  const next = wizard.getByRole("button", { name: "Continue" });
+  await expect(wizard).toBeInViewport();
+  await expect(next).toBeInViewport();
+  await expect(next).toBeFocused();
+  const scrollBefore = await page.evaluate(() => scrollY);
+  await page.keyboard.press("ArrowDown");
+  await expect(next).toBeFocused();
+  expect(await page.evaluate(() => scrollY)).toBe(scrollBefore);
+  await page.keyboard.press("ArrowLeft");
+  await expect(
+    wizard.getByRole("button", { name: "Review settings" }),
+  ).toBeFocused();
+  await expect(page.locator("#behind-modal")).not.toBeFocused();
+});
 test("a clean profile starts without another user's IPTV connection", async ({
   page,
 }) => {

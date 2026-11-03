@@ -45,6 +45,16 @@ jobs:
           "${apksigner}" verify --verbose --print-certs "${apk}"
           cp "${apk}" tiktak-tv-android-tv.apk
           sha256sum tiktak-tv-android-tv.apk > tiktak-tv-android-tv.apk.sha256
+          aapt="$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -1)"
+          badging="$("${aapt}" dump badging "${apk}" | head -1)"
+          version_code="$(printf '%s' "${badging}" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
+          version_name="$(printf '%s' "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+          sha256="$(cut -d ' ' -f1 tiktak-tv-android-tv.apk.sha256)"
+          test -n "${version_code}"
+          test -n "${version_name}"
+          cat > tiktak-tv-android-tv.json <<JSON
+          {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk","sha256":"${sha256}"}
+          JSON
       - name: Publish stable Downloader asset
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,6 +69,7 @@ jobs:
           gh release upload tv-latest \
             tiktak-tv-android-tv.apk \
             tiktak-tv-android-tv.apk.sha256 \
+            tiktak-tv-android-tv.json \
             --clobber
       - name: Upload signed APK evidence
         uses: actions/upload-artifact@v7
@@ -67,5 +78,6 @@ jobs:
           path: |
             tiktak-tv-android-tv.apk
             tiktak-tv-android-tv.apk.sha256
+            tiktak-tv-android-tv.json
           if-no-files-found: error
           retention-days: 30

@@ -18,8 +18,17 @@ function visible(element: HTMLElement) {
   );
 }
 
-function candidates() {
-  return [...document.querySelectorAll<HTMLElement>(selector)].filter(visible);
+function activeModal() {
+  const modals = [
+    ...document.querySelectorAll<HTMLElement>(
+      "dialog[open], [role='dialog'][aria-modal='true']",
+    ),
+  ].filter(visible);
+  return modals.at(-1) ?? null;
+}
+
+function candidates(scope: ParentNode = activeModal() ?? document) {
+  return [...scope.querySelectorAll<HTMLElement>(selector)].filter(visible);
 }
 
 function center(rect: DOMRect) {
@@ -27,7 +36,8 @@ function center(rect: DOMRect) {
 }
 
 function move(direction: "left" | "right" | "up" | "down") {
-  const items = candidates();
+  const modal = activeModal();
+  const items = candidates(modal ?? document);
   if (!items.length) return false;
   const active = document.activeElement as HTMLElement | null;
   if (!active || !items.includes(active)) {
@@ -49,7 +59,9 @@ function move(direction: "left" | "right" | "up" | "down") {
     })
     .filter(({ primary }) => (positive ? primary > 4 : primary < -4))
     .sort((left, right) => left.score - right.score)[0]?.item;
-  if (!next) return false;
+  // Keep arrows inside a modal at its edges so WebView cannot scroll the page
+  // behind the modal.
+  if (!next) return !!modal;
   next.focus({ preventScroll: false });
   next.scrollIntoView({
     block: "nearest",
@@ -65,6 +77,27 @@ export function enableTvNavigation() {
     params.get("tv") === "1" || /TikTakTV-AndroidTV/i.test(navigator.userAgent);
   if (!enabled) return;
   document.documentElement.classList.add("tv-mode");
+  let previousModal: HTMLElement | null = null;
+  const focusModal = () => {
+    const modal = activeModal();
+    if (!modal || modal === previousModal) return;
+    previousModal = modal;
+    const target =
+      modal.querySelector<HTMLElement>(
+        "[data-tv-initial-focus]:not([disabled])",
+      ) ?? candidates(modal)[0];
+    target?.focus({ preventScroll: false });
+  };
+  const observer = new MutationObserver(() => {
+    if (!activeModal()) previousModal = null;
+    requestAnimationFrame(focusModal);
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["open", "aria-modal"],
+  });
   document.addEventListener("keydown", (event) => {
     const active = document.activeElement;
     if (
@@ -92,6 +125,7 @@ export function enableTvNavigation() {
         document.activeElement === document.body
       )
         candidates()[0]?.focus({ preventScroll: false });
+      focusModal();
     },
     { once: true },
   );
