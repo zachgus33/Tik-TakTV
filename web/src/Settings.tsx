@@ -53,6 +53,8 @@ type Props = {
   profileName: string;
   provider: Provider | null;
   onProvider: (p: Provider | null) => void;
+  epgUrl: string;
+  onEpgUrl: (url: string) => void;
   addons: Addon[];
   onAddons: (a: Addon[]) => void;
   onPlaylist: (items: Item[]) => void;
@@ -147,12 +149,14 @@ export default function Settings(props: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [remember, setRemember] = useState(false);
+  const [epgDraft, setEpgDraft] = useState(props.epgUrl);
   const [sourcePreferences, setSourcePreferences] = useState(streamPreferences);
   const [friendStatus, setFriendStatus] = useState<{
     available: boolean;
     owner: boolean;
     published: boolean;
   } | null>(null);
+  useEffect(() => setEpgDraft(props.epgUrl), [props.epgUrl]);
   useEffect(() => {
     if (!props.playbackConnected) {
       setFriendStatus(null);
@@ -797,6 +801,79 @@ export default function Settings(props: Props) {
                 </p>
               </details>
             </section>
+            <section className="settings-card">
+              <div className="card-heading">
+                <Radio />
+                <div>
+                  <h2>Program guide</h2>
+                  <p>
+                    Add an optional XMLTV/EPG URL for Xtream or M3U channels.
+                  </p>
+                </div>
+                {props.epgUrl && (
+                  <span className="badge connected">Custom guide</span>
+                )}
+              </div>
+              <form
+                className="inline-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = epgDraft.trim();
+                  if (!value) {
+                    props.onEpgUrl("");
+                    setSuccess(
+                      "Custom guide removed. Xtream will use its automatic guide.",
+                    );
+                    return;
+                  }
+                  const url = safeUrl(value);
+                  if (!url) {
+                    setError("Use a valid HTTPS XMLTV/EPG URL.");
+                    return;
+                  }
+                  props.onEpgUrl(url);
+                  setEpgDraft(url);
+                  setError("");
+                  setSuccess(
+                    "Program guide saved. Live TV will match channels by their TVG ID and name.",
+                  );
+                }}
+              >
+                <label className="grow">
+                  EPG / XMLTV URL
+                  <input
+                    name="epg"
+                    type="url"
+                    value={epgDraft}
+                    onChange={(event) => setEpgDraft(event.target.value)}
+                    placeholder="https://example.com/guide.xml"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </label>
+                <button>Save guide</button>
+                {(epgDraft || props.epgUrl) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEpgDraft("");
+                      props.onEpgUrl("");
+                      setSuccess(
+                        "Custom guide removed. Xtream will use its automatic guide.",
+                      );
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </form>
+              <p className="hint">
+                TikTak TV loads the guide through your companion when available,
+                then falls back to a direct HTTPS request. M3U channels should
+                include tvg-id values for the most accurate matching.
+              </p>
+            </section>
           </div>
           <div hidden={section !== "addons"}>
             <section className="settings-card">
@@ -1082,6 +1159,7 @@ export default function Settings(props: Props) {
               collections={props.collections}
               library={props.library}
               provider={props.provider}
+              epgUrl={props.epgUrl}
               torboxKey={props.torboxKey}
               realDebridKey={props.realDebridKey}
               autoplay={props.autoplay}
@@ -1093,6 +1171,7 @@ export default function Settings(props: Props) {
                 const summary = await props.onRestore(setup.transfer);
                 storeProvider(setup.provider, true);
                 props.onProvider(setup.provider);
+                props.onEpgUrl(setup.epgUrl);
                 save("torbox-key", setup.torboxKey);
                 sessionStorage.removeItem("nuvio:torbox-key");
                 props.onTorboxKey(setup.torboxKey);

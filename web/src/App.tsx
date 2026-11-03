@@ -1632,6 +1632,7 @@ export default function App() {
   const [page, setPage] = useState<Page>(route);
   const [collectionBrowsing, setCollectionBrowsing] = useState(false);
   const [provider, setProvider] = useState<Provider | null>(getProvider);
+  const [epgUrl, setEpgUrl] = useStored("epg-url", "");
   const [addons, setAddons] = useStored<Addon[]>("addons", defaultAddons);
   const [library, setLibrary] = useStored<Item[]>("library", []);
   const [accent, setAccent] = useStored("accent", "#9b5cff");
@@ -1691,6 +1692,7 @@ export default function App() {
     save("progress", s.progress);
     setProvider(s.provider);
     storeProvider(s.provider, true);
+    setEpgUrl(s.epgUrl ?? "");
     setTorboxKey(s.torboxKey);
     save("torbox-key", s.torboxKey);
     sessionStorage.removeItem("nuvio:torbox-key");
@@ -2171,6 +2173,7 @@ export default function App() {
     page === "live" ? filtered : [],
     activeChannel,
     revision,
+    epgUrl,
   );
   const guideChannels = useMemo(
     () =>
@@ -2264,6 +2267,7 @@ export default function App() {
               library: [],
               progress: [],
               provider: null,
+              epgUrl: "",
               torboxKey: "",
               realDebridKey: "",
               autoplay: true,
@@ -2917,12 +2921,16 @@ export default function App() {
                   )}
                   <p className="guide-status" role="status">
                     {guideState.loading
-                      ? "Loading your Xtream guide automatically..."
+                      ? epgUrl
+                        ? "Loading your custom program guide..."
+                        : "Loading your Xtream guide automatically..."
                       : guideState.count
                         ? `Guide ready - ${guideState.count.toLocaleString()} channel guides`
-                        : "Loading available channel guides..."}
+                        : "No program guide data matched these channels yet."}
                     {guideState.fallback
-                      ? " - Using per-channel guide data"
+                      ? provider
+                        ? " - Using per-channel guide data"
+                        : " - Check the EPG URL and channel TVG IDs"
                       : ""}
                   </p>
                   {!loading && guideChannels.length > 0 && (
@@ -3104,6 +3112,7 @@ export default function App() {
                     library,
                     progress,
                     provider,
+                    epgUrl,
                     torboxKey,
                     realDebridKey,
                     autoplay,
@@ -3117,6 +3126,7 @@ export default function App() {
                     clearAccountStorage();
                     clearSourceCache();
                     setProvider(null);
+                    setEpgUrl("");
                     setAddons(defaultAddons);
                     setCollections([]);
                     setLibrary([]);
@@ -3143,6 +3153,8 @@ export default function App() {
                 <Settings
                   profileName={activeProfileView?.name ?? ""}
                   provider={provider}
+                  epgUrl={epgUrl}
+                  onEpgUrl={setEpgUrl}
                   onProvider={(p) => {
                     setProvider(p);
                     setCategory("");

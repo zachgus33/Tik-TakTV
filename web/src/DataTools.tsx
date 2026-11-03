@@ -22,6 +22,7 @@ export default function DataTools(props: {
   collections: Collection[];
   library: Item[];
   provider: Provider | null;
+  epgUrl: string;
   torboxKey: string;
   realDebridKey: string;
   autoplay: boolean;
@@ -51,7 +52,9 @@ export default function DataTools(props: {
     try {
       const incoming = parseCollections(payload);
       props.onCollections(mergeCollections(props.collections, incoming));
-      setStatus(`Imported ${incoming.length} collections. Open My library to browse or edit them.`);
+      setStatus(
+        `Imported ${incoming.length} collections. Open My library to browse or edit them.`,
+      );
       setText("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Import failed.");
@@ -64,8 +67,16 @@ export default function DataTools(props: {
         Bring over Nuvio collection JSON and configured add-ons. Sign in to your
         Nuvio account for automatic profile sync, or use these manual tools.
       </p>
-      {error && <div className="error" role="alert">{error}</div>}
-      {status && <div className="success" role="status">{status}</div>}
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
+      {status && (
+        <div className="success" role="status">
+          {status}
+        </div>
+      )}
       <div className="actions">
         <label className="button file-button">
           Import collections
@@ -85,7 +96,11 @@ export default function DataTools(props: {
             }}
           />
         </label>
-        <button onClick={() => downloadJson("nuvio-collections.json", props.collections)}>
+        <button
+          onClick={() =>
+            downloadJson("nuvio-collections.json", props.collections)
+          }
+        >
           Export collections
         </button>
       </div>
@@ -140,32 +155,40 @@ export default function DataTools(props: {
       <div className="actions">
         <button
           disabled={busy || passphrase.length < 12}
-          onClick={() => void (async () => {
-            setError("");
-            setStatus("");
-            if (passphrase !== confirmation) {
-              setError("The backup passphrases do not match.");
-              return;
-            }
-            setBusy(true);
-            try {
-              const encrypted = await encryptSetup({
-                transfer: transfer(),
-                provider: props.provider,
-                torboxKey: props.torboxKey,
-                realDebridKey: props.realDebridKey,
-                autoplay: props.autoplay,
-                homeCatalogs: props.homeCatalogs,
-                tmdbKey: props.tmdbKey,
-              }, passphrase);
-              downloadText("tiktak-tv-encrypted-backup.json", encrypted);
-              setStatus("Encrypted full backup downloaded.");
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : "Backup failed.");
-            } finally {
-              setBusy(false);
-            }
-          })()}
+          onClick={() =>
+            void (async () => {
+              setError("");
+              setStatus("");
+              if (passphrase !== confirmation) {
+                setError("The backup passphrases do not match.");
+                return;
+              }
+              setBusy(true);
+              try {
+                const encrypted = await encryptSetup(
+                  {
+                    transfer: transfer(),
+                    provider: props.provider,
+                    epgUrl: props.epgUrl,
+                    torboxKey: props.torboxKey,
+                    realDebridKey: props.realDebridKey,
+                    autoplay: props.autoplay,
+                    homeCatalogs: props.homeCatalogs,
+                    tmdbKey: props.tmdbKey,
+                  },
+                  passphrase,
+                );
+                downloadText("tiktak-tv-encrypted-backup.json", encrypted);
+                setStatus("Encrypted full backup downloaded.");
+              } catch (cause) {
+                setError(
+                  cause instanceof Error ? cause.message : "Backup failed.",
+                );
+              } finally {
+                setBusy(false);
+              }
+            })()
+          }
         >
           {busy ? "Working…" : "Export encrypted full backup"}
         </button>
@@ -184,13 +207,19 @@ export default function DataTools(props: {
               setError("");
               setStatus("");
               try {
-                if (!passphrase) throw new Error("Enter the backup passphrase first.");
-                if (file.size > 10_000_000) throw new Error("Choose a backup smaller than 10 MB.");
-                setStatus(await props.onSecureRestore(
-                  await decryptSetup(await file.text(), passphrase),
-                ));
+                if (!passphrase)
+                  throw new Error("Enter the backup passphrase first.");
+                if (file.size > 10_000_000)
+                  throw new Error("Choose a backup smaller than 10 MB.");
+                setStatus(
+                  await props.onSecureRestore(
+                    await decryptSetup(await file.text(), passphrase),
+                  ),
+                );
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : "Restore failed.");
+                setError(
+                  cause instanceof Error ? cause.message : "Restore failed.",
+                );
               } finally {
                 setBusy(false);
               }
@@ -202,10 +231,13 @@ export default function DataTools(props: {
         <summary>Legacy backup without credentials</summary>
         <p className="hint">
           This older format excludes debrid and Live TV credentials. Configured
-          add-on URLs can still contain private tokens, so keep the file private.
+          add-on URLs can still contain private tokens, so keep the file
+          private.
         </p>
         <div className="actions">
-          <button onClick={() => downloadJson("nuvio-web-backup.json", transfer())}>
+          <button
+            onClick={() => downloadJson("nuvio-web-backup.json", transfer())}
+          >
             Export legacy backup
           </button>
           <label className="button file-button">
@@ -222,9 +254,13 @@ export default function DataTools(props: {
                 setBusy(true);
                 setError("");
                 try {
-                  setStatus(await props.onRestore(parseTransfer(await file.text())));
+                  setStatus(
+                    await props.onRestore(parseTransfer(await file.text())),
+                  );
                 } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : "Restore failed.");
+                  setError(
+                    cause instanceof Error ? cause.message : "Restore failed.",
+                  );
                 } finally {
                   setBusy(false);
                 }

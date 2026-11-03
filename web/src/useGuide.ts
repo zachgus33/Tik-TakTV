@@ -27,7 +27,18 @@ export function useGuide(
   visible: Item[],
   active: Item | null,
   revision: number,
+  customUrl = "",
 ) {
+  const guideUrl = customUrl.trim();
+  const scope = useMemo(
+    () =>
+      provider
+        ? `${provider.scope}${guideUrl ? `:${urlFingerprint(guideUrl)}` : ""}`
+        : guideUrl
+          ? `playlist:${urlFingerprint(guideUrl)}`
+          : "",
+    [guideUrl, provider],
+  );
   const [state, setState] = useState<State>(empty);
   const [now, setNow] = useState(Date.now());
   const [refresh, setRefresh] = useState(0);
@@ -42,11 +53,11 @@ export function useGuide(
     };
   }, []);
   useEffect(() => {
-    if (!provider) {
+    if (!scope) {
       setState(empty);
       return;
     }
-    const reset = { ...empty, scope: provider.scope, loading: true };
+    const reset = { ...empty, scope, loading: true };
     stateRef.current = reset;
     setState(reset);
     const worker = new Worker(new URL("./guide.worker.ts", import.meta.url), {
@@ -54,13 +65,13 @@ export function useGuide(
     });
     let stopped = false;
     const controller = new AbortController();
-    const cacheKey = `guide:${provider.scope}`;
+    const cacheKey = `guide:${scope}`;
     void readLiveCache<Pick<State, "xml" | "channels" | "aliases">>(
       cacheKey,
     ).then((cached) => {
       if (!stopped && cached)
         setState((s) =>
-          s.scope === provider.scope ? { ...s, ...cached, loading: true } : s,
+          s.scope === scope ? { ...s, ...cached, loading: true } : s,
         );
     });
     let acknowledge: (() => void) | undefined;
@@ -108,10 +119,6 @@ export function useGuide(
       unavailable();
       worker.terminate();
     };
-    const query = new URLSearchParams({
-      username: provider.username,
-      password: provider.password,
-    });
     async function send(message: { start?: boolean; chunk?: string }) {
       await new Promise<void>((resolve) => {
         acknowledge = resolve;
@@ -121,7 +128,16 @@ export function useGuide(
     async function load() {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
-        const url = `${provider!.server}/xmltv.php?${query}`;
+        const query = provider
+          ? new URLSearchParams({
+              username: provider.username,
+              password: provider.password,
+            })
+          : undefined;
+        const url =
+          guideUrl ||
+          (provider && query ? `${provider.server}/xmltv.php?${query}` : "");
+        if (!url) throw new Error("Guide unavailable");
         const service = getService();
         let response = service
           ? await serviceRequest("/guide", { url }, controller.signal, service)
@@ -178,12 +194,14 @@ export function useGuide(
       clearTimeout(timer);
       worker.terminate();
     };
-  }, [provider, revision, refresh]);
+  }, [guideUrl, provider, revision, refresh, scope]);
   const ids = useMemo(
     () => [
       ...new Map(
         [...(active ? [active] : []), ...visible]
-          .filter((i) => i.source === "xtream" && i.provider === provider?.scope)
+          .filter(
+            (i) => i.source === "xtream" && i.provider === provider?.scope,
+          )
           .map((i) => [i.id, i]),
       ).values(),
     ],
@@ -277,7 +295,7 @@ export function useGuide(
     state.scope,
     state.fallback,
   ]);
-  const valid = state.scope === provider?.scope ? state : empty;
+  const valid = state.scope === scope ? state : empty;
   const aliasIndex = useMemo(() => {
     const index = new Map<string, string>();
     for (const [alias, id] of Object.entries(valid.aliases))
@@ -316,4 +334,13 @@ function normalizeGuideName(value: string) {
     .replace(/^\s*[a-z]{2,3}\s*[|:\-]\s*/i, "")
     .replace(/\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\b/gi, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function urlFingerprint(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }

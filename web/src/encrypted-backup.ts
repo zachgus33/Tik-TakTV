@@ -8,6 +8,7 @@ const ITERATIONS = 310_000;
 export type SecureSetup = {
   transfer: Transfer;
   provider: Provider | null;
+  epgUrl: string;
   torboxKey: string;
   realDebridKey: string;
   autoplay: boolean;
@@ -34,7 +35,11 @@ const base64ToBytes = (value: string) => {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 };
 const buffer = (value: Uint8Array) => value.slice().buffer as ArrayBuffer;
-async function keyFor(passphrase: string, salt: Uint8Array, iterations: number) {
+async function keyFor(
+  passphrase: string,
+  salt: Uint8Array,
+  iterations: number,
+) {
   const material = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(passphrase),
@@ -80,7 +85,10 @@ export async function encryptSetup(setup: SecureSetup, passphrase: string) {
   );
 }
 
-export async function decryptSetup(text: string, passphrase: string): Promise<SecureSetup> {
+export async function decryptSetup(
+  text: string,
+  passphrase: string,
+): Promise<SecureSetup> {
   let envelope: Envelope;
   try {
     envelope = JSON.parse(text) as Envelope;
@@ -112,12 +120,14 @@ export async function decryptSetup(text: string, passphrase: string): Promise<Se
     const transfer = parseTransfer(JSON.stringify(raw.transfer));
     if (
       raw.provider !== null &&
-      (typeof raw.provider !== "object" || typeof raw.provider.server !== "string")
+      (typeof raw.provider !== "object" ||
+        typeof raw.provider.server !== "string")
     )
       throw new Error("invalid provider");
     return {
       transfer,
       provider: raw.provider ?? null,
+      epgUrl: typeof raw.epgUrl === "string" ? raw.epgUrl : "",
       torboxKey: typeof raw.torboxKey === "string" ? raw.torboxKey : "",
       realDebridKey:
         typeof raw.realDebridKey === "string" ? raw.realDebridKey : "",
@@ -129,4 +139,3 @@ export async function decryptSetup(text: string, passphrase: string): Promise<Se
     throw new Error("The passphrase is incorrect or the backup is damaged.");
   }
 }
-

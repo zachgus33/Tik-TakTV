@@ -133,6 +133,7 @@ describe("encrypted setup backups", () => {
         username: "friend",
         password: "private-password",
       },
+      epgUrl: "https://guide.example/epg.xml?token=private-epg",
       torboxKey: "private-torbox",
       realDebridKey: "private-rd",
       autoplay: true,
@@ -142,6 +143,7 @@ describe("encrypted setup backups", () => {
     const encrypted = await encryptSetup(setup, "correct horse battery staple");
     expect(encrypted).not.toContain("private-torbox");
     expect(encrypted).not.toContain("private-password");
+    expect(encrypted).not.toContain("private-epg");
     expect(
       await decryptSetup(encrypted, "correct horse battery staple"),
     ).toEqual(setup);

@@ -583,6 +583,51 @@ test("channels without guide data stay out of the live guide", async ({
   await expect(page.locator(".tv-guide-row")).toHaveCount(0);
 });
 
+test("custom XMLTV URL supplies guide data for an imported M3U playlist", async ({
+  page,
+}) => {
+  const xmlTime = (date: Date) =>
+    date.toISOString().replace(/[-:T]/g, "").slice(0, 14) + " +0000";
+  const now = Date.now();
+  await page.route("https://guide.example/epg.xml", (route) =>
+    route.fulfill({
+      contentType: "application/xml",
+      body: `<?xml version="1.0"?><tv>
+        <channel id="test.channel"><display-name>Custom News</display-name></channel>
+        <programme channel="test.channel" start="${xmlTime(new Date(now - 60_000))}" stop="${xmlTime(new Date(now + 60 * 60_000))}">
+          <title>Current show</title><desc>Custom XMLTV programme</desc>
+        </programme>
+      </tv>`,
+    }),
+  );
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
+  await page
+    .getByLabel("EPG / XMLTV URL")
+    .fill("https://guide.example/epg.xml");
+  await page.getByRole("button", { name: "Save guide" }).click();
+  await expect(page.getByRole("status")).toContainText("Program guide saved");
+  await page.getByLabel("Import M3U playlist").setInputFiles({
+    name: "channels.m3u",
+    mimeType: "audio/x-mpegurl",
+    buffer: Buffer.from(
+      '#EXTM3U\n#EXTINF:-1 tvg-id="test.channel" group-title="News",Custom News\nhttps://stream.example/news.m3u8',
+    ),
+  });
+  await page.goto("/#live");
+  const guideRow = page.locator(".tv-guide-row").filter({
+    hasText: "Custom News",
+  });
+  await expect(guideRow).toContainText("Current show");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("nuvio:epg-url") || '""'),
+      ),
+    )
+    .toBe("https://guide.example/epg.xml");
+});
+
 test("imports native collections and opens their addon catalogs", async ({
   page,
 }) => {

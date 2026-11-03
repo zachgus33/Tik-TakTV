@@ -41,6 +41,7 @@ export type Setup = {
   library: Item[];
   progress: Progress[];
   provider: Provider | null;
+  epgUrl?: string;
   torboxKey: string;
   realDebridKey: string;
   autoplay: boolean;
@@ -398,6 +399,7 @@ export async function loadSetup(
           : [],
       progress: mergedProgress,
       provider: sharedProvider,
+      epgUrl: safeUrl(web.epgUrl) ?? "",
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
       realDebridKey:
         typeof realDebridKey === "string" && realDebridKey

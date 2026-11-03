@@ -58,6 +58,7 @@ const accountScopedKeys = [
   "realdebrid-key",
   "playback-service",
   "provider",
+  "epg-url",
   "home-catalogs",
   "tmdb-key",
   "discovered-url",
