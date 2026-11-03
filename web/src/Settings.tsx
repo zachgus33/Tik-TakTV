@@ -20,7 +20,13 @@ import {
   Trash2,
   UsersRound,
 } from "lucide-react";
-import { connectProvider, installAddon, parsePlaylist, safeUrl } from "./api";
+import {
+  connectProvider,
+  installAddon,
+  parsePlaylist,
+  safeSourceUrl,
+  safeUrl,
+} from "./api";
 import { storeProvider, save } from "./storage";
 import type { Addon, Item, Provider } from "./types";
 import { type Collection, type Transfer, addonUrls } from "./collections";
@@ -33,6 +39,7 @@ import {
   publishFriendSetup,
   redeemFriendSetup,
   revokeFriendSetup,
+  sourceFetch,
 } from "./connection";
 import type { HomeCatalogSetting } from "./account";
 import CatalogManager from "./CatalogManager";
@@ -742,7 +749,7 @@ export default function Settings(props: Props) {
                     <input
                       name="server"
                       type="url"
-                      placeholder="https://your-provider.com:443"
+                      placeholder="http://your-provider.com:8080"
                       required
                       autoCapitalize="none"
                       autoCorrect="off"
@@ -790,14 +797,12 @@ export default function Settings(props: Props) {
                 </button>
               </form>
               <details>
-                <summary>Will my provider work in Safari?</summary>
+                <summary>Will HTTP IPTV work in a browser?</summary>
                 <p>
-                  Your provider’s API needs HTTPS and CORS permission for this
-                  site. Live TV requests HLS (.m3u8). H.264 video with AAC audio
-                  has broad compatibility. A static host cannot convert
-                  incompatible codecs, add forbidden request headers, or bypass
-                  blocked API access. Test & connect verifies API access; actual
-                  playback must be tested with a channel.
+                  Yes. Signed-in users send HTTP provider API and media requests
+                  through TikTak TV’s HTTPS companion. H.264 video with AAC
+                  audio has broad compatibility, and the companion converts
+                  sources that the browser cannot play directly.
                 </p>
               </details>
             </section>
@@ -826,9 +831,9 @@ export default function Settings(props: Props) {
                     );
                     return;
                   }
-                  const url = safeUrl(value);
+                  const url = safeSourceUrl(value);
                   if (!url) {
-                    setError("Use a valid HTTPS XMLTV/EPG URL.");
+                    setError("Use a valid HTTP or HTTPS XMLTV/EPG URL.");
                     return;
                   }
                   props.onEpgUrl(url);
@@ -1197,9 +1202,69 @@ export default function Settings(props: Props) {
                 <Globe2 />
                 <div>
                   <h2>Playlists & direct streams</h2>
-                  <p>Open your own M3U playlist or HTTPS video.</p>
+                  <p>Open an M3U playlist or HTTP/HTTPS video.</p>
                 </div>
               </div>
+              <form
+                className="inline-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = event.currentTarget;
+                  const url = safeSourceUrl(
+                    new FormData(form).get("playlist-url"),
+                  );
+                  if (!url) {
+                    setError("Use a valid HTTP or HTTPS M3U playlist URL.");
+                    return;
+                  }
+                  void run("playlist", async () => {
+                    const response = await sourceFetch(url, {
+                      cache: "no-store",
+                      credentials: "omit",
+                      referrerPolicy: "no-referrer",
+                    });
+                    if (!response.ok)
+                      throw new Error(
+                        `The playlist returned HTTP ${response.status}.`,
+                      );
+                    const declared = Number(
+                      response.headers.get("content-length") ?? 0,
+                    );
+                    if (declared > 15_000_000)
+                      throw new Error("Choose a playlist smaller than 15 MB.");
+                    const text = await response.text();
+                    if (text.length > 15_000_000)
+                      throw new Error("Choose a playlist smaller than 15 MB.");
+                    const digest = await crypto.subtle.digest(
+                      "SHA-256",
+                      new TextEncoder().encode(text),
+                    );
+                    const scope = Array.from(new Uint8Array(digest))
+                      .map((value) => value.toString(16).padStart(2, "0"))
+                      .join("");
+                    const items = parsePlaylist(text, scope);
+                    props.onPlaylist(items);
+                    setSuccess(
+                      `${items.length.toLocaleString()} channels imported from the playlist URL.`,
+                    );
+                    form.reset();
+                  });
+                }}
+              >
+                <label className="grow">
+                  M3U playlist URL
+                  <input
+                    name="playlist-url"
+                    type="url"
+                    placeholder="http://provider.example/get.php?..."
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    required
+                  />
+                </label>
+                <button disabled={!!busy}>Import URL</button>
+              </form>
               <label className="button file-button">
                 Import M3U playlist
                 <input
@@ -1225,7 +1290,7 @@ export default function Settings(props: Props) {
                       const items = parsePlaylist(text, scope);
                       props.onPlaylist(items);
                       setSuccess(
-                        `${items.length.toLocaleString()} HTTPS channels imported for this session.`,
+                        `${items.length.toLocaleString()} channels imported for this session.`,
                       );
                     });
                     e.target.value = "";
@@ -1236,11 +1301,11 @@ export default function Settings(props: Props) {
                 className="inline-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const url = safeUrl(
+                  const url = safeSourceUrl(
                     new FormData(e.currentTarget).get("stream"),
                   );
                   if (!url) {
-                    setError("Use a valid HTTPS video URL.");
+                    setError("Use a valid HTTP or HTTPS video URL.");
                     return;
                   }
                   props.onStream(url);
@@ -1251,7 +1316,7 @@ export default function Settings(props: Props) {
                   <input
                     name="stream"
                     type="url"
-                    placeholder="https://example.com/video.m3u8"
+                    placeholder="http://example.com/video.m3u8"
                     required
                     autoCapitalize="none"
                     autoCorrect="off"

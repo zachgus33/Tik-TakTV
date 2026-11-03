@@ -8,11 +8,10 @@ const selector = [
 ].join(",");
 
 function visible(element: HTMLElement) {
-  const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
   return (
-    rect.width > 0 &&
-    rect.height > 0 &&
+    element.offsetWidth > 0 &&
+    element.offsetHeight > 0 &&
     style.visibility !== "hidden" &&
     style.display !== "none"
   );
@@ -29,6 +28,53 @@ function activeModal() {
 
 function candidates(scope: ParentNode = activeModal() ?? document) {
   return [...scope.querySelectorAll<HTMLElement>(selector)].filter(visible);
+}
+
+const navigationGroupSelector = [
+  ".sidebar",
+  ".topbar",
+  ".hero",
+  ".quick-strip",
+  ".media-row",
+  ".filter-toolbar",
+  ".recent-channels",
+  ".tv-guide-heading",
+  ".tv-guide-row",
+  ".settings-card",
+  ".setup-paths",
+  ".setup-checks",
+  "footer",
+].join(",");
+
+function directionalCandidates(
+  active: HTMLElement,
+  direction: "left" | "right" | "up" | "down",
+  scope: HTMLElement | Document,
+) {
+  if (scope !== document) return candidates(scope);
+  const group = active.closest<HTMLElement>(navigationGroupSelector);
+  if (!group) return candidates(document);
+  if (direction === "left" || direction === "right") {
+    const local = candidates(group);
+    // Moving right from the navigation rail must still be able to enter the
+    // page. That is the only horizontal move that needs the whole document.
+    if (group.matches(".sidebar") && direction === "right")
+      return candidates(document);
+    return local;
+  }
+  const groups = [
+    ...document.querySelectorAll<HTMLElement>(navigationGroupSelector),
+  ].filter(
+    (entry) =>
+      entry === group || !entry.parentElement?.closest(navigationGroupSelector),
+  );
+  const index = groups.indexOf(group);
+  const step = direction === "down" ? 1 : -1;
+  const nearby = [group, groups[index + step], groups[index + step * 2]].filter(
+    (entry): entry is HTMLElement => !!entry,
+  );
+  const result = nearby.flatMap((entry) => candidates(entry));
+  return result.length ? [...new Set(result)] : candidates(document);
 }
 
 function center(rect: DOMRect) {
@@ -82,9 +128,13 @@ function scrollPage(direction: "left" | "right" | "up" | "down") {
 
 function move(direction: "left" | "right" | "up" | "down") {
   const modal = activeModal();
-  const items = candidates(modal ?? document);
-  if (!items.length) return false;
+  const scope = modal ?? document;
   const active = document.activeElement as HTMLElement | null;
+  const items =
+    active && active !== document.body
+      ? directionalCandidates(active, direction, scope)
+      : candidates(scope);
+  if (!items.length) return false;
   if (!active || !items.includes(active)) {
     items[0].focus({ preventScroll: false });
     return true;

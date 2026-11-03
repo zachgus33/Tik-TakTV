@@ -5512,3 +5512,161 @@ button.primary:hover,
   background: rgba(14, 12, 19, 0.98);
   box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.28);
 }
+
+/* Android TV WebViews commonly expose a 960x540 CSS viewport even on a
+   1080p panel. Keep the ten-foot layout independent from tablet breakpoints. */
+@media (max-height: 700px) and (min-width: 801px) {
+  .tv-mode .sidebar {
+    width: 212px;
+    padding: 20px 15px 18px;
+  }
+  .tv-mode .main-shell {
+    margin-left: 212px;
+  }
+  .tv-mode .brand {
+    gap: 9px;
+    margin: 0 5px 23px;
+    font-size: 21px;
+  }
+  .tv-mode .brand img {
+    width: 40px;
+    height: 40px;
+  }
+  .tv-mode .brand small {
+    margin-top: 6px;
+    font-size: 7px;
+  }
+  .tv-mode .nav-label {
+    margin: 0 10px 9px;
+  }
+  .tv-mode .sidebar nav {
+    gap: 6px;
+  }
+  .tv-mode .sidebar nav a,
+  .tv-mode .sidebar button,
+  .tv-mode .sidebar a {
+    min-height: 48px;
+    padding: 11px 13px;
+    gap: 12px;
+    font-size: 15px;
+  }
+  .tv-mode .sidebar-bottom {
+    padding: 10px 7px 0;
+  }
+  .tv-mode .topbar {
+    height: 68px;
+    padding-inline: 28px;
+  }
+  .tv-mode .topbar,
+  .tv-mode .quick-strip,
+  .tv-mode .home-content,
+  .tv-mode .page-content {
+    padding-left: 30px;
+    padding-right: 30px;
+  }
+  .tv-mode .hero {
+    height: 360px;
+    min-height: 360px;
+  }
+  .tv-mode .hero-content {
+    width: min(600px, 76vw);
+    padding: 58px 0 24px 30px;
+  }
+  .tv-mode .hero h1 {
+    font-size: clamp(2.75rem, 5.2vw, 4.25rem);
+  }
+  .tv-mode .hero p {
+    max-width: 560px;
+    line-height: 1.45;
+  }
+  .tv-mode .hero-footer {
+    left: 30px;
+    bottom: 20px;
+  }
+  .tv-mode .quick-strip {
+    margin-top: 18px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+  .tv-mode .home-content,
+  .tv-mode .page-content {
+    padding-top: 24px;
+  }
+  .tv-mode .rail {
+    gap: 18px;
+    padding-block: 8px 18px;
+  }
+  .tv-mode .media-card {
+    flex-basis: 158px;
+    width: 158px;
+  }
+  .tv-mode .media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 30px 20px;
+  }
+  .tv-mode .section-title {
+    margin-bottom: 18px;
+  }
+  .tv-mode .section-title h1 {
+    font-size: 2.6rem;
+  }
+  .tv-mode .filter-toolbar {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .tv-mode .filter-toolbar select {
+    min-width: 175px;
+    max-width: 245px;
+  }
+  .tv-mode .media-row,
+  .tv-mode .tv-guide-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 390px;
+  }
+  .tv-mode .tv-guide-row {
+    contain-intrinsic-size: auto 88px;
+  }
+}
+
+@media (max-width: 800px) {
+  .tv-mode .sidebar {
+    width: 184px;
+    padding: 18px 12px;
+  }
+  .tv-mode .main-shell {
+    margin-left: 184px;
+  }
+  .tv-mode .brand > span,
+  .tv-mode .sidebar .nav-label,
+  .tv-mode .sidebar nav a > span,
+  .tv-mode .sidebar-bottom {
+    display: block;
+  }
+  .tv-mode .sidebar nav a {
+    justify-content: flex-start;
+    padding: 11px;
+  }
+  .tv-mode .sidebar .live-dot {
+    display: inline-block;
+  }
+  .tv-mode .brand {
+    justify-content: flex-start;
+    margin: 0 3px 20px;
+    font-size: 19px;
+  }
+  .tv-mode .brand small {
+    font-size: 6px;
+    letter-spacing: 2px;
+  }
+  .tv-mode .topbar,
+  .tv-mode .quick-strip,
+  .tv-mode .home-content,
+  .tv-mode .page-content {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .tv-mode .hero-content {
+    padding-left: 24px;
+  }
+}

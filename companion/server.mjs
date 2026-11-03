@@ -1126,8 +1126,8 @@ export function createService({ token, origins, authorizeAccount }) {
       }
       if (route.pathname === "/guide") {
         const url = new URL(body.url);
-        if (!/\/xmltv\.php$/.test(url.pathname))
-          return send(400, { error: "Only an Xtream XMLTV guide is allowed" });
+        if (!["http:", "https:"].includes(url.protocol))
+          return send(400, { error: "Only an HTTP(S) XMLTV guide is allowed" });
         await mkdir(guideCacheDir, { recursive: true });
         const cacheName =
           createHash("sha256").update(url.href).digest("hex") + ".xml";
@@ -1599,7 +1599,7 @@ export function createService({ token, origins, authorizeAccount }) {
         if (
           !isTorbox &&
           !isRealDebrid &&
-          !/\/(manifest\.json|(?:catalog|meta|stream)\/.*\.json|player_api\.php|xmltv\.php)$/.test(
+          !/\/(manifest\.json|(?:catalog|meta|stream)\/.*\.json|(?:player_api|xmltv|get)\.php|[^/]+\.m3u8?)$/.test(
             url.pathname,
           )
         )

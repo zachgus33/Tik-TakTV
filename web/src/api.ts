@@ -32,6 +32,18 @@ export function safeUrl(value: unknown): string | undefined {
     return undefined;
   }
 }
+export function safeSourceUrl(value: unknown): string | undefined {
+  try {
+    const url = new URL(String(value));
+    return ["https:", "http:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 function safeArtwork(value: unknown, base: string): string | undefined {
   try {
     const url = new URL(String(value ?? ""), `${base.replace(/\/$/, "")}/`);
@@ -44,11 +56,8 @@ function safeArtwork(value: unknown, base: string): string | undefined {
   }
 }
 export function normalizeServer(value: string): string {
-  const url = safeUrl(value.trim());
-  if (!url)
-    throw new Error(
-      "Use an HTTPS server address. GitHub Pages cannot connect to an insecure HTTP provider.",
-    );
+  const url = safeSourceUrl(value.trim());
+  if (!url) throw new Error("Use a valid HTTP or HTTPS IPTV server address.");
   const u = new URL(url);
   u.pathname = u.pathname
     .replace(/\/(player_api|get)\.php.*$/i, "")
@@ -185,6 +194,7 @@ export async function providerItems(
   type: Kind,
   category: string,
   signal?: AbortSignal,
+  options: { guideOnly?: boolean } = {},
 ): Promise<Item[]> {
   const action =
     type === "series" ? "get_series" : `get_${resource[type]}_streams`;
@@ -196,6 +206,11 @@ export async function providerItems(
     throw new Error("The provider returned an invalid library.");
   return data
     .filter((x) => x.stream_id != null || x.series_id != null)
+    .filter(
+      (x) =>
+        !options.guideOnly ||
+        String(x.epg_channel_id ?? x.tvg_id ?? "").trim().length > 0,
+    )
     .map((x) => ({
       id: String(x.stream_id ?? x.series_id),
       name: String(x.name ?? "Untitled"),
@@ -213,7 +228,7 @@ export async function providerItems(
       ),
       url:
         type === "live" && typeof x.direct_source === "string"
-          ? safeUrl(x.direct_source)
+          ? safeSourceUrl(x.direct_source)
           : undefined,
       rating: x.rating ? String(x.rating) : undefined,
       year: String(x.year ?? x.releaseDate ?? "").slice(0, 4),
@@ -534,8 +549,8 @@ export function parsePlaylist(text: string, scope: string): Item[] {
         epgId: attrs["tvg-id"] || undefined,
       };
     } else if (line && !line.startsWith("#") && meta) {
-      // Reject header hacks and insecure URLs rather than quietly dropping requirements.
-      const url = line.includes("|") ? undefined : safeUrl(line);
+      // Reject header hacks. HTTP channels are secured through the companion.
+      const url = line.includes("|") ? undefined : safeSourceUrl(line);
       if (url)
         items.push({
           ...meta,
@@ -550,7 +565,7 @@ export function parsePlaylist(text: string, scope: string): Item[] {
   }
   if (!items.length)
     throw new Error(
-      "No HTTPS channels found. HTTP streams and streams requiring custom headers cannot play directly from GitHub Pages.",
+      "No HTTP or HTTPS channels were found. Streams requiring custom inline headers are not supported.",
     );
   return items;
 }

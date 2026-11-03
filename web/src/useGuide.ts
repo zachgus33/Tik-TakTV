@@ -251,7 +251,7 @@ export function useGuide(
       );
     };
     const scheduleFlush = () => {
-      if (!flushTimer) flushTimer = setTimeout(flush, 250);
+      if (!flushTimer) flushTimer = setTimeout(flush, 750);
     };
     async function consume() {
       while (queue.length && !c.signal.aborted) {
@@ -281,7 +281,7 @@ export function useGuide(
     }
     // This path runs only when the complete XMLTV feed failed. Batch state
     // updates so a large provider cannot lock the browser between requests.
-    void Promise.all(Array.from({ length: 8 }, consume));
+    void Promise.all(Array.from({ length: 3 }, consume));
     return () => {
       c.abort();
       if (flushTimer) clearTimeout(flushTimer);
@@ -333,6 +333,10 @@ export function useGuide(
     loaded: (item: Item) =>
       !!(valid.xml[guideId(item) ?? ""] || valid.channels[item.id]),
     count: Object.keys(valid.xml).length || Object.keys(valid.channels).length,
+    probed:
+      Object.keys(valid.xml).length +
+      Object.keys(valid.channels).length +
+      new Set(valid.failed).size,
   };
 }
 

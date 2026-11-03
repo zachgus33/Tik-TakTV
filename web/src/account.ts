@@ -3,7 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
-import { defaultAddon, defaultAddons, safeUrl, addonDetail } from "./api";
+import {
+  defaultAddon,
+  defaultAddons,
+  safeSourceUrl,
+  safeUrl,
+  addonDetail,
+} from "./api";
 import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
@@ -399,7 +405,7 @@ export async function loadSetup(
           : [],
       progress: mergedProgress,
       provider: sharedProvider,
-      epgUrl: safeUrl(web.epgUrl) ?? "",
+      epgUrl: safeSourceUrl(web.epgUrl) ?? "",
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
       realDebridKey:
         typeof realDebridKey === "string" && realDebridKey

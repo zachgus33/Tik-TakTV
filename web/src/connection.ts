@@ -165,13 +165,14 @@ export async function sourceFetch(
   forceService = false,
 ): Promise<Response> {
   const config = getService();
+  let parsed: URL | undefined;
   try {
-    const shared = new URL(url);
-    if (shared.hostname === "friend.tiktaktv.invalid") {
+    parsed = new URL(url);
+    if (parsed.hostname === "friend.tiktaktv.invalid") {
       if (!config)
         throw new Error("Connect the TikTak TV playback service first.");
       return serviceRequest(
-        `/friend/addon${shared.pathname}${shared.search}`,
+        `/friend/addon${parsed.pathname}${parsed.search}`,
         undefined,
         options.signal ?? undefined,
         config,
@@ -196,6 +197,13 @@ export async function sourceFetch(
       options.signal ?? undefined,
       config,
     );
+  if (parsed?.protocol === "http:") {
+    if (!config)
+      throw new Error(
+        "Sign in to use this HTTP source through TikTak TV's secure companion.",
+      );
+    return relay();
+  }
   if (forceService && config) return relay();
   const addonPayload = /\/(?:stream|subtitles)\//i.test(new URL(url).pathname);
   if (addonPayload && config) {

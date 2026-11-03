@@ -8,6 +8,7 @@ import {
   parsePlaylist,
   providerDetail,
   providerItems,
+  safeSourceUrl,
   safeUrl,
   streamUrl,
   xtreamUrl,
@@ -29,7 +30,12 @@ describe("provider URLs and data", () => {
         "https://provider.example:8443/player_api.php?username=secret",
       ),
     ).toBe("https://provider.example:8443");
-    expect(() => normalizeServer("http://provider.example")).toThrow("HTTPS");
+    expect(normalizeServer("http://provider.example/player_api.php")).toBe(
+      "http://provider.example",
+    );
+    expect(safeSourceUrl("http://provider.example/live/1.ts")).toBe(
+      "http://provider.example/live/1.ts",
+    );
     expect(safeUrl("javascript:alert(1)")).toBeUndefined();
     expect(safeUrl("https://user:password@provider.example")).toBeUndefined();
   });
@@ -110,6 +116,20 @@ describe("provider URLs and data", () => {
     expect(items[0].poster).toBe("https://img.example/news.png");
     expect(items[1].poster).toBe("https://provider.example/logos/sports.png");
   });
+  it("keeps only guide-linked channels when Live TV requests them", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { stream_id: 1, name: "With guide", epg_channel_id: "news.one" },
+          { stream_id: 2, name: "Without guide", epg_channel_id: "" },
+        ]),
+      ),
+    );
+    const items = await providerItems(provider, "live", "", undefined, {
+      guideOnly: true,
+    });
+    expect(items.map((item) => item.name)).toEqual(["With guide"]);
+  });
   it("sorts series episodes numerically and preserves container format", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -175,18 +195,19 @@ describe("errors do not disclose credential URLs", () => {
   });
 });
 describe("playlists and addons", () => {
-  it("imports HTTPS channels and skips unsafe or custom-header streams", () => {
+  it("imports HTTP and HTTPS channels and skips custom-header streams", () => {
     const items = parsePlaylist(
       '#EXTM3U\n#EXTINF:-1 tvg-id="world.news" tvg-logo="https://img.example/logo.png" group-title="News",World News\nhttps://tv.example/live.m3u8\n#EXTINF:-1,Bad\nhttp://insecure.example/live\n#EXTINF:-1,Header\nhttps://tv.example/live|User-Agent=app',
       "scope",
     );
-    expect(items).toHaveLength(1);
+    expect(items).toHaveLength(2);
     expect(items[0]).toMatchObject({
       name: "World News",
       category: "News",
       epgId: "world.news",
       provider: "scope",
     });
+    expect(items[1].url).toBe("http://insecure.example/live");
   });
   it("distinguishes a video HLS manifest from a channel playlist", () => {
     expect(() =>

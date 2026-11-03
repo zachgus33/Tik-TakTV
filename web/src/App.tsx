@@ -16,6 +16,7 @@ import {
 import {
   lazy,
   Suspense,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -113,6 +114,11 @@ import {
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
 import { settingMatchesChoice } from "./catalog-settings";
+
+const tvInterface =
+  new URLSearchParams(location.search).get("tv") === "1" ||
+  /TikTakTV-AndroidTV/i.test(navigator.userAgent);
+const initialGuideLimit = tvInterface ? 12 : 30;
 import { joinParty } from "./watch-party";
 import { streamCompatibility, updateDownloadJob } from "./reliability";
 
@@ -1703,6 +1709,10 @@ export default function App() {
     setHomeCatalogs(s.homeCatalogs ?? []);
   }
   const [playlist, setPlaylist] = useState<Item[]>([]);
+  const guidedPlaylist = useMemo(
+    () => playlist.filter((item) => item.epgId?.trim()),
+    [playlist],
+  );
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [kind, setKind] = useState<Kind>("movie");
@@ -1746,7 +1756,10 @@ export default function App() {
     };
   }, []);
   const [limit, setLimit] = useState(60);
-  const [guideLimit, setGuideLimit] = useState(30);
+  const [guideLimit, setGuideLimit] = useState(initialGuideLimit);
+  const [guideProbeLimit, setGuideProbeLimit] = useState(
+    tvInterface ? 60 : 120,
+  );
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
@@ -1961,7 +1974,7 @@ export default function App() {
     async function load() {
       const type = page === "live" ? "live" : kind;
       const cacheKey = provider
-        ? `items:${provider.scope}:${type}:${category || "all"}`
+        ? `items:${provider.scope}:${type}:${category || "all"}${page === "live" ? ":guided-v1" : ""}`
         : "";
       let restored = false;
       try {
@@ -1974,8 +1987,8 @@ export default function App() {
               setItems(
                 page === "live"
                   ? [
-                      ...cached,
-                      ...playlist.filter(
+                      ...cached.filter((item) => item.epgId?.trim()),
+                      ...guidedPlaylist.filter(
                         (i) => !category || i.category === category,
                       ),
                     ]
@@ -1985,17 +1998,23 @@ export default function App() {
             } else if (!c.signal.aborted) {
               setItems(
                 page === "live"
-                  ? playlist.filter((i) => !category || i.category === category)
+                  ? guidedPlaylist.filter(
+                      (i) => !category || i.category === category,
+                    )
                   : [],
               );
             }
-            result = await providerItems(provider, type, category, c.signal);
+            result = await providerItems(provider, type, category, c.signal, {
+              guideOnly: page === "live",
+            });
             if (!c.signal.aborted) void writeLiveCache(cacheKey, result);
           }
           if (page === "live")
             result = [
               ...result,
-              ...playlist.filter((i) => !category || i.category === category),
+              ...guidedPlaylist.filter(
+                (i) => !category || i.category === category,
+              ),
             ];
         } else {
           const chosen =
@@ -2060,12 +2079,15 @@ export default function App() {
     category,
     selectedCatalog,
     addons,
-    playlist,
+    guidedPlaylist,
     revision,
     page === "discover" && source === "catalogs" ? deferredQuery : "",
   ]);
-  const saved = (item: Item) =>
-    library.some((i) => itemKey(i) === itemKey(item));
+  const savedKeys = useMemo(
+    () => new Set(library.map((item) => itemKey(item))),
+    [library],
+  );
+  const saved = (item: Item) => savedKeys.has(itemKey(item));
   const toggleSave = (item: Item) =>
     setLibrary((old) =>
       old.some((i) => itemKey(i) === itemKey(item))
@@ -2126,15 +2148,21 @@ export default function App() {
   useEffect(() => {
     if (heroIndex >= heroItems.length) setHeroIndex(0);
   }, [heroIndex, heroItems.length]);
-  const regionOf = (item: Item) =>
-    liveRegion(
-      categoryList.find((entry) => entry.id === item.category)?.name ??
-        item.category ??
-        item.name,
-    );
-  const availableRegions = liveRegions.filter(([code]) =>
-    items.some((item) => regionOf(item) === code),
+  const categoryNameById = useMemo(
+    () => new Map(categoryList.map((entry) => [entry.id, entry.name])),
+    [categoryList],
   );
+  const regionOf = useCallback(
+    (item: Item) =>
+      liveRegion(
+        categoryNameById.get(item.category ?? "") ?? item.category ?? item.name,
+      ),
+    [categoryNameById],
+  );
+  const availableRegions = useMemo(() => {
+    const present = new Set(items.map(regionOf));
+    return liveRegions.filter(([code]) => present.has(code));
+  }, [items, regionOf]);
   const filtered = useMemo(
     () =>
       (page === "library" ? library : items).filter(
@@ -2146,7 +2174,16 @@ export default function App() {
           (!region || regionOf(i) === region) &&
           (!favoritesOnly || saved(i)),
       ),
-    [deferredQuery, favoritesOnly, items, library, page, region],
+    [
+      deferredQuery,
+      favoritesOnly,
+      items,
+      library,
+      page,
+      region,
+      regionOf,
+      savedKeys,
+    ],
   );
   const randomDiscoverPick = () => {
     const choices = filtered.filter((item) => item.type !== "live");
@@ -2170,7 +2207,7 @@ export default function App() {
   };
   const guideState = useGuide(
     provider,
-    page === "live" ? filtered.slice(0, Math.max(guideLimit, 60)) : [],
+    page === "live" ? filtered.slice(0, guideProbeLimit) : [],
     activeChannel,
     revision,
     epgUrl,
@@ -2179,16 +2216,46 @@ export default function App() {
     () => filtered.filter(guideState.hasUpcoming),
     [filtered, guideState.hasUpcoming],
   );
-  useEffect(
-    () => setGuideLimit(30),
-    [region, category, favoritesOnly, deferredQuery],
+  const guidedRecentChannels = useMemo(
+    () => recentChannels.filter(guideState.hasUpcoming),
+    [guideState.hasUpcoming, recentChannels],
   );
-  const allCategories = [
-    ...categoryList,
-    ...Array.from(new Set(playlist.map((i) => i.category ?? "Other"))).map(
-      (id) => ({ id, name: id }),
-    ),
-  ];
+  useEffect(() => {
+    setGuideLimit(initialGuideLimit);
+    setGuideProbeLimit(tvInterface ? 60 : 120);
+  }, [region, category, favoritesOnly, deferredQuery]);
+  useEffect(() => {
+    if (
+      page !== "live" ||
+      guideState.loading ||
+      !guideState.fallback ||
+      guideChannels.length >= guideLimit ||
+      guideProbeLimit >= filtered.length ||
+      guideState.probed < guideProbeLimit
+    )
+      return;
+    setGuideProbeLimit((value) =>
+      Math.min(value + (tvInterface ? 60 : 120), filtered.length),
+    );
+  }, [
+    filtered.length,
+    guideChannels.length,
+    guideLimit,
+    guideProbeLimit,
+    guideState.fallback,
+    guideState.loading,
+    guideState.probed,
+    page,
+  ]);
+  const allCategories = useMemo(
+    () => [
+      ...categoryList,
+      ...Array.from(new Set(playlist.map((i) => i.category ?? "Other"))).map(
+        (id) => ({ id, name: id }),
+      ),
+    ],
+    [categoryList, playlist],
+  );
   function playChannel(item: Item) {
     setRecentChannels((current) =>
       [
@@ -2609,31 +2676,37 @@ export default function App() {
                   />
                 </Suspense>
                 {!collectionBrowsing &&
-                  homeRows.map((row, i) => (
-                    <section className="media-row" key={i}>
-                      <div className="row-heading">
-                        <h2>{row.title}</h2>
-                        <button
-                          onClick={() => {
-                            setKind(
-                              row.items[0]?.type === "series"
-                                ? "series"
-                                : "movie",
-                            );
-                            navigate("discover");
-                          }}
-                        >
-                          Explore all
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-                      <div className="rail">
-                        {row.items.slice(0, 18).map((item) => (
-                          <Card key={itemKey(item)} item={item} onOpen={open} />
-                        ))}
-                      </div>
-                    </section>
-                  ))}
+                  homeRows
+                    .slice(0, tvInterface ? 12 : homeRows.length)
+                    .map((row, i) => (
+                      <section className="media-row" key={i}>
+                        <div className="row-heading">
+                          <h2>{row.title}</h2>
+                          <button
+                            onClick={() => {
+                              setKind(
+                                row.items[0]?.type === "series"
+                                  ? "series"
+                                  : "movie",
+                              );
+                              navigate("discover");
+                            }}
+                          >
+                            Explore all
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                        <div className="rail">
+                          {row.items.slice(0, 18).map((item) => (
+                            <Card
+                              key={itemKey(item)}
+                              item={item}
+                              onOpen={open}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    ))}
                 {!collectionBrowsing && (
                   <footer className="app-footer">
                     <span>Made for your next great watch.</span>
@@ -2887,7 +2960,7 @@ export default function App() {
                       {filtered.length.toLocaleString()} channels
                     </span>
                   </div>
-                  {recentChannels.length > 0 && (
+                  {guidedRecentChannels.length > 0 && (
                     <section
                       className="recent-channels"
                       aria-label="Recently watched channels"
@@ -2902,7 +2975,7 @@ export default function App() {
                         </button>
                       </div>
                       <div className="cast-row">
-                        {recentChannels.map((channel) => (
+                        {guidedRecentChannels.map((channel) => (
                           <button
                             className="cast-person"
                             key={itemKey(channel)}
@@ -2943,7 +3016,10 @@ export default function App() {
                           300
                         )
                           setGuideLimit((value) =>
-                            Math.min(value + 30, guideChannels.length),
+                            Math.min(
+                              value + (tvInterface ? 12 : 30),
+                              guideChannels.length,
+                            ),
                           );
                       }}
                     >

@@ -41,7 +41,14 @@ async function mockSources(page: Page) {
                   },
                 ],
               }
-            : [{ stream_id: 10, name: "Test News", category_id: "1" }];
+            : [
+                {
+                  stream_id: 10,
+                  name: "Test News",
+                  category_id: "1",
+                  epg_channel_id: "test.news",
+                },
+              ];
       await route.fulfill({ json: data });
     },
   );
@@ -210,6 +217,51 @@ test("TV sidebar is readable and the decorative brand is not a remote target", a
   await expect(page.getByRole("link", { name: /TikTak TV home/i })).toHaveCount(
     0,
   );
+});
+
+test("Fire TV viewport keeps the navigation compact and content readable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 960, height: 540 });
+  await page.goto("/?tv=1#home");
+  await expect(page.locator(".sidebar")).toBeVisible();
+  await expect(page.locator(".hero")).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
+    const main = document.querySelector<HTMLElement>(".main-shell")!;
+    const hero = document.querySelector<HTMLElement>(".hero")!;
+    const links = [...sidebar.querySelectorAll<HTMLElement>("nav a")];
+    return {
+      sidebar: sidebar.getBoundingClientRect().width,
+      mainLeft: main.getBoundingClientRect().left,
+      heroHeight: hero.getBoundingClientRect().height,
+      labels: links.map((link) => link.textContent?.trim()),
+      lastLinkBottom: links.at(-1)?.getBoundingClientRect().bottom ?? Infinity,
+    };
+  });
+  expect(layout.sidebar).toBeGreaterThanOrEqual(200);
+  expect(layout.sidebar).toBeLessThanOrEqual(220);
+  expect(layout.mainLeft).toBe(layout.sidebar);
+  expect(layout.heroHeight).toBeLessThanOrEqual(365);
+  expect(layout.labels).toEqual([
+    "Home",
+    "Discover",
+    "Live TV",
+    "My library",
+    "Account",
+  ]);
+  expect(layout.lastLinkBottom).toBeLessThan(510);
+
+  await page.goto("/?tv=1#discover");
+  await expect(page.locator(".media-grid")).toBeVisible();
+  const columns = await page
+    .locator(".media-grid")
+    .evaluate(
+      (grid) =>
+        getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean)
+          .length,
+    );
+  expect(columns).toBeGreaterThanOrEqual(4);
 });
 
 test("TV shell does not install the offline website service worker", async ({
@@ -605,6 +657,90 @@ test("live TV sends the provider transport stream through browser-safe Pi transc
   expect(prepared.mode).toBe("transcode");
   expect(prepared.live).toBe(true);
   expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
+});
+test("HTTP Xtream API and playback stay behind the HTTPS companion", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+      }),
+    ),
+  );
+  let directHttpCalls = 0;
+  await page.route("http://iptv.example/**", (route) => {
+    directHttpCalls++;
+    return route.abort();
+  });
+  await page.route("https://playback.example/guide", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+  await page.route("https://playback.example/request", async (route) => {
+    const body = route.request().postDataJSON();
+    const source = new URL(body.url);
+    if (source.pathname === "/xmltv.php") return route.fulfill({ status: 404 });
+    const action = source.searchParams.get("action");
+    const json = !action
+      ? { user_info: { auth: 1, status: "Active" } }
+      : action.endsWith("_categories")
+        ? [{ category_id: "1", category_name: "News" }]
+        : action === "get_short_epg"
+          ? {
+              epg_listings: [
+                {
+                  id: "1",
+                  title: btoa("HTTP evening news"),
+                  start_timestamp: Math.floor(Date.now() / 1000) - 100,
+                  stop_timestamp: Math.floor(Date.now() / 1000) + 900,
+                },
+              ],
+            }
+          : [
+              {
+                stream_id: 10,
+                name: "HTTP News",
+                category_id: "1",
+                epg_channel_id: "http.news",
+              },
+            ];
+    return route.fulfill({ json });
+  });
+  let prepared: Record<string, unknown> | undefined;
+  await page.route("https://playback.example/prepare", (route) => {
+    prepared = route.request().postDataJSON();
+    return route.fulfill({
+      json: { path: "/media/http-live/index.m3u8", hls: true },
+    });
+  });
+  await page.route(
+    "https://playback.example/media/http-live/index.m3u8",
+    (route) =>
+      route.fulfill({
+        contentType: "application/vnd.apple.mpegurl",
+        body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+      }),
+  );
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Live TV/ }).click();
+  await page.getByLabel("Server address").fill("http://iptv.example:8080");
+  await page.getByLabel("Username").fill("http-user");
+  await page.getByLabel("Password").fill("http-password");
+  await page.getByRole("button", { name: "Test & connect" }).click();
+  await expect(page.getByText("Connection verified.")).toBeVisible();
+  await page.goto("/#live");
+  const channel = page
+    .locator(".tv-guide-channel")
+    .filter({ hasText: "HTTP News" });
+  await expect(channel).toBeVisible();
+  await channel.click();
+  await expect.poll(() => prepared).toBeTruthy();
+  expect(prepared?.url).toContain(
+    "http://iptv.example:8080/live/http-user/http-password/10.ts",
+  );
+  expect(directHttpCalls).toBe(0);
 });
 test("channels without guide data stay out of the live guide", async ({
   page,
@@ -1733,11 +1869,17 @@ test("country filter combines with Xtream channel categories", async ({
                   { category_id: "uk", category_name: "UK| ENTERTAINMENT" },
                 ]
               : [
-                  { stream_id: 1, name: "American News", category_id: "us" },
+                  {
+                    stream_id: 1,
+                    name: "American News",
+                    category_id: "us",
+                    epg_channel_id: "us.news",
+                  },
                   {
                     stream_id: 2,
                     name: "British Entertainment",
                     category_id: "uk",
+                    epg_channel_id: "uk.entertainment",
                   },
                 ],
       });
