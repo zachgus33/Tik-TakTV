@@ -29,6 +29,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -189,12 +190,12 @@ class MainActivity : ComponentActivity() {
 
     private fun registerUpdateReceiver() {
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(updateReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(updateReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            this,
+            updateReceiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED,
+        )
     }
 
     private fun checkForUpdate() {
