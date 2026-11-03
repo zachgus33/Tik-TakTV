@@ -257,6 +257,8 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
     const status = await statusResponse.json();
     assert.equal(status.features.participantNames, true);
     assert.equal(status.features.hostEndedRoom, true);
+    assert.equal(status.features.youtube, true);
+    assert.equal(status.features.sponsorBlock, true);
     assert.equal(status.capacity.partyMembers, 12);
     assert.equal(
       (
@@ -295,6 +297,18 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       400,
     );
     assert.equal((await fetch(base + "/media/unknown/stream")).status, 410);
+    const invalidSponsor = await fetch(base + "/sponsorblock", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ videoId: "invalid" }),
+    });
+    assert.equal(invalidSponsor.status, 400);
+    const missingYouTubeKey = await fetch(base + "/youtube/search", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query: "Nuvio", kind: "video" }),
+    });
+    if (!process.env.YOUTUBE_API_KEY) assert.equal(missingYouTubeKey.status, 503);
   } finally {
     server.closeAllConnections();
     await new Promise((r) => server.close(r));

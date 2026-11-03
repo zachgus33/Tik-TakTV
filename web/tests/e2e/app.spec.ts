@@ -73,6 +73,85 @@ test.beforeEach(async ({ page }) => {
   await mockSources(page);
 });
 
+test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class MockYouTubePlayer {
+      private time = 0;
+      private muted = false;
+      private playing = false;
+      private options: any;
+      constructor(_target: HTMLElement, options: any) {
+        this.options = options;
+        queueMicrotask(() => options.events.onReady({ target: this }));
+      }
+      destroy() {}
+      getCurrentTime() {
+        return this.time;
+      }
+      getDuration() {
+        return 300;
+      }
+      getIframe() {
+        return document.createElement("iframe");
+      }
+      getPlayerState() {
+        return this.playing ? 1 : 2;
+      }
+      getVideoData() {
+        return {
+          video_id: "dQw4w9WgXcQ",
+          title: "Test video",
+          author: "Test channel",
+        };
+      }
+      isMuted() {
+        return this.muted;
+      }
+      mute() {
+        this.muted = true;
+      }
+      pauseVideo() {
+        this.playing = false;
+        this.options.events.onStateChange({ data: 2, target: this });
+      }
+      playVideo() {
+        this.playing = true;
+        this.options.events.onStateChange({ data: 1, target: this });
+      }
+      seekTo(value: number) {
+        this.time = value;
+      }
+      unMute() {
+        this.muted = false;
+      }
+    }
+    (window as any).YT = {
+      Player: MockYouTubePlayer,
+      PlayerState: { PLAYING: 1 },
+    };
+  });
+  await page.route("https://api.tiktaktv.me/sponsorblock", (route) =>
+    route.fulfill({ json: { segments: [] } }),
+  );
+  await page.goto("/#youtube");
+  await expect(
+    page.getByRole("heading", { name: "YouTube", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Music" }).click();
+  await expect(
+    page.getByRole("heading", { name: "YouTube Music" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Search YouTube or paste a link")
+    .fill("https://youtu.be/dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByLabel("YouTube playback controls")).toBeVisible();
+  await expect(page.getByLabel("Fast forward 10 seconds")).toBeVisible();
+  await expect(page.getByText("Skip SponsorBlock segments")).toBeVisible();
+});
+
 test("first visit offers Nuvio sign in and account creation", async ({
   page,
 }) => {
@@ -1930,9 +2009,11 @@ test("country filter combines with Xtream channel categories", async ({
   await connect(page);
   await page.goto("/#live");
   await page.getByLabel("Country or region").selectOption("US");
-  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
+  await expect(page.locator(".tv-guide-row")).toHaveCount(1);
+  await expect(page.locator(".tv-guide-row")).toContainText("American News");
   await page.getByLabel("Channel category").selectOption("us");
-  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
+  await expect(page.locator(".tv-guide-row")).toHaveCount(1);
+  await expect(page.locator(".tv-guide-row")).toContainText("American News");
 });
 
 test.describe("authenticated integrations", () => {

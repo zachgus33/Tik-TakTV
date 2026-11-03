@@ -209,7 +209,7 @@ export async function sourceFetch(
   // Xtream credentials live in the query string and many providers do not
   // grant browser CORS access. Keep those requests inside the authenticated
   // companion even when the provider itself uses HTTPS.
-  if (providerApi && config) return relay();
+  if (providerApi && config?.account) return relay();
   if (forceService && config) return relay();
   const addonPayload = /\/(?:stream|subtitles)\//i.test(new URL(url).pathname);
   if (addonPayload && config) {

@@ -49,6 +49,7 @@ import {
   Tv,
   Trash2,
   X,
+  Youtube,
 } from "lucide-react";
 import {
   addonDetail,
@@ -496,11 +497,14 @@ function ProfileGate({
 }
 const HomeCollections = lazy(() => import("./HomeCollections"));
 const AccountPanel = lazy(() => import("./AccountPanel"));
-type Page = "home" | "discover" | "live" | "library" | "account" | "settings";
+const YouTubeHub = lazy(() => import("./YouTubeHub"));
+type Page =
+  "home" | "discover" | "live" | "youtube" | "library" | "account" | "settings";
 const nav = [
   { id: "home", label: "Home", icon: Home },
   { id: "discover", label: "Discover", icon: Compass },
   { id: "live", label: "Live TV", icon: Radio },
+  { id: "youtube", label: "YouTube", icon: Youtube },
   { id: "library", label: "My library", icon: Library },
   { id: "account", label: "Account", icon: UserRound },
 ] as const;
@@ -2438,6 +2442,7 @@ export default function App() {
           </div>
           <form
             className="search-box"
+            hidden={page === "youtube"}
             onSubmit={(e) => {
               e.preventDefault();
               if (page === "home") location.hash = "discover";
@@ -3164,6 +3169,11 @@ export default function App() {
                 </>
               )}
             </div>
+          )}
+          {page === "youtube" && (
+            <Suspense fallback={<Loading />}>
+              <YouTubeHub />
+            </Suspense>
           )}
           <div
             className="page-content account-shell-page"

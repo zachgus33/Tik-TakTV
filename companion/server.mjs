@@ -207,6 +207,8 @@ export function createService({ token, origins, authorizeAccount }) {
   const jobs = new Map();
   const tickets = new Map();
   const accountTokens = new Map();
+  const youtubeCache = new Map();
+  const sponsorCache = new Map();
   const parties = new Map();
   const endedParties = new Map();
   const partyCreates = new Map();
@@ -791,6 +793,131 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/youtube/search") {
+        const query = String(body.query ?? "").trim();
+        const kind = body.kind === "music" ? "music" : "video";
+        if (!query || query.length > 120)
+          return send(400, { error: "Enter a shorter YouTube search." });
+        const apiKey = String(process.env.YOUTUBE_API_KEY ?? "").trim();
+        if (!apiKey)
+          return send(503, {
+            error:
+              "YouTube search is being configured. Paste a YouTube video or playlist link for now.",
+          });
+        const cacheKey = `${kind}:${query.toLocaleLowerCase()}`;
+        const cached = youtubeCache.get(cacheKey);
+        if (cached?.expires > Date.now())
+          return send(200, { results: cached.results });
+        const target = new URL("https://www.googleapis.com/youtube/v3/search");
+        target.search = new URLSearchParams({
+          part: "snippet",
+          type: "video",
+          maxResults: "24",
+          videoEmbeddable: "true",
+          safeSearch: "moderate",
+          q: query,
+          key: apiKey,
+          ...(kind === "music" ? { videoCategoryId: "10" } : {}),
+        }).toString();
+        const upstream = await fetchSafe(target.href, {
+          signal: controller.signal,
+        });
+        try {
+          if (!upstream.response.ok)
+            return send(upstream.response.status === 403 ? 503 : 502, {
+              error: "YouTube search is temporarily unavailable.",
+            });
+          const payload = JSON.parse(
+            await limitedText(upstream.response, 2_000_000),
+          );
+          const results = (Array.isArray(payload.items) ? payload.items : [])
+            .map((item) => ({
+              videoId: String(item?.id?.videoId ?? ""),
+              title: String(item?.snippet?.title ?? "YouTube video").slice(
+                0,
+                300,
+              ),
+              channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
+              thumbnail: String(
+                item?.snippet?.thumbnails?.medium?.url ??
+                  item?.snippet?.thumbnails?.default?.url ??
+                  "",
+              ),
+            }))
+            .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
+          youtubeCache.set(cacheKey, {
+            results,
+            expires: Date.now() + 15 * 60_000,
+          });
+          while (youtubeCache.size > 100)
+            youtubeCache.delete(youtubeCache.keys().next().value);
+          return send(200, { results });
+        } finally {
+          await upstream.close();
+        }
+      }
+      if (route.pathname === "/sponsorblock") {
+        const videoId = String(body.videoId ?? "").trim();
+        if (!/^[A-Za-z0-9_-]{11}$/.test(videoId))
+          return send(400, { error: "Invalid YouTube video." });
+        const cached = sponsorCache.get(videoId);
+        if (cached?.expires > Date.now())
+          return send(200, { segments: cached.segments });
+        const target = new URL("https://sponsor.ajay.app/api/skipSegments");
+        target.searchParams.set("videoID", videoId);
+        target.searchParams.set(
+          "categories",
+          JSON.stringify([
+            "sponsor",
+            "selfpromo",
+            "interaction",
+            "intro",
+            "outro",
+            "preview",
+            "music_offtopic",
+          ]),
+        );
+        const upstream = await fetchSafe(target.href, {
+          signal: controller.signal,
+        });
+        try {
+          if (upstream.response.status === 404) {
+            sponsorCache.set(videoId, {
+              segments: [],
+              expires: Date.now() + 60 * 60_000,
+            });
+            return send(200, { segments: [] });
+          }
+          if (!upstream.response.ok)
+            return send(502, { error: "SponsorBlock is temporarily unavailable." });
+          const payload = JSON.parse(
+            await limitedText(upstream.response, 1_000_000),
+          );
+          const segments = (Array.isArray(payload) ? payload : [])
+            .map((entry) => ({
+              start: Number(entry?.segment?.[0]),
+              end: Number(entry?.segment?.[1]),
+              category: String(entry?.category ?? "sponsor").slice(0, 40),
+            }))
+            .filter(
+              (entry) =>
+                Number.isFinite(entry.start) &&
+                Number.isFinite(entry.end) &&
+                entry.start >= 0 &&
+                entry.end > entry.start,
+            )
+            .slice(0, 200);
+          sponsorCache.set(videoId, {
+            segments,
+            expires: Date.now() + 2 * 60 * 60_000,
+          });
+          while (sponsorCache.size > 500)
+            sponsorCache.delete(sponsorCache.keys().next().value);
+          return send(200, { segments });
+        } finally {
+          await upstream.close();
+        }
+      }
       if (route.pathname === "/status") {
         return send(200, {
           ok: true,
@@ -811,6 +938,8 @@ export function createService({ token, origins, authorizeAccount }) {
             hostEndedRoom: true,
             friendSetup: !!friendKey,
             xmltv: true,
+            youtube: true,
+            sponsorBlock: true,
           },
         });
       }
