@@ -5261,6 +5261,48 @@ button.primary:hover,
   z-index: 20;
   transform: scale(1.08);
 }
+.tv-mode .sidebar {
+  width: 260px;
+  padding: 34px 24px 26px;
+}
+.tv-mode .main-shell {
+  margin-left: 260px;
+}
+.tv-mode .brand {
+  gap: 12px;
+  margin: 0 8px 48px;
+  font-size: 25px;
+  cursor: default;
+  user-select: none;
+}
+.tv-mode .brand img {
+  width: 46px;
+  height: 46px;
+}
+.tv-mode .brand small {
+  margin-top: 9px;
+  font-size: 8px;
+  letter-spacing: 3px;
+}
+.tv-mode .nav-label {
+  margin-bottom: 18px;
+  font-size: 10px;
+}
+.tv-mode .sidebar nav {
+  gap: 10px;
+}
+.tv-mode .sidebar nav a {
+  min-height: 58px;
+  padding: 15px 17px;
+  gap: 15px;
+  font-size: 16px;
+}
+.tv-mode .sidebar-bottom {
+  padding-inline: 10px;
+}
+.tv-mode .connection-status {
+  font-size: 12px;
+}
 .tv-mode .sidebar button,
 .tv-mode .sidebar a {
   min-height: 52px;

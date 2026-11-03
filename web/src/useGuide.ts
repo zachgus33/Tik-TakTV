@@ -316,8 +316,16 @@ export function useGuide(
       ),
     [guideId, now, valid.channels, valid.xml],
   );
+  const hasUpcoming = useCallback(
+    (item: Item) =>
+      (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).some(
+        (programme) => programme.end > now,
+      ),
+    [guideId, now, valid.channels, valid.xml],
+  );
   return {
     get,
+    hasUpcoming,
     now,
     loading: valid.loading,
     fallback: valid.fallback,

@@ -183,6 +183,35 @@ test("TV remote scrolls long pages and Discover uses ten-foot spacing", async ({
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before);
 });
 
+test("TV sidebar is readable and the decorative brand is not a remote target", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?tv=1#home");
+  const layout = await page.locator(".sidebar").evaluate((sidebar) => {
+    const brand = sidebar.querySelector<HTMLElement>(".brand")!;
+    const home = sidebar.querySelector<HTMLElement>("nav a")!;
+    const main = document.querySelector<HTMLElement>(".main-shell")!;
+    return {
+      sidebarWidth: sidebar.getBoundingClientRect().width,
+      mainLeft: main.getBoundingClientRect().left,
+      brandTag: brand.tagName,
+      brandWidth: brand.getBoundingClientRect().width,
+      homeHeight: home.getBoundingClientRect().height,
+      homeFontSize: Number.parseFloat(getComputedStyle(home).fontSize),
+    };
+  });
+  expect(layout.sidebarWidth).toBeGreaterThanOrEqual(250);
+  expect(layout.mainLeft).toBeGreaterThanOrEqual(layout.sidebarWidth - 1);
+  expect(layout.brandTag).toBe("DIV");
+  expect(layout.brandWidth).toBeLessThan(layout.sidebarWidth);
+  expect(layout.homeHeight).toBeGreaterThanOrEqual(58);
+  expect(layout.homeFontSize).toBeGreaterThanOrEqual(16);
+  await expect(page.getByRole("link", { name: /TikTak TV home/i })).toHaveCount(
+    0,
+  );
+});
+
 test("TV remote keeps horizontal movement in the current row", async ({
   page,
 }) => {
@@ -1654,6 +1683,11 @@ test("relayed XMLTV preloads guide data beyond the rendered channel page", async
   await page.goto("/#live");
   await expect(page.getByText("Guide ready - 61 channel guides")).toBeVisible();
   await expect(page.getByText("61 channels with schedules")).toBeVisible();
+  await expect(page.locator(".tv-guide-row")).toHaveCount(30);
+  const guide = page.locator(".tv-guide-grid");
+  await guide.evaluate((element) => (element.scrollTop = element.scrollHeight));
+  await expect(page.locator(".tv-guide-row")).toHaveCount(60);
+  await guide.evaluate((element) => (element.scrollTop = element.scrollHeight));
   await expect(page.locator(".tv-guide-row")).toHaveCount(61);
   await expect(page.locator(".tv-guide-row").last()).toContainText(
     "Programme 61",

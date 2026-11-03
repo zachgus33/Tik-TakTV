@@ -1746,7 +1746,7 @@ export default function App() {
     };
   }, []);
   const [limit, setLimit] = useState(60);
-  const [guideLimit, setGuideLimit] = useState(120);
+  const [guideLimit, setGuideLimit] = useState(30);
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
@@ -2170,20 +2170,17 @@ export default function App() {
   };
   const guideState = useGuide(
     provider,
-    page === "live" ? filtered : [],
+    page === "live" ? filtered.slice(0, Math.max(guideLimit, 60)) : [],
     activeChannel,
     revision,
     epgUrl,
   );
   const guideChannels = useMemo(
-    () =>
-      filtered.filter((channel) =>
-        guideState.get(channel).some((p) => p.end > guideState.now),
-      ),
-    [filtered, guideState.get, guideState.now],
+    () => filtered.filter(guideState.hasUpcoming),
+    [filtered, guideState.hasUpcoming],
   );
   useEffect(
-    () => setGuideLimit(120),
+    () => setGuideLimit(30),
     [region, category, favoritesOnly, deferredQuery],
   );
   const allCategories = [
@@ -2311,13 +2308,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#home" aria-label="TikTak TV home">
+        <div className="brand" aria-label="TikTak TV">
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />
           <span>
             TikTak<span className="brand-dot"> TV</span>
             <small>STREAM YOUR WORLD</small>
           </span>
-        </a>
+        </div>
         <div className="nav-label">YOUR SPACE</div>
         <nav>
           {nav.map((n) => (
@@ -2946,7 +2943,7 @@ export default function App() {
                           300
                         )
                           setGuideLimit((value) =>
-                            Math.min(value + 120, guideChannels.length),
+                            Math.min(value + 30, guideChannels.length),
                           );
                       }}
                     >
