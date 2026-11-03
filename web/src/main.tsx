@@ -34,7 +34,11 @@ createRoot(document.getElementById("root")!).render(
   </React.StrictMode>,
 );
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+const isTvShell =
+  new URLSearchParams(location.search).get("tv") === "1" ||
+  /TikTakTV-AndroidTV/i.test(navigator.userAgent);
+
+if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
   const registerServiceWorker = () => {
     let refreshing = false;
     const replacingExistingWorker = !!navigator.serviceWorker.controller;

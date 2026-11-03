@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
     private var pendingUpdateUrl: String? = null
     private var pendingUpdateSha256: String? = null
     private var updateCheckStarted = false
+    private var appShellRefreshStarted = false
+    private var appShellReady = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
                 mediaPlaybackRequiresUserGesture = true
                 allowFileAccess = false
                 allowContentAccess = false
+                cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 userAgentString = "$userAgentString TikTakTV-AndroidTV/${BuildConfig.VERSION_NAME}"
             }
@@ -178,17 +181,52 @@ class MainActivity : ComponentActivity() {
         webView.evaluateJavascript(TV_BOOTSTRAP, null)
     }
 
+    private fun refreshHostedAppShell() {
+        appShellRefreshStarted = true
+        val separator = if (BuildConfig.START_URL.contains('?')) "&" else "?"
+        val freshUrl =
+            "${BuildConfig.START_URL}${separator}native=${BuildConfig.VERSION_CODE}&fresh=${System.currentTimeMillis()}"
+        val script =
+            """
+            void (async () => {
+              try {
+                if ('serviceWorker' in navigator) {
+                  const registrations = await navigator.serviceWorker.getRegistrations();
+                  await Promise.all(registrations.map((registration) => registration.unregister()));
+                }
+                if ('caches' in window) {
+                  const names = await caches.keys();
+                  await Promise.all(names.map((name) => caches.delete(name)));
+                }
+              } finally {
+                location.replace(${JSONObject.quote(freshUrl)});
+              }
+            })();
+            """.trimIndent()
+        webView.evaluateJavascript(script, null)
+        webView.postDelayed(
+            {
+                if (!appShellReady) webView.loadUrl(freshUrl)
+            },
+            5_000,
+        )
+    }
+
     private fun checkForUpdate() {
         if (updateCheckStarted) return
         updateCheckStarted = true
         Thread {
             runCatching {
+                val metadataUrl =
+                    "${BuildConfig.UPDATE_METADATA_URL}?v=${System.currentTimeMillis()}"
                 val connection =
-                    (URL(BuildConfig.UPDATE_METADATA_URL).openConnection() as HttpURLConnection).apply {
+                    (URL(metadataUrl).openConnection() as HttpURLConnection).apply {
                         connectTimeout = 8_000
                         readTimeout = 8_000
                         instanceFollowRedirects = true
+                        useCaches = false
                         setRequestProperty("Accept", "application/json")
+                        setRequestProperty("Cache-Control", "no-cache")
                     }
                 try {
                     if (connection.responseCode !in 200..299) return@runCatching
@@ -422,7 +460,13 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
-            if (TvUrlPolicy.isInternal(url)) applyTvMode()
+            if (!TvUrlPolicy.isInternal(url)) return
+            if (!appShellRefreshStarted) {
+                refreshHostedAppShell()
+                return
+            }
+            appShellReady = true
+            applyTvMode()
         }
 
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {

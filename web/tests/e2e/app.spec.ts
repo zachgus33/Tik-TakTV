@@ -212,6 +212,25 @@ test("TV sidebar is readable and the decorative brand is not a remote target", a
   );
 });
 
+test("TV shell does not install the offline website service worker", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium owns the service-worker check.",
+  );
+  await page.goto("/?tv=1#home");
+  await expect(page.locator("html")).toHaveClass(/tv-mode/);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistrations()).length,
+      ),
+    )
+    .toBe(0);
+});
+
 test("TV remote keeps horizontal movement in the current row", async ({
   page,
 }) => {
