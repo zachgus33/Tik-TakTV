@@ -2,6 +2,17 @@ plugins {
     alias(libs.plugins.androidApplication)
 }
 
+val tvReleaseStoreFile = providers.environmentVariable("TIKTAK_TV_KEYSTORE_FILE")
+val tvReleaseStorePassword = providers.environmentVariable("TIKTAK_TV_STORE_PASSWORD")
+val tvReleaseKeyAlias = providers.environmentVariable("TIKTAK_TV_KEY_ALIAS")
+val tvReleaseKeyPassword = providers.environmentVariable("TIKTAK_TV_KEY_PASSWORD")
+val hasTvReleaseSigning = listOf(
+    tvReleaseStoreFile,
+    tvReleaseStorePassword,
+    tvReleaseKeyAlias,
+    tvReleaseKeyPassword,
+).all { it.isPresent }
+
 android {
     namespace = "com.tiktaktv.tv"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -21,6 +32,18 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("tvRelease") {
+            if (hasTvReleaseSigning) {
+                storeFile = file(tvReleaseStoreFile.get())
+                storePassword = tvReleaseStorePassword.get()
+                keyAlias = tvReleaseKeyAlias.get()
+                keyPassword = tvReleaseKeyPassword.get()
+                storeType = "PKCS12"
+            }
+        }
+    }
+
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
@@ -29,6 +52,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasTvReleaseSigning) {
+                signingConfig = signingConfigs.getByName("tvRelease")
+            }
         }
     }
 }

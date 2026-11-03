@@ -14,6 +14,16 @@ playback companion, friend codes, and progress as the web application.
 The APK is written to `tvApp/build/outputs/apk/debug/tvApp-debug.apk`.
 GitHub Actions also publishes it as the `TikTak-TV-Android-TV` artifact.
 
+## Public TV release
+
+Run the `Publish Android TV APK` workflow to test, sign, and publish the stable
+Downloader asset at:
+
+`https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk`
+
+The workflow uses the permanent `TIKTAK_TV_*` repository secrets. Keep the
+matching signing-key backup private; every update must use the same key.
+
 ## Release requirements
 
 Before public Downloader distribution, configure a permanent release signing
