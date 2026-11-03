@@ -767,6 +767,48 @@ test("channels without guide data stay out of the live guide", async ({
   await expect(page.locator(".tv-guide-row")).toHaveCount(0);
 });
 
+test("guide-linked channels remain playable when a provider schedule service is down", async ({
+  page,
+}) => {
+  await page.route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
+    route.fulfill({ status: 404 }),
+  );
+  await page.route(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+    (route) => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      if (!action)
+        return route.fulfill({
+          json: { user_info: { auth: 1, status: "Active" } },
+        });
+      if (action.endsWith("_categories"))
+        return route.fulfill({
+          json: [{ category_id: "1", category_name: "News" }],
+        });
+      if (action === "get_short_epg") return route.fulfill({ status: 404 });
+      return route.fulfill({
+        json: [
+          {
+            stream_id: 10,
+            name: "Guide Tagged News",
+            category_id: "1",
+            epg_channel_id: "guide.tagged.news",
+          },
+        ],
+      });
+    },
+  );
+  await connect(page);
+  await page.goto("/#live");
+  await expect(
+    page.getByText(/schedule service is unavailable/i),
+  ).toBeVisible();
+  await expect(
+    page.locator(".tv-guide-channel").filter({ hasText: "Guide Tagged News" }),
+  ).toBeVisible();
+  await expect(page.getByText("No programme information")).toBeVisible();
+});
+
 test("custom XMLTV URL supplies guide data for an imported M3U playlist", async ({
   page,
 }) => {

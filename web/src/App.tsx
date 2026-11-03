@@ -2216,26 +2216,41 @@ export default function App() {
     () => filtered.filter(guideState.hasUpcoming),
     [filtered, guideState.hasUpcoming],
   );
+  const guideFallbackReady =
+    !guideState.loading &&
+    guideState.fallback &&
+    guideState.probed >= Math.min(tvInterface ? 60 : 120, filtered.length);
+  const guideDisplayChannels = guideChannels.length
+    ? guideChannels
+    : guideFallbackReady
+      ? filtered
+      : [];
   const guidedRecentChannels = useMemo(
-    () => recentChannels.filter(guideState.hasUpcoming),
-    [guideState.hasUpcoming, recentChannels],
+    () =>
+      recentChannels.filter(
+        (channel) =>
+          guideState.hasUpcoming(channel) ||
+          (guideFallbackReady && !!channel.epgId?.trim()),
+      ),
+    [guideFallbackReady, guideState.hasUpcoming, recentChannels],
   );
   useEffect(() => {
     setGuideLimit(initialGuideLimit);
     setGuideProbeLimit(tvInterface ? 60 : 120);
   }, [region, category, favoritesOnly, deferredQuery]);
   useEffect(() => {
+    const probeCeiling = Math.min(filtered.length, tvInterface ? 120 : 240);
     if (
       page !== "live" ||
       guideState.loading ||
       !guideState.fallback ||
       guideChannels.length >= guideLimit ||
-      guideProbeLimit >= filtered.length ||
+      guideProbeLimit >= probeCeiling ||
       guideState.probed < guideProbeLimit
     )
       return;
     setGuideProbeLimit((value) =>
-      Math.min(value + (tvInterface ? 60 : 120), filtered.length),
+      Math.min(value + (tvInterface ? 60 : 120), probeCeiling),
     );
   }, [
     filtered.length,
@@ -2994,16 +3009,13 @@ export default function App() {
                       ? epgUrl
                         ? "Loading your custom program guide..."
                         : "Loading your Xtream guide automatically..."
-                      : guideState.count
+                      : guideChannels.length
                         ? `Guide ready - ${guideState.count.toLocaleString()} channel guides`
-                        : "No program guide data matched these channels yet."}
-                    {guideState.fallback
-                      ? provider
-                        ? " - Using per-channel guide data"
-                        : " - Check the EPG URL and channel TVG IDs"
-                      : ""}
+                        : guideFallbackReady
+                          ? `Your provider marks ${filtered.length.toLocaleString()} channels for guide data, but its schedule service is unavailable. You can still open those channels.`
+                          : "Checking channels for program guide data..."}
                   </p>
-                  {!loading && guideChannels.length > 0 && (
+                  {!loading && guideDisplayChannels.length > 0 && (
                     <section
                       className="tv-guide-grid"
                       aria-label="Live TV schedule"
@@ -3018,7 +3030,7 @@ export default function App() {
                           setGuideLimit((value) =>
                             Math.min(
                               value + (tvInterface ? 12 : 30),
-                              guideChannels.length,
+                              guideDisplayChannels.length,
                             ),
                           );
                       }}
@@ -3029,7 +3041,9 @@ export default function App() {
                           <h2>Live guide</h2>
                         </div>
                         <span>
-                          {guideChannels.length} channels with schedules
+                          {guideChannels.length
+                            ? `${guideChannels.length} channels with schedules`
+                            : `${guideDisplayChannels.length} guide-linked channels`}
                         </span>
                       </div>
                       <div className="tv-guide-times">
@@ -3045,99 +3059,101 @@ export default function App() {
                           </time>
                         ))}
                       </div>
-                      {guideChannels.slice(0, guideLimit).map((channel) => {
-                        const shows = guideState
-                          .get(channel)
-                          .filter(
-                            (p) =>
-                              p.end > guideState.now &&
-                              p.start < guideState.now + 2 * 60 * 60_000,
-                          );
-                        return (
-                          <div
-                            className="tv-guide-row"
-                            key={`guide-${itemKey(channel)}`}
-                          >
-                            <button
-                              className="tv-guide-channel"
-                              onClick={() => playChannel(channel)}
+                      {guideDisplayChannels
+                        .slice(0, guideLimit)
+                        .map((channel) => {
+                          const shows = guideState
+                            .get(channel)
+                            .filter(
+                              (p) =>
+                                p.end > guideState.now &&
+                                p.start < guideState.now + 2 * 60 * 60_000,
+                            );
+                          return (
+                            <div
+                              className="tv-guide-row"
+                              key={`guide-${itemKey(channel)}`}
                             >
-                              <span className="tv-guide-channel-art">
-                                <Art item={channel} />
-                              </span>
-                              <strong>{channel.name}</strong>
-                              <span
-                                className="tv-guide-favorite"
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`${saved(channel) ? "Unfavorite" : "Favorite"} ${channel.name}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  toggleSave(channel);
-                                }}
-                                onKeyDown={(event) => {
-                                  if (
-                                    event.key === "Enter" ||
-                                    event.key === " "
-                                  ) {
-                                    event.preventDefault();
+                              <button
+                                className="tv-guide-channel"
+                                onClick={() => playChannel(channel)}
+                              >
+                                <span className="tv-guide-channel-art">
+                                  <Art item={channel} />
+                                </span>
+                                <strong>{channel.name}</strong>
+                                <span
+                                  className="tv-guide-favorite"
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={`${saved(channel) ? "Unfavorite" : "Favorite"} ${channel.name}`}
+                                  onClick={(event) => {
                                     event.stopPropagation();
                                     toggleSave(channel);
-                                  }
-                                }}
-                              >
-                                <Heart
-                                  size={16}
-                                  fill={
-                                    saved(channel) ? "currentColor" : "none"
-                                  }
-                                />
-                              </span>
-                            </button>
-                            <div className="tv-guide-programmes">
-                              {shows.length ? (
-                                shows.map((programme) => (
-                                  <button
-                                    key={programme.id}
-                                    className={
-                                      programme.start <= guideState.now &&
-                                      programme.end > guideState.now
-                                        ? "on-now"
-                                        : ""
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (
+                                      event.key === "Enter" ||
+                                      event.key === " "
+                                    ) {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      toggleSave(channel);
                                     }
-                                    style={{
-                                      flexGrow: Math.max(
-                                        15,
-                                        (programme.end -
-                                          Math.max(
-                                            programme.start,
-                                            guideState.now,
-                                          )) /
-                                          60_000,
-                                      ),
-                                    }}
-                                    onClick={() => playChannel(channel)}
-                                  >
-                                    <strong>{programme.title}</strong>
-                                    <small>
-                                      {new Date(
-                                        programme.start,
-                                      ).toLocaleTimeString([], {
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                      })}
-                                    </small>
-                                  </button>
-                                ))
-                              ) : (
-                                <span className="tv-guide-empty">
-                                  No programme information
+                                  }}
+                                >
+                                  <Heart
+                                    size={16}
+                                    fill={
+                                      saved(channel) ? "currentColor" : "none"
+                                    }
+                                  />
                                 </span>
-                              )}
+                              </button>
+                              <div className="tv-guide-programmes">
+                                {shows.length ? (
+                                  shows.map((programme) => (
+                                    <button
+                                      key={programme.id}
+                                      className={
+                                        programme.start <= guideState.now &&
+                                        programme.end > guideState.now
+                                          ? "on-now"
+                                          : ""
+                                      }
+                                      style={{
+                                        flexGrow: Math.max(
+                                          15,
+                                          (programme.end -
+                                            Math.max(
+                                              programme.start,
+                                              guideState.now,
+                                            )) /
+                                            60_000,
+                                        ),
+                                      }}
+                                      onClick={() => playChannel(channel)}
+                                    >
+                                      <strong>{programme.title}</strong>
+                                      <small>
+                                        {new Date(
+                                          programme.start,
+                                        ).toLocaleTimeString([], {
+                                          hour: "numeric",
+                                          minute: "2-digit",
+                                        })}
+                                      </small>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="tv-guide-empty">
+                                    No programme information
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </section>
                   )}
                   {error && (
