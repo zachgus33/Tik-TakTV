@@ -35,6 +35,8 @@ jobs:
         env:
           VITE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}/web
       - run: npm run test:e2e
+        env:
+          HOME: /root
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist
