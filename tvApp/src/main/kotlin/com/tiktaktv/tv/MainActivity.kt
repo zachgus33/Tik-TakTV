@@ -63,10 +63,8 @@ class MainActivity : ComponentActivity() {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 databaseEnabled = true
-                // A remote click selects the item before the YouTube iframe is
-                // created. Requiring a second WebView gesture prevents that
-                // asynchronous player from starting on Fire/Android TV.
-                mediaPlaybackRequiresUserGesture = false
+                mediaPlaybackRequiresUserGesture =
+                    TvPlaybackPolicy.requiresMediaPlaybackGesture
                 javaScriptCanOpenWindowsAutomatically = false
                 setSupportMultipleWindows(false)
                 allowFileAccess = false
