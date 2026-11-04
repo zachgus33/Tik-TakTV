@@ -11,6 +11,7 @@ import {
   PictureInPicture2,
   Play,
   RotateCcw,
+  Settings2,
   X,
 } from "lucide-react";
 import type Hls from "hls.js";
@@ -75,6 +76,10 @@ function VideoPlayer({
   partyIdentity: PartyIdentity;
   onSeek?: (seconds: number) => void;
 }) {
+  const tvMode =
+    document.documentElement.classList.contains("tv-mode") ||
+    new URLSearchParams(location.search).get("tv") === "1" ||
+    /TikTakTV-AndroidTV/i.test(navigator.userAgent);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -139,11 +144,58 @@ function VideoPlayer({
   }, [playback]);
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      if (tvMode)
+        requestAnimationFrame(() =>
+          dialog
+            .querySelector<HTMLElement>("[data-tv-initial-focus]")
+            ?.focus(),
+        );
+    }
     return () => {
       if (dialog?.open) dialog.close();
     };
-  }, []);
+  }, [tvMode]);
+  useEffect(() => {
+    if (!tvMode) return;
+    const handleTvPlaybackKeys = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const onControl = !!active?.closest(
+        ".tv-player-controls, .player-tools, .party-status, .error",
+      );
+      if (event.key === "Escape" || event.key === "BrowserBack") {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (onControl) return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (video.paused) void video.play();
+        else video.pause();
+      } else if (event.key === "ArrowLeft" && playback.item.type !== "live") {
+        event.preventDefault();
+        seekTo(currentTime - 10);
+      } else if (
+        event.key === "ArrowRight" &&
+        playback.item.type !== "live"
+      ) {
+        event.preventDefault();
+        seekTo(currentTime + 10);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        document
+          .querySelector<HTMLElement>(".tv-player-controls button")
+          ?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleTvPlaybackKeys, true);
+    return () =>
+      window.removeEventListener("keydown", handleTvPlaybackKeys, true);
+  }, [tvMode, currentTime, playback.item.type]);
   useEffect(() => {
     return () => {
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
@@ -648,7 +700,12 @@ function VideoPlayer({
     if (onSeek) onSeek(bounded);
   }
   return (
-    <dialog ref={dialogRef} className="player-dialog" onCancel={close}>
+    <dialog
+      ref={dialogRef}
+      className={`player-dialog${tvMode ? " tv-player-surface" : ""}`}
+      onCancel={close}
+      aria-label={`${playback.item.name} player`}
+    >
       <div className="player-top">
         <div>
           <span className="eyebrow">
@@ -672,7 +729,7 @@ function VideoPlayer({
       </div>
       <video
         ref={videoRef}
-        controls={playback.item.type === "live"}
+        controls={playback.item.type === "live" && !tvMode}
         playsInline
         preload="metadata"
         poster={playback.item.background}
@@ -689,9 +746,13 @@ function VideoPlayer({
           />
         ))}
       </video>
-      {playback.item.type !== "live" && (
-        <div className="vod-controls" aria-label="Playback controls">
-          <button
+      {(playback.item.type !== "live" || tvMode) && (
+        <div
+          className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}
+          aria-label="Playback controls"
+        >
+          {(playback.item.type !== "live" || tvMode) && <button
+            data-tv-initial-focus={tvMode ? true : undefined}
             type="button"
             aria-label={playing ? "Pause" : "Play"}
             onClick={() => {
@@ -702,7 +763,8 @@ function VideoPlayer({
             }}
           >
             {playing ? <Pause size={18} /> : <Play size={18} />}
-          </button>
+          </button>}
+          {playback.item.type !== "live" && <>
           <button
             type="button"
             aria-label="Rewind 10 seconds"
@@ -723,6 +785,8 @@ function VideoPlayer({
             <FastForward size={18} />
             <span>10</span>
           </button>
+          </>}
+          {playback.item.type !== "live" ? <>
           <span>{formatPlayerTime(currentTime)}</span>
           <input
             type="range"
@@ -734,6 +798,20 @@ function VideoPlayer({
             onChange={(event) => seekTo(Number(event.target.value))}
           />
           <span>{formatPlayerTime(timelineEnd)}</span>
+          </> : <span className="tv-live-indicator"><i /> LIVE</span>}
+          {tvMode && (
+            <button
+              type="button"
+              aria-label="Playback settings"
+              onClick={() =>
+                document
+                  .querySelector<HTMLElement>(".tv-player-surface .player-tools button, .tv-player-surface .player-tools select")
+                  ?.focus()
+              }
+            >
+              <Settings2 size={22} />
+            </button>
+          )}
         </div>
       )}
       {party && (
@@ -807,15 +885,15 @@ function VideoPlayer({
             {partyBusy ? "Starting room…" : "Watch Together"}
           </button>
         )}
-        <button onClick={airplay}>
+        {!tvMode && <button onClick={airplay}>
           <Airplay size={18} /> AirPlay
-        </button>
-        <button onClick={pip}>
+        </button>}
+        {!tvMode && <button onClick={pip}>
           <PictureInPicture2 size={18} /> Picture in Picture
-        </button>
-        <button onClick={fullscreen}>
+        </button>}
+        {!tvMode && <button onClick={fullscreen}>
           <Maximize size={18} /> Fullscreen
-        </button>
+        </button>}
         {playback.item.type !== "live" && (
           <select
             aria-label="Playback speed"

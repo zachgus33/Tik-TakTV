@@ -225,6 +225,19 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByLabel("YouTube playback controls")).toBeVisible();
   await expect(page.getByLabel("Fast forward 10 seconds")).toBeVisible();
   await expect(page.getByText("Skip SponsorBlock segments")).toBeVisible();
+
+  await page.goto("/?tv=1#youtube");
+  await page.getByText("Account recommendation", { exact: true }).click();
+  const tvPlayer = page.locator("dialog.tv-youtube-player");
+  await expect(tvPlayer).toBeVisible();
+  const tvPlayerBox = await tvPlayer.boundingBox();
+  const viewport = page.viewportSize();
+  expect(tvPlayerBox?.x).toBe(0);
+  expect(tvPlayerBox?.y).toBe(0);
+  expect(Math.round(tvPlayerBox?.width ?? 0)).toBe(viewport?.width);
+  expect(Math.round(tvPlayerBox?.height ?? 0)).toBe(viewport?.height);
+  await page.keyboard.press("Escape");
+  await expect(tvPlayer).toBeHidden();
 });
 
 test("first visit offers Nuvio sign in and account creation", async ({
@@ -1537,6 +1550,53 @@ test("browser-incompatible MKV is normalized before playback", async ({
   });
   await expect.poll(() => prepared.at(-1)?.start).toBe(3600);
   await expect(page.locator("video")).not.toHaveAttribute("controls", "");
+});
+test("TV playback opens as a full-screen remote-controlled surface", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "The ten-foot player targets the Chromium Android TV shell.",
+  );
+  await streamingAddon(page);
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "TV test stream",
+            url: "https://cdn.example/tv-player.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/tv-player.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/?tv=1");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page
+    .getByRole("button", { name: /TV test stream Direct play/ })
+    .click();
+
+  const player = page.locator("dialog.tv-player-surface");
+  await expect(player).toBeVisible();
+  await expect(player.getByLabel("Playback controls")).toBeVisible();
+  const box = await player.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box?.x).toBe(0);
+  expect(box?.y).toBe(0);
+  expect(Math.round(box?.width ?? 0)).toBe(viewport?.width);
+  expect(Math.round(box?.height ?? 0)).toBe(viewport?.height);
+
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("button", { name: /^(Pause|Play)$/ })).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByLabel("Rewind 10 seconds")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(player).toBeHidden();
 });
 test("subtitle timing controls persist the selected offset", async ({
   page,

@@ -5580,6 +5580,185 @@ button.primary:hover,
 .tv-mode .youtube-subscriptions button {
   min-height: 54px;
 }
+
+/* TV playback is a dedicated ten-foot surface. The underlying page cannot
+   steal focus or scroll while a movie, channel, episode, or YouTube video is
+   playing. */
+.tv-mode .player-dialog.tv-player-surface,
+.tv-mode .youtube-player-card.tv-youtube-player {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  color: white;
+  background: #000;
+}
+.tv-mode .player-dialog.tv-player-surface::backdrop,
+.tv-mode .youtube-player-card.tv-youtube-player::backdrop {
+  background: #000;
+}
+.tv-mode .tv-player-surface > video,
+.tv-mode .tv-youtube-player .youtube-player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  object-fit: contain;
+  background: #000;
+}
+.tv-mode .tv-player-surface .player-top,
+.tv-mode .tv-youtube-player .youtube-tv-close {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+}
+.tv-mode .tv-player-surface .player-top {
+  right: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: 38px 48px 100px;
+  pointer-events: none;
+  background: linear-gradient(#000d 0%, #0008 45%, transparent 100%);
+}
+.tv-mode .tv-player-surface .player-top > div { max-width: 72vw; }
+.tv-mode .tv-player-surface .player-top h2 {
+  margin-top: 8px;
+  font-size: clamp(2rem, 4.5vw, 4rem);
+  text-shadow: 0 3px 18px #000;
+}
+.tv-mode .tv-player-surface .player-top p { font-size: 1.05rem; }
+.tv-mode .tv-player-surface .player-top button {
+  min-width: 58px;
+  min-height: 58px;
+  pointer-events: auto;
+  background: #111c;
+}
+.tv-mode .tv-player-surface .vod-controls,
+.tv-mode .tv-youtube-player .youtube-player-info {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  padding: 110px 48px 38px;
+  color: white;
+  background: linear-gradient(transparent 0%, #000b 40%, #000f 100%);
+}
+.tv-mode .tv-player-surface .vod-controls {
+  grid-template-columns: auto auto auto auto minmax(180px, 1fr) auto auto;
+  gap: 18px;
+}
+.tv-mode .tv-player-surface .vod-controls button,
+.tv-mode .tv-youtube-player .youtube-controls button,
+.tv-mode .youtube-tv-close {
+  min-width: 62px;
+  min-height: 58px;
+  padding: 14px 18px;
+  border: 1px solid #ffffff35;
+  border-radius: 999px;
+  color: white;
+  background: #17171bd9;
+}
+.tv-mode .tv-player-surface .vod-controls input[type="range"] {
+  height: 12px;
+}
+.tv-mode .tv-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 100px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.tv-mode .tv-live-indicator i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff365f;
+  box-shadow: 0 0 18px #ff365f;
+}
+.tv-mode .tv-player-surface .player-tools,
+.tv-mode .tv-player-surface .party-status,
+.tv-mode .tv-player-surface > .muted,
+.tv-mode .tv-player-surface > .error {
+  position: relative;
+  z-index: 7;
+}
+.tv-mode .tv-player-surface .player-tools {
+  position: absolute;
+  right: 42px;
+  bottom: 118px;
+  max-width: 76vw;
+  max-height: 42vh;
+  padding: 18px;
+  overflow: auto;
+  border-radius: 18px;
+  background: #111e;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.tv-mode .tv-player-surface .player-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.tv-mode .tv-player-surface > .error,
+.tv-mode .tv-player-surface > .muted {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: 50%;
+  width: min(620px, 72vw);
+  margin: 0;
+  padding: 24px 28px;
+  border-radius: 18px;
+  transform: translate(-50%, -50%);
+  background: #17131ded;
+  box-shadow: 0 24px 80px #000c;
+}
+.tv-mode .tv-player-surface > .party-status {
+  position: absolute;
+  z-index: 7;
+  top: 138px;
+  left: 48px;
+  width: min(720px, 70vw);
+}
+.tv-mode .tv-youtube-player .youtube-tv-close {
+  top: 34px;
+  left: 38px;
+  z-index: 7;
+}
+.tv-mode .tv-youtube-player .youtube-player-info {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+}
+.tv-mode .tv-youtube-player .youtube-player-info strong {
+  display: block;
+  max-width: 60vw;
+  font-size: clamp(1.5rem, 3vw, 2.6rem);
+}
+.tv-mode .tv-youtube-player .youtube-player-info span { font-size: 1rem; }
+.tv-mode .tv-youtube-player .youtube-controls {
+  display: flex;
+  gap: 14px;
+  flex: none;
+}
 .tv-mode button,
 .tv-mode a,
 .tv-mode input,

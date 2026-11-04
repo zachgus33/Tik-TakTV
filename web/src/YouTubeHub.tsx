@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Volume2,
   VolumeX,
+  X,
   Youtube,
 } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -88,6 +89,10 @@ function readHistory(): YouTubeSelection[] {
 }
 
 export default function YouTubeHub() {
+  const tvMode =
+    document.documentElement.classList.contains("tv-mode") ||
+    new URLSearchParams(location.search).get("tv") === "1" ||
+    /TikTakTV-AndroidTV/i.test(navigator.userAgent);
   const [kind, setKind] = useState<YouTubeKind>("video");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<YouTubeSelection[]>([]);
@@ -287,6 +292,37 @@ export default function YouTubeHub() {
     );
   };
 
+  useEffect(() => {
+    if (!tvMode || !selection) return;
+    const handleKeys = (event: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (event.key === "Escape" || event.key === "BrowserBack") {
+        event.preventDefault();
+        setSelection(null);
+        return;
+      }
+      if (active?.closest(".youtube-controls")) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        seek(-10);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        seek(10);
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (playing) playerRef.current?.pauseVideo();
+        else playerRef.current?.playVideo();
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        document
+          .querySelector<HTMLElement>(".tv-youtube-player .youtube-controls button")
+          ?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeys, true);
+    return () => window.removeEventListener("keydown", handleKeys, true);
+  }, [tvMode, selection, playing]);
+
   return (
     <div className="youtube-hub">
       <section className="youtube-heading">
@@ -414,7 +450,33 @@ export default function YouTubeHub() {
         </div>
       )}
 
-      {selection && (
+      {selection && (tvMode ? (
+        <dialog
+          open
+          className="youtube-player-card tv-youtube-player"
+          aria-label={`${selection.title} player`}
+          onCancel={(event) => {
+            event.preventDefault();
+            setSelection(null);
+          }}
+        >
+          <button
+            className="youtube-tv-close"
+            aria-label="Close player"
+            onClick={() => setSelection(null)}
+          ><X size={28} /></button>
+          <div className="youtube-player" ref={hostRef} />
+          <div className="youtube-player-info">
+            <div><strong>{selection.title}</strong>{selection.channel && <span>{selection.channel}</span>}</div>
+            <div className="youtube-controls" aria-label="YouTube playback controls">
+              <button onClick={() => seek(-10)} aria-label="Rewind 10 seconds"><Rewind size={24} /><span>10s</span></button>
+              <button data-tv-initial-focus onClick={() => playing ? playerRef.current?.pauseVideo() : playerRef.current?.playVideo()} aria-label={playing ? "Pause YouTube" : "Play YouTube"}>{playing ? <Pause size={30} /> : <Play size={30} />}</button>
+              <button onClick={() => seek(10)} aria-label="Fast forward 10 seconds"><FastForward size={24} /><span>10s</span></button>
+              <button onClick={() => { const player = playerRef.current; if (!player) return; if (player.isMuted()) { player.unMute(); setMuted(false); } else { player.mute(); setMuted(true); } }} aria-label={muted ? "Unmute YouTube" : "Mute YouTube"}>{muted ? <VolumeX size={24} /> : <Volume2 size={24} />}</button>
+            </div>
+          </div>
+        </dialog>
+      ) : (
         <section className="youtube-player-card">
           <div className="youtube-player" ref={hostRef} />
           <div className="youtube-player-info">
@@ -490,7 +552,7 @@ export default function YouTubeHub() {
             </label>
           </div>
         </section>
-      )}
+      ))}
 
       {!!account?.connected && !!account.activity?.length && (
         <section className="youtube-section">
