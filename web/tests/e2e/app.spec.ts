@@ -309,6 +309,7 @@ test("TV sidebar is readable and the decorative brand is not a remote target", a
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/?tv=1#home");
+  await expect(page.locator("html")).toHaveClass(/tv-mode/);
   const layout = await page.locator(".sidebar").evaluate((sidebar) => {
     const brand = sidebar.querySelector<HTMLElement>(".brand")!;
     const home = sidebar.querySelector<HTMLElement>("nav a")!;
@@ -417,9 +418,54 @@ test("TV remote keeps horizontal movement in the current row", async ({
     document.body.append(modal);
     document.querySelector<HTMLElement>("#row-start")?.focus();
   });
+  await expect(page.locator("#row-start")).toBeFocused();
+  await expect(page.locator("#row-right")).toBeVisible();
+  await page.waitForTimeout(50);
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("#row-right")).toBeFocused();
   await expect(page.locator("#near-diagonal")).not.toBeFocused();
+});
+
+test("TV live guide uses ten-foot rows and moves between channels by remote", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+      }),
+    ),
+  );
+  await connect(page);
+  await page.goto("/?tv=1#live");
+  const rows = page.locator(".tv-guide-row");
+  await expect(rows.first()).toContainText("Evening news", { timeout: 15_000 });
+  const dimensions = await rows.first().evaluate((row) => {
+    const channel = row.querySelector<HTMLElement>(".tv-guide-channel")!;
+    const art = row.querySelector<HTMLElement>(".tv-guide-channel-art")!;
+    return {
+      rowHeight: row.getBoundingClientRect().height,
+      channelWidth: channel.getBoundingClientRect().width,
+      artWidth: art.getBoundingClientRect().width,
+    };
+  });
+  expect(dimensions.rowHeight).toBeGreaterThanOrEqual(96);
+  expect(dimensions.channelWidth).toBeGreaterThanOrEqual(300);
+  expect(dimensions.artWidth).toBeGreaterThanOrEqual(54);
+  await rows.first().evaluate((row) => {
+    const copy = row.cloneNode(true) as HTMLElement;
+    copy.querySelector("strong")!.textContent = "Second Test Channel";
+    row.after(copy);
+  });
+  const first = rows.nth(0).locator(".tv-guide-channel");
+  const second = rows.nth(1).locator(".tv-guide-channel");
+  await first.focus();
+  await expect(first).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(second).toBeFocused();
 });
 test("a clean profile starts without another user's IPTV connection", async ({
   page,
