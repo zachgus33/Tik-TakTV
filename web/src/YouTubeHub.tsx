@@ -301,6 +301,16 @@ export default function YouTubeHub() {
   }, [selection]);
 
   useEffect(() => {
+    if (!selection || tvMode) return;
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(".youtube-player-card")
+        ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [selection, tvMode]);
+
+  useEffect(() => {
     if (!ready || !sponsorEnabled) return;
     const timer = window.setInterval(() => {
       const player = playerRef.current;

@@ -125,6 +125,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       private options: any;
       constructor(_target: HTMLElement, options: any) {
         this.options = options;
+        (window as any).__playedYouTubeVideoId = options.videoId;
         queueMicrotask(() => options.events.onReady({ target: this }));
       }
       destroy() {}
@@ -159,6 +160,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       }
       playVideo() {
         this.playing = true;
+        (window as any).__youtubePlayerStarted = true;
         this.options.events.onStateChange({ data: 1, target: this });
       }
       seekTo(value: number) {
@@ -281,6 +283,18 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await page.getByLabel("Search videos from Subscribed channel").click();
   await expect(page.getByRole("heading", { name: "Latest from Subscribed channel" })).toBeVisible();
   await expect(page.getByText("Newest subscription video")).toBeVisible();
+  await page
+    .getByLabel("Search YouTube or paste a link")
+    .fill("plane crash in florida");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Video search results" })).toBeVisible();
+  await page.getByText("Video result", { exact: true }).click();
+  await expect(page.locator(".youtube-player-card")).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId)).toBe("aqz-KE-bpKQ");
+  await expect.poll(() => page.evaluate(() => (window as any).__youtubePlayerStarted)).toBe(true);
+  await expect(
+    page.locator(".youtube-player-card").getByText("Video result", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
