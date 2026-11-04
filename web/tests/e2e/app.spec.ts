@@ -465,7 +465,7 @@ test("TV live guide uses ten-foot rows and moves between channels by remote", as
     };
   });
   expect(dimensions.rowHeight).toBeGreaterThanOrEqual(96);
-  expect(dimensions.channelWidth).toBeGreaterThanOrEqual(300);
+  expect(dimensions.channelWidth).toBeGreaterThanOrEqual(260);
   expect(dimensions.artWidth).toBeGreaterThanOrEqual(54);
   await rows.first().evaluate((row) => {
     const copy = row.cloneNode(true) as HTMLElement;
@@ -478,6 +478,37 @@ test("TV live guide uses ten-foot rows and moves between channels by remote", as
   await expect(first).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(second).toBeFocused();
+});
+
+test("narrow TV WebViews leave useful room for programme cards", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 699, height: 780 });
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({ url: "https://playback.example", token: "fake-private-key" }),
+    ),
+  );
+  await connect(page);
+  await page.goto("/?tv=1#live");
+  await expect(page.locator(".tv-guide-row").first()).toContainText("Evening news", {
+    timeout: 15_000,
+  });
+  const layout = await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
+    const grid = document.querySelector<HTMLElement>(".tv-guide-grid")!;
+    const channel = document.querySelector<HTMLElement>(".tv-guide-channel")!;
+    return {
+      sidebar: sidebar.getBoundingClientRect().width,
+      grid: grid.getBoundingClientRect().width,
+      channel: channel.getBoundingClientRect().width,
+    };
+  });
+  expect(layout.sidebar).toBeLessThanOrEqual(150);
+  expect(layout.grid).toBeGreaterThanOrEqual(480);
+  expect(layout.channel).toBeLessThanOrEqual(210);
+  expect(layout.grid - layout.channel).toBeGreaterThanOrEqual(270);
 });
 test("a clean profile starts without another user's IPTV connection", async ({
   page,

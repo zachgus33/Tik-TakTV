@@ -16,6 +16,57 @@ export type SponsorSegment = {
   category: string;
 };
 
+export type YouTubeAccount = {
+  configured: boolean;
+  connected: boolean;
+  channel?: { title?: string; thumbnails?: Record<string, { url?: string }> };
+  subscriptions?: { id: string; title: string; thumbnail?: string }[];
+  playlists?: (YouTubeSelection & { itemCount?: number })[];
+  activity?: YouTubeSelection[];
+};
+
+async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
+  const response = await serviceRequest(path, body);
+  const data = (await response.json().catch(() => ({}))) as T & {
+    error?: string;
+  };
+  if (!response.ok && response.status !== 202)
+    throw new Error(data.error ?? "YouTube account request failed.");
+  return { response, data };
+}
+
+export async function youtubeAccount(summary = false) {
+  return (
+    await youtubeAccountRequest<YouTubeAccount>("/youtube/account", { summary })
+  ).data;
+}
+
+export async function startYouTubeDeviceSignIn() {
+  return (
+    await youtubeAccountRequest<{
+      userCode: string;
+      verificationUrl: string;
+      expiresIn: number;
+      interval: number;
+    }>("/youtube/device/start")
+  ).data;
+}
+
+export async function pollYouTubeDeviceSignIn() {
+  const result = await youtubeAccountRequest<{
+    connected?: boolean;
+    pending?: boolean;
+    interval?: number;
+  }>("/youtube/device/poll");
+  return { status: result.response.status, ...result.data };
+}
+
+export async function disconnectYouTube() {
+  return (
+    await youtubeAccountRequest<{ connected: boolean }>("/youtube/disconnect")
+  ).data;
+}
+
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 const playlistIdPattern = /^[A-Za-z0-9_-]{10,64}$/;
 

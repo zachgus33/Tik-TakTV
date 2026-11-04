@@ -237,6 +237,22 @@ export function createService({ token, origins, authorizeAccount }) {
   })();
   let friendVaultCache;
   let friendVaultsCache;
+  const youtubeDevices = new Map();
+  const youtubeVaultPath =
+    process.env.YOUTUBE_VAULT_PATH ??
+    join(process.cwd(), "runtime", "youtube-vault.json");
+  const youtubeKey = (() => {
+    try {
+      const configured = Buffer.from(
+        process.env.YOUTUBE_VAULT_KEY ?? "",
+        "base64",
+      );
+      return configured.length === 32 ? configured : friendKey;
+    } catch {
+      return friendKey;
+    }
+  })();
+  let youtubeVaultCache;
   async function decryptVaultFile(path) {
     if (!friendKey) return null;
     const stored = JSON.parse(await readFile(path, "utf8"));
@@ -295,6 +311,102 @@ export function createService({ token, origins, authorizeAccount }) {
   async function writeFriendVaults(value) {
     await encryptVaultFile(friendVaultsPath, value);
     friendVaultsCache = value;
+  }
+  async function readYoutubeVault() {
+    if (youtubeVaultCache) return youtubeVaultCache;
+    if (!youtubeKey) return { version: 1, accounts: {} };
+    try {
+      const stored = JSON.parse(await readFile(youtubeVaultPath, "utf8"));
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        youtubeKey,
+        Buffer.from(stored.iv, "base64"),
+      );
+      decipher.setAuthTag(Buffer.from(stored.tag, "base64"));
+      youtubeVaultCache = JSON.parse(
+        Buffer.concat([
+          decipher.update(Buffer.from(stored.data, "base64")),
+          decipher.final(),
+        ]).toString("utf8"),
+      );
+    } catch {
+      youtubeVaultCache = { version: 1, accounts: {} };
+    }
+    return youtubeVaultCache;
+  }
+  async function writeYoutubeVault(value) {
+    if (!youtubeKey)
+      throw new Error("YouTube account encryption is not configured");
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", youtubeKey, iv);
+    const data = Buffer.concat([
+      cipher.update(JSON.stringify(value), "utf8"),
+      cipher.final(),
+    ]);
+    await mkdir(join(youtubeVaultPath, ".."), { recursive: true });
+    const temporary = `${youtubeVaultPath}.${randomBytes(6).toString("hex")}`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        version: 1,
+        iv: iv.toString("base64"),
+        tag: cipher.getAuthTag().toString("base64"),
+        data: data.toString("base64"),
+      }),
+      { mode: 0o600 },
+    );
+    await rename(temporary, youtubeVaultPath);
+    youtubeVaultCache = value;
+  }
+  function youtubeOAuthConfig() {
+    const clientId = String(process.env.YOUTUBE_OAUTH_CLIENT_ID ?? "").trim();
+    const clientSecret = String(
+      process.env.YOUTUBE_OAUTH_CLIENT_SECRET ?? "",
+    ).trim();
+    return clientId && clientSecret && youtubeKey
+      ? { clientId, clientSecret }
+      : null;
+  }
+  async function youtubeToken(userId) {
+    const vault = await readYoutubeVault();
+    const account = vault.accounts?.[userId];
+    if (!account) return null;
+    if (account.accessToken && Number(account.expiresAt) > Date.now() + 60_000)
+      return account.accessToken;
+    const config = youtubeOAuthConfig();
+    if (!config || !account.refreshToken) return null;
+    const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: account.refreshToken,
+        grant_type: "refresh_token",
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.access_token) return null;
+    Object.assign(account, {
+      accessToken: payload.access_token,
+      expiresAt: Date.now() + Number(payload.expires_in ?? 3600) * 1000,
+    });
+    await writeYoutubeVault(vault);
+    return account.accessToken;
+  }
+  async function youtubeApi(userId, path, params = {}) {
+    const accessToken = await youtubeToken(userId);
+    if (!accessToken) return null;
+    const target = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+    for (const [key, value] of Object.entries(params))
+      target.searchParams.set(key, String(value));
+    const response = await upstreamFetch(target, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+    return response.json();
   }
   function friendCodeId(code) {
     return createHmac("sha256", friendKey)
@@ -793,6 +905,171 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/youtube/device/start") {
+        if (userId === "service")
+          return send(403, { error: "Sign in to TikTak TV first." });
+        const config = youtubeOAuthConfig();
+        if (!config)
+          return send(503, { error: "YouTube account sign-in is being configured." });
+        const response = await upstreamFetch(
+          "https://oauth2.googleapis.com/device/code",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: config.clientId,
+              scope: "https://www.googleapis.com/auth/youtube.readonly",
+            }),
+            signal: controller.signal,
+          },
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.device_code)
+          return send(502, { error: "Google sign-in could not start." });
+        youtubeDevices.set(userId, {
+          deviceCode: payload.device_code,
+          expires: Date.now() + Number(payload.expires_in ?? 900) * 1000,
+          interval: Math.max(5, Number(payload.interval ?? 5)),
+          lastPoll: 0,
+        });
+        return send(200, {
+          userCode: payload.user_code,
+          verificationUrl:
+            payload.verification_url ??
+            payload.verification_uri ??
+            "https://www.google.com/device",
+          expiresIn: Number(payload.expires_in ?? 900),
+          interval: Math.max(5, Number(payload.interval ?? 5)),
+        });
+      }
+      if (route.pathname === "/youtube/device/poll") {
+        if (userId === "service")
+          return send(403, { error: "Sign in to TikTak TV first." });
+        const config = youtubeOAuthConfig();
+        const pending = youtubeDevices.get(userId);
+        if (!config || !pending || pending.expires < Date.now())
+          return send(410, { error: "Start YouTube sign-in again." });
+        if (Date.now() - pending.lastPoll < pending.interval * 900)
+          return send(202, { pending: true });
+        pending.lastPoll = Date.now();
+        const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+            device_code: pending.deviceCode,
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          }),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (payload.error === "authorization_pending" || payload.error === "slow_down") {
+          if (payload.error === "slow_down") pending.interval += 5;
+          return send(202, { pending: true, interval: pending.interval });
+        }
+        if (!response.ok || !payload.access_token) {
+          youtubeDevices.delete(userId);
+          return send(400, { error: "Google sign-in was cancelled or expired." });
+        }
+        const vault = await readYoutubeVault();
+        vault.accounts[userId] = {
+          accessToken: payload.access_token,
+          refreshToken:
+            payload.refresh_token ?? vault.accounts[userId]?.refreshToken ?? "",
+          expiresAt: Date.now() + Number(payload.expires_in ?? 3600) * 1000,
+          connectedAt: Date.now(),
+        };
+        await writeYoutubeVault(vault);
+        youtubeDevices.delete(userId);
+        return send(200, { connected: true });
+      }
+      if (route.pathname === "/youtube/disconnect") {
+        if (userId === "service")
+          return send(403, { error: "Sign in to TikTak TV first." });
+        const vault = await readYoutubeVault();
+        delete vault.accounts[userId];
+        await writeYoutubeVault(vault);
+        youtubeDevices.delete(userId);
+        return send(200, { connected: false });
+      }
+      if (route.pathname === "/youtube/account") {
+        if (userId === "service")
+          return send(200, { configured: !!youtubeOAuthConfig(), connected: false });
+        const channel = await youtubeApi(userId, "channels", {
+          part: "snippet,contentDetails",
+          mine: "true",
+        });
+        if (!channel)
+          return send(200, {
+            configured: !!youtubeOAuthConfig(),
+            connected: false,
+          });
+        if (body.summary === true)
+          return send(200, {
+            configured: true,
+            connected: true,
+            channel: channel.items?.[0]?.snippet ?? null,
+          });
+        const [subscriptions, playlists, activities] = await Promise.all([
+          youtubeApi(userId, "subscriptions", {
+            part: "snippet",
+            mine: "true",
+            maxResults: 30,
+            order: "relevance",
+          }),
+          youtubeApi(userId, "playlists", {
+            part: "snippet,contentDetails",
+            mine: "true",
+            maxResults: 30,
+          }),
+          youtubeApi(userId, "activities", {
+            part: "snippet,contentDetails",
+            mine: "true",
+            maxResults: 30,
+          }),
+        ]);
+        const selections = (activities?.items ?? [])
+          .map((item) => ({
+            videoId:
+              item?.contentDetails?.upload?.videoId ??
+              item?.contentDetails?.playlistItem?.resourceId?.videoId ??
+              item?.contentDetails?.recommendation?.resourceId?.videoId ??
+              "",
+            title: String(item?.snippet?.title ?? "YouTube video").slice(0, 300),
+            channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
+            thumbnail: String(
+              item?.snippet?.thumbnails?.medium?.url ??
+                item?.snippet?.thumbnails?.default?.url ??
+                "",
+            ),
+          }))
+          .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
+        return send(200, {
+          configured: true,
+          connected: true,
+          channel: channel.items?.[0]?.snippet ?? null,
+          subscriptions: (subscriptions?.items ?? []).map((item) => ({
+            id: item?.snippet?.resourceId?.channelId ?? "",
+            title: String(item?.snippet?.title ?? "").slice(0, 200),
+            thumbnail:
+              item?.snippet?.thumbnails?.medium?.url ??
+              item?.snippet?.thumbnails?.default?.url ??
+              "",
+          })),
+          playlists: (playlists?.items ?? []).map((item) => ({
+            playlistId: item?.id ?? "",
+            title: String(item?.snippet?.title ?? "YouTube playlist").slice(0, 300),
+            channel: "Playlist",
+            thumbnail:
+              item?.snippet?.thumbnails?.medium?.url ??
+              item?.snippet?.thumbnails?.default?.url ??
+              "",
+            itemCount: Number(item?.contentDetails?.itemCount ?? 0),
+          })),
+          activity: selections,
+        });
+      }
       if (route.pathname === "/youtube/search") {
         const query = String(body.query ?? "").trim();
         const kind = body.kind === "music" ? "music" : "video";
@@ -1432,15 +1709,33 @@ export function createService({ token, origins, authorizeAccount }) {
               () => {},
             );
           }
+          // A user changing live channels must replace their previous live
+          // conversion immediately. Waiting for the stale-job sweep made the
+          // next channel fail with HTTP 429 for up to two minutes.
+          if (body.live)
+            for (const [jobId, job] of jobs)
+              if (job.owner === userId && job.live) {
+                job.process?.kill("SIGTERM");
+                jobs.delete(jobId);
+                if (job.dir)
+                  void rm(job.dir, { recursive: true, force: true }).catch(
+                    () => {},
+                  );
+              }
           if (jobs.size >= limits.jobs)
             return send(503, {
               error: "Playback service job capacity reached. Retry shortly.",
             });
-          const runningJobs = [...jobs.values()].filter((job) => job.running);
-          if (runningJobs.length >= 2)
+          const runningJobs = [...jobs.values()].filter(
+            (job) => job.running && job.mode === body.mode,
+          );
+          const conversionLimit = body.mode === "transcode" ? 2 : 8;
+          if (runningJobs.length >= conversionLimit)
             return send(429, {
               error:
-                "Two conversion sessions are already active. Close a player and retry.",
+                body.mode === "transcode"
+                  ? "Two video transcodes are already active. Retry shortly."
+                  : "The live relay is busy. Retry shortly.",
             });
           const id = randomBytes(24).toString("base64url");
           const dir = await mkdtemp(join(tmpdir(), "tiktak-"));
@@ -1521,6 +1816,9 @@ export function createService({ token, origins, authorizeAccount }) {
             ];
             jobs.set(id, {
               kind: "webm",
+              owner: userId,
+              mode: body.mode,
+              live: !!body.live,
               args,
               process: null,
               dir,
@@ -1642,6 +1940,9 @@ export function createService({ token, origins, authorizeAccount }) {
             windowsHide: true,
           });
           const job = {
+            owner: userId,
+            mode: body.mode,
+            live: !!body.live,
             process: child,
             dir,
             touched: Date.now(),

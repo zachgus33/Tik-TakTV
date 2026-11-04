@@ -1,6 +1,8 @@
 import {
   FastForward,
   History,
+  LogIn,
+  LogOut,
   Maximize,
   Music2,
   Pause,
@@ -15,9 +17,14 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   parseYouTubeSelection,
+  disconnectYouTube,
+  pollYouTubeDeviceSignIn,
   searchYouTube,
   sponsorSegments,
+  startYouTubeDeviceSignIn,
+  youtubeAccount,
   type SponsorSegment,
+  type YouTubeAccount,
   type YouTubeKind,
   type YouTubeSelection,
 } from "./youtube";
@@ -92,6 +99,13 @@ export default function YouTubeHub() {
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [notice, setNotice] = useState("");
+  const [account, setAccount] = useState<YouTubeAccount | null>(null);
+  const [accountBusy, setAccountBusy] = useState(true);
+  const [device, setDevice] = useState<{
+    userCode: string;
+    verificationUrl: string;
+    interval: number;
+  } | null>(null);
   const [sponsorEnabled, setSponsorEnabled] = useState(
     () => localStorage.getItem("tiktak:youtube-sponsorblock") !== "0",
   );
@@ -99,6 +113,48 @@ export default function YouTubeHub() {
   const playerRef = useRef<Player | null>(null);
   const segmentsRef = useRef<SponsorSegment[]>([]);
   const segmentVideoRef = useRef("");
+
+  const loadAccount = async () => {
+    setAccountBusy(true);
+    try {
+      setAccount(await youtubeAccount(false));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "YouTube sign-in failed.");
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAccount();
+  }, []);
+
+  useEffect(() => {
+    if (!device) return;
+    let cancelled = false;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const result = await pollYouTubeDeviceSignIn();
+        if (cancelled) return;
+        if (result.connected) {
+          setDevice(null);
+          setNotice("YouTube account connected");
+          await loadAccount();
+          return;
+        }
+        timer = window.setTimeout(poll, (result.interval ?? device.interval) * 1000);
+      } catch (reason) {
+        if (!cancelled)
+          setError(reason instanceof Error ? reason.message : "Google sign-in expired.");
+      }
+    };
+    timer = window.setTimeout(poll, device.interval * 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [device]);
 
   const remember = (next: YouTubeSelection) => {
     const value = [
@@ -264,6 +320,72 @@ export default function YouTubeHub() {
         </div>
       </section>
 
+      <section className="youtube-account-card" aria-label="YouTube account">
+        <div>
+          <strong>
+            {account?.connected
+              ? account.channel?.title || "Your YouTube account"
+              : "Your YouTube account"}
+          </strong>
+          <span>
+            {accountBusy
+              ? "Checking account…"
+              : account?.connected
+                ? "Subscriptions, playlists and account activity are available here."
+                : "Connect once with a phone or computer to bring your account to TikTak TV."}
+          </span>
+        </div>
+        {account?.connected ? (
+          <button
+            onClick={async () => {
+              setAccountBusy(true);
+              try {
+                await disconnectYouTube();
+                setAccount({ configured: true, connected: false });
+              } finally {
+                setAccountBusy(false);
+              }
+            }}
+            disabled={accountBusy}
+          >
+            <LogOut size={18} /> Disconnect
+          </button>
+        ) : (
+          <button
+            className="primary"
+            disabled={accountBusy || account?.configured === false}
+            onClick={async () => {
+              setAccountBusy(true);
+              setError("");
+              try {
+                const next = await startYouTubeDeviceSignIn();
+                setDevice(next);
+              } catch (reason) {
+                setError(reason instanceof Error ? reason.message : "Google sign-in failed.");
+              } finally {
+                setAccountBusy(false);
+              }
+            }}
+          >
+            <LogIn size={18} /> Connect YouTube
+          </button>
+        )}
+      </section>
+
+      {device && (
+        <section className="youtube-device-card" role="status">
+          <div>
+            <span>On your phone or computer, open</span>
+            <strong>{device.verificationUrl}</strong>
+          </div>
+          <div>
+            <span>Enter this code</span>
+            <strong className="youtube-device-code">{device.userCode}</strong>
+          </div>
+          <small>This screen will continue automatically after Google approves it.</small>
+        </section>
+      )}
+
       <form className="youtube-search" onSubmit={submit}>
         <Search size={20} />
         <input
@@ -369,6 +491,72 @@ export default function YouTubeHub() {
           </div>
         </section>
       )}
+
+      {!!account?.connected && !!account.activity?.length && (
+        <section className="youtube-section">
+          <h2>{kind === "music" ? "Recently active on your account" : "For you"}</h2>
+          <div className="youtube-grid">
+            {account.activity.map((item, index) => (
+              <button
+                key={`${item.videoId}-${index}`}
+                className="youtube-card"
+                onClick={() => select(item)}
+              >
+                <img src={item.thumbnail} alt="" loading="lazy" />
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.channel}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!!account?.connected && !!account.playlists?.length && (
+        <section className="youtube-section">
+          <h2>{kind === "music" ? "Saved music & playlists" : "Your playlists"}</h2>
+          <div className="youtube-grid compact">
+            {account.playlists.map((item) => (
+              <button
+                key={item.playlistId}
+                className="youtube-card"
+                onClick={() => select(item)}
+              >
+                {item.thumbnail ? (
+                  <img src={item.thumbnail} alt="" loading="lazy" />
+                ) : (
+                  <span className="youtube-fallback"><Youtube /></span>
+                )}
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.itemCount ?? 0} items</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {kind === "video" &&
+        !!account?.connected &&
+        !!account.subscriptions?.length && (
+          <section className="youtube-section">
+            <h2>Subscriptions</h2>
+            <div className="youtube-subscriptions">
+              {account.subscriptions.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setQuery(item.title)}
+                  aria-label={`Search videos from ${item.title}`}
+                >
+                  {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" />}
+                  <strong>{item.title}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
       {!!results.length && (
         <section className="youtube-section">

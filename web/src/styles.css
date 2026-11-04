@@ -5321,6 +5321,67 @@ button.primary:hover,
   min-width: 108px;
   min-height: 44px;
 }
+.youtube-account-card,
+.youtube-device-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(45, 34, 58, 0.9), var(--surface));
+}
+.youtube-account-card > div,
+.youtube-device-card > div {
+  display: grid;
+  gap: 4px;
+}
+.youtube-account-card span,
+.youtube-device-card span,
+.youtube-device-card small {
+  color: var(--muted);
+}
+.youtube-account-card button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.youtube-device-card {
+  align-items: end;
+  flex-wrap: wrap;
+  border-color: var(--pink);
+}
+.youtube-device-code {
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  letter-spacing: 0.16em;
+  color: white;
+}
+.youtube-subscriptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.youtube-subscriptions button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 9px 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.youtube-subscriptions img {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  object-fit: cover;
+  border-radius: 50%;
+}
 .youtube-player-card {
   position: relative;
   overflow: hidden;
@@ -5481,6 +5542,15 @@ button.primary:hover,
     width: 100%;
     justify-content: space-between;
   }
+  .youtube-account-card,
+  .youtube-device-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .youtube-account-card button {
+    justify-content: center;
+    width: 100%;
+  }
 }
 .tv-mode .youtube-hub {
   padding: 22px 28px 70px;
@@ -5505,6 +5575,10 @@ button.primary:hover,
 }
 .tv-mode .youtube-card {
   min-height: 170px;
+}
+.tv-mode .youtube-account-card button,
+.tv-mode .youtube-subscriptions button {
+  min-height: 54px;
 }
 .tv-mode button,
 .tv-mode a,
@@ -5629,12 +5703,19 @@ button.primary:hover,
    horizontally scrollable timeline. Phone rules below replace this grid with
    stacked touch cards. */
 .tv-mode .tv-guide-grid {
+  --tv-guide-channel-width: clamp(210px, 22vw, 320px);
+  --tv-guide-timeline-width: max(
+    720px,
+    calc(100vw - 320px - var(--tv-guide-channel-width))
+  );
   max-height: min(70vh, 780px);
   border-radius: 22px;
   scroll-padding: 72px 18px 32px;
 }
 .tv-mode .tv-guide-heading {
-  min-width: 1240px;
+  min-width: calc(
+    var(--tv-guide-channel-width) + var(--tv-guide-timeline-width)
+  );
   padding: 20px 24px;
 }
 .tv-mode .tv-guide-heading h2 {
@@ -5646,8 +5727,12 @@ button.primary:hover,
 }
 .tv-mode .tv-guide-times,
 .tv-mode .tv-guide-row {
-  grid-template-columns: 320px minmax(920px, 1fr);
-  min-width: 1240px;
+  grid-template-columns:
+    var(--tv-guide-channel-width)
+    minmax(var(--tv-guide-timeline-width), 1fr);
+  min-width: calc(
+    var(--tv-guide-channel-width) + var(--tv-guide-timeline-width)
+  );
 }
 .tv-mode .tv-guide-times > span,
 .tv-mode .tv-guide-times time {
@@ -5678,7 +5763,7 @@ button.primary:hover,
   flex-basis: 48px;
 }
 .tv-mode .tv-guide-programmes {
-  min-width: 920px;
+  min-width: var(--tv-guide-timeline-width);
   gap: 10px;
   padding: 10px;
 }
@@ -5859,11 +5944,11 @@ button.primary:hover,
    1080p panel. Keep the ten-foot layout independent from tablet breakpoints. */
 @media (max-height: 700px) and (min-width: 801px) {
   .tv-mode .sidebar {
-    width: 212px;
+    width: 178px;
     padding: 20px 15px 18px;
   }
   .tv-mode .main-shell {
-    margin-left: 212px;
+    margin-left: 178px;
   }
   .tv-mode .brand {
     gap: 9px;
@@ -5967,11 +6052,11 @@ button.primary:hover,
     contain-intrinsic-size: auto 390px;
   }
   .tv-mode .tv-guide-row {
-    min-height: 96px;
-    contain-intrinsic-size: auto 96px;
+    min-height: 92px;
+    contain-intrinsic-size: auto 92px;
   }
   .tv-mode .tv-guide-channel {
-    min-height: 96px;
+    min-height: 92px;
     padding: 12px 16px;
   }
   .tv-mode .tv-guide-channel-art {
@@ -5987,11 +6072,11 @@ button.primary:hover,
 
 @media (max-width: 800px) {
   .tv-mode .sidebar {
-    width: 184px;
-    padding: 18px 12px;
+    width: 148px;
+    padding: 16px 10px;
   }
   .tv-mode .main-shell {
-    margin-left: 184px;
+    margin-left: 148px;
   }
   .tv-mode .brand > span,
   .tv-mode .sidebar .nav-label,
@@ -6001,7 +6086,9 @@ button.primary:hover,
   }
   .tv-mode .sidebar nav a {
     justify-content: flex-start;
-    padding: 11px;
+    padding: 10px 8px;
+    gap: 8px;
+    font-size: 12px;
   }
   .tv-mode .sidebar .live-dot {
     display: inline-block;
@@ -6019,10 +6106,78 @@ button.primary:hover,
   .tv-mode .quick-strip,
   .tv-mode .home-content,
   .tv-mode .page-content {
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: 18px;
+    padding-right: 18px;
   }
   .tv-mode .hero-content {
-    padding-left: 24px;
+    padding-left: 18px;
+  }
+  .tv-mode .section-title {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .tv-mode .section-title h1 {
+    font-size: 2rem;
+  }
+  .tv-mode .filter-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .tv-mode .filter-toolbar > :first-child {
+    grid-column: 1 / -1;
+  }
+  .tv-mode .filter-toolbar select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .tv-mode .tv-guide-grid {
+    --tv-guide-channel-width: 200px;
+    --tv-guide-timeline-width: 620px;
+    max-height: 62vh;
+    margin-top: 10px;
+    border-radius: 16px;
+  }
+  .tv-mode .tv-guide-heading {
+    padding: 14px 16px;
+  }
+  .tv-mode .tv-guide-heading h2 {
+    font-size: 1.25rem;
+  }
+  .tv-mode .tv-guide-row,
+  .tv-mode .tv-guide-channel {
+    min-height: 88px;
+  }
+  .tv-mode .tv-guide-row {
+    contain-intrinsic-size: auto 88px;
+  }
+  .tv-mode .tv-guide-channel {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .tv-mode .tv-guide-channel-art {
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+  }
+  .tv-mode .tv-guide-channel strong,
+  .tv-mode .tv-guide-programmes strong {
+    font-size: 0.86rem;
+  }
+  .tv-mode .tv-guide-favorite {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+  .tv-mode .tv-guide-programmes {
+    gap: 8px;
+    padding: 8px;
+  }
+  .tv-mode .tv-guide-programmes button {
+    min-width: 160px;
+    min-height: 72px;
+    padding: 10px 12px;
   }
 }

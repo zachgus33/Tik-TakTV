@@ -309,6 +309,13 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       body: JSON.stringify({ query: "Nuvio", kind: "video" }),
     });
     if (!process.env.YOUTUBE_API_KEY) assert.equal(missingYouTubeKey.status, 503);
+    const youtubeAccount = await fetch(base + "/youtube/account", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ summary: true }),
+    });
+    assert.equal(youtubeAccount.status, 200);
+    assert.equal((await youtubeAccount.json()).connected, false);
   } finally {
     server.closeAllConnections();
     await new Promise((r) => server.close(r));

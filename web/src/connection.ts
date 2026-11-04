@@ -261,26 +261,39 @@ export async function prepareMedia(
     !Object.keys(headers ?? {}).length
   )
     return url;
-  const response = await serviceRequest(
-    "/prepare",
-    {
-      url,
-      headers,
-      mode: selectedMode,
-      audioCodec,
-      live,
-      start: live ? 0 : Math.max(0, start),
-      replace: replace.startsWith(`${config.url}/media/`)
-        ? new URL(replace).pathname
-        : undefined,
-    },
-    signal,
-    config,
-  );
-  if (!response.ok)
+  const payload = {
+    url,
+    headers,
+    mode: selectedMode,
+    audioCodec,
+    live,
+    start: live ? 0 : Math.max(0, start),
+    replace: replace.startsWith(`${config.url}/media/`)
+      ? new URL(replace).pathname
+      : undefined,
+  };
+  let response = await serviceRequest("/prepare", payload, signal, config);
+  if (response.status === 429 && live && !signal?.aborted) {
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(resolve, 1200);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    });
+    response = await serviceRequest("/prepare", payload, signal, config);
+  }
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(
-      `Playback service returned HTTP ${response.status}. Check its connection in Settings.`,
+      data.error ??
+        `Playback service returned HTTP ${response.status}. Check its connection in Settings.`,
     );
+  }
   const data = await response.json();
   if (typeof data.path !== "string" || !data.path.startsWith("/media/"))
     throw new Error("Invalid playback service response.");
