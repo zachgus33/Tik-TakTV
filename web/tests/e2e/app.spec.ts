@@ -399,6 +399,18 @@ test("TV shell does not install the offline website service worker", async ({
     .toBe(0);
 });
 
+test("an open app reloads itself when a deployment replaces its chunks", async ({
+  page,
+}) => {
+  await page.goto("/?tv=1#home");
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("vite:preloadError", { cancelable: true })),
+  );
+  await expect
+    .poll(() => new URL(page.url()).searchParams.has("release"))
+    .toBe(true);
+});
+
 test("TV remote keeps horizontal movement in the current row", async ({
   page,
 }) => {
