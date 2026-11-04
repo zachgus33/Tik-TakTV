@@ -1015,7 +1015,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const playlistParams = {
           part: "snippet,contentDetails,status",
           playlistId,
-          maxResults: 1,
+          maxResults: 5,
         };
         const playlist =
           (await youtubeApi(userId, "playlistItems", playlistParams)) ??
@@ -1137,12 +1137,20 @@ export function createService({ token, origins, authorizeAccount }) {
             youtubeApi(userId, "playlistItems", {
               part: "snippet,contentDetails,status",
               playlistId: item?.id ?? "",
-              maxResults: 1,
+              maxResults: 5,
             }),
           ),
         );
         const playlistSelections = playlistItems.flatMap((item, index) => {
-          const first = playlistLeads[index]?.items?.[0];
+          const first = playlistLeads[index]?.items?.find(
+            (candidate) =>
+              candidate?.status?.privacyStatus !== "private" &&
+              /^[A-Za-z0-9_-]{11}$/.test(
+                candidate?.contentDetails?.videoId ??
+                  candidate?.snippet?.resourceId?.videoId ??
+                  "",
+              ),
+          );
           const videoId = String(
             first?.contentDetails?.videoId ??
               first?.snippet?.resourceId?.videoId ??
@@ -1166,19 +1174,25 @@ export function createService({ token, origins, authorizeAccount }) {
             ...uniqueFeed.map((item) => item.videoId),
             ...playlistSelections.map((item) => item.videoId),
           ]),
-        ].slice(0, 50);
-        const videoDetails = detailIds.length
-          ? await youtubeApi(userId, "videos", {
+        ];
+        const detailBatches = [];
+        for (let offset = 0; offset < detailIds.length; offset += 50)
+          detailBatches.push(detailIds.slice(offset, offset + 50));
+        const videoDetails = await Promise.all(
+          detailBatches.map((ids) =>
+            youtubeApi(userId, "videos", {
               part: "snippet,status",
-              id: detailIds.join(","),
+              id: ids.join(","),
               maxResults: 50,
-            })
-          : null;
+            }),
+          ),
+        );
         const detailsById = new Map(
-          (videoDetails?.items ?? []).map((item) => [item?.id, item]),
+          videoDetails.flatMap((payload) => payload?.items ?? []).map((item) => [item?.id, item]),
         );
         const decorate = (item) => {
           const detail = detailsById.get(item.videoId);
+          if (!detail) return null;
           if (detail?.status?.embeddable === false) return null;
           return {
             ...item,
