@@ -6,6 +6,28 @@ import { enableTvNavigation } from "./tv-navigation";
 
 enableTvNavigation();
 
+const releaseRecoveryKey = "tiktak:release-recovery";
+
+function recoverFromReplacedBuild() {
+  const now = Date.now();
+  const lastAttempt = Number(sessionStorage.getItem(releaseRecoveryKey) ?? 0);
+  if (now - lastAttempt < 60_000) return false;
+  sessionStorage.setItem(releaseRecoveryKey, String(now));
+  const next = new URL(location.href);
+  next.searchParams.set("release", String(now));
+  location.replace(next.href);
+  return true;
+}
+
+// GitHub Pages replaces a release's hashed chunks as one deployment. An
+// already-open TV shell can briefly request a lazy chunk from the previous
+// release. Vite exposes this event so the app can fetch the new shell instead
+// of leaving the user on a broken screen.
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  recoverFromReplacedBuild();
+});
+
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { failed: boolean }
@@ -13,6 +35,11 @@ class ErrorBoundary extends React.Component<
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/dynamically imported module|loading chunk|importing a module/i.test(message))
+      recoverFromReplacedBuild();
   }
   render() {
     return this.state.failed ? (
