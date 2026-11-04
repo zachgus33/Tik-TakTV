@@ -120,7 +120,7 @@ Native systemd units apply memory, CPU, task and file-descriptor limits. The wat
 
 ## YouTube account connection
 
-Create a Google OAuth client with the **TVs and Limited Input devices** application type and enable YouTube Data API v3. Add its client ID and secret as `YOUTUBE_OAUTH_CLIENT_ID` and `YOUTUBE_OAUTH_CLIENT_SECRET`. Set `YOUTUBE_VAULT_KEY` to a base64-encoded 32-byte random key, or let the service reuse an existing `FRIEND_VAULT_KEY`. `YOUTUBE_API_KEY` separately enables public text search. TikTak TV stores each Google refresh token encrypted and associates it only with the authenticated Nuvio user ID.
+Create a Google OAuth client with the **TVs and Limited Input devices** application type and enable YouTube Data API v3. Set its client ID as `YOUTUBE_OAUTH_CLIENT_ID`. If Google issues a client secret for the client, set it as `YOUTUBE_OAUTH_CLIENT_SECRET`; device clients without a secret are also supported. Set `YOUTUBE_VAULT_KEY` to a base64-encoded 32-byte random key, or let the service reuse an existing `FRIEND_VAULT_KEY`. `YOUTUBE_API_KEY` separately enables public text search. TikTak TV stores each Google refresh token encrypted and associates it only with the authenticated Nuvio user ID.
 
 ## Validation limits
 

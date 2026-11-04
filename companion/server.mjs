@@ -363,9 +363,15 @@ export function createService({ token, origins, authorizeAccount }) {
     const clientSecret = String(
       process.env.YOUTUBE_OAUTH_CLIENT_SECRET ?? "",
     ).trim();
-    return clientId && clientSecret && youtubeKey
-      ? { clientId, clientSecret }
-      : null;
+    return clientId && youtubeKey ? { clientId, clientSecret } : null;
+  }
+  function youtubeTokenBody(config, values) {
+    const body = new URLSearchParams({
+      client_id: config.clientId,
+      ...values,
+    });
+    if (config.clientSecret) body.set("client_secret", config.clientSecret);
+    return body;
   }
   async function youtubeToken(userId) {
     const vault = await readYoutubeVault();
@@ -378,9 +384,7 @@ export function createService({ token, origins, authorizeAccount }) {
     const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
+      body: youtubeTokenBody(config, {
         refresh_token: account.refreshToken,
         grant_type: "refresh_token",
       }),
@@ -955,9 +959,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_id: config.clientId,
-            client_secret: config.clientSecret,
+          body: youtubeTokenBody(config, {
             device_code: pending.deviceCode,
             grant_type: "urn:ietf:params:oauth:grant-type:device_code",
           }),
