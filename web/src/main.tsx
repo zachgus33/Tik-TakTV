@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 import { enableTvNavigation } from "./tv-navigation";
+import { startUsageAnalytics } from "./usage-analytics";
 
 enableTvNavigation();
+startUsageAnalytics();
 
 const releaseRecoveryKey = "tiktak:release-recovery";
 

@@ -101,6 +101,17 @@ sudo docker compose logs --tail 30 playback
 
 The `/health` endpoint requires the service key; an unauthenticated 401 is expected. The web connection test verifies it using the key. `/healthz` is a public liveness check that returns only `{ "ok": true, "version": 2 }` for uptime monitoring.
 
+## Private usage dashboard
+
+Set `ANALYTICS_ADMIN_USER_ID` in `.env.native` to the Nuvio account UUID that
+may view aggregate usage. When omitted, it uses `FRIEND_OWNER_USER_ID`. The
+website sends an optional heartbeat with a random installation identifier and
+coarse client type. The companion HMAC-hashes that identifier before saving it
+to `runtime/usage-analytics.json`; it does not store emails, provider details,
+viewing activity, searches, titles, URLs, or raw identifiers. Other accounts
+receive no dashboard payload. Every visitor can disable the heartbeat under
+**Settings > Privacy & status**.
+
 The `Production uptime and account smoke` GitHub Actions workflow runs every 10
 minutes. It checks the deployed app shell and assets, PWA files, signed endpoint
 record, and the Pi liveness endpoint. Add repository secrets

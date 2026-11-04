@@ -453,7 +453,13 @@ export default function YouTubeHub() {
         <section className="youtube-device-card" role="status">
           <div>
             <span>On your phone or computer, open</span>
-            <strong>{device.verificationUrl}</strong>
+            <a
+              href={device.verificationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {device.verificationUrl}
+            </a>
           </div>
           <div>
             <span>Enter this code</span>

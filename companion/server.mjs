@@ -221,6 +221,108 @@ export function createService({ token, origins, authorizeAccount }) {
   });
   const friendAttempts = new Map();
   const friendOwner = process.env.FRIEND_OWNER_USER_ID ?? "";
+  const analyticsAdmin =
+    process.env.ANALYTICS_ADMIN_USER_ID ?? friendOwner;
+  const analyticsPath =
+    process.env.ANALYTICS_PATH ??
+    join(process.cwd(), "runtime", "usage-analytics.json");
+  let analyticsCache;
+  let analyticsLoadPromise;
+  let analyticsWriteTimer;
+  async function readAnalytics() {
+    if (analyticsCache) return analyticsCache;
+    if (!analyticsLoadPromise) {
+      analyticsLoadPromise = readFile(analyticsPath, "utf8")
+        .then((text) => JSON.parse(text))
+        .catch(() => ({ version: 1, visitors: {} }))
+        .then((value) => {
+          analyticsCache =
+            value?.version === 1 && value?.visitors
+              ? value
+              : { version: 1, visitors: {} };
+          return analyticsCache;
+        });
+    }
+    return analyticsLoadPromise;
+  }
+  function scheduleAnalyticsWrite() {
+    if (analyticsWriteTimer) clearTimeout(analyticsWriteTimer);
+    analyticsWriteTimer = setTimeout(() => void (async () => {
+      analyticsWriteTimer = null;
+      const value = analyticsCache;
+      if (!value) return;
+      await mkdir(join(analyticsPath, ".."), { recursive: true });
+      const temporary = `${analyticsPath}.${randomBytes(6).toString("hex")}`;
+      await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+      await rename(temporary, analyticsPath);
+    })().catch(() => {}), 250);
+    analyticsWriteTimer.unref();
+  }
+  async function recordUsage(value) {
+    const visitorId = String(value?.visitorId ?? "");
+    const client = String(value?.client ?? "web");
+    if (
+      !/^[A-Za-z0-9_-]{20,100}$/.test(visitorId) ||
+      ![
+        "web-desktop",
+        "web-mobile",
+        "pwa",
+        "android-mobile",
+        "android-tv",
+      ].includes(client)
+    )
+      return false;
+    const id = createHmac("sha256", token)
+      .update(`usage:${visitorId}`)
+      .digest("base64url");
+    const data = await readAnalytics();
+    const now = Date.now();
+    const previous = data.visitors[id];
+    data.visitors[id] = {
+      firstSeen: Number(previous?.firstSeen) || now,
+      lastSeen: now,
+      lastVisit:
+        !previous || now - Number(previous.lastSeen) >= 30 * 60_000
+          ? now
+          : Number(previous.lastVisit) || Number(previous.firstSeen) || now,
+      visits:
+        (Number(previous?.visits) || 0) +
+        (!previous || now - Number(previous.lastSeen) >= 30 * 60_000 ? 1 : 0),
+      client,
+    };
+    scheduleAnalyticsWrite();
+    return true;
+  }
+  async function usageSummary() {
+    const data = await readAnalytics();
+    const now = Date.now();
+    const visitors = Object.values(data.visitors);
+    const within = (duration) =>
+      visitors.filter((entry) => now - Number(entry.lastSeen) <= duration);
+    const recent = within(30 * 24 * 60 * 60_000);
+    const platforms = Object.fromEntries(
+      [
+        "web-desktop",
+        "web-mobile",
+        "pwa",
+        "android-mobile",
+        "android-tv",
+      ].map((name) => [
+        name,
+        recent.filter((entry) => entry.client === name).length,
+      ]),
+    );
+    return {
+      activeNow: within(5 * 60_000).length,
+      today: within(24 * 60 * 60_000).length,
+      sevenDays: within(7 * 24 * 60 * 60_000).length,
+      thirtyDays: recent.length,
+      allTime: visitors.length,
+      visits: visitors.reduce((total, entry) => total + Number(entry.visits || 0), 0),
+      platforms,
+      generatedAt: now,
+    };
+  }
   const friendVaultPath =
     process.env.FRIEND_VAULT_PATH ??
     join(process.cwd(), "runtime", "friend-vault.json");
@@ -637,6 +739,15 @@ export function createService({ token, origins, authorizeAccount }) {
     const controller = new AbortController();
     res.on("close", () => controller.abort());
     try {
+      if (route.pathname === "/analytics/heartbeat") {
+        if (req.method !== "POST")
+          return send(405, { error: "Method not allowed" });
+        if (!origin) return send(403, { error: "Website origin required" });
+        const body = JSON.parse(await limitedText(req, 2_000));
+        if (!(await recordUsage(body)))
+          return send(400, { error: "Invalid usage event" });
+        return send(200, { ok: true });
+      }
       if (route.pathname === "/health") {
         if (!(await authorized(req)))
           return send(401, { error: "Playback service key required" });
@@ -921,6 +1032,11 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/analytics/admin") {
+        if (!analyticsAdmin || userId !== analyticsAdmin)
+          return send(403, { error: "Not available" });
+        return send(200, await usageSummary());
+      }
       if (route.pathname === "/youtube/device/start") {
         if (userId === "service")
           return send(403, { error: "Sign in to TikTak TV first." });

@@ -1,0 +1,42 @@
+name: Android Phone App
+
+on:
+  push:
+    branches: [web-enhanced-pages]
+    paths:
+      - "mobileApp/**"
+      - "settings.gradle.kts"
+      - "gradle/**"
+      - ".github/workflows/mobile-android.yml"
+  pull_request:
+    paths:
+      - "mobileApp/**"
+      - "settings.gradle.kts"
+      - "gradle/**"
+      - ".github/workflows/mobile-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Test, lint, and build phone APK and Play bundle
+        run: ./gradlew :mobileApp:testDebugUnitTest :mobileApp:lintDebug :mobileApp:assembleDebug :mobileApp:bundleRelease -Pnuvio.android.distribution=playstore --stacktrace
+      - name: Upload development APK and unsigned Play bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: TikTak-TV-Android-Phone
+          path: |
+            mobileApp/build/outputs/apk/debug/mobileApp-debug.apk
+            mobileApp/build/outputs/bundle/release/mobileApp-release.aab
+          if-no-files-found: error
+          retention-days: 30

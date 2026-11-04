@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">TikTak TV</string>
+    <string name="offline_title">TikTak TV is offline</string>
+    <string name="offline_message">Check your connection and try again.</string>
+    <string name="retry">Try again</string>
+    <string name="download_started">Download started</string>
+    <string name="download_failed">This download could not be started</string>
+</resources>

@@ -1,20 +1,32 @@
 import {
   CircleAlert,
   CircleCheck,
+  BarChart3,
   ExternalLink,
   LockKeyhole,
   RefreshCw,
   ServerCog,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getService } from "./connection";
+import {
+  privateUsageSummary,
+  setUsageAnalyticsEnabled,
+  usageAnalyticsEnabled,
+  type UsageSummary,
+} from "./usage-analytics";
 
 export default function PrivacyStatus() {
   const [service, setService] = useState<"checking" | "online" | "offline">(
     "checking",
   );
   const [checkedAt, setCheckedAt] = useState("");
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(
+    usageAnalyticsEnabled,
+  );
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
   const checkService = useCallback(async () => {
     setService("checking");
     try {
@@ -40,6 +52,8 @@ export default function PrivacyStatus() {
   }, []);
   useEffect(() => {
     void checkService();
+    if (getService()?.account)
+      void privateUsageSummary().then(setUsage);
   }, [checkService]);
   return (
     <div className="privacy-status">
@@ -144,6 +158,67 @@ export default function PrivacyStatus() {
           Production monitor <ExternalLink size={15} />
         </a>
       </section>
+      <section className="settings-card">
+        <div className="card-heading">
+          <ShieldCheck />
+          <div>
+            <h2>Anonymous usage</h2>
+            <p>Help the owner understand how many devices use TikTak TV.</p>
+          </div>
+        </div>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={analyticsEnabled}
+            onChange={(event) => {
+              setAnalyticsEnabled(event.target.checked);
+              setUsageAnalyticsEnabled(event.target.checked);
+            }}
+          />
+          <span>
+            Share an anonymous heartbeat. It contains a hashed random device ID
+            and app type, never your email, provider details, viewing activity,
+            searches, or media URLs.
+          </span>
+        </label>
+      </section>
+      {usage && (
+        <section className="settings-card usage-admin-card">
+          <div className="card-heading">
+            <BarChart3 />
+            <div>
+              <h2>Private usage dashboard</h2>
+              <p>Visible only to the TikTak TV owner account.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void privateUsageSummary().then(setUsage)}
+              aria-label="Refresh private usage dashboard"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
+          <div className="usage-metrics">
+            <article><strong>{usage.activeNow}</strong><span>Active now</span></article>
+            <article><strong>{usage.today}</strong><span>Last 24 hours</span></article>
+            <article><strong>{usage.sevenDays}</strong><span>Last 7 days</span></article>
+            <article><strong>{usage.thirtyDays}</strong><span>Last 30 days</span></article>
+            <article><strong>{usage.allTime}</strong><span>All-time devices</span></article>
+            <article><strong>{usage.visits}</strong><span>Total visits</span></article>
+          </div>
+          <div className="usage-platforms">
+            <Users size={19} />
+            <span>Desktop web {usage.platforms["web-desktop"] ?? 0}</span>
+            <span>Mobile web {usage.platforms["web-mobile"] ?? 0}</span>
+            <span>Installed web app {usage.platforms.pwa ?? 0}</span>
+            <span>Android phone {usage.platforms["android-mobile"] ?? 0}</span>
+            <span>TV app {usage.platforms["android-tv"] ?? 0}</span>
+          </div>
+          <small>
+            Updated {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.generatedAt))}
+          </small>
+        </section>
+      )}
       <section className="settings-card public-launch-card">
         <div className="card-heading">
           <ShieldCheck />

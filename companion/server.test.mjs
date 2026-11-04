@@ -31,6 +31,65 @@ test("public liveness endpoint exposes no private configuration", async () => {
   }
 });
 
+test("usage counts are anonymous and visible only to the configured owner", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-analytics-"));
+  const previous = {
+    admin: process.env.ANALYTICS_ADMIN_USER_ID,
+    path: process.env.ANALYTICS_PATH,
+  };
+  process.env.ANALYTICS_ADMIN_USER_ID = "site-owner";
+  process.env.ANALYTICS_PATH = join(directory, "usage.json");
+  const server = createService({
+    token: "u".repeat(40),
+    origins: ["https://site.example"],
+    authorizeAccount: async (bearer) =>
+      ["site-owner", "regular-user"].includes(bearer) ? bearer : false,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (path, body, bearer) =>
+    fetch(base + path, {
+      method: "POST",
+      headers: {
+        Origin: "https://site.example",
+        "Content-Type": "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  const rawVisitor = "random-browser-installation-123456";
+  try {
+    assert.equal(
+      (await post("/analytics/heartbeat", {
+        visitorId: rawVisitor,
+        client: "web-mobile",
+      })).status,
+      200,
+    );
+    assert.equal(
+      (await post("/analytics/admin", {}, "regular-user")).status,
+      403,
+    );
+    const response = await post("/analytics/admin", {}, "site-owner");
+    assert.equal(response.status, 200);
+    const summary = await response.json();
+    assert.equal(summary.activeNow, 1);
+    assert.equal(summary.allTime, 1);
+    assert.equal(summary.visits, 1);
+    assert.equal(summary.platforms["web-mobile"], 1);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.ok(!(await readFile(process.env.ANALYTICS_PATH, "utf8")).includes(rawVisitor));
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    if (previous.admin === undefined) delete process.env.ANALYTICS_ADMIN_USER_ID;
+    else process.env.ANALYTICS_ADMIN_USER_ID = previous.admin;
+    if (previous.path === undefined) delete process.env.ANALYTICS_PATH;
+    else process.env.ANALYTICS_PATH = previous.path;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("account-owned friend codes stay isolated and can be revoked", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tiktak-friends-"));
   const previous = {
