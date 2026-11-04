@@ -118,6 +118,10 @@ The authenticated `/status` response reports only safe operational data: protoco
 
 Native systemd units apply memory, CPU, task and file-descriptor limits. The watchdog checks the service and tunnel every minute, republishes a changed tunnel address, and bounds local tunnel and FFmpeg logs. Re-run `sh install-native-services.sh` after updating these unit definitions, then verify with `systemctl --user status tiktaktv-playback tiktaktv-tunnel tiktaktv-watchdog.timer`.
 
+## YouTube account connection
+
+Create a Google OAuth client with the **TVs and Limited Input devices** application type and enable YouTube Data API v3. Add its client ID and secret as `YOUTUBE_OAUTH_CLIENT_ID` and `YOUTUBE_OAUTH_CLIENT_SECRET`. Set `YOUTUBE_VAULT_KEY` to a base64-encoded 32-byte random key, or let the service reuse an existing `FRIEND_VAULT_KEY`. `YOUTUBE_API_KEY` separately enables public text search. TikTak TV stores each Google refresh token encrypted and associates it only with the authenticated Nuvio user ID.
+
 ## Validation limits
 
 Automated tests cover authentication, origin restrictions, SSRF checks, header validation and playlist rewriting. A public sample HLS playlist was fetched and rewritten through the actual relay on Windows. ARM64 image startup, real provider media, and FFmpeg throughput must be checked on your Pi before calling the setup complete.
