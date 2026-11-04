@@ -394,8 +394,8 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
       lastLinkBottom: links.at(-1)?.getBoundingClientRect().bottom ?? Infinity,
     };
   });
-  expect(layout.sidebar).toBeGreaterThanOrEqual(200);
-  expect(layout.sidebar).toBeLessThanOrEqual(220);
+  expect(layout.sidebar).toBeGreaterThanOrEqual(170);
+  expect(layout.sidebar).toBeLessThanOrEqual(185);
   expect(layout.mainLeft).toBe(layout.sidebar);
   expect(layout.heroHeight).toBeLessThanOrEqual(365);
   expect(layout.labels).toEqual([
