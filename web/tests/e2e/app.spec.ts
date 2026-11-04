@@ -111,6 +111,12 @@ test.beforeEach(async ({ page }) => {
 test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   page,
 }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({ url: "https://playback.example", token: "test-key" }),
+    ),
+  );
   await page.addInitScript(() => {
     class MockYouTubePlayer {
       private time = 0;
@@ -170,10 +176,44 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await page.route("https://api.tiktaktv.me/sponsorblock", (route) =>
     route.fulfill({ json: { segments: [] } }),
   );
+  await page.route("https://playback.example/youtube/account", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        connected: true,
+        channel: { title: "Test viewer" },
+        activity: [
+          {
+            videoId: "dQw4w9WgXcQ",
+            title: "Account recommendation",
+            channel: "Test channel",
+            thumbnail: "https://img.example/recommendation.jpg",
+          },
+        ],
+        playlists: [
+          {
+            playlistId: "PL1234567890",
+            title: "Saved playlist",
+            itemCount: 12,
+          },
+        ],
+        subscriptions: [
+          { id: "channel-1", title: "Subscribed channel" },
+        ],
+      },
+    }),
+  );
+  await page.route("https://playback.example/sponsorblock", (route) =>
+    route.fulfill({ json: { segments: [] } }),
+  );
   await page.goto("/#youtube");
   await expect(
     page.getByRole("heading", { name: "YouTube", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("Test viewer", { exact: true })).toBeVisible();
+  await expect(page.getByText("Account recommendation")).toBeVisible();
+  await expect(page.getByText("Saved playlist")).toBeVisible();
+  await expect(page.getByText("Subscribed channel")).toBeVisible();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
