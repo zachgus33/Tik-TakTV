@@ -264,8 +264,8 @@ export function createService({ token, origins, authorizeAccount }) {
         .then((value) => {
           analyticsCache =
             value?.version === 1 && value?.visitors
-              ? value
-              : { version: 1, visitors: {} };
+              ? { ...value, accounts: value.accounts ?? {} }
+              : { version: 1, visitors: {}, accounts: {} };
           return analyticsCache;
         });
     }
@@ -319,6 +319,42 @@ export function createService({ token, origins, authorizeAccount }) {
     scheduleAnalyticsWrite();
     return true;
   }
+  async function recordAccountUsage(userId, value) {
+    const client = String(value?.client ?? "web");
+    if (
+      !userId ||
+      userId === "service" ||
+      ![
+        "web-desktop",
+        "web-mobile",
+        "pwa",
+        "android-mobile",
+        "android-tv",
+      ].includes(client)
+    )
+      return false;
+    const id = createHmac("sha256", token)
+      .update(`account:${userId}`)
+      .digest("base64url");
+    const data = await readAnalytics();
+    const now = Date.now();
+    const suppliedCreatedAt = Date.parse(String(value?.createdAt ?? ""));
+    const createdAt =
+      Number.isFinite(suppliedCreatedAt) &&
+      suppliedCreatedAt >= Date.UTC(2000, 0, 1) &&
+      suppliedCreatedAt <= now + 24 * 60 * 60_000
+        ? suppliedCreatedAt
+        : undefined;
+    const previous = data.accounts[id];
+    data.accounts[id] = {
+      firstSeen: Number(previous?.firstSeen) || now,
+      lastSeen: now,
+      createdAt: Number(previous?.createdAt) || createdAt,
+      client,
+    };
+    scheduleAnalyticsWrite();
+    return true;
+  }
   async function usageSummary() {
     const data = await readAnalytics();
     const now = Date.now();
@@ -338,6 +374,15 @@ export function createService({ token, origins, authorizeAccount }) {
         recent.filter((entry) => entry.client === name).length,
       ]),
     );
+    const accounts = Object.values(data.accounts ?? {});
+    const accountsWithin = (duration) =>
+      accounts.filter((entry) => now - Number(entry.lastSeen) <= duration);
+    const signupsWithin = (duration) =>
+      accounts.filter(
+        (entry) =>
+          Number(entry.createdAt) > 0 &&
+          now - Number(entry.createdAt) <= duration,
+      );
     return {
       activeNow: within(5 * 60_000).length,
       today: within(24 * 60 * 60_000).length,
@@ -346,6 +391,16 @@ export function createService({ token, origins, authorizeAccount }) {
       allTime: visitors.length,
       visits: visitors.reduce((total, entry) => total + Number(entry.visits || 0), 0),
       platforms,
+      accounts: {
+        activeNow: accountsWithin(5 * 60_000).length,
+        today: accountsWithin(24 * 60 * 60_000).length,
+        sevenDays: accountsWithin(7 * 24 * 60 * 60_000).length,
+        thirtyDays: accountsWithin(30 * 24 * 60 * 60_000).length,
+        allTime: accounts.length,
+        signupsToday: signupsWithin(24 * 60 * 60_000).length,
+        signupsSevenDays: signupsWithin(7 * 24 * 60 * 60_000).length,
+        signupsThirtyDays: signupsWithin(30 * 24 * 60 * 60_000).length,
+      },
       generatedAt: now,
     };
   }
@@ -1058,6 +1113,11 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      if (route.pathname === "/analytics/account") {
+        if (!(await recordAccountUsage(userId, body)))
+          return send(400, { error: "Invalid account usage event" });
+        return send(200, { ok: true });
+      }
       if (route.pathname === "/analytics/admin") {
         if (!analyticsAdmin || userId !== analyticsAdmin)
           return send(403, { error: "Not available" });

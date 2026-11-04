@@ -12,6 +12,16 @@ export type UsageSummary = {
   allTime: number;
   visits: number;
   platforms: Record<string, number>;
+  accounts: {
+    activeNow: number;
+    today: number;
+    sevenDays: number;
+    thirtyDays: number;
+    allTime: number;
+    signupsToday: number;
+    signupsSevenDays: number;
+    signupsThirtyDays: number;
+  };
   generatedAt: number;
 };
 
@@ -57,7 +67,7 @@ export function setUsageAnalyticsEnabled(enabled: boolean) {
   window.dispatchEvent(new Event("usage-analytics-changed"));
 }
 
-async function heartbeat() {
+async function anonymousHeartbeat() {
   if (!productionSite() || !usageAnalyticsEnabled()) return;
   const id = visitorId();
   if (!id) return;
@@ -72,9 +82,36 @@ async function heartbeat() {
   }).catch(() => undefined);
 }
 
+function storedAccount() {
+  try {
+    const session = JSON.parse(localStorage.getItem("tiktak:account") ?? "null");
+    if (typeof session?.access_token !== "string") return null;
+    return {
+      createdAt:
+        typeof session?.user?.created_at === "string"
+          ? session.user.created_at
+          : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function accountHeartbeat() {
+  const session = storedAccount();
+  if (!productionSite() || !session) return;
+  await serviceRequest("/analytics/account", {
+    client: clientType(),
+    createdAt: session.createdAt,
+  }).catch(() => undefined);
+}
+
 export function startUsageAnalytics() {
   if (!productionSite()) return () => undefined;
-  const send = () => void heartbeat();
+  const send = () => {
+    void anonymousHeartbeat();
+    void accountHeartbeat();
+  };
   send();
   const timer = window.setInterval(send, 4 * 60_000);
   const visible = () => {
@@ -82,11 +119,13 @@ export function startUsageAnalytics() {
   };
   window.addEventListener("online", send);
   window.addEventListener("usage-analytics-changed", send);
+  window.addEventListener("account-auth-changed", send);
   document.addEventListener("visibilitychange", visible);
   return () => {
     clearInterval(timer);
     window.removeEventListener("online", send);
     window.removeEventListener("usage-analytics-changed", send);
+    window.removeEventListener("account-auth-changed", send);
     document.removeEventListener("visibilitychange", visible);
   };
 }

@@ -92,6 +92,13 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
       (await post("/analytics/admin", {}, "regular-user")).status,
       403,
     );
+    assert.equal(
+      (await post("/analytics/account", {
+        client: "web-desktop",
+        createdAt: new Date().toISOString(),
+      }, "regular-user")).status,
+      200,
+    );
     const response = await post("/analytics/admin", {}, "site-owner");
     assert.equal(response.status, 200);
     const summary = await response.json();
@@ -99,8 +106,13 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
     assert.equal(summary.allTime, 1);
     assert.equal(summary.visits, 1);
     assert.equal(summary.platforms["web-mobile"], 1);
+    assert.equal(summary.accounts.activeNow, 1);
+    assert.equal(summary.accounts.allTime, 1);
+    assert.equal(summary.accounts.signupsToday, 1);
     await new Promise((resolve) => setTimeout(resolve, 400));
-    assert.ok(!(await readFile(process.env.ANALYTICS_PATH, "utf8")).includes(rawVisitor));
+    const stored = await readFile(process.env.ANALYTICS_PATH, "utf8");
+    assert.ok(!stored.includes(rawVisitor));
+    assert.ok(!stored.includes("regular-user"));
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));

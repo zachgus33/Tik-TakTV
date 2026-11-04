@@ -5169,6 +5169,14 @@ button.primary:hover,
   margin: 16px 0;
   color: var(--muted);
 }
+.usage-section-title {
+  margin: 22px 0 10px;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.usage-signups {
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+}
 .service-status-card ul {
   list-style: none;
   padding: 0;

@@ -199,10 +199,22 @@ export default function PrivacyStatus() {
             </button>
           </div>
           <div className="usage-metrics">
-            <article><strong>{usage.activeNow}</strong><span>Active now</span></article>
-            <article><strong>{usage.today}</strong><span>Last 24 hours</span></article>
-            <article><strong>{usage.sevenDays}</strong><span>Last 7 days</span></article>
-            <article><strong>{usage.thirtyDays}</strong><span>Last 30 days</span></article>
+            <article><strong>{usage.accounts.activeNow}</strong><span>Signed in now</span></article>
+            <article><strong>{usage.accounts.today}</strong><span>Signed in · 24 hours</span></article>
+            <article><strong>{usage.accounts.sevenDays}</strong><span>Signed in · 7 days</span></article>
+            <article><strong>{usage.accounts.thirtyDays}</strong><span>Signed in · 30 days</span></article>
+            <article><strong>{usage.accounts.allTime}</strong><span>Accounts using TikTak TV</span></article>
+          </div>
+          <h3 className="usage-section-title">New sign-ups using TikTak TV</h3>
+          <div className="usage-metrics usage-signups">
+            <article><strong>{usage.accounts.signupsToday}</strong><span>Last 24 hours</span></article>
+            <article><strong>{usage.accounts.signupsSevenDays}</strong><span>Last 7 days</span></article>
+            <article><strong>{usage.accounts.signupsThirtyDays}</strong><span>Last 30 days</span></article>
+          </div>
+          <h3 className="usage-section-title">Anonymous traffic</h3>
+          <div className="usage-metrics usage-traffic">
+            <article><strong>{usage.activeNow}</strong><span>Devices active now</span></article>
+            <article><strong>{usage.thirtyDays}</strong><span>Devices · 30 days</span></article>
             <article><strong>{usage.allTime}</strong><span>All-time devices</span></article>
             <article><strong>{usage.visits}</strong><span>Total visits</span></article>
           </div>
@@ -215,6 +227,7 @@ export default function PrivacyStatus() {
             <span>TV app {usage.platforms["android-tv"] ?? 0}</span>
           </div>
           <small>
+            Account totals count distinct signed-in accounts. Sign-up dates come from the authenticated Nuvio session; emails and account IDs are never stored. {" "}
             Updated {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.generatedAt))}
           </small>
         </section>

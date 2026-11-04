@@ -238,6 +238,7 @@ function ProfileGate({
   const [notice, setNotice] = useState("");
   async function refresh() {
     const { data } = await account.auth.getSession();
+    window.dispatchEvent(new Event("account-auth-changed"));
     if (!data.session) {
       setEmail("");
       if (localStorage.getItem("tiktak:established-local") === "1") onGuest();
