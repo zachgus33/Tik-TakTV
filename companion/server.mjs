@@ -201,6 +201,30 @@ export function rewritePlaylist(text, base, link) {
     })
     .join("\n");
 }
+
+function greatestCommonDivisor(left, right) {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b) [a, b] = [b, a % b];
+  return a;
+}
+
+function rotateYoutubeItems(items, rotation) {
+  if (!Array.isArray(items) || items.length < 2) return items ?? [];
+  let step = Math.max(1, Math.floor(items.length / 3));
+  while (greatestCommonDivisor(step, items.length) !== 1) step += 1;
+  const offset = (Math.max(0, rotation) * step) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
+export function rotateYoutubeAccount(account, rotation = 0) {
+  return {
+    ...account,
+    videoFeed: rotateYoutubeItems(account?.videoFeed, rotation),
+    musicFeed: rotateYoutubeItems(account?.musicFeed, rotation),
+  };
+}
+
 export function createService({ token, origins, authorizeAccount }) {
   if (!token || token.length < 32)
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
@@ -208,6 +232,8 @@ export function createService({ token, origins, authorizeAccount }) {
   const tickets = new Map();
   const accountTokens = new Map();
   const youtubeCache = new Map();
+  const youtubeFeedRotations = new Map();
+  const youtubeSubscriptionOffsets = new Map();
   const sponsorCache = new Map();
   const parties = new Map();
   const endedParties = new Map();
@@ -1122,6 +1148,8 @@ export function createService({ token, origins, authorizeAccount }) {
         await writeYoutubeVault(vault);
         youtubeDevices.delete(userId);
         youtubeCache.delete(`account:${userId}`);
+        youtubeFeedRotations.delete(userId);
+        youtubeSubscriptionOffsets.delete(userId);
         return send(200, { connected: false });
       }
       if (route.pathname === "/youtube/playlist") {
@@ -1185,8 +1213,13 @@ export function createService({ token, origins, authorizeAccount }) {
           });
         const accountCacheKey = `account:${userId}`;
         const cachedAccount = youtubeCache.get(accountCacheKey);
+        const rotateAccount = (account) => {
+          const rotation = youtubeFeedRotations.get(userId) ?? 0;
+          youtubeFeedRotations.set(userId, rotation + 1);
+          return rotateYoutubeAccount(account, rotation);
+        };
         if (cachedAccount?.expires > Date.now())
-          return send(200, cachedAccount.account);
+          return send(200, rotateAccount(cachedAccount.account));
         const [subscriptions, playlists, activities] = await Promise.all([
           youtubeApi(userId, "subscriptions", {
             part: "snippet",
@@ -1229,8 +1262,21 @@ export function createService({ token, origins, authorizeAccount }) {
               "",
           }))
           .filter((item) => /^[A-Za-z0-9_-]{10,64}$/.test(item.id));
+        const subscriptionOffset =
+          subscriptionItems.length > 0
+            ? (youtubeSubscriptionOffsets.get(userId) ?? 0) % subscriptionItems.length
+            : 0;
+        const subscriptionSample = [
+          ...subscriptionItems.slice(subscriptionOffset),
+          ...subscriptionItems.slice(0, subscriptionOffset),
+        ].slice(0, 12);
+        if (subscriptionItems.length > 0)
+          youtubeSubscriptionOffsets.set(
+            userId,
+            (subscriptionOffset + subscriptionSample.length) % subscriptionItems.length,
+          );
         const subscriptionActivity = await Promise.all(
-          subscriptionItems.slice(0, 12).map((subscription) =>
+          subscriptionSample.map((subscription) =>
             youtubeApi(userId, "activities", {
               part: "snippet,contentDetails",
               channelId: subscription.id,
@@ -1338,7 +1384,7 @@ export function createService({ token, origins, authorizeAccount }) {
           account,
           expires: Date.now() + 5 * 60_000,
         });
-        return send(200, account);
+        return send(200, rotateAccount(account));
       }
       if (route.pathname === "/youtube/search") {
         const query = String(body.query ?? "").trim();

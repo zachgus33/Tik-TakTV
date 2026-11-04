@@ -8,9 +8,31 @@ import {
   publicAddress,
   resolveTarget,
   rewritePlaylist,
+  rotateYoutubeAccount,
   safeDownloadName,
   sourceHeaders,
 } from "./server.mjs";
+
+test("YouTube account feeds rotate without dropping recommendations", () => {
+  const account = {
+    connected: true,
+    videoFeed: Array.from({ length: 10 }, (_, index) => ({
+      videoId: `video-${index}`,
+    })),
+    musicFeed: Array.from({ length: 7 }, (_, index) => ({
+      videoId: `music-${index}`,
+    })),
+  };
+  const first = rotateYoutubeAccount(account, 0);
+  const second = rotateYoutubeAccount(account, 1);
+  assert.notEqual(first.videoFeed[0].videoId, second.videoFeed[0].videoId);
+  assert.notEqual(first.musicFeed[0].videoId, second.musicFeed[0].videoId);
+  assert.deepEqual(
+    new Set(second.videoFeed.map((item) => item.videoId)),
+    new Set(first.videoFeed.map((item) => item.videoId)),
+  );
+  assert.equal(account.videoFeed[0].videoId, "video-0");
+});
 
 test("public liveness endpoint exposes no private configuration", async () => {
   const server = createService({
