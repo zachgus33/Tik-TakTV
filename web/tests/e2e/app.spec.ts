@@ -182,24 +182,88 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
         configured: true,
         connected: true,
         channel: { title: "Test viewer" },
-        activity: [
+        videoFeed: [
           {
             videoId: "dQw4w9WgXcQ",
             title: "Account recommendation",
             channel: "Test channel",
             thumbnail: "https://img.example/recommendation.jpg",
+            kind: "video",
+          },
+        ],
+        musicFeed: [
+          {
+            videoId: "M7lc1UVf-VE",
+            title: "Account song",
+            channel: "Test artist",
+            thumbnail: "https://img.example/song.jpg",
+            kind: "music",
           },
         ],
         playlists: [
           {
             playlistId: "PL1234567890",
+            videoId: "dQw4w9WgXcQ",
             title: "Saved playlist",
             itemCount: 12,
+            kind: "video",
+          },
+          {
+            playlistId: "PL0987654321",
+            videoId: "M7lc1UVf-VE",
+            title: "Saved music playlist",
+            itemCount: 8,
+            kind: "music",
           },
         ],
         subscriptions: [
           { id: "channel-1", title: "Subscribed channel" },
         ],
+      },
+    }),
+  );
+  await page.route("https://playback.example/youtube/search", async (route) => {
+    const body = route.request().postDataJSON() as {
+      kind?: string;
+      channelId?: string;
+    };
+    await route.fulfill({
+      json: {
+        results: body.channelId
+          ? [{
+              videoId: "aqz-KE-bpKQ",
+              title: "Newest subscription video",
+              channel: "Subscribed channel",
+              thumbnail: "https://img.example/subscription.jpg",
+              kind: "video",
+            }]
+          : body.kind === "music"
+            ? [{
+                videoId: "M7lc1UVf-VE",
+                title: "Music result",
+                channel: "Test artist",
+                thumbnail: "https://img.example/music-result.jpg",
+                kind: "music",
+              }]
+            : [{
+                videoId: "aqz-KE-bpKQ",
+                title: "Video result",
+                channel: "Test channel",
+                thumbnail: "https://img.example/video-result.jpg",
+                kind: "video",
+              }],
+      },
+    });
+  });
+  await page.route("https://playback.example/youtube/playlist", (route) =>
+    route.fulfill({
+      json: {
+        selection: {
+          playlistId: "PL1234567890",
+          videoId: "dQw4w9WgXcQ",
+          title: "Saved playlist",
+          kind: "video",
+        },
       },
     }),
   );
@@ -214,10 +278,16 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByText("Account recommendation")).toBeVisible();
   await expect(page.getByText("Saved playlist")).toBeVisible();
   await expect(page.getByText("Subscribed channel")).toBeVisible();
+  await page.getByLabel("Search videos from Subscribed channel").click();
+  await expect(page.getByRole("heading", { name: "Latest from Subscribed channel" })).toBeVisible();
+  await expect(page.getByText("Newest subscription video")).toBeVisible();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
   ).toBeVisible();
+  await expect(page.getByText("Account song")).toBeVisible();
+  await expect(page.getByText("Saved music playlist")).toBeVisible();
+  await expect(page.getByText("Account recommendation")).toBeHidden();
   await page
     .getByLabel("Search YouTube or paste a link")
     .fill("https://youtu.be/dQw4w9WgXcQ");

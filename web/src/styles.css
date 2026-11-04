@@ -5472,12 +5472,21 @@ button.primary:hover,
   gap: 16px;
 }
 .youtube-card {
+  display: block;
+  width: 100%;
   overflow: hidden;
   padding: 0;
   text-align: left;
   border: 1px solid transparent;
   border-radius: 14px;
   background: var(--surface);
+}
+.youtube-results {
+  scroll-margin-top: 90px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--pink) 38%, var(--border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--pink) 5%, var(--surface));
 }
 .youtube-card:hover,
 .youtube-card:focus-visible {

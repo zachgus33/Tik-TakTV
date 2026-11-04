@@ -5,6 +5,7 @@ export type YouTubeKind = "video" | "music";
 export type YouTubeSelection = {
   videoId?: string;
   playlistId?: string;
+  kind?: YouTubeKind;
   title: string;
   channel?: string;
   thumbnail?: string;
@@ -23,6 +24,8 @@ export type YouTubeAccount = {
   subscriptions?: { id: string; title: string; thumbnail?: string }[];
   playlists?: (YouTubeSelection & { itemCount?: number })[];
   activity?: YouTubeSelection[];
+  videoFeed?: YouTubeSelection[];
+  musicFeed?: YouTubeSelection[];
 };
 
 async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
@@ -110,10 +113,11 @@ export async function searchYouTube(
   query: string,
   kind: YouTubeKind,
   signal?: AbortSignal,
+  channelId?: string,
 ): Promise<YouTubeSelection[]> {
   const response = await serviceRequest(
     "/youtube/search",
-    { query: query.trim(), kind },
+    { query: query.trim(), kind, channelId },
     signal,
   );
   const data = (await response.json().catch(() => ({}))) as {
@@ -123,6 +127,18 @@ export async function searchYouTube(
   if (!response.ok)
     throw new Error(data.error ?? "YouTube search is temporarily unavailable.");
   return data.results ?? [];
+}
+
+export async function resolveYouTubePlaylist(
+  selection: YouTubeSelection,
+): Promise<YouTubeSelection> {
+  if (!selection.playlistId || selection.videoId) return selection;
+  const { data } = await youtubeAccountRequest<{
+    selection?: YouTubeSelection;
+  }>("/youtube/playlist", { playlistId: selection.playlistId });
+  if (!data.selection?.videoId)
+    throw new Error("This playlist does not contain a playable video.");
+  return { ...selection, ...data.selection };
 }
 
 export async function sponsorSegments(

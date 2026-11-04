@@ -43,6 +43,10 @@ const navigationGroupSelector = [
   ".settings-card",
   ".setup-paths",
   ".setup-checks",
+  ".youtube-mode",
+  ".youtube-grid",
+  ".youtube-subscriptions",
+  ".youtube-controls",
   "footer",
 ].join(",");
 
@@ -79,6 +83,53 @@ function directionalCandidates(
 
 function center(rect: DOMRect) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function gridTarget(
+  active: HTMLElement,
+  direction: "left" | "right" | "up" | "down",
+) {
+  const grid = active.closest<HTMLElement>(
+    ".youtube-grid, .youtube-subscriptions, .media-grid",
+  );
+  if (!grid) return null;
+  const items = candidates(grid).filter(
+    (item) => item.closest(".youtube-grid, .youtube-subscriptions, .media-grid") === grid,
+  );
+  if (!items.includes(active)) return null;
+  const rows: HTMLElement[][] = [];
+  for (const item of items) {
+    const y = center(item.getBoundingClientRect()).y;
+    const row = rows.find((candidate) =>
+      Math.abs(center(candidate[0].getBoundingClientRect()).y - y) < 24,
+    );
+    if (row) row.push(item);
+    else rows.push([item]);
+  }
+  rows.sort(
+    (left, right) =>
+      center(left[0].getBoundingClientRect()).y -
+      center(right[0].getBoundingClientRect()).y,
+  );
+  for (const row of rows)
+    row.sort(
+      (left, right) =>
+        center(left.getBoundingClientRect()).x - center(right.getBoundingClientRect()).x,
+    );
+  const rowIndex = rows.findIndex((row) => row.includes(active));
+  const columnIndex = rows[rowIndex]?.indexOf(active) ?? -1;
+  if (rowIndex < 0 || columnIndex < 0) return null;
+  if (direction === "left") return rows[rowIndex][columnIndex - 1] ?? null;
+  if (direction === "right") return rows[rowIndex][columnIndex + 1] ?? null;
+  const targetRow = rows[rowIndex + (direction === "down" ? 1 : -1)];
+  if (!targetRow) return null;
+  const x = center(active.getBoundingClientRect()).x;
+  return targetRow.reduce((best, item) =>
+    Math.abs(center(item.getBoundingClientRect()).x - x) <
+    Math.abs(center(best.getBoundingClientRect()).x - x)
+      ? item
+      : best,
+  );
 }
 
 function overlapsOnCrossAxis(
@@ -139,6 +190,12 @@ function move(direction: "left" | "right" | "up" | "down") {
     items[0].focus({ preventScroll: false });
     return true;
   }
+  const exactGridTarget = gridTarget(active, direction);
+  if (exactGridTarget) {
+    exactGridTarget.focus({ preventScroll: false });
+    exactGridTarget.scrollIntoView({ block: "nearest", inline: "center" });
+    return true;
+  }
   if (
     modal &&
     active.classList.contains("setup-wizard-body") &&
@@ -175,7 +232,7 @@ function move(direction: "left" | "right" | "up" | "down") {
         primary,
         score:
           Math.abs(primary) +
-          secondary * (aligned ? 0.35 : 2.5) +
+          secondary * (aligned ? (horizontal ? 0.35 : 1.5) : 4.5) +
           (aligned ? 0 : 180),
       };
     })

@@ -412,6 +412,18 @@ export function createService({ token, origins, authorizeAccount }) {
     if (!response.ok) return null;
     return response.json();
   }
+  async function youtubePublicApi(path, params = {}) {
+    const apiKey = String(process.env.YOUTUBE_API_KEY ?? "").trim();
+    if (!apiKey) return null;
+    const target = new URL(`https://www.googleapis.com/youtube/v3/${path}`);
+    for (const [key, value] of Object.entries({ ...params, key: apiKey }))
+      target.searchParams.set(key, String(value));
+    const response = await upstreamFetch(target, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  }
   function friendCodeId(code) {
     return createHmac("sha256", friendKey)
       .update(`friend-code:${code}`)
@@ -993,7 +1005,49 @@ export function createService({ token, origins, authorizeAccount }) {
         delete vault.accounts[userId];
         await writeYoutubeVault(vault);
         youtubeDevices.delete(userId);
+        youtubeCache.delete(`account:${userId}`);
         return send(200, { connected: false });
+      }
+      if (route.pathname === "/youtube/playlist") {
+        const playlistId = String(body.playlistId ?? "").trim();
+        if (!/^[A-Za-z0-9_-]{10,64}$/.test(playlistId))
+          return send(400, { error: "Invalid YouTube playlist." });
+        const playlistParams = {
+          part: "snippet,contentDetails,status",
+          playlistId,
+          maxResults: 1,
+        };
+        const playlist =
+          (await youtubeApi(userId, "playlistItems", playlistParams)) ??
+          (await youtubePublicApi("playlistItems", playlistParams));
+        const first = playlist?.items?.find(
+          (item) =>
+            item?.status?.privacyStatus !== "private" &&
+            /^[A-Za-z0-9_-]{11}$/.test(
+              item?.contentDetails?.videoId ??
+                item?.snippet?.resourceId?.videoId ??
+                "",
+            ),
+        );
+        const videoId =
+          first?.contentDetails?.videoId ??
+          first?.snippet?.resourceId?.videoId ??
+          "";
+        if (!videoId)
+          return send(404, { error: "This playlist does not contain a playable video." });
+        return send(200, {
+          selection: {
+            playlistId,
+            videoId,
+            title: String(first?.snippet?.title ?? "YouTube playlist").slice(0, 300),
+            channel: String(first?.snippet?.videoOwnerChannelTitle ?? "Playlist").slice(0, 200),
+            thumbnail: String(
+              first?.snippet?.thumbnails?.medium?.url ??
+                first?.snippet?.thumbnails?.default?.url ??
+                "",
+            ),
+          },
+        });
       }
       if (route.pathname === "/youtube/account") {
         if (userId === "service")
@@ -1013,6 +1067,10 @@ export function createService({ token, origins, authorizeAccount }) {
             connected: true,
             channel: channel.items?.[0]?.snippet ?? null,
           });
+        const accountCacheKey = `account:${userId}`;
+        const cachedAccount = youtubeCache.get(accountCacheKey);
+        if (cachedAccount?.expires > Date.now())
+          return send(200, cachedAccount.account);
         const [subscriptions, playlists, activities] = await Promise.all([
           youtubeApi(userId, "subscriptions", {
             part: "snippet",
@@ -1031,8 +1089,7 @@ export function createService({ token, origins, authorizeAccount }) {
             maxResults: 30,
           }),
         ]);
-        const selections = (activities?.items ?? [])
-          .map((item) => ({
+        const selectionFromActivity = (item) => ({
             videoId:
               item?.contentDetails?.upload?.videoId ??
               item?.contentDetails?.playlistItem?.resourceId?.videoId ??
@@ -1045,22 +1102,56 @@ export function createService({ token, origins, authorizeAccount }) {
                 item?.snippet?.thumbnails?.default?.url ??
                 "",
             ),
-          }))
-          .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
-        return send(200, {
-          configured: true,
-          connected: true,
-          channel: channel.items?.[0]?.snippet ?? null,
-          subscriptions: (subscriptions?.items ?? []).map((item) => ({
+          });
+        const subscriptionItems = (subscriptions?.items ?? [])
+          .map((item) => ({
             id: item?.snippet?.resourceId?.channelId ?? "",
             title: String(item?.snippet?.title ?? "").slice(0, 200),
             thumbnail:
               item?.snippet?.thumbnails?.medium?.url ??
               item?.snippet?.thumbnails?.default?.url ??
               "",
-          })),
-          playlists: (playlists?.items ?? []).map((item) => ({
+          }))
+          .filter((item) => /^[A-Za-z0-9_-]{10,64}$/.test(item.id));
+        const subscriptionActivity = await Promise.all(
+          subscriptionItems.slice(0, 12).map((subscription) =>
+            youtubeApi(userId, "activities", {
+              part: "snippet,contentDetails",
+              channelId: subscription.id,
+              maxResults: 3,
+            }),
+          ),
+        );
+        const feedCandidates = [
+          ...subscriptionActivity.flatMap((payload) =>
+            (payload?.items ?? []).map(selectionFromActivity),
+          ),
+          ...(activities?.items ?? []).map(selectionFromActivity),
+        ].filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
+        const uniqueFeed = [
+          ...new Map(feedCandidates.map((item) => [item.videoId, item])).values(),
+        ].slice(0, 48);
+        const playlistItems = (playlists?.items ?? []).slice(0, 30);
+        const playlistLeads = await Promise.all(
+          playlistItems.map((item) =>
+            youtubeApi(userId, "playlistItems", {
+              part: "snippet,contentDetails,status",
+              playlistId: item?.id ?? "",
+              maxResults: 1,
+            }),
+          ),
+        );
+        const playlistSelections = playlistItems.flatMap((item, index) => {
+          const first = playlistLeads[index]?.items?.[0];
+          const videoId = String(
+            first?.contentDetails?.videoId ??
+              first?.snippet?.resourceId?.videoId ??
+              "",
+          );
+          if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return [];
+          return [{
             playlistId: item?.id ?? "",
+            videoId,
             title: String(item?.snippet?.title ?? "YouTube playlist").slice(0, 300),
             channel: "Playlist",
             thumbnail:
@@ -1068,22 +1159,72 @@ export function createService({ token, origins, authorizeAccount }) {
               item?.snippet?.thumbnails?.default?.url ??
               "",
             itemCount: Number(item?.contentDetails?.itemCount ?? 0),
-          })),
-          activity: selections,
+          }];
         });
+        const detailIds = [
+          ...new Set([
+            ...uniqueFeed.map((item) => item.videoId),
+            ...playlistSelections.map((item) => item.videoId),
+          ]),
+        ].slice(0, 50);
+        const videoDetails = detailIds.length
+          ? await youtubeApi(userId, "videos", {
+              part: "snippet,status",
+              id: detailIds.join(","),
+              maxResults: 50,
+            })
+          : null;
+        const detailsById = new Map(
+          (videoDetails?.items ?? []).map((item) => [item?.id, item]),
+        );
+        const decorate = (item) => {
+          const detail = detailsById.get(item.videoId);
+          if (detail?.status?.embeddable === false) return null;
+          return {
+            ...item,
+            title: String(detail?.snippet?.title ?? item.title).slice(0, 300),
+            channel: String(detail?.snippet?.channelTitle ?? item.channel).slice(0, 200),
+            thumbnail: String(
+              detail?.snippet?.thumbnails?.medium?.url ??
+                detail?.snippet?.thumbnails?.default?.url ??
+                item.thumbnail ??
+                "",
+            ),
+            kind: String(detail?.snippet?.categoryId ?? "") === "10" ? "music" : "video",
+          };
+        };
+        const decoratedFeed = uniqueFeed.map(decorate).filter(Boolean);
+        const decoratedPlaylists = playlistSelections.map(decorate).filter(Boolean);
+        const account = {
+          configured: true,
+          connected: true,
+          channel: channel.items?.[0]?.snippet ?? null,
+          subscriptions: subscriptionItems,
+          playlists: decoratedPlaylists,
+          videoFeed: decoratedFeed.filter((item) => item.kind === "video"),
+          musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
+        };
+        youtubeCache.set(accountCacheKey, {
+          account,
+          expires: Date.now() + 5 * 60_000,
+        });
+        return send(200, account);
       }
       if (route.pathname === "/youtube/search") {
         const query = String(body.query ?? "").trim();
+        const channelId = String(body.channelId ?? "").trim();
         const kind = body.kind === "music" ? "music" : "video";
-        if (!query || query.length > 120)
+        if ((!query && !channelId) || query.length > 120)
           return send(400, { error: "Enter a shorter YouTube search." });
+        if (channelId && !/^[A-Za-z0-9_-]{10,64}$/.test(channelId))
+          return send(400, { error: "Invalid YouTube channel." });
         const apiKey = String(process.env.YOUTUBE_API_KEY ?? "").trim();
         if (!apiKey)
           return send(503, {
             error:
               "YouTube search is being configured. Paste a YouTube video or playlist link for now.",
           });
-        const cacheKey = `${kind}:${query.toLocaleLowerCase()}`;
+        const cacheKey = `${kind}:${channelId}:${query.toLocaleLowerCase()}`;
         const cached = youtubeCache.get(cacheKey);
         if (cached?.expires > Date.now())
           return send(200, { results: cached.results });
@@ -1094,7 +1235,8 @@ export function createService({ token, origins, authorizeAccount }) {
           maxResults: "24",
           videoEmbeddable: "true",
           safeSearch: "moderate",
-          q: query,
+          ...(query ? { q: query } : {}),
+          ...(channelId ? { channelId, order: "date" } : {}),
           key: apiKey,
           ...(kind === "music" ? { videoCategoryId: "10" } : {}),
         }).toString();
@@ -1109,7 +1251,7 @@ export function createService({ token, origins, authorizeAccount }) {
           const payload = JSON.parse(
             await limitedText(upstream.response, 2_000_000),
           );
-          const results = (Array.isArray(payload.items) ? payload.items : [])
+          let results = (Array.isArray(payload.items) ? payload.items : [])
             .map((item) => ({
               videoId: String(item?.id?.videoId ?? ""),
               title: String(item?.snippet?.title ?? "YouTube video").slice(
@@ -1124,6 +1266,41 @@ export function createService({ token, origins, authorizeAccount }) {
               ),
             }))
             .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
+          if (kind === "video" && results.length) {
+            const videosTarget = new URL("https://www.googleapis.com/youtube/v3/videos");
+            videosTarget.search = new URLSearchParams({
+              part: "snippet,status",
+              id: results.map((item) => item.videoId).join(","),
+              maxResults: "50",
+              key: apiKey,
+            }).toString();
+            const videosUpstream = await fetchSafe(videosTarget.href, {
+              signal: controller.signal,
+            });
+            try {
+              if (videosUpstream.response.ok) {
+                const videosPayload = JSON.parse(
+                  await limitedText(videosUpstream.response, 2_000_000),
+                );
+                const allowed = new Set(
+                  (videosPayload.items ?? [])
+                    .filter(
+                      (item) =>
+                        String(item?.snippet?.categoryId ?? "") !== "10" &&
+                        item?.status?.embeddable !== false,
+                    )
+                    .map((item) => item.id),
+                );
+                results = results
+                  .filter((item) => allowed.has(item.videoId))
+                  .map((item) => ({ ...item, kind: "video" }));
+              }
+            } finally {
+              await videosUpstream.close();
+            }
+          } else {
+            results = results.map((item) => ({ ...item, kind: "music" }));
+          }
           youtubeCache.set(cacheKey, {
             results,
             expires: Date.now() + 15 * 60_000,

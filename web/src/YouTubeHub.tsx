@@ -20,6 +20,7 @@ import {
   parseYouTubeSelection,
   disconnectYouTube,
   pollYouTubeDeviceSignIn,
+  resolveYouTubePlaylist,
   searchYouTube,
   sponsorSegments,
   startYouTubeDeviceSignIn,
@@ -118,6 +119,8 @@ export default function YouTubeHub() {
   const playerRef = useRef<Player | null>(null);
   const segmentsRef = useRef<SponsorSegment[]>([]);
   const segmentVideoRef = useRef("");
+  const resultsRef = useRef<HTMLElement>(null);
+  const [resultsTitle, setResultsTitle] = useState("Search results");
 
   const loadAccount = async () => {
     setAccountBusy(true);
@@ -162,8 +165,9 @@ export default function YouTubeHub() {
   }, [device]);
 
   const remember = (next: YouTubeSelection) => {
+    const tagged = { ...next, kind: next.kind ?? kind };
     const value = [
-      next,
+      tagged,
       ...history.filter(
         (item) =>
           item.videoId !== next.videoId || item.playlistId !== next.playlistId,
@@ -173,17 +177,35 @@ export default function YouTubeHub() {
     localStorage.setItem(historyKey, JSON.stringify(value));
   };
 
-  const select = (next: YouTubeSelection) => {
-    setSelection(next);
+  const select = async (next: YouTubeSelection) => {
     setError("");
-    remember(next);
+    try {
+      const playable = await resolveYouTubePlaylist({
+        ...next,
+        kind: next.kind ?? kind,
+      });
+      setSelection(playable);
+      remember(playable);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "This YouTube item could not be opened.");
+    }
+  };
+
+  const switchKind = (next: YouTubeKind) => {
+    setKind(next);
+    setQuery("");
+    setResults([]);
+    setResultsTitle("Search results");
+    setSelection(null);
+    setError("");
+    setNotice("");
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const direct = parseYouTubeSelection(query);
     if (direct) {
-      select(direct);
+      await select(direct);
       return;
     }
     if (!query.trim()) return;
@@ -192,11 +214,30 @@ export default function YouTubeHub() {
     try {
       const found = await searchYouTube(query, kind);
       setResults(found);
+      setResultsTitle(kind === "music" ? "Music search results" : "Video search results");
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ block: "start" }));
       if (!found.length) setError("No embeddable YouTube results were found.");
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "YouTube search failed.",
       );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadSubscription = async (channelId: string, title: string) => {
+    setBusy(true);
+    setError("");
+    setSelection(null);
+    try {
+      const found = await searchYouTube("", "video", undefined, channelId);
+      setResults(found);
+      setResultsTitle(`Latest from ${title}`);
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ block: "start" }));
+      if (!found.length) setError(`No playable videos were found for ${title}.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "That subscription could not be loaded.");
     } finally {
       setBusy(false);
     }
@@ -339,7 +380,7 @@ export default function YouTubeHub() {
         <div className="youtube-mode" role="tablist" aria-label="YouTube mode">
           <button
             className={kind === "video" ? "active" : ""}
-            onClick={() => setKind("video")}
+            onClick={() => switchKind("video")}
             role="tab"
             aria-selected={kind === "video"}
           >
@@ -347,7 +388,7 @@ export default function YouTubeHub() {
           </button>
           <button
             className={kind === "music" ? "active" : ""}
-            onClick={() => setKind("music")}
+            onClick={() => switchKind("music")}
             role="tab"
             aria-selected={kind === "music"}
           >
@@ -448,6 +489,24 @@ export default function YouTubeHub() {
         <div className="youtube-skip-notice" role="status">
           {notice}
         </div>
+      )}
+
+      {!!results.length && (
+        <section className="youtube-section youtube-results" ref={resultsRef}>
+          <h2>{resultsTitle}</h2>
+          <div className="youtube-grid">
+            {results.map((result) => (
+              <button
+                key={result.videoId}
+                className="youtube-card"
+                onClick={() => void select(result)}
+              >
+                <img src={result.thumbnail} alt="" loading="lazy" />
+                <span><strong>{result.title}</strong><small>{result.channel}</small></span>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {selection && (tvMode ? (
@@ -554,15 +613,15 @@ export default function YouTubeHub() {
         </section>
       ))}
 
-      {!!account?.connected && !!account.activity?.length && (
+      {!!account?.connected && !!(kind === "music" ? account.musicFeed : account.videoFeed)?.length && (
         <section className="youtube-section">
-          <h2>{kind === "music" ? "Recently active on your account" : "For you"}</h2>
+          <h2>{kind === "music" ? "Your music" : "Videos for you"}</h2>
           <div className="youtube-grid">
-            {account.activity.map((item, index) => (
+            {(kind === "music" ? account.musicFeed : account.videoFeed)!.map((item, index) => (
               <button
                 key={`${item.videoId}-${index}`}
                 className="youtube-card"
-                onClick={() => select(item)}
+                onClick={() => void select(item)}
               >
                 <img src={item.thumbnail} alt="" loading="lazy" />
                 <span>
@@ -575,15 +634,15 @@ export default function YouTubeHub() {
         </section>
       )}
 
-      {!!account?.connected && !!account.playlists?.length && (
+      {!!account?.connected && !!account.playlists?.filter((item) => item.kind === kind).length && (
         <section className="youtube-section">
           <h2>{kind === "music" ? "Saved music & playlists" : "Your playlists"}</h2>
           <div className="youtube-grid compact">
-            {account.playlists.map((item) => (
+            {account.playlists.filter((item) => item.kind === kind).map((item) => (
               <button
                 key={item.playlistId}
                 className="youtube-card"
-                onClick={() => select(item)}
+                onClick={() => void select(item)}
               >
                 {item.thumbnail ? (
                   <img src={item.thumbnail} alt="" loading="lazy" />
@@ -609,7 +668,7 @@ export default function YouTubeHub() {
               {account.subscriptions.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setQuery(item.title)}
+                  onClick={() => void loadSubscription(item.id, item.title)}
                   aria-label={`Search videos from ${item.title}`}
                 >
                   {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" />}
@@ -620,38 +679,17 @@ export default function YouTubeHub() {
           </section>
         )}
 
-      {!!results.length && (
-        <section className="youtube-section">
-          <h2>Search results</h2>
-          <div className="youtube-grid">
-            {results.map((result) => (
-              <button
-                key={result.videoId}
-                className="youtube-card"
-                onClick={() => select(result)}
-              >
-                <img src={result.thumbnail} alt="" loading="lazy" />
-                <span>
-                  <strong>{result.title}</strong>
-                  <small>{result.channel}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!!history.length && (
+      {!!history.filter((item) => item.kind === kind).length && (
         <section className="youtube-section">
           <h2>
             <History size={20} /> Recently played
           </h2>
           <div className="youtube-grid compact">
-            {history.map((item, index) => (
+            {history.filter((item) => item.kind === kind).map((item, index) => (
               <button
                 key={`${item.videoId ?? item.playlistId}-${index}`}
                 className="youtube-card"
-                onClick={() => select(item)}
+                onClick={() => void select(item)}
               >
                 {item.thumbnail ? (
                   <img src={item.thumbnail} alt="" loading="lazy" />
