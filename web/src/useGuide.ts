@@ -228,6 +228,8 @@ export function useGuide(
     );
     let pending: Record<string, Programme[]> = {};
     let pendingFailed: string[] = [];
+    let consecutiveFailures = 0;
+    let scheduleUnavailable = false;
     let flushTimer: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
       flushTimer = undefined;
@@ -254,17 +256,23 @@ export function useGuide(
       if (!flushTimer) flushTimer = setTimeout(flush, 750);
     };
     async function consume() {
-      while (queue.length && !c.signal.aborted) {
+      while (queue.length && !c.signal.aborted && !scheduleUnavailable) {
         const item = queue.shift()!;
         try {
           const list = await epg(provider!, item.id, c.signal);
           if (!c.signal.aborted) {
+            consecutiveFailures = 0;
             pending[item.id] = list;
             scheduleFlush();
           }
         } catch {
           if (!c.signal.aborted) {
             pendingFailed.push(item.id);
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= 3) {
+              scheduleUnavailable = true;
+              queue.length = 0;
+            }
             scheduleFlush();
           }
         }
@@ -333,6 +341,10 @@ export function useGuide(
     loaded: (item: Item) =>
       !!(valid.xml[guideId(item) ?? ""] || valid.channels[item.id]),
     count: Object.keys(valid.xml).length || Object.keys(valid.channels).length,
+    unavailable:
+      valid.fallback &&
+      Object.keys(valid.channels).length === 0 &&
+      new Set(valid.failed).size >= 3,
     probed:
       Object.keys(valid.xml).length +
       Object.keys(valid.channels).length +

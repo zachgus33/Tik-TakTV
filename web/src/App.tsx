@@ -2223,7 +2223,8 @@ export default function App() {
   const guideFallbackReady =
     !guideState.loading &&
     guideState.fallback &&
-    guideState.probed >= Math.min(tvInterface ? 60 : 120, filtered.length);
+    (guideState.unavailable ||
+      guideState.probed >= Math.min(tvInterface ? 60 : 120, filtered.length));
   const guideDisplayChannels = guideChannels.length
     ? guideChannels
     : guideFallbackReady
