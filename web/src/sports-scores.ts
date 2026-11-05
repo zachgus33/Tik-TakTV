@@ -203,16 +203,21 @@ export function loadSportsScores(force = false): Promise<ScoreEvent[]> {
   // ESPN accepts a single YYYYMMDD value here. Its scoreboard API returns 400
   // for the apparent YYYYMMDD-YYYYMMDD range form, which previously left the
   // Sports page with no score cards at all.
-  const range = date(Date.now());
+  // Scoreboards use the event's US calendar date, while TikTak can be opened
+  // after midnight UTC with a guide that is still showing the previous local
+  // evening. Query the two dates surrounding the current 24-hour window as
+  // separate requests; ESPN rejects its apparent date-range syntax.
+  const ranges = [date(Date.now() - 43_200_000), date(Date.now() + 43_200_000)]
+    .filter((value, index, values) => values.indexOf(value) === index);
   pending = Promise.allSettled(
-    FEEDS.map(async ([sport, path, name]) => {
+    FEEDS.flatMap(([sport, path, name]) => ranges.map(async (range) => {
       const response = await fetch(
         `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?dates=${range}&limit=500`,
         { headers: { Accept: "application/json" }, cache: "no-store" },
       );
       if (!response.ok) throw new Error(`Score feed ${response.status}`);
       return parseScoreboard(await response.json(), sport, name);
-    }),
+    })),
   )
     .then((results) =>
       results.flatMap((result) =>
@@ -220,8 +225,9 @@ export function loadSportsScores(force = false): Promise<ScoreEvent[]> {
       ),
     )
     .then((events) => {
-      cached = { at: Date.now(), events };
-      return events;
+      const unique = [...new Map(events.map((event) => [event.id, event])).values()];
+      cached = { at: Date.now(), events: unique };
+      return unique;
     })
     .finally(() => {
       pending = undefined;
