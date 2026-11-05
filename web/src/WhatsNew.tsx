@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.4";
+export const latestRelease = "2026.11.05.5";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,9 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "Live scores, real channel logos, and faster Sports",
+    title: "Live scores, better mobile layouts, and faster Sports",
     changes: [
+      "Every primary page and Settings section now stays inside a portrait phone viewport, with compact Live TV cards and a single-column Sports layout.",
       "Channel logos now fall back to XMLTV artwork and securely load provider images that browsers cannot open directly.",
       "Sports now enriches confidently matched games with live scores, teams, status, venue, and broadcast information.",
       "Sports filters by country, rejects ordinary shows on sports channels, and renders events in responsive batches on web and TV.",

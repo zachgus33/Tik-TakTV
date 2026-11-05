@@ -931,14 +931,36 @@ body {
     flex: 1;
   }
   .account-hero-card {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 14px;
+  }
+  .account-page-content,
+  .account-page-content > *,
+  .account-hero-card > *,
+  .account-actions > div {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .account-avatar-large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.45rem;
+  }
+  .account-hero-card h2,
+  .account-hero-card p,
+  .account-actions p {
+    overflow-wrap: anywhere;
   }
   .account-hero-card > button {
     grid-column: 1 / -1;
+    width: 100%;
   }
   .account-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+  .account-actions > button {
+    width: 100%;
   }
 }
 .profile-pin {
@@ -2468,8 +2490,13 @@ dialog,
   cursor: pointer;
   flex: 0 0 auto;
 }
-.switch-control input {
+.settings-card .switch-control input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   opacity: 0;
   pointer-events: none;
 }
@@ -4232,7 +4259,7 @@ body:has(dialog[open]) {
     display: none;
   }
   .tv-guide-programmes button {
-    flex: 0 0 min(72vw, 280px) !important;
+    flex: 0 0 calc(100% - 24px) !important;
     min-width: 0;
     min-height: 68px;
     padding: 11px 13px;
@@ -7085,26 +7112,107 @@ button.primary:hover,
     width: 100%;
   }
   .guide-feature {
-    grid-template-columns: 1fr;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 0;
+    padding: 14px;
+    align-items: start;
   }
   .guide-feature-art {
-    width: 72px;
+    width: 64px;
     aspect-ratio: 1;
   }
   .guide-feature h2 {
-    font-size: 1.45rem;
+    margin-top: 5px;
+    font-size: 1.15rem;
+    line-height: 1.16;
+  }
+  .guide-feature-copy {
+    min-width: 0;
+  }
+  .guide-feature-channel,
+  .guide-feature-time {
+    min-width: 0;
+    font-size: 0.72rem;
+  }
+  .guide-feature .primary {
+    width: 100%;
+    min-height: 42px;
+  }
+  .sports-hub,
+  .sports-hub > *,
+  .sports-event-section,
+  .sports-event-grid,
+  .sports-event {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
   .sports-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
   }
   .sports-toolbar > button {
-    flex: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 0 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .sports-kinds {
+    grid-column: 1 / -1;
     flex-wrap: nowrap;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     padding-bottom: 5px;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .sports-kinds::-webkit-scrollbar {
+    display: none;
+  }
+  .sports-event {
+    gap: 11px;
+    min-height: 0;
+    padding: 15px;
+    border-radius: 15px;
+  }
+  .sports-event h3 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: 1.08rem;
+  }
+  .sports-event-meta {
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+  .sports-score,
+  .sports-score-league,
+  .sports-score-team,
+  .sports-score-foot,
+  .sports-channels,
+  .sports-channels button {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sports-score-league > span,
+  .sports-score-foot,
+  .sports-channels strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sports-follow {
+    position: static;
+    justify-self: start;
+    min-height: 42px;
   }
 }
 .tv-mode .live-view-tabs button {

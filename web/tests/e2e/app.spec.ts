@@ -988,6 +988,106 @@ test("mobile live guide uses stacked channel cards without page overflow", async
   expect(layout.programmeWidth).toBeGreaterThan(220);
   expect(layout.channelHeight).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".bottom-nav")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Sports" }).click();
+  const sportsLayout = await page.locator(".sports-hub").evaluate((element) => {
+    const toolbar = element.querySelector<HTMLElement>(".sports-toolbar")!;
+    const kinds = element.querySelector<HTMLElement>(".sports-kinds")!;
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: innerWidth,
+      hubWidth: element.getBoundingClientRect().width,
+      toolbarWidth: toolbar.getBoundingClientRect().width,
+      kindsWidth: kinds.getBoundingClientRect().width,
+    };
+  });
+  expect(sportsLayout.documentWidth).toBeLessThanOrEqual(
+    sportsLayout.viewportWidth + 1,
+  );
+  expect(sportsLayout.toolbarWidth).toBeLessThanOrEqual(
+    sportsLayout.hubWidth + 1,
+  );
+  expect(sportsLayout.kindsWidth).toBeLessThanOrEqual(
+    sportsLayout.hubWidth + 1,
+  );
+});
+
+test("every primary page and settings section fits a portrait viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await connect(page);
+
+  const expectNoPageOverflow = async (label: string) => {
+    const layout = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      viewportWidth: innerWidth,
+      widest: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            node: `${element.tagName.toLowerCase()}.${String(element.className).replaceAll(" ", ".")}`,
+            type: element.getAttribute("type"),
+            aria: element.getAttribute("aria-label"),
+            parent:
+              element.parentElement?.className ||
+              element.parentElement?.tagName,
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            scrollWidth: element.scrollWidth,
+          };
+        })
+        .filter((item) => item.right > innerWidth + 1 || item.left < -1)
+        .sort((a, b) => b.right - a.right)
+        .slice(0, 5),
+    }));
+    expect(
+      Math.max(layout.documentWidth, layout.bodyWidth),
+      `${label} widened the portrait page: ${JSON.stringify(layout.widest)}`,
+    ).toBeLessThanOrEqual(layout.viewportWidth + 1);
+  };
+
+  for (const route of [
+    "home",
+    "discover",
+    "live",
+    "youtube",
+    "library",
+    "account",
+    "settings",
+  ]) {
+    await page.goto(`/#${route}`);
+    await page.waitForTimeout(80);
+    await expectNoPageOverflow(route);
+  }
+
+  await page.goto("/#live");
+  await page.getByRole("tab", { name: "Sports" }).click();
+  await expectNoPageOverflow("sports");
+
+  await page.goto("/#settings");
+  const settingsNav = page.getByRole("navigation", {
+    name: "Settings sections",
+  });
+  for (const section of [
+    "Add-ons",
+    "Collections",
+    "Live TV",
+    "Playback",
+    "General",
+    "Health check",
+    "Downloads",
+    "Feedback",
+    "What's new",
+    "Privacy & status",
+  ]) {
+    await settingsNav
+      .getByRole("button", { name: new RegExp(section) })
+      .click();
+    await expectNoPageOverflow(`settings: ${section}`);
+  }
 });
 test("bad credentials show a useful error and are never saved", async ({
   page,
