@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
 import ChannelArt from "./ChannelArt";
@@ -116,15 +116,19 @@ export function classifySport(
   title: string,
   channel = "",
   category = "",
+  description = "",
 ): SportKind | null {
-  const haystack = normalized(`${title} ${channel} ${category}`);
+  const programme = normalized(`${title} ${description}`);
   for (const sport of SPORTS)
-    if (sport.words.some((word) => haystack.includes(normalized(word))))
+    if (sport.words.some((word) => programme.includes(normalized(word))))
       return sport.id;
-  if (
-    /\b(vs?|at)\b/.test(normalized(title)) &&
-    /sport|espn|fox|cbs|nbc|tnt|league|cup/.test(haystack)
-  )
+  const context = normalized(`${channel} ${category}`);
+  const matchup = /\b(vs?|versus|at)\b/.test(normalized(title));
+  if (matchup)
+    for (const sport of SPORTS)
+      if (sport.words.some((word) => context.includes(normalized(word))))
+        return sport.id;
+  if (matchup && /sport|espn|fox|cbs|nbc|tnt|league|cup/.test(context))
     return "other";
   return null;
 }
@@ -144,12 +148,15 @@ export function buildSportsEvents(
         programme.title,
         channel.name,
         channel.category,
+        programme.description,
       );
       if (!sport) continue;
       const key = `${normalized(programme.title)}:${Math.round(programme.start / 300_000)}`;
       const existing = events.get(key);
-      if (existing) existing.channels.push(channel);
-      else
+      if (existing) {
+        if (!existing.channels.some((item) => item.id === channel.id))
+          existing.channels.push(channel);
+      } else
         events.set(key, {
           id: key,
           title: programme.title,
@@ -183,6 +190,7 @@ export default function SportsHub({
 }) {
   const [sport, setSport] = useState<SportKind | "all">("all");
   const [mine, setMine] = useState(false);
+  const [limit, setLimit] = useState(48);
   const [followed, setFollowed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("tiktak:sports-follows") || "[]");
@@ -198,6 +206,7 @@ export default function SportsHub({
     if (sport !== "all" && event.sport !== sport) return false;
     return !mine || followed.includes(event.id);
   });
+  useEffect(() => setLimit(48), [mine, sport]);
   const toggleFollow = (id: string) => {
     const next = followed.includes(id)
       ? followed.filter((item) => item !== id)
@@ -205,8 +214,11 @@ export default function SportsHub({
     setFollowed(next);
     localStorage.setItem("tiktak:sports-follows", JSON.stringify(next));
   };
-  const live = visible.filter((event) => event.start <= now && event.end > now);
-  const upcoming = visible.filter((event) => event.start > now);
+  const displayed = visible.slice(0, limit);
+  const live = displayed.filter(
+    (event) => event.start <= now && event.end > now,
+  );
+  const upcoming = displayed.filter((event) => event.start > now);
   return (
     <section className="sports-hub" aria-label="Sports">
       <div className="sports-toolbar">
@@ -280,6 +292,14 @@ export default function SportsHub({
               onPlay={onPlay}
               getArtwork={getArtwork}
             />
+          )}
+          {visible.length > displayed.length && (
+            <button
+              className="sports-show-more"
+              onClick={() => setLimit((value) => value + 48)}
+            >
+              Show more events · {visible.length - displayed.length} remaining
+            </button>
           )}
         </>
       )}

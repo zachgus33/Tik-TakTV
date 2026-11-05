@@ -15,6 +15,16 @@ describe("sports guide", () => {
     expect(classifySport("Celtics vs Pistons", "NBA TV")).toBe("basketball");
     expect(classifySport("Formula 1 Grand Prix", "ESPN")).toBe("racing");
     expect(classifySport("Evening News", "Local 4")).toBeNull();
+    expect(classifySport("News", "Super Tennis 4K")).toBeNull();
+    expect(classifySport("Sendepause", "Sky Sport Bundesliga")).toBeNull();
+    expect(
+      classifySport(
+        "Every Sunday Afternoon",
+        "NFL RedZone",
+        "Sports",
+        "Follow every NFL football game live.",
+      ),
+    ).toBe("football");
   });
 
   it("combines the same event carried on multiple user channels", () => {

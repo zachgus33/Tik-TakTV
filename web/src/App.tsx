@@ -3054,13 +3054,34 @@ export default function App() {
                     </button>
                   </div>
                   {liveView === "sports" ? (
-                    <SportsHub
-                      channels={guideDisplayChannels}
-                      getPrograms={guideState.get}
-                      getArtwork={guideState.artwork}
-                      now={guideState.now}
-                      onPlay={playChannel}
-                    />
+                    <>
+                      <div className="filter-toolbar sports-scope-filter">
+                        <select
+                          aria-label="Sports country or region"
+                          value={region}
+                          onChange={(event) => setRegion(event.target.value)}
+                        >
+                          <option value="">🌐 All countries</option>
+                          {availableRegions.map(([code, label]) => (
+                            <option key={code} value={code}>
+                              {regionFlag(code)} {label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="results-count">
+                          {region
+                            ? `${regionFlag(region)} ${availableRegions.find(([code]) => code === region)?.[1] ?? region}`
+                            : "Showing every region"}
+                        </span>
+                      </div>
+                      <SportsHub
+                        channels={guideDisplayChannels}
+                        getPrograms={guideState.get}
+                        getArtwork={guideState.artwork}
+                        now={guideState.now}
+                        onPlay={playChannel}
+                      />
+                    </>
                   ) : (
                     <>
                       <div className="filter-toolbar">
