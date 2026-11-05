@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05";
+export const latestRelease = "2026.11.05.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,12 +9,15 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "Better TV playback and clearer activity stats",
+    title: "A roomier Live TV guide and in-app feedback",
     changes: [
+      "The complete two-hour Live TV window now fits the desktop and TV guide without sideways scrolling.",
+      "Added an in-app place to report problems, request features, and attach screenshots.",
+      "Added a private owner inbox for reviewing, planning, completing, or closing feedback.",
       "TV playback controls now fade away after 3.5 seconds and return when you use the remote.",
       "Private owner analytics now separate people online from people actively using or watching TikTak TV.",
       "Added returning-user, session-time, and retention measurements without collecting viewing history.",
-      "Added this update history and a simpler path for feedback.",
+      "Added this update history so improvements are easy to find after every release.",
     ],
   },
   {

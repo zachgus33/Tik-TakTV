@@ -20,6 +20,7 @@ import {
   Trash2,
   UsersRound,
   Megaphone,
+  MessageSquarePlus,
 } from "lucide-react";
 import {
   connectProvider,
@@ -50,6 +51,7 @@ import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
 import { streamPreferences } from "./stream-selection";
 import { requestedWhatsNewSection, WhatsNewPanel } from "./WhatsNew";
+import FeedbackCenter from "./FeedbackCenter";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -100,6 +102,7 @@ type SettingsSection =
   | "health"
   | "downloads"
   | "privacy"
+  | "feedback"
   | "whatsnew"
   | "general";
 
@@ -145,6 +148,12 @@ const sections = [
     label: "Downloads",
     description: "Activity and history",
     icon: Download,
+  },
+  {
+    id: "feedback",
+    label: "Feedback",
+    description: "Reports and requests",
+    icon: MessageSquarePlus,
   },
   {
     id: "whatsnew",
@@ -697,6 +706,7 @@ export default function Settings(props: Props) {
           )}
           {section === "downloads" && <DownloadCenter />}
           {section === "privacy" && <PrivacyStatus />}
+          {section === "feedback" && <FeedbackCenter />}
           {section === "whatsnew" && <WhatsNewPanel />}
           <div hidden={section !== "live"}>
             <section className="settings-card">

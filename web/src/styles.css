@@ -6456,3 +6456,292 @@ button.primary:hover,
     padding: 10px 12px;
   }
 }
+
+/* Keep the complete two-hour guide window visible on desktop and ten-foot
+   displays. Programme duration still controls each card's share of the row,
+   but short shows no longer force the timeline wider than the viewport. */
+@media (min-width: 601px) {
+  .tv-guide-grid,
+  .tv-mode .tv-guide-grid {
+    --tv-guide-channel-width: clamp(220px, 18vw, 300px);
+    --tv-guide-timeline-width: calc(100% - var(--tv-guide-channel-width));
+    overflow-x: hidden;
+  }
+  .tv-guide-heading,
+  .tv-mode .tv-guide-heading,
+  .tv-guide-times,
+  .tv-mode .tv-guide-times,
+  .tv-guide-row,
+  .tv-mode .tv-guide-row {
+    width: 100%;
+    min-width: 0;
+  }
+  .tv-guide-times,
+  .tv-mode .tv-guide-times,
+  .tv-guide-row,
+  .tv-mode .tv-guide-row {
+    grid-template-columns:
+      var(--tv-guide-channel-width)
+      minmax(0, 1fr);
+  }
+  .tv-guide-programmes,
+  .tv-mode .tv-guide-programmes {
+    width: 100%;
+    min-width: 0;
+  }
+  .tv-guide-programmes button,
+  .tv-mode .tv-guide-programmes button {
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+.feedback-center {
+  display: grid;
+  gap: 22px;
+}
+.feedback-compose form {
+  display: grid;
+  gap: 16px;
+}
+.feedback-compose form > label:not(.feedback-attachment-button) {
+  display: grid;
+  gap: 8px;
+  font-weight: 750;
+}
+.feedback-compose textarea {
+  width: 100%;
+  min-height: 150px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.feedback-type-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: #0d0c11;
+}
+.feedback-type-tabs button {
+  justify-content: center;
+  min-height: 50px;
+  color: var(--muted);
+  background: transparent;
+}
+.feedback-type-tabs button.active {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 24%, #18131e);
+  box-shadow: 0 10px 30px #0004;
+}
+.feedback-attachment-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: fit-content;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 12px;
+  color: #e7d8f5;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.feedback-attachment-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.feedback-previews,
+.feedback-admin-images {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+}
+.feedback-previews figure {
+  position: relative;
+  flex: 0 0 190px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #0c0b0f;
+}
+.feedback-previews img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+.feedback-previews figcaption {
+  padding: 9px 12px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedback-previews figure button {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  background: #0a090dcc;
+}
+.feedback-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.feedback-submit-row p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.feedback-submit-row button {
+  flex: 0 0 auto;
+  min-width: 165px;
+}
+.feedback-compose .success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #9ff2c6;
+}
+.feedback-compose .success svg {
+  width: 18px;
+}
+.feedback-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+.feedback-counts span {
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.feedback-counts strong {
+  color: #fff;
+}
+.feedback-list {
+  display: grid;
+  gap: 14px;
+}
+.feedback-list article {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #0e0d12;
+}
+.feedback-list article header,
+.feedback-list article footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.feedback-list article time,
+.feedback-list article small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.feedback-list article h3 {
+  margin: 14px 0 7px;
+}
+.feedback-list article > p {
+  margin: 0 0 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.feedback-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.feedback-kind svg {
+  width: 14px;
+  height: 14px;
+}
+.feedback-kind.bug {
+  color: #ffc0c8;
+  background: #7c1d2b55;
+}
+.feedback-kind.feature {
+  color: #ffe29a;
+  background: #70511455;
+}
+.feedback-admin-images {
+  margin: 15px 0;
+}
+.feedback-admin-images a {
+  flex: 0 0 150px;
+}
+.feedback-admin-images img {
+  width: 150px;
+  height: 95px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.feedback-list article footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.feedback-list article footer select {
+  min-width: 150px;
+}
+.feedback-list article footer button {
+  color: #ffc0c8;
+}
+.tv-mode .feedback-compose,
+.tv-mode .feedback-inbox {
+  padding: 28px;
+}
+.tv-mode .feedback-type-tabs button,
+.tv-mode .feedback-submit-row button,
+.tv-mode .feedback-attachment-button,
+.tv-mode .feedback-list article footer button,
+.tv-mode .feedback-list article footer select {
+  min-height: 56px;
+}
+@media (max-width: 600px) {
+  .feedback-type-tabs {
+    grid-template-columns: 1fr;
+  }
+  .feedback-submit-row,
+  .feedback-list article header,
+  .feedback-list article footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .feedback-submit-row button,
+  .feedback-list article footer select,
+  .feedback-list article footer button {
+    width: 100%;
+  }
+}

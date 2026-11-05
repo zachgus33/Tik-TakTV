@@ -132,6 +132,78 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
   }
 });
 
+test("signed-in users can send private feedback and only the owner can review it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-feedback-"));
+  const previous = {
+    admin: process.env.FEEDBACK_ADMIN_USER_ID,
+    path: process.env.FEEDBACK_PATH,
+  };
+  process.env.FEEDBACK_ADMIN_USER_ID = "site-owner";
+  process.env.FEEDBACK_PATH = join(directory, "feedback.json");
+  const server = createService({
+    token: "f".repeat(40),
+    origins: ["https://site.example"],
+    authorizeAccount: async (bearer) =>
+      ["site-owner", "reporter-account"].includes(bearer) ? bearer : false,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (path, body, bearer) =>
+    fetch(base + path, {
+      method: "POST",
+      headers: {
+        Origin: "https://site.example",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${bearer}`,
+      },
+      body: JSON.stringify(body),
+    });
+  try {
+    const submitted = await post("/feedback/submit", {
+      type: "bug",
+      title: "Player does not open",
+      details: "The player stays closed after selecting a result.",
+      page: "https://site.example/#youtube",
+      client: "android-tv",
+      attachments: [{
+        name: "screen.png",
+        type: "image/png",
+        data: "data:image/png;base64,aGVsbG8=",
+      }],
+    }, "reporter-account");
+    assert.equal(submitted.status, 200);
+    assert.equal(
+      (await post("/feedback/admin", { action: "list" }, "reporter-account")).status,
+      403,
+    );
+    const listed = await post("/feedback/admin", { action: "list" }, "site-owner");
+    assert.equal(listed.status, 200);
+    const inbox = await listed.json();
+    assert.equal(inbox.entries.length, 1);
+    assert.equal(inbox.entries[0].title, "Player does not open");
+    assert.equal(inbox.entries[0].attachments.length, 1);
+    assert.notEqual(inbox.entries[0].account, "reporter-account");
+    const updated = await post("/feedback/admin", {
+      action: "update",
+      id: inbox.entries[0].id,
+      status: "planned",
+    }, "site-owner");
+    assert.equal(updated.status, 200);
+    assert.equal((await updated.json()).entries[0].status, "planned");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const stored = await readFile(process.env.FEEDBACK_PATH, "utf8");
+    assert.ok(!stored.includes("reporter-account"));
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    if (previous.admin === undefined) delete process.env.FEEDBACK_ADMIN_USER_ID;
+    else process.env.FEEDBACK_ADMIN_USER_ID = previous.admin;
+    if (previous.path === undefined) delete process.env.FEEDBACK_PATH;
+    else process.env.FEEDBACK_PATH = previous.path;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("account-owned friend codes stay isolated and can be revoked", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tiktak-friends-"));
   const previous = {

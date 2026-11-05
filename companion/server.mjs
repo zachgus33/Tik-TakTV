@@ -252,9 +252,90 @@ export function createService({ token, origins, authorizeAccount }) {
   const analyticsPath =
     process.env.ANALYTICS_PATH ??
     join(process.cwd(), "runtime", "usage-analytics.json");
+  const feedbackAdmin = process.env.FEEDBACK_ADMIN_USER_ID ?? analyticsAdmin;
+  const feedbackPath =
+    process.env.FEEDBACK_PATH ??
+    join(process.cwd(), "runtime", "feedback.json");
   let analyticsCache;
   let analyticsLoadPromise;
   let analyticsWriteTimer;
+  let feedbackCache;
+  let feedbackLoadPromise;
+  let feedbackWriteTimer;
+  async function readFeedback() {
+    if (feedbackCache) return feedbackCache;
+    if (!feedbackLoadPromise) {
+      feedbackLoadPromise = readFile(feedbackPath, "utf8")
+        .then((text) => JSON.parse(text))
+        .catch(() => ({ version: 1, entries: [] }))
+        .then((value) => {
+          feedbackCache =
+            value?.version === 1 && Array.isArray(value.entries)
+              ? value
+              : { version: 1, entries: [] };
+          return feedbackCache;
+        });
+    }
+    return feedbackLoadPromise;
+  }
+  function scheduleFeedbackWrite() {
+    if (feedbackWriteTimer) clearTimeout(feedbackWriteTimer);
+    feedbackWriteTimer = setTimeout(() => void (async () => {
+      feedbackWriteTimer = null;
+      if (!feedbackCache) return;
+      await mkdir(join(feedbackPath, ".."), { recursive: true });
+      const temporary = `${feedbackPath}.${randomBytes(6).toString("hex")}`;
+      await writeFile(temporary, JSON.stringify(feedbackCache), { mode: 0o600 });
+      await rename(temporary, feedbackPath);
+    })().catch(() => {}), 100);
+    feedbackWriteTimer.unref();
+  }
+  async function submitFeedback(userId, value) {
+    const type = String(value?.type ?? "");
+    const title = String(value?.title ?? "").trim();
+    const details = String(value?.details ?? "").trim();
+    const page = String(value?.page ?? "").slice(0, 240);
+    const client = String(value?.client ?? "web").slice(0, 40);
+    if (!["bug", "feature"].includes(type)) throw new Error("Choose a feedback type.");
+    if (title.length < 5 || title.length > 140)
+      throw new Error("Use a title between 5 and 140 characters.");
+    if (details.length < 10 || details.length > 5_000)
+      throw new Error("Describe the request in 10 to 5,000 characters.");
+    const attachments = Array.isArray(value?.attachments) ? value.attachments : [];
+    if (attachments.length > 3) throw new Error("Attach no more than three images.");
+    const images = attachments.map((attachment) => {
+      const name =
+        String(attachment?.name ?? "screenshot")
+          .replace(/[^a-zA-Z0-9._ -]/g, "")
+          .slice(0, 100) || "screenshot";
+      const data = String(attachment?.data ?? "");
+      const match = data.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
+      if (!match || Buffer.byteLength(match[2], "base64") > 2_000_000)
+        throw new Error("Each attachment must be a PNG, JPEG, WebP, or GIF under 2 MB.");
+      return { name, type: match[1], data };
+    });
+    const data = await readFeedback();
+    const entry = {
+      id: randomBytes(12).toString("base64url"),
+      type,
+      title,
+      details,
+      page,
+      client,
+      status: "new",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      account: createHmac("sha256", token)
+        .update(`feedback:${userId}`)
+        .digest("base64url")
+        .slice(0, 12),
+      attachments: images,
+    };
+    data.entries.unshift(entry);
+    if (data.entries.length > 1_000) data.entries.length = 1_000;
+    scheduleFeedbackWrite();
+    return { ok: true, id: entry.id };
+  }
   async function readAnalytics() {
     if (analyticsCache) return analyticsCache;
     if (!analyticsLoadPromise) {
@@ -1167,6 +1248,51 @@ export function createService({ token, origins, authorizeAccount }) {
       }
       const userId = await authorized(req);
       if (!userId) return send(401, { error: "Playback service key required" });
+      if (route.pathname === "/feedback/submit") {
+        if (req.method !== "POST")
+          return send(405, { error: "Method not allowed" });
+        if (userId === "service")
+          return send(403, { error: "Sign in to send feedback." });
+        try {
+          const value = JSON.parse(await limitedText(req, 7_000_000));
+          return send(200, await submitFeedback(userId, value));
+        } catch (error) {
+          return send(400, {
+            error: error instanceof Error ? error.message : "Invalid feedback",
+          });
+        }
+      }
+      if (route.pathname === "/feedback/admin") {
+        if (req.method !== "POST")
+          return send(405, { error: "Method not allowed" });
+        if (!feedbackAdmin || userId !== feedbackAdmin)
+          return send(403, { error: "Not available" });
+        const value = JSON.parse(await limitedText(req, 20_000));
+        const data = await readFeedback();
+        if (value?.action === "update") {
+          const entry = data.entries.find((item) => item.id === value.id);
+          if (!entry) return send(404, { error: "Feedback not found" });
+          if (!["new", "reviewing", "planned", "completed", "closed"].includes(value.status))
+            return send(400, { error: "Invalid status" });
+          entry.status = value.status;
+          entry.updatedAt = Date.now();
+          scheduleFeedbackWrite();
+        } else if (value?.action === "delete") {
+          const index = data.entries.findIndex((item) => item.id === value.id);
+          if (index < 0) return send(404, { error: "Feedback not found" });
+          data.entries.splice(index, 1);
+          scheduleFeedbackWrite();
+        } else if (value?.action && value.action !== "list") {
+          return send(400, { error: "Invalid action" });
+        }
+        return send(200, {
+          entries: data.entries.slice(0, 250),
+          counts: data.entries.reduce((counts, item) => {
+            counts[item.status] = (counts[item.status] ?? 0) + 1;
+            return counts;
+          }, {}),
+        });
+      }
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
