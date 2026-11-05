@@ -35,7 +35,15 @@ export function WhatsNewPrompt() {
   useEffect(() => {
     try {
       if (localStorage.getItem(seenKey) === latestRelease) return;
-      const timer = window.setTimeout(() => setOpen(true), 1200);
+      let timer = 0;
+      const showWhenClear = () => {
+        if (document.querySelector("dialog[open]")) {
+          timer = window.setTimeout(showWhenClear, 800);
+          return;
+        }
+        setOpen(true);
+      };
+      timer = window.setTimeout(showWhenClear, 1200);
       return () => clearTimeout(timer);
     } catch {
       return;
