@@ -315,6 +315,7 @@ function ProfileGate({
                 <i /><i /><i />
               </span>
               <img
+                className={`profile-preview-${preview}`}
                 src={`/showcase/${preview}.png`}
                 alt={
                   preview === "home"

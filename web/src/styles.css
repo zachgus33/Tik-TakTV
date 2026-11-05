@@ -6818,14 +6818,21 @@ button.primary:hover,
   .profile-gate:has(.profile-gate-story) {
     grid-template-columns: minmax(0, 1.2fr) minmax(370px, 0.8fr);
     grid-template-rows: auto 1fr;
-    gap: 24px 64px;
+    gap: 8px 64px;
     align-items: center;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
     max-width: 1440px;
     margin: auto;
-    padding: 36px 52px;
+    padding: 20px 52px;
   }
   .profile-gate:has(.profile-gate-story) .profile-gate-brand {
     grid-column: 1 / -1;
+    position: static;
+    align-self: start;
+    justify-self: start;
+    margin-bottom: 4px;
   }
   .profile-gate:has(.profile-gate-story) > section {
     grid-column: 2;
@@ -6840,11 +6847,11 @@ button.primary:hover,
 }
 .profile-gate-story {
   max-width: 760px;
-  padding-top: 18px;
+  padding-top: 8px;
 }
 .profile-gate-story h2 {
-  margin: 12px 0 18px;
-  font-size: clamp(2.5rem, 5vw, 5.2rem);
+  margin: 8px 0 12px;
+  font-size: clamp(2.5rem, 4.6vw, 4.8rem);
   line-height: 0.94;
   letter-spacing: -0.055em;
 }
@@ -6855,7 +6862,7 @@ button.primary:hover,
   line-height: 1.65;
 }
 .profile-gate-preview {
-  margin: 28px 0 20px;
+  margin: 16px 0 13px;
   padding: 14px;
   border: 1px solid #ffffff18;
   border-radius: 22px;
@@ -6872,10 +6879,10 @@ button.primary:hover,
   background: #08080c;
 }
 .profile-preview-window img {
-  width: 100%;
-  height: 100%;
+  width: 118%;
+  height: 118%;
   object-fit: cover;
-  object-position: top center;
+  object-position: top left;
 }
 .profile-preview-dots {
   position: absolute;
