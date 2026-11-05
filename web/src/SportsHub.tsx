@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
 import ChannelArt from "./ChannelArt";
+import { loadSportsScores, matchScore, type ScoreEvent } from "./sports-scores";
 
 export type SportKind =
   | "football"
@@ -191,6 +192,7 @@ export default function SportsHub({
   const [sport, setSport] = useState<SportKind | "all">("all");
   const [mine, setMine] = useState(false);
   const [limit, setLimit] = useState(48);
+  const [scores, setScores] = useState<ScoreEvent[]>([]);
   const [followed, setFollowed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("tiktak:sports-follows") || "[]");
@@ -207,6 +209,19 @@ export default function SportsHub({
     return !mine || followed.includes(event.id);
   });
   useEffect(() => setLimit(48), [mine, sport]);
+  useEffect(() => {
+    let active = true;
+    const update = (force = false) =>
+      void loadSportsScores(force).then((events) => {
+        if (active) setScores(events);
+      });
+    update();
+    const timer = setInterval(() => update(true), 45_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
   const toggleFollow = (id: string) => {
     const next = followed.includes(id)
       ? followed.filter((item) => item !== id)
@@ -280,6 +295,7 @@ export default function SportsHub({
               onFollow={toggleFollow}
               onPlay={onPlay}
               getArtwork={getArtwork}
+              scores={scores}
             />
           )}
           {!!upcoming.length && (
@@ -291,6 +307,7 @@ export default function SportsHub({
               onFollow={toggleFollow}
               onPlay={onPlay}
               getArtwork={getArtwork}
+              scores={scores}
             />
           )}
           {visible.length > displayed.length && (
@@ -315,6 +332,7 @@ function EventSection({
   onFollow,
   onPlay,
   getArtwork,
+  scores,
 }: {
   title: string;
   events: SportsEvent[];
@@ -323,6 +341,7 @@ function EventSection({
   onFollow: (id: string) => void;
   onPlay: (channel: Item) => void;
   getArtwork: (channel: Item) => string | undefined;
+  scores: ScoreEvent[];
 }) {
   return (
     <section className="sports-event-section">
@@ -334,6 +353,7 @@ function EventSection({
         {events.map((event) => {
           const kind = SPORTS.find((item) => item.id === event.sport);
           const live = event.start <= now && event.end > now;
+          const score = matchScore(event, scores);
           return (
             <article className="sports-event" key={event.id}>
               <div className="sports-event-meta">
@@ -351,6 +371,7 @@ function EventSection({
                 </time>
               </div>
               <h3>{event.title}</h3>
+              {score && <ScoreCard score={score} />}
               {event.description && <p>{event.description}</p>}
               <div className="sports-channels">
                 {event.channels.slice(0, 3).map((channel) => (
@@ -383,5 +404,43 @@ function EventSection({
         })}
       </div>
     </section>
+  );
+}
+
+function ScoreCard({ score }: { score: ScoreEvent }) {
+  const teams = [...score.teams].sort(
+    (a, b) => Number(a.home) - Number(b.home),
+  );
+  return (
+    <div className={`sports-score sports-score-${score.state}`}>
+      <div className="sports-score-league">
+        <span>{score.leagueName}</span>
+        <strong>
+          {score.detail || (score.state === "in" ? "LIVE" : "Scheduled")}
+        </strong>
+      </div>
+      {teams.map((team) => (
+        <div
+          className="sports-score-team"
+          key={`${score.id}-${team.id}-${team.home}`}
+        >
+          {team.logo ? (
+            <img src={team.logo} alt="" />
+          ) : (
+            <span>{team.abbreviation.slice(0, 3)}</span>
+          )}
+          <strong>{team.shortName}</strong>
+          {team.record && <small>{team.record}</small>}
+          <b>{team.score ?? "—"}</b>
+        </div>
+      ))}
+      {(score.venue || score.broadcasts.length > 0) && (
+        <div className="sports-score-foot">
+          {[score.venue, score.broadcasts.join(" · ")]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      )}
+    </div>
   );
 }

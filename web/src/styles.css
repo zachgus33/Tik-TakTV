@@ -6763,6 +6763,75 @@ button.primary:hover,
   margin: 0;
   font-size: 1.3rem;
 }
+.sports-score {
+  overflow: hidden;
+  border: 1px solid #ffffff16;
+  border-radius: 13px;
+  background: #090b10;
+}
+.sports-score-league,
+.sports-score-team,
+.sports-score-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+}
+.sports-score-league {
+  color: #a9a4b2;
+  background: #ffffff07;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sports-score-league strong {
+  margin-left: auto;
+  color: #77e7ac;
+}
+.sports-score-post .sports-score-league strong {
+  color: #c8c3ce;
+}
+.sports-score-team + .sports-score-team {
+  border-top: 1px solid #ffffff0c;
+}
+.sports-score-team img,
+.sports-score-team > span {
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+}
+.sports-score-team > span {
+  display: grid;
+  place-items: center;
+  color: #aaa4b3;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+.sports-score-team strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sports-score-team small {
+  margin-left: auto;
+  color: #77727f;
+}
+.sports-score-team b {
+  min-width: 28px;
+  margin-left: auto;
+  text-align: right;
+  font-size: 1.15rem;
+}
+.sports-score-team small + b {
+  margin-left: 0;
+}
+.sports-score-foot {
+  border-top: 1px solid #ffffff0c;
+  color: #817c89;
+  font-size: 0.7rem;
+}
 .sports-event > p {
   margin: 0;
   color: var(--muted);
