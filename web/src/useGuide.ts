@@ -326,10 +326,8 @@ export function useGuide(
   );
   const get = useCallback(
     (item: Item) =>
-      (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).filter(
-        (p) => p.end > now,
-      ),
-    [guideId, now, valid.channels, valid.xml],
+      valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? [],
+    [guideId, valid.channels, valid.xml],
   );
   const artwork = useCallback(
     (item: Item) => {

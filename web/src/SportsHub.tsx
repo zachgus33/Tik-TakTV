@@ -208,9 +208,12 @@ export default function SportsHub({
       return [];
     }
   });
+  // Guide listings change slowly. Rebuilding thousands of channel matches on
+  // every 30-second clock tick made large IPTV accounts pause periodically.
+  const scanNow = Math.floor(now / 900_000) * 900_000;
   const all = useMemo(
-    () => buildSportsEvents(channels, getPrograms, now),
-    [channels, getPrograms, now],
+    () => buildSportsEvents(channels, getPrograms, scanNow),
+    [channels, getPrograms, scanNow],
   );
   const visible = all.filter((event) => {
     if (sport !== "all" && event.sport !== sport) return false;
