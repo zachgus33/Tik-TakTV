@@ -705,7 +705,9 @@ export default function Settings(props: Props) {
             />
           )}
           {section === "downloads" && <DownloadCenter />}
-          {section === "privacy" && <PrivacyStatus />}
+          {section === "privacy" && (
+            <PrivacyStatus onOpenFeedback={() => setSection("feedback")} />
+          )}
           {section === "feedback" && <FeedbackCenter />}
           {section === "whatsnew" && (
             <WhatsNewPanel onOpenFeedback={() => setSection("feedback")} />

@@ -18,7 +18,7 @@ import {
   type UsageSummary,
 } from "./usage-analytics";
 
-export default function PrivacyStatus() {
+export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () => void }) {
   const [service, setService] = useState<"checking" | "online" | "offline">(
     "checking",
   );
@@ -285,13 +285,9 @@ export default function PrivacyStatus() {
             passwords and API keys. Clearing site data removes local caches.
           </p>
         </details>
-        <a
-          href="https://github.com/zachgus33/Tik-TakTV/issues/new"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Send feedback or report a problem <ExternalLink size={15} />
-        </a>
+        <button type="button" className="text-link" onClick={onOpenFeedback}>
+          Send feedback or report a problem
+        </button>
       </section>
     </div>
   );

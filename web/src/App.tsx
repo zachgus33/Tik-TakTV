@@ -46,6 +46,7 @@ import {
   UserRound,
   Sparkles,
   Star,
+  Trophy,
   Tv,
   Trash2,
   X,
@@ -243,7 +244,9 @@ function ProfileGate({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [preview, setPreview] = useState<"home" | "live" | "youtube">("home");
+  const [preview, setPreview] = useState<
+    "home" | "live" | "sports" | "youtube"
+  >("home");
   const [notice, setNotice] = useState("");
   async function refresh() {
     const { data } = await account.auth.getSession();
@@ -328,7 +331,9 @@ function ProfileGate({
                     ? "TikTak TV home screen with featured movies and continue watching"
                     : preview === "live"
                       ? "TikTak TV Live TV guide with channels and schedules"
-                      : "TikTak TV YouTube screen with personalized video rows"
+                      : preview === "sports"
+                        ? "TikTak TV Sports screen with live games, scores, and channel artwork"
+                        : "TikTak TV YouTube screen with personalized video rows"
                 }
               />
             </div>
@@ -354,6 +359,12 @@ function ProfileGate({
                 onClick={() => setPreview("youtube")}
               >
                 <Youtube size={16} /> YouTube & music
+              </button>
+              <button
+                className={preview === "sports" ? "active" : ""}
+                onClick={() => setPreview("sports")}
+              >
+                <Trophy size={16} /> Sports & scores
               </button>
             </div>
           </div>

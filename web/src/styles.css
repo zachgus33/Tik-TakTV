@@ -2171,6 +2171,19 @@ button.selected {
   color: var(--muted);
   line-height: 1.65;
 }
+.public-launch-card .text-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-soft, #f472b6);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+.public-launch-card .text-link:hover {
+  text-decoration: underline;
+}
 :focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 75%, white);
   outline-offset: 3px;
@@ -7003,7 +7016,7 @@ button.primary:hover,
 }
 .profile-preview-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 9px;
   margin-top: 10px;
 }

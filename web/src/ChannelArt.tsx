@@ -68,6 +68,36 @@ export default function ChannelArt({
   const [source, setSource] = useState(candidates[0] ?? "");
   const [failed, setFailed] = useState(!candidates.length);
   const objectUrl = useRef("");
+  const placeholder = useRef<HTMLDivElement>(null);
+  const [relayVisible, setRelayVisible] = useState(
+    !candidates[0]?.startsWith("http:"),
+  );
+
+  useEffect(() => {
+    const first = candidates[0] ?? "";
+    if (!first.startsWith("http:")) {
+      setRelayVisible(true);
+      return;
+    }
+    setRelayVisible(false);
+    const node = placeholder.current;
+    if (!node || !("IntersectionObserver" in window)) {
+      setRelayVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setRelayVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "500px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+    // The joined signature intentionally resets observation only when a URL changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +109,7 @@ export default function ChannelArt({
     const first = candidates[0] ?? "";
     setSource(first.startsWith("http:") ? "" : first);
     setFailed(!candidates.length);
-    if (first.startsWith("http:"))
+    if (first.startsWith("http:") && relayVisible)
       void (async () => {
         for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
           const candidate = candidates[candidateIndex];
@@ -109,7 +139,7 @@ export default function ChannelArt({
     };
     // The joined signature intentionally resets this image only when a URL changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature]);
+  }, [signature, relayVisible]);
 
   const tryNext = async () => {
     const current = candidates[index];
@@ -152,7 +182,11 @@ export default function ChannelArt({
       onError={() => void tryNext()}
     />
   ) : (
-    <div className="art-fallback channel-art-fallback" aria-hidden="true">
+    <div
+      ref={placeholder}
+      className="art-fallback channel-art-fallback"
+      aria-hidden="true"
+    >
       <Tv />
       <span>{initials(channel.name)}</span>
     </div>
