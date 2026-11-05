@@ -113,7 +113,11 @@ export function WhatsNewPrompt() {
   );
 }
 
-export function WhatsNewPanel() {
+export function WhatsNewPanel({
+  onOpenFeedback,
+}: {
+  onOpenFeedback: () => void;
+}) {
   return (
     <div className="whats-new-page">
       {releases.map((release, index) => (
@@ -144,13 +148,9 @@ export function WhatsNewPanel() {
           </div>
         </div>
         <div className="whats-new-links">
-          <a
-            href="https://github.com/zachgus33/Tik-TakTV/issues/new"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Report a problem <ExternalLink size={15} />
-          </a>
+          <button onClick={onOpenFeedback}>
+            Report a problem or request a feature
+          </button>
           <a
             href="https://github.com/zachgus33/Tik-TakTV/releases"
             target="_blank"

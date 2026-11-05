@@ -1420,13 +1420,21 @@ label {
   border-color: color-mix(in srgb, #e76a84 64%, var(--line));
   background: color-mix(in srgb, #7c2639 22%, var(--panel));
 }
+.hero-credit {
+  display: block;
+  margin-top: 18px;
+  color: #777080;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
 .hero-footer {
   position: absolute;
   bottom: 24px;
   left: 48px;
   right: 44px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   color: #686272;
   font-size: 8px;
@@ -7020,6 +7028,21 @@ button.primary:hover,
 .tv-mode .sports-channels button,
 .tv-mode .sports-follow {
   outline-offset: 4px;
+}
+@media (min-width: 900px) {
+  .tv-mode .tv-guide-grid {
+    --tv-guide-channel-width: clamp(260px, 22vw, 300px);
+  }
+  .tv-mode .tv-guide-channel-art {
+    width: 56px;
+    height: 56px;
+    flex-basis: 56px;
+  }
+}
+@media (min-width: 601px) and (max-width: 899px) {
+  .tv-mode .tv-guide-grid {
+    --tv-guide-channel-width: 200px;
+  }
 }
 .feedback-compose form {
   display: grid;

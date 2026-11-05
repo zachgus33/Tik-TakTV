@@ -2648,9 +2648,9 @@ export default function App() {
                           My library
                         </button>
                       </div>
+                      <span className="hero-credit">CURATED BY YOUR ADD-ONS</span>
                     </div>
                     <div className="hero-footer">
-                      <span>CURATED BY YOUR ADD-ONS</span>
                       <div className="hero-navigation">
                         <button
                           aria-label="Previous featured title"

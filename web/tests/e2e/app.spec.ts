@@ -104,7 +104,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("tiktak:established-local", "1"),
-    localStorage.setItem("tiktak:whats-new-seen", "2026.11.05");
+    localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.3");
   });
   await mockSources(page);
 });
@@ -112,11 +112,11 @@ test.beforeEach(async ({ page }) => {
 test("a new release shows once and links to the complete change history", async ({ page }) => {
   await page.addInitScript(() => localStorage.removeItem("tiktak:whats-new-seen"));
   await page.goto("/#home");
-  const update = page.getByRole("dialog", { name: /Better TV playback/ });
+  const update = page.getByRole("dialog", { name: /A new Live TV guide/ });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Better TV playback and clearer activity stats" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A new Live TV guide, Sports, and easier feedback" })).toBeVisible();
   await page.reload();
   await expect(update).toBeHidden();
 });

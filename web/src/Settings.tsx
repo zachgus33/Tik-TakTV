@@ -707,7 +707,9 @@ export default function Settings(props: Props) {
           {section === "downloads" && <DownloadCenter />}
           {section === "privacy" && <PrivacyStatus />}
           {section === "feedback" && <FeedbackCenter />}
-          {section === "whatsnew" && <WhatsNewPanel />}
+          {section === "whatsnew" && (
+            <WhatsNewPanel onOpenFeedback={() => setSection("feedback")} />
+          )}
           <div hidden={section !== "live"}>
             <section className="settings-card">
               <div className="card-heading">
