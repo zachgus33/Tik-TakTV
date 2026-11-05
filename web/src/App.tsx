@@ -77,6 +77,7 @@ import {
   save,
   useStored,
 } from "./storage";
+import { WhatsNewPrompt } from "./WhatsNew";
 import { beginProfileSync } from "./profile-sync";
 import {
   itemKey,
@@ -3412,6 +3413,7 @@ export default function App() {
           {toast}
         </div>
       )}
+      <WhatsNewPrompt />
       {updateReady && (
         <div className="update-banner" role="status">
           <span>A new TikTak TV version is ready.</span>

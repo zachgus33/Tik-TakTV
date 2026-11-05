@@ -19,6 +19,7 @@ import {
   LockKeyhole,
   Trash2,
   UsersRound,
+  Megaphone,
 } from "lucide-react";
 import {
   connectProvider,
@@ -48,6 +49,7 @@ import HealthPanel from "./HealthPanel";
 import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
 import { streamPreferences } from "./stream-selection";
+import { requestedWhatsNewSection, WhatsNewPanel } from "./WhatsNew";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -98,6 +100,7 @@ type SettingsSection =
   | "health"
   | "downloads"
   | "privacy"
+  | "whatsnew"
   | "general";
 
 const sections = [
@@ -144,6 +147,12 @@ const sections = [
     icon: Download,
   },
   {
+    id: "whatsnew",
+    label: "What's new",
+    description: "Recent updates",
+    icon: Megaphone,
+  },
+  {
     id: "privacy",
     label: "Privacy & status",
     description: "Data and services",
@@ -151,7 +160,9 @@ const sections = [
   },
 ] as const;
 export default function Settings(props: Props) {
-  const [section, setSection] = useState<SettingsSection>("addons");
+  const [section, setSection] = useState<SettingsSection>(() =>
+    requestedWhatsNewSection() ? "whatsnew" : "addons",
+  );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -686,6 +697,7 @@ export default function Settings(props: Props) {
           )}
           {section === "downloads" && <DownloadCenter />}
           {section === "privacy" && <PrivacyStatus />}
+          {section === "whatsnew" && <WhatsNewPanel />}
           <div hidden={section !== "live"}>
             <section className="settings-card">
               <div className="card-heading">

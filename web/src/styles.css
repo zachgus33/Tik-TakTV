@@ -5810,6 +5810,28 @@ button.primary:hover,
   gap: 14px;
   flex: none;
 }
+.tv-mode .tv-player-surface .player-top,
+.tv-mode .tv-player-surface .vod-controls,
+.tv-mode .tv-player-surface .player-tools,
+.tv-mode .tv-youtube-player .youtube-tv-close,
+.tv-mode .tv-youtube-player .youtube-player-info {
+  transition:
+    opacity 220ms ease,
+    visibility 220ms ease;
+}
+.tv-mode .tv-player-surface.controls-hidden .player-top,
+.tv-mode .tv-player-surface.controls-hidden .vod-controls,
+.tv-mode .tv-player-surface.controls-hidden .player-tools,
+.tv-mode .tv-youtube-player.controls-hidden .youtube-tv-close,
+.tv-mode .tv-youtube-player.controls-hidden .youtube-player-info {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.tv-mode .tv-player-surface.controls-hidden,
+.tv-mode .tv-youtube-player.controls-hidden {
+  cursor: none;
+}
 .tv-mode button,
 .tv-mode a,
 .tv-mode input,
@@ -5825,6 +5847,29 @@ button.primary:hover,
     0 0 0 8px var(--accent),
     0 14px 38px #000c !important;
 }
+
+.whats-new-dialog {
+  width: min(650px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  padding: 34px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  color: var(--text);
+  background: linear-gradient(145deg, #17131f, #0c0d13 72%);
+  box-shadow: 0 30px 120px #000d;
+}
+.whats-new-dialog::backdrop { background: #030409d9; backdrop-filter: blur(8px); }
+.whats-new-dialog h2 { margin: 14px 48px 6px 0; font-size: clamp(1.65rem, 4vw, 2.35rem); }
+.whats-new-dialog ul,
+.release-card ul { display: grid; gap: 12px; margin: 24px 0; padding-left: 22px; line-height: 1.55; }
+.whats-new-close { position: absolute; top: 20px; right: 20px; }
+.whats-new-actions,
+.whats-new-links { display: flex; flex-wrap: wrap; gap: 12px; }
+.whats-new-actions button { min-height: 48px; }
+.whats-new-links a { display: inline-flex; align-items: center; gap: 8px; }
+.tv-mode .whats-new-dialog { width: min(760px, 82vw); padding: 46px; }
+.tv-mode .whats-new-dialog button { min-height: 58px; padding-inline: 24px; }
 .tv-mode .media-card:focus-visible,
 .tv-mode .service-tile:focus-visible {
   z-index: 20;

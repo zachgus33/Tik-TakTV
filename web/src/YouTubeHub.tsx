@@ -15,7 +15,7 @@ import {
   X,
   Youtube,
 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   parseYouTubeSelection,
   disconnectYouTube,
@@ -103,6 +103,7 @@ export default function YouTubeHub() {
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [tvControlsVisible, setTvControlsVisible] = useState(true);
   const [muted, setMuted] = useState(false);
   const [notice, setNotice] = useState("");
   const [account, setAccount] = useState<YouTubeAccount | null>(null);
@@ -117,10 +118,25 @@ export default function YouTubeHub() {
   );
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const tvControlsTimerRef = useRef<number>(0);
+  const playingRef = useRef(false);
   const segmentsRef = useRef<SponsorSegment[]>([]);
   const segmentVideoRef = useRef("");
   const resultsRef = useRef<HTMLElement>(null);
   const [resultsTitle, setResultsTitle] = useState("Search results");
+
+  playingRef.current = playing;
+  const revealTvControls = useCallback(() => {
+    if (!tvMode) return;
+    window.clearTimeout(tvControlsTimerRef.current);
+    setTvControlsVisible(true);
+    if (!playingRef.current) return;
+    tvControlsTimerRef.current = window.setTimeout(() => {
+      setTvControlsVisible(false);
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.closest(".youtube-tv-close, .youtube-player-info")) active.blur();
+    }, 3500);
+  }, [tvMode]);
 
   const loadAccount = async () => {
     setAccountBusy(true);
@@ -258,7 +274,7 @@ export default function YouTubeHub() {
           height: "100%",
           playerVars: {
             autoplay: 1,
-            controls: 1,
+            controls: tvMode ? 0 : 1,
             playsinline: 1,
             rel: 0,
             origin: location.origin,
@@ -274,7 +290,13 @@ export default function YouTubeHub() {
               event.target.playVideo();
             },
             onStateChange: (event: { data: number; target: Player }) => {
-              setPlaying(event.data === window.YT?.PlayerState.PLAYING);
+              const isPlaying = event.data === window.YT?.PlayerState.PLAYING;
+              setPlaying(isPlaying);
+              window.dispatchEvent(
+                new CustomEvent("tiktak-media-activity", {
+                  detail: { active: isPlaying },
+                }),
+              );
               const data = event.target.getVideoData();
               if (data.video_id && data.video_id !== segmentVideoRef.current) {
                 segmentVideoRef.current = data.video_id;
@@ -295,10 +317,23 @@ export default function YouTubeHub() {
       );
     return () => {
       cancelled = true;
+      window.dispatchEvent(
+        new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
+      );
       playerRef.current = null;
       player?.destroy();
     };
-  }, [selection]);
+  }, [selection, tvMode]);
+
+  useEffect(() => {
+    if (!tvMode || !selection) return;
+    if (playing) revealTvControls();
+    else {
+      window.clearTimeout(tvControlsTimerRef.current);
+      setTvControlsVisible(true);
+    }
+    return () => window.clearTimeout(tvControlsTimerRef.current);
+  }, [playing, revealTvControls, selection, tvMode]);
 
   useEffect(() => {
     if (!selection || tvMode) return;
@@ -346,6 +381,7 @@ export default function YouTubeHub() {
   useEffect(() => {
     if (!tvMode || !selection) return;
     const handleKeys = (event: KeyboardEvent) => {
+      revealTvControls();
       const active = document.activeElement as HTMLElement | null;
       if (event.key === "Escape" || event.key === "BrowserBack") {
         event.preventDefault();
@@ -372,7 +408,7 @@ export default function YouTubeHub() {
     };
     window.addEventListener("keydown", handleKeys, true);
     return () => window.removeEventListener("keydown", handleKeys, true);
-  }, [tvMode, selection, playing]);
+  }, [tvMode, selection, playing, revealTvControls]);
 
   return (
     <div className="youtube-hub">
@@ -528,8 +564,10 @@ export default function YouTubeHub() {
       {selection && (tvMode ? (
         <dialog
           open
-          className="youtube-player-card tv-youtube-player"
+          className={`youtube-player-card tv-youtube-player${tvControlsVisible ? "" : " controls-hidden"}`}
           aria-label={`${selection.title} player`}
+          onPointerMove={revealTvControls}
+          onPointerDown={revealTvControls}
           onCancel={(event) => {
             event.preventDefault();
             setSelection(null);

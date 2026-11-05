@@ -80,6 +80,7 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
       body: JSON.stringify(body),
     });
   const rawVisitor = "random-browser-installation-123456";
+  const rawSession = "random-browser-session-123456789";
   try {
     assert.equal(
       (await post("/analytics/heartbeat", {
@@ -96,6 +97,8 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
       (await post("/analytics/account", {
         client: "web-desktop",
         createdAt: new Date().toISOString(),
+        sessionId: rawSession,
+        active: true,
       }, "regular-user")).status,
       200,
     );
@@ -107,11 +110,16 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
     assert.equal(summary.visits, 1);
     assert.equal(summary.platforms["web-mobile"], 1);
     assert.equal(summary.accounts.activeNow, 1);
+    assert.equal(summary.accounts.onlineNow, 1);
     assert.equal(summary.accounts.allTime, 1);
     assert.equal(summary.accounts.signupsToday, 1);
+    assert.equal(summary.accounts.sessionsPerAccount, 1);
+    assert.equal(summary.accounts.returning, 0);
+    assert.equal(summary.accounts.retention.day1.eligible, 0);
     await new Promise((resolve) => setTimeout(resolve, 400));
     const stored = await readFile(process.env.ANALYTICS_PATH, "utf8");
     assert.ok(!stored.includes(rawVisitor));
+    assert.ok(!stored.includes(rawSession));
     assert.ok(!stored.includes("regular-user"));
   } finally {
     server.closeAllConnections();

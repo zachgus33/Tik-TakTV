@@ -1,5 +1,5 @@
 import { getService, prepareMedia, sourceFetch } from "./connection";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Airplay,
   Check,
@@ -85,6 +85,7 @@ function VideoPlayer({
   const [notice, setNotice] = useState("");
   const [retry, setRetry] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [tvControlsVisible, setTvControlsVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [seekEnd, setSeekEnd] = useState(0);
   const [subtitles, setSubtitles] = useState<
@@ -113,8 +114,23 @@ function VideoPlayer({
   subtitleOffsetRef.current = subtitleOffset;
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const tvControlsTimerRef = useRef<number>(0);
+  const playingRef = useRef(false);
   const subtitleRef = useRef(subtitles);
   subtitleRef.current = subtitles;
+  playingRef.current = playing;
+  const revealTvControls = useCallback(() => {
+    if (!tvMode) return;
+    window.clearTimeout(tvControlsTimerRef.current);
+    setTvControlsVisible(true);
+    if (!playingRef.current) return;
+    tvControlsTimerRef.current = window.setTimeout(() => {
+      setTvControlsVisible(false);
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.closest(".player-top, .tv-player-controls, .player-tools"))
+        active.blur();
+    }, 3500);
+  }, [tvMode]);
   useEffect(() => {
     if (!playback.party) return;
     setParty(
@@ -160,6 +176,7 @@ function VideoPlayer({
   useEffect(() => {
     if (!tvMode) return;
     const handleTvPlaybackKeys = (event: KeyboardEvent) => {
+      revealTvControls();
       const active = document.activeElement as HTMLElement | null;
       const onControl = !!active?.closest(
         ".tv-player-controls, .player-tools, .party-status, .error",
@@ -195,7 +212,16 @@ function VideoPlayer({
     window.addEventListener("keydown", handleTvPlaybackKeys, true);
     return () =>
       window.removeEventListener("keydown", handleTvPlaybackKeys, true);
-  }, [tvMode, currentTime, playback.item.type]);
+  }, [tvMode, currentTime, playback.item.type, revealTvControls]);
+  useEffect(() => {
+    if (!tvMode) return;
+    if (playing) revealTvControls();
+    else {
+      window.clearTimeout(tvControlsTimerRef.current);
+      setTvControlsVisible(true);
+    }
+    return () => window.clearTimeout(tvControlsTimerRef.current);
+  }, [playing, revealTvControls, tvMode]);
   useEffect(() => {
     return () => {
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
@@ -374,8 +400,18 @@ function VideoPlayer({
               : "Playback could not start after every compatible fallback was tried. Run Playback health in Settings for a specific connection check.",
       );
     };
-    const playingStarted = () => setPlaying(true);
-    const playingStopped = () => setPlaying(false);
+    const playingStarted = () => {
+      setPlaying(true);
+      window.dispatchEvent(
+        new CustomEvent("tiktak-media-activity", { detail: { active: true } }),
+      );
+    };
+    const playingStopped = () => {
+      setPlaying(false);
+      window.dispatchEvent(
+        new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
+      );
+    };
     const play = async () => {
       try {
         await video.play();
@@ -479,6 +515,9 @@ function VideoPlayer({
     }
     return () => {
       disposed = true;
+      window.dispatchEvent(
+        new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
+      );
       persist();
       video.removeEventListener("loadedmetadata", loaded);
       video.removeEventListener("timeupdate", time);
@@ -702,9 +741,11 @@ function VideoPlayer({
   return (
     <dialog
       ref={dialogRef}
-      className={`player-dialog${tvMode ? " tv-player-surface" : ""}`}
+      className={`player-dialog${tvMode ? " tv-player-surface" : ""}${tvMode && !tvControlsVisible ? " controls-hidden" : ""}`}
       onCancel={close}
       aria-label={`${playback.item.name} player`}
+      onPointerMove={revealTvControls}
+      onPointerDown={revealTvControls}
     >
       <div className="player-top">
         <div>

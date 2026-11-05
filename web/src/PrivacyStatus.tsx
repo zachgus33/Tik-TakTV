@@ -199,11 +199,29 @@ export default function PrivacyStatus() {
             </button>
           </div>
           <div className="usage-metrics">
-            <article><strong>{usage.accounts.activeNow}</strong><span>Signed in now</span></article>
+            <article><strong>{usage.accounts.onlineNow ?? usage.accounts.activeNow}</strong><span>Signed in online now</span></article>
+            <article><strong>{usage.accounts.activeNow}</strong><span>Actively using now</span></article>
             <article><strong>{usage.accounts.today}</strong><span>Signed in · 24 hours</span></article>
             <article><strong>{usage.accounts.sevenDays}</strong><span>Signed in · 7 days</span></article>
             <article><strong>{usage.accounts.thirtyDays}</strong><span>Signed in · 30 days</span></article>
             <article><strong>{usage.accounts.allTime}</strong><span>Accounts using TikTak TV</span></article>
+          </div>
+          <h3 className="usage-section-title">Engagement</h3>
+          <div className="usage-metrics usage-engagement">
+            <article><strong>{usage.accounts.returning ?? 0}</strong><span>Returning accounts</span></article>
+            <article><strong>{usage.accounts.sessionsPerAccount ?? 0}</strong><span>Sessions per account</span></article>
+            <article><strong>{usage.accounts.averageSessionMinutes ?? 0}m</strong><span>Average session</span></article>
+          </div>
+          <h3 className="usage-section-title">Retention</h3>
+          <div className="usage-metrics usage-retention">
+            {(["day1", "day7", "day30"] as const).map((period) => {
+              const value = usage.accounts.retention?.[period];
+              return <article key={period}>
+                <strong>{value?.rate == null ? "—" : `${value.rate}%`}</strong>
+                <span>{period === "day1" ? "Day 1" : period === "day7" ? "Day 7" : "Day 30"} retention</span>
+                <small>{value?.eligible ?? 0} eligible accounts</small>
+              </article>;
+            })}
           </div>
           <h3 className="usage-section-title">New sign-ups using TikTak TV</h3>
           <div className="usage-metrics usage-signups">
@@ -227,7 +245,7 @@ export default function PrivacyStatus() {
             <span>TV app {usage.platforms["android-tv"] ?? 0}</span>
           </div>
           <small>
-            Account totals count distinct signed-in accounts. Sign-up dates come from the authenticated Nuvio session; emails and account IDs are never stored. {" "}
+            Account totals count distinct signed-in accounts. Active use includes recent remote, keyboard, touch, or playback activity. Session and retention data starts with this release. No titles, searches, viewing history, emails, or raw account IDs are stored. {" "}
             Updated {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.generatedAt))}
           </small>
         </section>

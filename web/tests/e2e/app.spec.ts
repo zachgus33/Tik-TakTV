@@ -102,15 +102,28 @@ async function connect(page: Page) {
   ).toBeVisible();
 }
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() =>
+  await page.addInitScript(() => {
     localStorage.setItem("tiktak:established-local", "1"),
-  );
+    localStorage.setItem("tiktak:whats-new-seen", "2026.11.05");
+  });
   await mockSources(page);
+});
+
+test("a new release shows once and links to the complete change history", async ({ page }) => {
+  await page.addInitScript(() => localStorage.removeItem("tiktak:whats-new-seen"));
+  await page.goto("/#home");
+  const update = page.getByRole("dialog", { name: /Better TV playback/ });
+  await expect(update).toBeVisible({ timeout: 4_000 });
+  await update.getByRole("button", { name: "View all changes" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Better TV playback and clearer activity stats" })).toBeVisible();
+  await page.reload();
+  await expect(update).toBeHidden();
 });
 
 test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:playback-service",
@@ -320,6 +333,13 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   expect(tvPlayerBox?.y).toBe(0);
   expect(Math.round(tvPlayerBox?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(tvPlayerBox?.height ?? 0)).toBe(viewport?.height);
+  if (testInfo.project.name === "desktop") {
+    await expect(tvPlayer).not.toHaveClass(/controls-hidden/);
+    await page.waitForTimeout(3700);
+    await expect(tvPlayer).toHaveClass(/controls-hidden/);
+    await page.keyboard.press("ArrowRight");
+    await expect(tvPlayer).not.toHaveClass(/controls-hidden/);
+  }
   await page.keyboard.press("Escape");
   await expect(tvPlayer).toBeHidden();
 });
@@ -1674,6 +1694,14 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
   expect(box?.y).toBe(0);
   expect(Math.round(box?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(box?.height ?? 0)).toBe(viewport?.height);
+
+  await player.locator("video").evaluate((video) =>
+    video.dispatchEvent(new Event("play")),
+  );
+  await page.waitForTimeout(3700);
+  await expect(player).toHaveClass(/controls-hidden/);
+  await page.keyboard.press("Enter");
+  await expect(player).not.toHaveClass(/controls-hidden/);
 
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("button", { name: /^(Pause|Play)$/ })).toBeFocused();

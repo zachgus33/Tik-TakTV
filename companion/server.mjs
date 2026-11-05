@@ -338,6 +338,12 @@ export function createService({ token, origins, authorizeAccount }) {
       .digest("base64url");
     const data = await readAnalytics();
     const now = Date.now();
+    const rawSession = String(value?.sessionId ?? "");
+    const session = /^[A-Za-z0-9_-]{20,100}$/.test(rawSession)
+      ? createHmac("sha256", token)
+          .update(`session:${userId}:${rawSession}`)
+          .digest("base64url")
+      : "legacy";
     const suppliedCreatedAt = Date.parse(String(value?.createdAt ?? ""));
     const createdAt =
       Number.isFinite(suppliedCreatedAt) &&
@@ -346,11 +352,34 @@ export function createService({ token, origins, authorizeAccount }) {
         ? suppliedCreatedAt
         : undefined;
     const previous = data.accounts[id];
+    const previousLastSeen = Number(previous?.lastSeen) || now;
+    const sameSession = previous?.currentSession === session;
+    const elapsedSeconds = sameSession
+      ? Math.max(0, Math.min(5 * 60, (now - previousLastSeen) / 1000))
+      : 0;
+    const day = new Date(now).toISOString().slice(0, 10);
+    const activityDays = Array.from(
+      new Set([...(Array.isArray(previous?.activityDays) ? previous.activityDays : []), day]),
+    ).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)).slice(-45);
+    const previousCurrentSeconds = Number(previous?.currentSessionSeconds) || 0;
     data.accounts[id] = {
       firstSeen: Number(previous?.firstSeen) || now,
       lastSeen: now,
+      lastActive: value?.active === true
+        ? now
+        : Number(previous?.lastActive) || 0,
       createdAt: Number(previous?.createdAt) || createdAt,
       client,
+      sessions: Math.max(1, Number(previous?.sessions) || 1) + (previous && !sameSession ? 1 : 0),
+      currentSession: session,
+      currentSessionStarted: sameSession
+        ? Number(previous?.currentSessionStarted) || previousLastSeen
+        : now,
+      currentSessionSeconds: sameSession ? previousCurrentSeconds + elapsedSeconds : 0,
+      completedSessionSeconds:
+        (Number(previous?.completedSessionSeconds) || 0) +
+        (previous && !sameSession ? previousCurrentSeconds : 0),
+      activityDays,
     };
     scheduleAnalyticsWrite();
     return true;
@@ -383,6 +412,25 @@ export function createService({ token, origins, authorizeAccount }) {
           Number(entry.createdAt) > 0 &&
           now - Number(entry.createdAt) <= duration,
       );
+    const utcDay = (value) => Date.parse(`${value}T00:00:00.000Z`);
+    const retention = (days) => {
+      const threshold = days * 24 * 60 * 60_000;
+      const eligible = accounts.filter((entry) => now - Number(entry.firstSeen) >= threshold);
+      const returned = eligible.filter((entry) => {
+        const firstDay = Date.parse(new Date(Number(entry.firstSeen)).toISOString().slice(0, 10) + "T00:00:00.000Z");
+        return (entry.activityDays ?? []).some((day) => utcDay(day) - firstDay >= threshold);
+      }).length;
+      return {
+        eligible: eligible.length,
+        returned,
+        rate: eligible.length ? Math.round((returned / eligible.length) * 1000) / 10 : null,
+      };
+    };
+    const totalSessions = accounts.reduce((total, entry) => total + Math.max(1, Number(entry.sessions) || 1), 0);
+    const totalSessionSeconds = accounts.reduce(
+      (total, entry) => total + Number(entry.completedSessionSeconds || 0) + Number(entry.currentSessionSeconds || 0),
+      0,
+    );
     return {
       activeNow: within(5 * 60_000).length,
       today: within(24 * 60 * 60_000).length,
@@ -392,7 +440,8 @@ export function createService({ token, origins, authorizeAccount }) {
       visits: visitors.reduce((total, entry) => total + Number(entry.visits || 0), 0),
       platforms,
       accounts: {
-        activeNow: accountsWithin(5 * 60_000).length,
+        onlineNow: accountsWithin(5 * 60_000).length,
+        activeNow: accounts.filter((entry) => now - Number(entry.lastActive) <= 5 * 60_000).length,
         today: accountsWithin(24 * 60 * 60_000).length,
         sevenDays: accountsWithin(7 * 24 * 60 * 60_000).length,
         thirtyDays: accountsWithin(30 * 24 * 60 * 60_000).length,
@@ -400,6 +449,14 @@ export function createService({ token, origins, authorizeAccount }) {
         signupsToday: signupsWithin(24 * 60 * 60_000).length,
         signupsSevenDays: signupsWithin(7 * 24 * 60 * 60_000).length,
         signupsThirtyDays: signupsWithin(30 * 24 * 60 * 60_000).length,
+        returning: accounts.filter((entry) => (entry.activityDays ?? []).length >= 2).length,
+        sessionsPerAccount: accounts.length ? Math.round((totalSessions / accounts.length) * 10) / 10 : 0,
+        averageSessionMinutes: totalSessions ? Math.round((totalSessionSeconds / totalSessions / 60) * 10) / 10 : 0,
+        retention: {
+          day1: retention(1),
+          day7: retention(7),
+          day30: retention(30),
+        },
       },
       generatedAt: now,
     };
