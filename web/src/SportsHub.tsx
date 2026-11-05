@@ -243,6 +243,8 @@ export default function SportsHub({
   const [sport, setSport] = useState<SportKind | "all">("all");
   const [mine, setMine] = useState(false);
   const [limit, setLimit] = useState(48);
+  const [all, setAll] = useState<SportsEvent[]>([]);
+  const [scanning, setScanning] = useState(true);
   const [scores, setScores] = useState<ScoreEvent[]>([]);
   const [followed, setFollowed] = useState<string[]>(() => {
     try {
@@ -254,10 +256,50 @@ export default function SportsHub({
   // Guide listings change slowly. Rebuilding thousands of channel matches on
   // every 30-second clock tick made large IPTV accounts pause periodically.
   const scanNow = Math.floor(now / 900_000) * 900_000;
-  const all = useMemo(
-    () => buildSportsEvents(channels, getPrograms, scanNow),
-    [channels, getPrograms, scanNow],
-  );
+  useEffect(() => {
+    let cancelled = false;
+    let timer = 0;
+    let cursor = 0;
+    const merged = new Map<string, SportsEvent>();
+    setAll([]);
+    setScanning(true);
+    const consume = () => {
+      if (cancelled) return;
+      // Yield between small guide slices. Large IPTV accounts can contain
+      // thousands of channels; scanning all of them in one render used to
+      // freeze both browsers and Android/Fire TV WebViews.
+      const batch = buildSportsEvents(
+        channels.slice(cursor, cursor + 80),
+        getPrograms,
+        scanNow,
+      );
+      for (const event of batch) {
+        const existing = merged.get(event.id);
+        if (existing) {
+          for (const channel of event.channels)
+            if (!existing.channels.some((item) => item.id === channel.id))
+              existing.channels.push(channel);
+        } else merged.set(event.id, event);
+      }
+      cursor += 80;
+      if (cursor < channels.length) {
+        timer = window.setTimeout(consume, 0);
+        return;
+      }
+      const next = [...merged.values()].sort((a, b) => {
+        const aLive = a.start <= scanNow && a.end > scanNow ? 0 : 1;
+        const bLive = b.start <= scanNow && b.end > scanNow ? 0 : 1;
+        return aLive - bLive || a.start - b.start;
+      });
+      setAll(next);
+      setScanning(false);
+    };
+    timer = window.setTimeout(consume, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [channels, getPrograms, scanNow]);
   const visible = all.filter((event) => {
     if (sport !== "all" && event.sport !== sport) return false;
     return !mine || followed.includes(event.id);
@@ -324,7 +366,13 @@ export default function SportsHub({
           ))}
         </div>
       </div>
-      {!visible.length ? (
+      {scanning ? (
+        <div className="sports-empty" role="status">
+          <Trophy size={38} />
+          <h2>Finding games in your guide…</h2>
+          <p>You can keep using TikTak TV while Sports checks your channels.</p>
+        </div>
+      ) : !visible.length ? (
         <div className="sports-empty">
           <Trophy size={38} />
           <h2>

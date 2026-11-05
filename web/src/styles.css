@@ -2821,7 +2821,8 @@ body:has(dialog[open]) {
   position: absolute;
   top: 15px;
   right: 15px;
-  z-index: 4;
+  z-index: 10;
+  pointer-events: auto;
   background: #0b080dcc;
   border: 1px solid #ffffff12;
   border-radius: 50%;
@@ -2841,6 +2842,7 @@ body:has(dialog[open]) {
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, #151219, transparent 90%);
+  pointer-events: none;
 }
 .detail-content {
   padding: 0 34px 34px;
