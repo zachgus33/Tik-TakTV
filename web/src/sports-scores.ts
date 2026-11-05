@@ -200,7 +200,10 @@ export function loadSportsScores(force = false): Promise<ScoreEvent[]> {
   if (!force && cached && Date.now() - cached.at < 45_000)
     return Promise.resolve(cached.events);
   if (pending) return pending;
-  const range = `${date(Date.now() - 86_400_000)}-${date(Date.now() + 86_400_000)}`;
+  // ESPN accepts a single YYYYMMDD value here. Its scoreboard API returns 400
+  // for the apparent YYYYMMDD-YYYYMMDD range form, which previously left the
+  // Sports page with no score cards at all.
+  const range = date(Date.now());
   pending = Promise.allSettled(
     FEEDS.map(async ([sport, path, name]) => {
       const response = await fetch(

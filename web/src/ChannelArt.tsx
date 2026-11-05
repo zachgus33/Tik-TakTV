@@ -71,7 +71,9 @@ export default function ChannelArt({
 
   useEffect(() => {
     let cancelled = false;
-    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    // Relayed images are shared by every matching channel card through the
+    // module cache. Revoking one here breaks all of the other cards that use
+    // the same blob URL (common for HD/SD variants of a channel).
     objectUrl.current = "";
     setIndex(0);
     const first = candidates[0] ?? "";
@@ -90,10 +92,7 @@ export default function ChannelArt({
           }
           try {
             const url = await relayedArtwork(candidate);
-            if (cancelled) {
-              URL.revokeObjectURL(url);
-              return;
-            }
+            if (cancelled) return;
             setIndex(candidateIndex);
             objectUrl.current = url;
             setSource(url);
@@ -106,7 +105,6 @@ export default function ChannelArt({
       })();
     return () => {
       cancelled = true;
-      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = "";
     };
     // The joined signature intentionally resets this image only when a URL changes.
@@ -121,7 +119,6 @@ export default function ChannelArt({
     }
     try {
       const url = await relayedArtwork(current);
-      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = url;
       setSource(objectUrl.current);
     } catch {
@@ -133,7 +130,6 @@ export default function ChannelArt({
         }
         try {
           const url = await relayedArtwork(candidates[next]);
-          if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
           objectUrl.current = url;
           setSource(url);
           return;

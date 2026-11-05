@@ -81,7 +81,7 @@ const SPORTS: {
     id: "golf",
     label: "Golf",
     icon: "⛳",
-    words: ["pga", "lpga", "golf", "masters"],
+    words: ["pga", "lpga", "golf"],
   },
   {
     id: "tennis",
@@ -135,6 +135,9 @@ export function classifySport(
     )
   )
     return null;
+  // "Masters" appears in many ordinary show and music titles. Only treat it
+  // as golf when the title explicitly identifies the tournament.
+  if (/^(?:the )?masters(?: golf| tournament)?$/.test(titleText)) return "golf";
   for (const sport of SPORTS)
     if (sport.words.some((word) => hasPhrase(titleText, word)))
       return sport.id;

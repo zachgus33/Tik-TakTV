@@ -70,6 +70,11 @@ describe("sports guide", () => {
         "Follow every NFL football game live.",
       ),
     ).toBe("football");
+    expect(classifySport("Maine Cabin Masters", "Magnolia Network")).toBeNull();
+    expect(
+      classifySport("Metallica: Masters of Metal", "Fuse Music"),
+    ).toBeNull();
+    expect(classifySport("The Masters", "CBS Sports")).toBe("golf");
   });
 
   it("combines the same event carried on multiple user channels", () => {
