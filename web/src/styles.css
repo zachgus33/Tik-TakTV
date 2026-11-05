@@ -5683,13 +5683,17 @@ button.primary:hover,
   pointer-events: none;
   background: linear-gradient(#000d 0%, #0008 45%, transparent 100%);
 }
-.tv-mode .tv-player-surface .player-top > div { max-width: 72vw; }
+.tv-mode .tv-player-surface .player-top > div {
+  max-width: 72vw;
+}
 .tv-mode .tv-player-surface .player-top h2 {
   margin-top: 8px;
   font-size: clamp(2rem, 4.5vw, 4rem);
   text-shadow: 0 3px 18px #000;
 }
-.tv-mode .tv-player-surface .player-top p { font-size: 1.05rem; }
+.tv-mode .tv-player-surface .player-top p {
+  font-size: 1.05rem;
+}
 .tv-mode .tv-player-surface .player-top button {
   min-width: 58px;
   min-height: 58px;
@@ -5804,7 +5808,9 @@ button.primary:hover,
   max-width: 60vw;
   font-size: clamp(1.5rem, 3vw, 2.6rem);
 }
-.tv-mode .tv-youtube-player .youtube-player-info span { font-size: 1rem; }
+.tv-mode .tv-youtube-player .youtube-player-info span {
+  font-size: 1rem;
+}
 .tv-mode .tv-youtube-player .youtube-controls {
   display: flex;
   gap: 14px;
@@ -5859,17 +5865,49 @@ button.primary:hover,
   background: linear-gradient(145deg, #17131f, #0c0d13 72%);
   box-shadow: 0 30px 120px #000d;
 }
-.whats-new-dialog::backdrop { background: #030409d9; backdrop-filter: blur(8px); }
-.whats-new-dialog h2 { margin: 14px 48px 6px 0; font-size: clamp(1.65rem, 4vw, 2.35rem); }
+.whats-new-dialog::backdrop {
+  background: #030409d9;
+  backdrop-filter: blur(8px);
+}
+.whats-new-dialog h2 {
+  margin: 14px 48px 6px 0;
+  font-size: clamp(1.65rem, 4vw, 2.35rem);
+}
 .whats-new-dialog ul,
-.release-card ul { display: grid; gap: 12px; margin: 24px 0; padding-left: 22px; line-height: 1.55; }
-.whats-new-close { position: absolute; top: 20px; right: 20px; }
+.release-card ul {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+  padding-left: 22px;
+  line-height: 1.55;
+}
+.whats-new-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
 .whats-new-actions,
-.whats-new-links { display: flex; flex-wrap: wrap; gap: 12px; }
-.whats-new-actions button { min-height: 48px; }
-.whats-new-links a { display: inline-flex; align-items: center; gap: 8px; }
-.tv-mode .whats-new-dialog { width: min(760px, 82vw); padding: 46px; }
-.tv-mode .whats-new-dialog button { min-height: 58px; padding-inline: 24px; }
+.whats-new-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.whats-new-actions button {
+  min-height: 48px;
+}
+.whats-new-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tv-mode .whats-new-dialog {
+  width: min(760px, 82vw);
+  padding: 46px;
+}
+.tv-mode .whats-new-dialog button {
+  min-height: 58px;
+  padding-inline: 24px;
+}
 .tv-mode .media-card:focus-visible,
 .tv-mode .service-tile:focus-visible {
   z-index: 20;
@@ -6501,6 +6539,480 @@ button.primary:hover,
 .feedback-center {
   display: grid;
   gap: 22px;
+}
+
+/* Live TV views */
+.live-view-tabs {
+  display: inline-flex;
+  gap: 7px;
+  margin: 0 0 22px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: #0d0c11;
+}
+.live-view-tabs button {
+  min-height: 46px;
+  padding: 0 20px;
+  color: var(--muted);
+  background: transparent;
+}
+.live-view-tabs button.active {
+  color: white;
+  border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 32%, #151019),
+    #17131c
+  );
+  box-shadow: 0 10px 28px #0005;
+}
+.guide-feature {
+  position: relative;
+  display: grid;
+  grid-template-columns: 138px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  min-height: 220px;
+  margin: 18px 0 14px;
+  padding: 25px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 85% 0%,
+      color-mix(in srgb, var(--accent) 22%, transparent),
+      transparent 44%
+    ),
+    linear-gradient(135deg, #17131c, #0c0c11 72%);
+}
+.guide-feature-art {
+  display: grid;
+  place-items: center;
+  width: 138px;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #24212a;
+  box-shadow: 0 18px 45px #0008;
+}
+.guide-feature-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.guide-feature-art .art-fallback {
+  font-size: 2rem;
+}
+.guide-feature-channel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+.guide-feature-channel b {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #fff;
+  background: #ef405c;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+.guide-feature h2 {
+  max-width: 900px;
+  margin: 7px 0 6px;
+  font-size: clamp(1.75rem, 3vw, 3rem);
+  line-height: 1.05;
+}
+.guide-feature-time {
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+}
+.guide-feature-progress {
+  width: min(620px, 100%);
+  height: 5px;
+  margin: 12px 0;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #ffffff20;
+}
+.guide-feature-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #55cfff);
+}
+.guide-feature p {
+  max-width: 850px;
+  margin: 8px 0 16px;
+  color: #c7c3cd;
+  line-height: 1.5;
+}
+.guide-feature .primary {
+  width: fit-content;
+}
+
+/* EPG-derived sports: every profile sees events from its own connected guide. */
+.sports-hub {
+  display: grid;
+  gap: 26px;
+}
+.sports-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sports-toolbar > button {
+  min-height: 48px;
+  padding: 0 18px;
+  color: var(--muted);
+  background: #131218;
+}
+.sports-toolbar > button.active {
+  color: #111;
+  background: #fff;
+}
+.sports-kinds {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sports-kinds button {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  justify-content: center;
+  font-size: 1.15rem;
+  background: #131218;
+}
+.sports-kinds button.active {
+  border-color: #46b5ff;
+  background: #173348;
+  box-shadow: inset 0 0 0 1px #46b5ff;
+}
+.sports-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 13px;
+}
+.sports-section-title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.sports-section-title > span:last-child {
+  margin-left: auto;
+  color: var(--muted);
+}
+.sports-event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 15px;
+}
+.sports-event {
+  position: relative;
+  display: grid;
+  gap: 13px;
+  min-height: 245px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #171920, #0f0f14);
+}
+.sports-event:focus-within {
+  border-color: var(--accent);
+}
+.sports-event-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sports-event-meta time {
+  color: #55d895;
+}
+.sports-event h3 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.sports-event > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sports-channels {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+}
+.sports-channels button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 7px 11px;
+  text-align: left;
+  background: #22232b;
+}
+.sports-channels img,
+.sports-channels button > span {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font-size: 0.65rem;
+}
+.sports-channels strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sports-follow {
+  position: absolute;
+  top: 50px;
+  right: 15px;
+  min-height: 38px;
+  padding: 0 10px;
+  background: #171820dd;
+}
+.sports-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 320px;
+  padding: 35px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+}
+.sports-empty h2 {
+  margin: 8px 0 0;
+  color: white;
+}
+.sports-empty p {
+  max-width: 560px;
+  margin: 0;
+}
+
+/* Public landing page: a restrained product story beside account access. */
+@media (min-width: 901px) {
+  .profile-gate:has(.profile-gate-story) {
+    grid-template-columns: minmax(0, 1.2fr) minmax(370px, 0.8fr);
+    grid-template-rows: auto 1fr;
+    gap: 24px 64px;
+    align-items: center;
+    max-width: 1440px;
+    margin: auto;
+    padding: 36px 52px;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-brand {
+    grid-column: 1 / -1;
+  }
+  .profile-gate:has(.profile-gate-story) > section {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    max-width: 520px;
+  }
+  .profile-gate-story {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+.profile-gate-story {
+  max-width: 760px;
+  padding-top: 18px;
+}
+.profile-gate-story h2 {
+  margin: 12px 0 18px;
+  font-size: clamp(2.5rem, 5vw, 5.2rem);
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+.profile-gate-story > p {
+  max-width: 650px;
+  color: #b8b4c0;
+  font-size: 1.06rem;
+  line-height: 1.65;
+}
+.profile-gate-preview {
+  margin: 28px 0 20px;
+  padding: 14px;
+  border: 1px solid #ffffff18;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 82% 10%, #8747ff38, transparent 40%), #111016;
+  box-shadow: 0 28px 70px #0007;
+}
+.profile-preview-window {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 8.7;
+  border: 1px solid #ffffff14;
+  border-radius: 14px;
+  background: #08080c;
+}
+.profile-preview-window img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.profile-preview-dots {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: 99px;
+  background: #08080cbb;
+  backdrop-filter: blur(8px);
+}
+.profile-preview-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff55;
+}
+.profile-preview-dots i:first-child { background: #ff5f57; }
+.profile-preview-dots i:nth-child(2) { background: #febc2e; }
+.profile-preview-dots i:last-child { background: #28c840; }
+.profile-preview-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-top: 10px;
+}
+.profile-preview-tabs button {
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border-color: transparent;
+  background: #ffffff08;
+  color: #d7d3dc;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.profile-preview-tabs button.active {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 22%, #16121b);
+}
+.profile-gate-points {
+  display: flex;
+  gap: 12px 22px;
+  flex-wrap: wrap;
+  color: #c8c4ce;
+  font-size: 0.83rem;
+}
+.profile-gate-points span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.profile-gate-points svg {
+  color: #6fe0a5;
+}
+
+@media (max-width: 900px) {
+  .profile-gate-story {
+    order: 2;
+    margin-top: 25px;
+  }
+  .profile-gate-story h2 {
+    font-size: clamp(2.25rem, 11vw, 4.5rem);
+  }
+  .profile-gate-preview {
+    display: none;
+  }
+  .guide-feature {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 15px;
+    padding: 17px;
+  }
+  .guide-feature-art {
+    width: 88px;
+  }
+  .guide-feature p {
+    display: none;
+  }
+  .sports-event-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .live-view-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .guide-feature {
+    grid-template-columns: 1fr;
+  }
+  .guide-feature-art {
+    width: 72px;
+    aspect-ratio: 1;
+  }
+  .guide-feature h2 {
+    font-size: 1.45rem;
+  }
+  .sports-toolbar {
+    align-items: stretch;
+  }
+  .sports-toolbar > button {
+    flex: 1;
+  }
+  .sports-kinds {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+}
+.tv-mode .live-view-tabs button {
+  min-height: 58px;
+  padding: 0 28px;
+  font-size: 1rem;
+}
+.tv-mode .guide-feature {
+  min-height: 250px;
+  grid-template-columns: 150px minmax(0, 1fr);
+}
+.tv-mode .guide-feature-art {
+  width: 150px;
+}
+.tv-mode .sports-event-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.tv-mode .sports-event {
+  min-height: 270px;
+}
+.tv-mode .sports-toolbar button,
+.tv-mode .sports-channels button,
+.tv-mode .sports-follow {
+  outline-offset: 4px;
 }
 .feedback-compose form {
   display: grid;
