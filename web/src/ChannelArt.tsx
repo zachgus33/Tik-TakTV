@@ -14,6 +14,19 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+async function relayedArtwork(url: string) {
+  const response = await sourceFetch(
+    url,
+    { headers: { Accept: "image/*" } },
+    true,
+  );
+  if (!response.ok) throw new Error("Artwork unavailable");
+  const blob = await response.blob();
+  if (!blob.size || blob.size > 5_000_000)
+    throw new Error("Artwork unavailable");
+  return URL.createObjectURL(blob);
+}
+
 export default function ChannelArt({
   channel,
   guideArtwork,
@@ -32,12 +45,42 @@ export default function ChannelArt({
   const objectUrl = useRef("");
 
   useEffect(() => {
+    let cancelled = false;
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = "";
     setIndex(0);
-    setSource(candidates[0] ?? "");
+    const first = candidates[0] ?? "";
+    setSource(first.startsWith("http:") ? "" : first);
     setFailed(!candidates.length);
+    if (first.startsWith("http:"))
+      void (async () => {
+        for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+          const candidate = candidates[candidateIndex];
+          if (!candidate.startsWith("http:")) {
+            if (!cancelled) {
+              setIndex(candidateIndex);
+              setSource(candidate);
+            }
+            return;
+          }
+          try {
+            const url = await relayedArtwork(candidate);
+            if (cancelled) {
+              URL.revokeObjectURL(url);
+              return;
+            }
+            setIndex(candidateIndex);
+            objectUrl.current = url;
+            setSource(url);
+            return;
+          } catch {
+            // Try the next guide or provider artwork URL.
+          }
+        }
+        if (!cancelled) setFailed(true);
+      })();
     return () => {
+      cancelled = true;
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = "";
     };
@@ -52,26 +95,28 @@ export default function ChannelArt({
       return;
     }
     try {
-      const response = await sourceFetch(
-        current,
-        { headers: { Accept: "image/*" } },
-        true,
-      );
-      const type = response.headers.get("content-type") ?? "";
-      if (!response.ok || !type.toLowerCase().startsWith("image/"))
-        throw new Error("Artwork unavailable");
-      const blob = await response.blob();
-      if (!blob.size || blob.size > 5_000_000)
-        throw new Error("Artwork unavailable");
+      const url = await relayedArtwork(current);
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-      objectUrl.current = URL.createObjectURL(blob);
+      objectUrl.current = url;
       setSource(objectUrl.current);
     } catch {
-      const next = index + 1;
-      if (next < candidates.length) {
+      for (let next = index + 1; next < candidates.length; next += 1) {
         setIndex(next);
-        setSource(candidates[next]);
-      } else setFailed(true);
+        if (!candidates[next].startsWith("http:")) {
+          setSource(candidates[next]);
+          return;
+        }
+        try {
+          const url = await relayedArtwork(candidates[next]);
+          if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+          objectUrl.current = url;
+          setSource(url);
+          return;
+        } catch {
+          // Continue to the next provider or guide artwork candidate.
+        }
+      }
+      setFailed(true);
     }
   };
 

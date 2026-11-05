@@ -23,6 +23,23 @@ describe("sports guide", () => {
     expect(classifySport("Sendepause", "Sky Sport Bundesliga")).toBeNull();
     expect(
       classifySport(
+        "Stranger Than Fiction",
+        "FilmBox One",
+        "Movies",
+        "Emma and Violet are drawn into a strange scheme.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
+        "Programmes de la nuit",
+        "L'Equipe",
+        "France",
+        "A suivre, des rediffusions et documentaires. ".repeat(8) +
+          "Programme TV Films Series Sports.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
         "Every Sunday Afternoon",
         "NFL RedZone",
         "Sports",

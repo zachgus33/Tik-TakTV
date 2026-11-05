@@ -113,6 +113,9 @@ const normalized = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+const hasPhrase = (text: string, phrase: string) =>
+  ` ${text} `.includes(` ${normalized(phrase)} `);
+
 export function isInactiveSportsSlot(title: string, description = "") {
   return /\b(no live sport|no live event|off air|offair|sign off|sendepause|programming unavailable|not currently broadcasting|this is ultra hd|channel is currently inactive)\b/.test(
     normalized(`${title} ${description}`),
@@ -125,15 +128,24 @@ export function classifySport(
   category = "",
   description = "",
 ): SportKind | null {
-  const programme = normalized(`${title} ${description}`);
+  const titleText = normalized(title);
   for (const sport of SPORTS)
-    if (sport.words.some((word) => programme.includes(normalized(word))))
+    if (sport.words.some((word) => hasPhrase(titleText, word)))
       return sport.id;
+  // Short guide descriptions can clarify intentionally generic event titles
+  // such as NFL RedZone's "Every Sunday Afternoon". Long descriptions often
+  // contain scraped site navigation or plot text with incidental sports words,
+  // so they must never decide whether an entry belongs in Sports.
+  const descriptionText = normalized(description);
+  if (descriptionText.length > 0 && descriptionText.length <= 220)
+    for (const sport of SPORTS)
+      if (sport.words.some((word) => hasPhrase(descriptionText, word)))
+        return sport.id;
   const context = normalized(`${channel} ${category}`);
-  const matchup = /\b(vs?|versus|at)\b/.test(normalized(title));
+  const matchup = /\b(vs?|versus|at|x)\b/.test(titleText);
   if (matchup)
     for (const sport of SPORTS)
-      if (sport.words.some((word) => context.includes(normalized(word))))
+      if (sport.words.some((word) => hasPhrase(context, word)))
         return sport.id;
   if (matchup && /sport|espn|fox|cbs|nbc|tnt|league|cup/.test(context))
     return "other";
