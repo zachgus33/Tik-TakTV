@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildSportsEvents, classifySport } from "../src/SportsHub";
+import {
+  buildSportsEvents,
+  classifySport,
+  isInactiveSportsSlot,
+} from "../src/SportsHub";
 import type { Item, Programme } from "../src/types";
 
 const channel = (id: string, name: string): Item => ({
@@ -59,5 +63,16 @@ describe("sports guide", () => {
       now,
     );
     expect(events).toEqual([]);
+  });
+
+  it("filters explicit off-air and no-live-sport slates", () => {
+    expect(
+      isInactiveSportsSlot(
+        "This is Ultra HD",
+        "There is no live sport on this channel right now.",
+      ),
+    ).toBe(true);
+    expect(isInactiveSportsSlot("Sendepause")).toBe(true);
+    expect(isInactiveSportsSlot("Celtics vs Pistons")).toBe(false);
   });
 });

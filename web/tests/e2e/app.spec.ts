@@ -103,20 +103,30 @@ async function connect(page: Page) {
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("tiktak:established-local", "1"),
-    localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.3");
+    (localStorage.setItem("tiktak:established-local", "1"),
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.4"));
   });
   await mockSources(page);
 });
 
-test("a new release shows once and links to the complete change history", async ({ page }) => {
-  await page.addInitScript(() => localStorage.removeItem("tiktak:whats-new-seen"));
+test("a new release shows once and links to the complete change history", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.removeItem("tiktak:whats-new-seen"),
+  );
   await page.goto("/#home");
-  const update = page.getByRole("dialog", { name: /A new Live TV guide/ });
+  const update = page.getByRole("dialog", {
+    name: /Live scores, real channel logos/,
+  });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "A new Live TV guide, Sports, and easier feedback" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Live scores, real channel logos, and faster Sports",
+    }),
+  ).toBeVisible();
   await page.reload();
   await expect(update).toBeHidden();
 });
@@ -231,9 +241,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
             kind: "music",
           },
         ],
-        subscriptions: [
-          { id: "channel-1", title: "Subscribed channel" },
-        ],
+        subscriptions: [{ id: "channel-1", title: "Subscribed channel" }],
       },
     }),
   );
@@ -245,28 +253,34 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
     await route.fulfill({
       json: {
         results: body.channelId
-          ? [{
-              videoId: "aqz-KE-bpKQ",
-              title: "Newest subscription video",
-              channel: "Subscribed channel",
-              thumbnail: "https://img.example/subscription.jpg",
-              kind: "video",
-            }]
-          : body.kind === "music"
-            ? [{
-                videoId: "M7lc1UVf-VE",
-                title: "Music result",
-                channel: "Test artist",
-                thumbnail: "https://img.example/music-result.jpg",
-                kind: "music",
-              }]
-            : [{
+          ? [
+              {
                 videoId: "aqz-KE-bpKQ",
-                title: "Video result",
-                channel: "Test channel",
-                thumbnail: "https://img.example/video-result.jpg",
+                title: "Newest subscription video",
+                channel: "Subscribed channel",
+                thumbnail: "https://img.example/subscription.jpg",
                 kind: "video",
-              }],
+              },
+            ]
+          : body.kind === "music"
+            ? [
+                {
+                  videoId: "M7lc1UVf-VE",
+                  title: "Music result",
+                  channel: "Test artist",
+                  thumbnail: "https://img.example/music-result.jpg",
+                  kind: "music",
+                },
+              ]
+            : [
+                {
+                  videoId: "aqz-KE-bpKQ",
+                  title: "Video result",
+                  channel: "Test channel",
+                  thumbnail: "https://img.example/video-result.jpg",
+                  kind: "video",
+                },
+              ],
       },
     });
   });
@@ -294,19 +308,29 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByText("Saved playlist")).toBeVisible();
   await expect(page.getByText("Subscribed channel")).toBeVisible();
   await page.getByLabel("Search videos from Subscribed channel").click();
-  await expect(page.getByRole("heading", { name: "Latest from Subscribed channel" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Latest from Subscribed channel" }),
+  ).toBeVisible();
   await expect(page.getByText("Newest subscription video")).toBeVisible();
   await page
     .getByLabel("Search YouTube or paste a link")
     .fill("plane crash in florida");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Video search results" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Video search results" }),
+  ).toBeVisible();
   await page.getByText("Video result", { exact: true }).click();
   await expect(page.locator(".youtube-player-card")).toBeInViewport();
-  await expect.poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId)).toBe("aqz-KE-bpKQ");
-  await expect.poll(() => page.evaluate(() => (window as any).__youtubePlayerStarted)).toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId))
+    .toBe("aqz-KE-bpKQ");
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__youtubePlayerStarted))
+    .toBe(true);
   await expect(
-    page.locator(".youtube-player-card").getByText("Video result", { exact: true }),
+    page
+      .locator(".youtube-player-card")
+      .getByText("Video result", { exact: true }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
@@ -644,14 +668,20 @@ test("narrow TV WebViews leave useful room for programme cards", async ({
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:playback-service",
-      JSON.stringify({ url: "https://playback.example", token: "fake-private-key" }),
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+      }),
     ),
   );
   await connect(page);
   await page.goto("/?tv=1#live");
-  await expect(page.locator(".tv-guide-row").first()).toContainText("Evening news", {
-    timeout: 15_000,
-  });
+  await expect(page.locator(".tv-guide-row").first()).toContainText(
+    "Evening news",
+    {
+      timeout: 15_000,
+    },
+  );
   const layout = await page.evaluate(() => {
     const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
     const grid = document.querySelector<HTMLElement>(".tv-guide-grid")!;
@@ -1695,16 +1725,18 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
   expect(Math.round(box?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(box?.height ?? 0)).toBe(viewport?.height);
 
-  await player.locator("video").evaluate((video) =>
-    video.dispatchEvent(new Event("play")),
-  );
+  await player
+    .locator("video")
+    .evaluate((video) => video.dispatchEvent(new Event("play")));
   await page.waitForTimeout(3700);
   await expect(player).toHaveClass(/controls-hidden/);
   await page.keyboard.press("Enter");
   await expect(player).not.toHaveClass(/controls-hidden/);
 
   await page.keyboard.press("ArrowDown");
-  await expect(page.getByRole("button", { name: /^(Pause|Play)$/ })).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: /^(Pause|Play)$/ }),
+  ).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(page.getByLabel("Rewind 10 seconds")).toBeFocused();
   await page.keyboard.press("Escape");

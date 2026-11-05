@@ -113,6 +113,12 @@ const normalized = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+export function isInactiveSportsSlot(title: string, description = "") {
+  return /\b(no live sport|no live event|off air|offair|sign off|sendepause|programming unavailable|not currently broadcasting|this is ultra hd|channel is currently inactive)\b/.test(
+    normalized(`${title} ${description}`),
+  );
+}
+
 export function classifySport(
   title: string,
   channel = "",
@@ -144,6 +150,8 @@ export function buildSportsEvents(
   for (const channel of channels) {
     for (const programme of getPrograms(channel)) {
       if (programme.end <= now - 2 * 60 * 60_000 || programme.start >= horizon)
+        continue;
+      if (isInactiveSportsSlot(programme.title, programme.description))
         continue;
       const sport = classifySport(
         programme.title,
