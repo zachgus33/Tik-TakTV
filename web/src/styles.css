@@ -2832,7 +2832,8 @@ dialog::backdrop {
   background: #030206c9;
   backdrop-filter: blur(5px);
 }
-body:has(dialog[open]) {
+/* A non-modal Live TV mini-player must leave the guide scrollable. */
+body:has(dialog[open]:not(.mini-live-player)) {
   overflow: hidden;
 }
 .detail-dialog {

@@ -1170,15 +1170,15 @@ export default function Player({
   playback,
   onClose,
   partyIdentity,
-  minimized = false,
-  onMinimize,
 }: {
   playback: Playback;
   onClose: () => void;
   partyIdentity: PartyIdentity;
-  minimized?: boolean;
-  onMinimize?: (value: boolean) => void;
 }) {
+  // Keep window state inside the player. Lifting this into App made every
+  // minimize/restore rerender the complete guide or Sports tree, which can
+  // contain thousands of provider channels and events.
+  const [minimized, setMinimized] = useState(false);
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -1187,7 +1187,10 @@ export default function Player({
   const alternatives = playback.alternatives ?? [];
   const selected = attempt === 0 ? playback : alternatives[attempt - 1];
   const totalSources = alternatives.length + 1;
-  useEffect(() => setAttempt(0), [playback.item.id, playback.episode?.id]);
+  useEffect(() => {
+    setAttempt(0);
+    setMinimized(false);
+  }, [playback.item.id, playback.episode?.id]);
   useEffect(() => {
     const c = new AbortController();
     setReady(null);
@@ -1348,7 +1351,7 @@ export default function Player({
         playback={ready}
         onClose={onClose}
         minimized={minimized}
-        onMinimize={onMinimize}
+        onMinimize={setMinimized}
         onFailure={recoverWithCompatibility}
         partyIdentity={partyIdentity}
         onSeek={seekConversion}

@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.7";
+export const latestRelease = "2026.11.05.8";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,10 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "Safer profiles and a better TV experience",
+    title: "A faster Live TV mini-player",
     changes: [
+      "Minimizing Live TV no longer locks the outer guide page or rebuilds the full guide and Sports screen, keeping large channel lists responsive while the same stream continues playing.",
+      "Sports guide scanning now runs in small idle-time batches so providers with thousands of channels do not freeze browsers or Android and Fire TV WebViews.",
       "Closing or backing out of full-screen Live TV now keeps the same stream playing in a corner mini-player while you browse the guide; closing the mini-player stops it.",
       "Profile sync now keeps a separate loaded baseline for every signed-in account and profile before it permits any remote write.",
       "Live TV can stay playing in a small corner window while you browse the guide, then return to full-screen playback without opening a second stream.",

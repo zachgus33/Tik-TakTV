@@ -1868,10 +1868,6 @@ export default function App() {
   );
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
-  const [minimizedPlayback, setMinimizedPlayback] = useState(false);
-  useEffect(() => {
-    if (playback?.item.type !== "live") setMinimizedPlayback(false);
-  }, [playback]);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [recentChannels, setRecentChannels] = useStored<Item[]>(
@@ -2400,7 +2396,7 @@ export default function App() {
     ],
     [categoryList, playlist],
   );
-  function playChannel(item: Item) {
+  const playChannel = useCallback((item: Item) => {
     setRecentChannels((current) =>
       [
         cleanItem(item),
@@ -2433,7 +2429,7 @@ export default function App() {
         mode: getService() ? "transcode" : undefined,
         hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
       });
-  }
+  }, [provider, setRecentChannels]);
   async function restoreSetup(transfer: Transfer) {
     const installed = await installMany(transfer.addons);
     setAddons((previous) => mergeAddons(previous, installed.addons));
@@ -3647,8 +3643,6 @@ export default function App() {
         >
           <Player
             playback={playback}
-            minimized={minimizedPlayback}
-            onMinimize={setMinimizedPlayback}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,
@@ -3661,7 +3655,6 @@ export default function App() {
                 partyAttemptedRef.current = "";
               }
               setPlayback(null);
-              setMinimizedPlayback(false);
               setProgress(read("progress", []));
             }}
           />

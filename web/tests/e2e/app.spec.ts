@@ -22,7 +22,10 @@ async function mockSources(page: Page) {
       json: path.includes("/meta/") ? { meta } : { metas: [meta] },
     });
   });
-  await page.route(
+  await page.context().unroute(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+  );
+  await page.context().route(
     "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
     async (route) => {
       const action = new URL(route.request().url()).searchParams.get("action");
@@ -104,7 +107,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.7"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.8"));
   });
   await mockSources(page);
 });
@@ -117,14 +120,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Safer profiles and a better TV experience/,
+    name: /A faster Live TV mini-player/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Safer profiles and a better TV experience",
+      name: "A faster Live TV mini-player",
     }),
   ).toBeVisible();
   await page.reload();
@@ -1213,7 +1216,7 @@ test("live TV sends the provider transport stream through browser-safe Pi transc
 
 test("TV viewers can keep a live mini player open while browsing the guide", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:playback-service",
@@ -1259,6 +1262,23 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
     )
     .toBe(true);
   await expect(page.locator(".tv-guide-grid")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.body).overflow),
+    )
+    .not.toBe("hidden");
+  await page.evaluate(() => {
+    const main = document.querySelector<HTMLElement>("#main-content");
+    if (main) main.style.minHeight = "2200px";
+    window.scrollTo(0, 0);
+  });
+  if (!["iphone", "ipad"].includes(testInfo.project.name)) {
+    await page.locator("#main-content").hover({ position: { x: 8, y: 8 } });
+    await page.mouse.wheel(0, 700);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(0);
+  }
   await page.locator(".tv-guide-programmes button").first().focus();
   await expect(
     page.locator(".tv-guide-programmes button").first(),
@@ -1279,7 +1299,7 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
 
 test("desktop and mobile browsers minimize live playback instead of closing it", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:playback-service",
@@ -1316,6 +1336,23 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
   await expect(page.locator(".tv-guide-grid")).toBeVisible();
   await expect
     .poll(() =>
+      page.evaluate(() => getComputedStyle(document.body).overflow),
+    )
+    .not.toBe("hidden");
+  await page.evaluate(() => {
+    const main = document.querySelector<HTMLElement>("#main-content");
+    if (main) main.style.minHeight = "2200px";
+    window.scrollTo(0, 0);
+  });
+  if (!["iphone", "ipad"].includes(testInfo.project.name)) {
+    await page.locator("#main-content").hover({ position: { x: 8, y: 8 } });
+    await page.mouse.wheel(0, 700);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(0);
+  }
+  await expect
+    .poll(() =>
       mini
         .locator("video")
         .evaluate(
@@ -1348,6 +1385,95 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
     .getByRole("button", { name: "Close player" })
     .click({ force: true });
   await expect(page.locator("dialog.player-dialog")).toBeHidden();
+});
+
+test("Sports stays responsive when college football playback is minimized", async ({
+  page,
+}) => {
+  await page.context().unroute(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+  );
+  await page.context().route(
+    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+    async (route) => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      const now = Math.floor(Date.now() / 1000);
+      const data = !action
+        ? { user_info: { auth: 1, status: "Active" } }
+        : action.endsWith("_categories")
+          ? [{ category_id: "7", category_name: "US| SPORTS NETWORK" }]
+          : action === "get_short_epg"
+            ? {
+                epg_listings: [
+                  {
+                    id: "football-1",
+                    title: btoa("College Football: State vs Tech"),
+                    description: btoa("Live NCAA football game coverage."),
+                    start_timestamp: now - 300,
+                    stop_timestamp: now + 7_200,
+                  },
+                ],
+              }
+            : [
+                {
+                  stream_id: 117,
+                  name: "US| ESPN COLLEGE FOOTBALL HD",
+                  category_id: "7",
+                  epg_channel_id: "espn.college.football",
+                },
+              ];
+      await route.fulfill({ json: data });
+    },
+  );
+  await page.route("https://playback.example/prepare", (route) =>
+    route.fulfill({ json: { path: "/media/live/index.m3u8", hls: true } }),
+  );
+  await page.route("https://playback.example/media/live/index.m3u8", (route) =>
+    route.fulfill({
+      contentType: "application/vnd.apple.mpegurl",
+      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+    }),
+  );
+
+  await connect(page);
+  await page.goto("/#live");
+  await expect(page.locator(".tv-guide-row")).toContainText(
+    "College Football: State vs Tech",
+  );
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.getByRole("tab", { name: "Sports" }).click();
+  await page.getByRole("button", { name: "Football", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "College Football: State vs Tech" }),
+  ).toBeVisible();
+  await page
+    .locator(".sports-channels button")
+    .filter({ hasText: "ESPN COLLEGE FOOTBALL" })
+    .click();
+  await page.getByRole("button", { name: "Minimize live player" }).click();
+
+  await expect(page.locator("dialog.mini-live-player")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "College Football: State vs Tech" }),
+  ).toBeVisible({ timeout: 1_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.body).overflow),
+    )
+    .not.toBe("hidden");
+  await page.getByRole("button", { name: "All sports" }).click();
+  await expect(page.getByRole("button", { name: "All sports" })).toHaveClass(
+    /active/,
+  );
 });
 test("HTTP Xtream API and playback stay behind the HTTPS companion", async ({
   page,

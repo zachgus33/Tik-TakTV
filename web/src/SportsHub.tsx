@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
 import ChannelArt from "./ChannelArt";
@@ -236,7 +236,7 @@ export function buildSportsEvents(
   });
 }
 
-export default function SportsHub({
+function SportsHub({
   channels,
   getPrograms,
   getArtwork,
@@ -267,11 +267,27 @@ export default function SportsHub({
   const scanNow = Math.floor(now / 900_000) * 900_000;
   useEffect(() => {
     let cancelled = false;
-    let timer = 0;
+    let timer: number | undefined;
+    let idle: number | undefined;
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions,
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
     let cursor = 0;
     const merged = new Map<string, SportsEvent>();
     setAll([]);
     setScanning(true);
+    const schedule = () => {
+      if (typeof idleWindow.requestIdleCallback === "function") {
+        idle = idleWindow.requestIdleCallback(consume, { timeout: 120 });
+      } else {
+        // Older Android/Fire TV WebViews need an actual frame between slices.
+        timer = globalThis.setTimeout(consume, 16);
+      }
+    };
     const consume = () => {
       if (cancelled) return;
       // Yield between small guide slices. Large IPTV accounts can contain
@@ -292,7 +308,7 @@ export default function SportsHub({
       }
       cursor += 80;
       if (cursor < channels.length) {
-        timer = window.setTimeout(consume, 0);
+        schedule();
         return;
       }
       const next = [...merged.values()].sort((a, b) => {
@@ -303,10 +319,11 @@ export default function SportsHub({
       setAll(next);
       setScanning(false);
     };
-    timer = window.setTimeout(consume, 0);
+    schedule();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (idle !== undefined) idleWindow.cancelIdleCallback?.(idle);
     };
   }, [channels, getPrograms, scanNow]);
   const visible = all.filter((event) => {
@@ -434,6 +451,10 @@ export default function SportsHub({
     </section>
   );
 }
+
+// Player window changes and unrelated app state must not rerender a Sports
+// result tree that can represent thousands of guide entries.
+export default memo(SportsHub);
 
 function EventSection({
   title,
