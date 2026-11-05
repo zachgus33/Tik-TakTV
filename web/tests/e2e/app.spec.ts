@@ -104,7 +104,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.4"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.5"));
   });
   await mockSources(page);
 });
@@ -117,14 +117,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Live scores, real channel logos/,
+    name: /Live scores, better mobile layouts/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Live scores, real channel logos, and faster Sports",
+      name: "Live scores, better mobile layouts, and faster Sports",
     }),
   ).toBeVisible();
   await page.reload();
