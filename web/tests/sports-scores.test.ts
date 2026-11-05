@@ -75,4 +75,21 @@ describe("sports score enrichment", () => {
     );
     expect(match?.id).toBe("401");
   });
+
+  it("matches a generic guide title when the venue identifies the game", () => {
+    const scores = parseScoreboard(raw, "basketball", "NBA");
+    const match = matchScore(
+      {
+        id: "guide-venue",
+        title: "Live: NBA Basketball",
+        description: "Live from Little Caesars Arena.",
+        start: Date.parse("2026-11-05T00:05:00Z"),
+        end: Date.parse("2026-11-05T03:00:00Z"),
+        sport: "basketball",
+        channels: [],
+      },
+      scores,
+    );
+    expect(match?.id).toBe("401");
+  });
 });

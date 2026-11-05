@@ -23,6 +23,30 @@ describe("sports guide", () => {
     expect(classifySport("Sendepause", "Sky Sport Bundesliga")).toBeNull();
     expect(
       classifySport(
+        "Fox 5 News at 10",
+        "FOX 5 Atlanta",
+        "US local channels",
+        "Local news, weather, and sports.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
+        "Basketball Wives",
+        "VH1",
+        "Entertainment",
+        "A reality series about relationships.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
+        "Jingle Bell Run",
+        "Hallmark",
+        "Movies",
+        "A bookworm is paired with a retired hockey star for a holiday race.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
         "Stranger Than Fiction",
         "FilmBox One",
         "Movies",

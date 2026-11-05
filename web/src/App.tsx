@@ -214,6 +214,11 @@ function liveRegion(name: string) {
   return liveRegions.find(([, , pattern]) => pattern.test(name))?.[0] ?? "";
 }
 
+function localLiveRegion() {
+  const locale = navigator.language.split("-")[1]?.toUpperCase() ?? "";
+  return liveRegions.some(([code]) => code === locale) ? locale : "";
+}
+
 function ProfileGate({
   onEnter,
   onSetup,
@@ -3048,7 +3053,10 @@ export default function App() {
                       role="tab"
                       aria-selected={liveView === "sports"}
                       className={liveView === "sports" ? "active" : ""}
-                      onClick={() => setLiveView("sports")}
+                      onClick={() => {
+                        setLiveView("sports");
+                        if (!region) setRegion(localLiveRegion());
+                      }}
                     >
                       <Star size={18} /> Sports
                     </button>

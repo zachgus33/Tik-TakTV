@@ -158,6 +158,7 @@ export function matchScore(
   scores: ScoreEvent[],
 ): ScoreEvent | undefined {
   const title = normalize(event.title);
+  const description = normalize(event.description);
   const titleWords = new Set(words(event.title));
   let best: { value: ScoreEvent; points: number } | undefined;
   for (const score of scores) {
@@ -175,8 +176,13 @@ export function matchScore(
     const overlap = [...titleWords].filter((word) =>
       scoreWords.has(word),
     ).length;
-    const points = teamMatches * 45 + overlap * 8 - hours;
-    if ((teamMatches >= 2 || points >= 50) && (!best || points > best.points))
+    const venue = normalize(score.venue ?? "");
+    const venueMatch = venue.length >= 5 && description.includes(venue);
+    const points = teamMatches * 45 + overlap * 8 + (venueMatch ? 65 : 0) - hours;
+    if (
+      (teamMatches >= 2 || venueMatch || points >= 50) &&
+      (!best || points > best.points)
+    )
       best = { value: score, points };
   }
   return best?.value;

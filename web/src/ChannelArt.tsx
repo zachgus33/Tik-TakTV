@@ -3,6 +3,22 @@ import { Tv } from "lucide-react";
 import { sourceFetch } from "./connection";
 import type { Item } from "./types";
 
+const artworkCache = new Map<string, Promise<string>>();
+let activeArtworkRequests = 0;
+const artworkQueue: Array<() => void> = [];
+
+async function withArtworkSlot<T>(work: () => Promise<T>) {
+  if (activeArtworkRequests >= 6)
+    await new Promise<void>((resolve) => artworkQueue.push(resolve));
+  activeArtworkRequests += 1;
+  try {
+    return await work();
+  } finally {
+    activeArtworkRequests -= 1;
+    artworkQueue.shift()?.();
+  }
+}
+
 function initials(name: string) {
   return name
     .replace(/^\s*[^|]+\|\s*/, "")
@@ -15,16 +31,25 @@ function initials(name: string) {
 }
 
 async function relayedArtwork(url: string) {
-  const response = await sourceFetch(
-    url,
-    { headers: { Accept: "image/*" } },
-    true,
-  );
-  if (!response.ok) throw new Error("Artwork unavailable");
-  const blob = await response.blob();
-  if (!blob.size || blob.size > 5_000_000)
-    throw new Error("Artwork unavailable");
-  return URL.createObjectURL(blob);
+  const existing = artworkCache.get(url);
+  if (existing) return existing;
+  const pending = withArtworkSlot(async () => {
+    const response = await sourceFetch(
+      url,
+      { headers: { Accept: "image/*" } },
+      true,
+    );
+    if (!response.ok) throw new Error("Artwork unavailable");
+    const blob = await response.blob();
+    if (!blob.size || blob.size > 5_000_000)
+      throw new Error("Artwork unavailable");
+    return URL.createObjectURL(blob);
+  }).catch((error) => {
+    artworkCache.delete(url);
+    throw error;
+  });
+  artworkCache.set(url, pending);
+  return pending;
 }
 
 export default function ChannelArt({
@@ -120,9 +145,10 @@ export default function ChannelArt({
     }
   };
 
-  return source && !failed ? (
+  const displaySource = source.startsWith("http:") ? "" : source;
+  return displaySource && !failed ? (
     <img
-      src={source}
+      src={displaySource}
       alt=""
       loading="lazy"
       decoding="async"

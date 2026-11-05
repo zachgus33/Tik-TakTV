@@ -129,6 +129,12 @@ export function classifySport(
   description = "",
 ): SportKind | null {
   const titleText = normalized(title);
+  if (
+    /\b(news|newscast|weather|teleshopping|shopping|basketball wives|movie|documentary|documentaries)\b/.test(
+      titleText,
+    )
+  )
+    return null;
   for (const sport of SPORTS)
     if (sport.words.some((word) => hasPhrase(titleText, word)))
       return sport.id;
@@ -137,17 +143,42 @@ export function classifySport(
   // contain scraped site navigation or plot text with incidental sports words,
   // so they must never decide whether an entry belongs in Sports.
   const descriptionText = normalized(description);
-  if (descriptionText.length > 0 && descriptionText.length <= 220)
-    for (const sport of SPORTS)
-      if (sport.words.some((word) => hasPhrase(descriptionText, word)))
+  const eventDescription =
+    descriptionText.length > 0 &&
+    descriptionText.length <= 220 &&
+    /\b(live|game|match|action|coverage|round|tournament|championship|season|race|racing|league|tour|final)\b/.test(
+      descriptionText,
+    );
+  if (eventDescription)
+    for (const sport of SPORTS) {
+      const word = sport.words.find((candidate) =>
+        hasPhrase(descriptionText, candidate),
+      );
+      if (!word) continue;
+      const phrase = normalized(word).replace(/\s+/g, "\\s+");
+      const specific = /^(nfl|nba|wnba|mlb|nhl|ufc|mma|pga|lpga|atp|wta|wwe|aew|mls|fifa|nascar|indycar|motogp|f1)$/i.test(
+        word,
+      );
+      const eventWord =
+        "game|match|action|coverage|round|tournament|championship|season|league|tour|final|race|racing";
+      if (
+        specific ||
+        new RegExp(`\\b${phrase}\\b.{0,12}\\b(?:${eventWord})\\b`).test(
+          descriptionText,
+        ) ||
+        new RegExp(`\\b(?:${eventWord})\\b.{0,12}\\b${phrase}\\b`).test(
+          descriptionText,
+        )
+      )
         return sport.id;
+    }
   const context = normalized(`${channel} ${category}`);
-  const matchup = /\b(vs?|versus|at|x)\b/.test(titleText);
+  const matchup = /\b(vs?|versus|x)\b/.test(titleText);
   if (matchup)
     for (const sport of SPORTS)
       if (sport.words.some((word) => hasPhrase(context, word)))
         return sport.id;
-  if (matchup && /sport|espn|fox|cbs|nbc|tnt|league|cup/.test(context))
+  if (matchup && /sport|espn|league|cup/.test(context))
     return "other";
   return null;
 }

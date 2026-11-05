@@ -2612,6 +2612,9 @@ export function createService({ token, origins, authorizeAccount }) {
             url.pathname,
           );
         const method = body.method ?? "GET";
+        const isArtwork =
+          method === "GET" &&
+          /\.(?:png|jpe?g|webp|gif|avif|svg)$/i.test(url.pathname);
         if (
           !["GET", "POST"].includes(method) ||
           !(
@@ -2627,6 +2630,7 @@ export function createService({ token, origins, authorizeAccount }) {
         if (
           !isTorbox &&
           !isRealDebrid &&
+          !isArtwork &&
           !/\/(manifest\.json|(?:catalog|meta|stream)\/.*\.json|(?:player_api|xmltv|get)\.php|[^/]+\.m3u8?)$/.test(
             url.pathname,
           )
@@ -2694,6 +2698,29 @@ export function createService({ token, origins, authorizeAccount }) {
           ]),
         });
         try {
+          if (isArtwork) {
+            const data = await limitedBuffer(result.response, 5_000_000);
+            if (result.response.status >= 500)
+              return send(424, {
+                error: "The artwork source is temporarily unavailable.",
+                upstreamStatus: result.response.status,
+              });
+            const contentType =
+              result.response.headers.get("content-type") ??
+              "application/octet-stream";
+            if (
+              !/^image\//i.test(contentType) &&
+              !/^application\/octet-stream/i.test(contentType)
+            )
+              return send(415, { error: "The artwork source did not return an image." });
+            res.writeHead(result.response.status, {
+              "Content-Type": contentType,
+              "Content-Length": data.length,
+              "Cache-Control": "private, max-age=3600",
+            });
+            res.end(data);
+            return;
+          }
           const text = await limitedText(result.response, 64_000_000);
           if (result.response.status >= 500)
             return send(424, {
@@ -2733,6 +2760,9 @@ export function createService({ token, origins, authorizeAccount }) {
   return server;
 }
 async function limitedText(source, max) {
+  return (await limitedBuffer(source, max)).toString("utf8");
+}
+async function limitedBuffer(source, max) {
   let bytes = 0;
   const chunks = [];
   const body = source.body ?? source;
@@ -2741,7 +2771,7 @@ async function limitedText(source, max) {
     if (bytes > max) throw new Error("Response too large");
     chunks.push(Buffer.from(chunk));
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }
 if (
   process.argv[1] &&
