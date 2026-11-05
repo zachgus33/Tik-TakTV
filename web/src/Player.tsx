@@ -66,12 +66,16 @@ function formatPlayerTime(value: number) {
 function VideoPlayer({
   playback,
   onClose,
+  minimized = false,
+  onMinimize,
   onFailure,
   partyIdentity,
   onSeek,
 }: {
   playback: Playback;
   onClose: () => void;
+  minimized?: boolean;
+  onMinimize?: (value: boolean) => void;
   onFailure?: () => boolean;
   partyIdentity: PartyIdentity;
   onSeek?: (seconds: number) => void;
@@ -160,21 +164,21 @@ function VideoPlayer({
   }, [playback]);
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (dialog && !dialog.open) {
-      dialog.showModal();
-      if (tvMode)
+    if (dialog) {
+      if (dialog.open) dialog.close();
+      if (minimized) dialog.show();
+      else dialog.showModal();
+      if (tvMode && !minimized)
         requestAnimationFrame(() =>
-          dialog
-            .querySelector<HTMLElement>("[data-tv-initial-focus]")
-            ?.focus(),
+          dialog.querySelector<HTMLElement>("[data-tv-initial-focus]")?.focus(),
         );
     }
     return () => {
       if (dialog?.open) dialog.close();
     };
-  }, [tvMode]);
+  }, [minimized, tvMode]);
   useEffect(() => {
-    if (!tvMode) return;
+    if (!tvMode || minimized) return;
     const handleTvPlaybackKeys = (event: KeyboardEvent) => {
       revealTvControls();
       const active = document.activeElement as HTMLElement | null;
@@ -196,10 +200,7 @@ function VideoPlayer({
       } else if (event.key === "ArrowLeft" && playback.item.type !== "live") {
         event.preventDefault();
         seekTo(currentTime - 10);
-      } else if (
-        event.key === "ArrowRight" &&
-        playback.item.type !== "live"
-      ) {
+      } else if (event.key === "ArrowRight" && playback.item.type !== "live") {
         event.preventDefault();
         seekTo(currentTime + 10);
       } else if (event.key === "ArrowDown") {
@@ -212,7 +213,7 @@ function VideoPlayer({
     window.addEventListener("keydown", handleTvPlaybackKeys, true);
     return () =>
       window.removeEventListener("keydown", handleTvPlaybackKeys, true);
-  }, [tvMode, currentTime, playback.item.type, revealTvControls]);
+  }, [tvMode, minimized, currentTime, playback.item.type, revealTvControls]);
   useEffect(() => {
     if (!tvMode) return;
     if (playing) revealTvControls();
@@ -741,7 +742,7 @@ function VideoPlayer({
   return (
     <dialog
       ref={dialogRef}
-      className={`player-dialog${tvMode ? " tv-player-surface" : ""}${tvMode && !tvControlsVisible ? " controls-hidden" : ""}`}
+      className={`player-dialog${tvMode ? " tv-player-surface" : ""}${minimized ? " mini-live-player" : ""}${tvMode && !tvControlsVisible ? " controls-hidden" : ""}`}
       onCancel={close}
       aria-label={`${playback.item.name} player`}
       onPointerMove={revealTvControls}
@@ -760,13 +761,28 @@ function VideoPlayer({
             </p>
           )}
         </div>
-        <button
-          className="icon-button"
-          onClick={close}
-          aria-label="Close player"
-        >
-          <X />
-        </button>
+        <div className="player-window-actions">
+          {playback.item.type === "live" && onMinimize && (
+            <button
+              className="icon-button"
+              onClick={() => onMinimize(!minimized)}
+              aria-label={
+                minimized
+                  ? "Restore live player"
+                  : "Browse guide with mini player"
+              }
+            >
+              <PictureInPicture2 />
+            </button>
+          )}
+          <button
+            className="icon-button"
+            onClick={close}
+            aria-label="Close player"
+          >
+            <X />
+          </button>
+        </div>
       </div>
       <video
         ref={videoRef}
@@ -792,61 +808,73 @@ function VideoPlayer({
           className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}
           aria-label="Playback controls"
         >
-          {(playback.item.type !== "live" || tvMode) && <button
-            data-tv-initial-focus={tvMode ? true : undefined}
-            type="button"
-            aria-label={playing ? "Pause" : "Play"}
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              if (video.paused) void video.play();
-              else video.pause();
-            }}
-          >
-            {playing ? <Pause size={18} /> : <Play size={18} />}
-          </button>}
-          {playback.item.type !== "live" && <>
-          <button
-            type="button"
-            aria-label="Rewind 10 seconds"
-            onClick={() => {
-              const video = videoRef.current;
-              if (video)
-                video.currentTime = Math.max(0, video.currentTime - 10);
-            }}
-          >
-            <RotateCcw size={18} />
-            <span>10</span>
-          </button>
-          <button
-            type="button"
-            aria-label="Fast forward 10 seconds"
-            onClick={() => seekTo(currentTime + 10)}
-          >
-            <FastForward size={18} />
-            <span>10</span>
-          </button>
-          </>}
-          {playback.item.type !== "live" ? <>
-          <span>{formatPlayerTime(currentTime)}</span>
-          <input
-            type="range"
-            aria-label="Playback position"
-            min="0"
-            max={Math.max(1, timelineEnd)}
-            step="0.1"
-            value={Math.min(currentTime, Math.max(1, timelineEnd))}
-            onChange={(event) => seekTo(Number(event.target.value))}
-          />
-          <span>{formatPlayerTime(timelineEnd)}</span>
-          </> : <span className="tv-live-indicator"><i /> LIVE</span>}
+          {(playback.item.type !== "live" || tvMode) && (
+            <button
+              data-tv-initial-focus={tvMode ? true : undefined}
+              type="button"
+              aria-label={playing ? "Pause" : "Play"}
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                if (video.paused) void video.play();
+                else video.pause();
+              }}
+            >
+              {playing ? <Pause size={18} /> : <Play size={18} />}
+            </button>
+          )}
+          {playback.item.type !== "live" && (
+            <>
+              <button
+                type="button"
+                aria-label="Rewind 10 seconds"
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (video)
+                    video.currentTime = Math.max(0, video.currentTime - 10);
+                }}
+              >
+                <RotateCcw size={18} />
+                <span>10</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Fast forward 10 seconds"
+                onClick={() => seekTo(currentTime + 10)}
+              >
+                <FastForward size={18} />
+                <span>10</span>
+              </button>
+            </>
+          )}
+          {playback.item.type !== "live" ? (
+            <>
+              <span>{formatPlayerTime(currentTime)}</span>
+              <input
+                type="range"
+                aria-label="Playback position"
+                min="0"
+                max={Math.max(1, timelineEnd)}
+                step="0.1"
+                value={Math.min(currentTime, Math.max(1, timelineEnd))}
+                onChange={(event) => seekTo(Number(event.target.value))}
+              />
+              <span>{formatPlayerTime(timelineEnd)}</span>
+            </>
+          ) : (
+            <span className="tv-live-indicator">
+              <i /> LIVE
+            </span>
+          )}
           {tvMode && (
             <button
               type="button"
               aria-label="Playback settings"
               onClick={() =>
                 document
-                  .querySelector<HTMLElement>(".tv-player-surface .player-tools button, .tv-player-surface .player-tools select")
+                  .querySelector<HTMLElement>(
+                    ".tv-player-surface .player-tools button, .tv-player-surface .player-tools select",
+                  )
                   ?.focus()
               }
             >
@@ -926,15 +954,21 @@ function VideoPlayer({
             {partyBusy ? "Starting room…" : "Watch Together"}
           </button>
         )}
-        {!tvMode && <button onClick={airplay}>
-          <Airplay size={18} /> AirPlay
-        </button>}
-        {!tvMode && <button onClick={pip}>
-          <PictureInPicture2 size={18} /> Picture in Picture
-        </button>}
-        {!tvMode && <button onClick={fullscreen}>
-          <Maximize size={18} /> Fullscreen
-        </button>}
+        {!tvMode && (
+          <button onClick={airplay}>
+            <Airplay size={18} /> AirPlay
+          </button>
+        )}
+        {!tvMode && (
+          <button onClick={pip}>
+            <PictureInPicture2 size={18} /> Picture in Picture
+          </button>
+        )}
+        {!tvMode && (
+          <button onClick={fullscreen}>
+            <Maximize size={18} /> Fullscreen
+          </button>
+        )}
         {playback.item.type !== "live" && (
           <select
             aria-label="Playback speed"
@@ -1122,10 +1156,14 @@ export default function Player({
   playback,
   onClose,
   partyIdentity,
+  minimized = false,
+  onMinimize,
 }: {
   playback: Playback;
   onClose: () => void;
   partyIdentity: PartyIdentity;
+  minimized?: boolean;
+  onMinimize?: (value: boolean) => void;
 }) {
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
@@ -1295,6 +1333,8 @@ export default function Player({
       <VideoPlayer
         playback={ready}
         onClose={onClose}
+        minimized={minimized}
+        onMinimize={onMinimize}
         onFailure={recoverWithCompatibility}
         partyIdentity={partyIdentity}
         onSeek={seekConversion}

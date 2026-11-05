@@ -43,7 +43,7 @@ import {
 } from "../src/addon-health";
 import { persistableSetup } from "../src/account-isolation";
 import { clearAccountStorage } from "../src/storage";
-import { beginProfileSync } from "../src/profile-sync";
+import { beginProfileSync, profileSyncKey } from "../src/profile-sync";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -51,6 +51,15 @@ afterEach(() => {
 });
 
 describe("account isolation", () => {
+  it("keeps the same profile index isolated between accounts", () => {
+    expect(profileSyncKey("account-a", 2)).not.toBe(
+      profileSyncKey("account-b", 2),
+    );
+    expect(profileSyncKey("account-a", 1)).not.toBe(
+      profileSyncKey("account-a", 2),
+    );
+  });
+
   it("opens a selected profile before its remote refresh finishes", async () => {
     let finish!: (value: string) => void;
     const load = new Promise<string>((resolve) => {
@@ -877,6 +886,8 @@ describe("stream manifest compatibility", () => {
       "tt1",
     );
     expect(result.count).toBe(1);
+    expect(result.eligible).toBe(1);
+    expect(result.installedStreaming).toBe(1);
     expect(result.streams).toHaveLength(1);
   });
 });

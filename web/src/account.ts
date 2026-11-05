@@ -14,6 +14,7 @@ import type { Addon, Item, Progress, Provider } from "./types";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
 import { persistableSetup } from "./account-isolation";
+import { profileSyncKey } from "./profile-sync";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -67,7 +68,7 @@ export type HomeCatalogSetting = {
 
 const platform = "tiktak_web";
 const baselines = new Map<
-  number,
+  string,
   {
     addons: string;
     collections: string;
@@ -77,6 +78,13 @@ const baselines = new Map<
     progressRows: Record<string, unknown>[];
   }
 >();
+async function setupOwner(ownerId?: string) {
+  if (ownerId) return ownerId;
+  const { data } = await account.auth.getSession();
+  const current = data.session?.user.id;
+  if (!current) throw new Error("Sign in before syncing a Nuvio profile.");
+  return current;
+}
 const field = "tikTakWebV1";
 function isRemovedPenguPlay(value: unknown) {
   try {
@@ -191,8 +199,10 @@ async function settings(id: number): Promise<Record<string, unknown>> {
 }
 export async function loadSetup(
   profile: Profile,
+  ownerId?: string,
 ): Promise<{ setup: Setup; warnings: string[] }> {
   const id = profile.profile_index;
+  const owner = await setupOwner(ownerId);
   const addonId = profile.uses_primary_addons ? 1 : id;
   const [
     blob,
@@ -380,7 +390,7 @@ export async function loadSetup(
   ]
     .sort((a, b) => b.at - a.at)
     .slice(0, 100);
-  baselines.set(id, {
+  baselines.set(profileSyncKey(owner, id), {
     addons: JSON.stringify(
       restoredAddons.length ? restoredAddons : defaultAddons,
     ),
@@ -416,8 +426,20 @@ export async function loadSetup(
     },
   };
 }
-export async function saveSetup(profile: Profile, setup: Setup) {
+export async function saveSetup(
+  profile: Profile,
+  setup: Setup,
+  ownerId?: string,
+) {
   const id = profile.profile_index;
+  const owner = await setupOwner(ownerId);
+  const keyForProfile = profileSyncKey(owner, id);
+  // Refuse every write until this exact account/profile pair has completed a
+  // remote load. Profile indexes repeat across accounts, so a profile-number-
+  // only baseline can compare one account against another and push bad diffs.
+  const previous = baselines.get(keyForProfile);
+  if (!previous)
+    throw new Error("Load this Nuvio profile before saving changes.");
   const safeSetup = persistableSetup(setup);
   // Read/merge the native platform blob so unknown settings are retained.
   const blob = await settings(id);
@@ -444,8 +466,6 @@ export async function saveSetup(profile: Profile, setup: Setup) {
       p_origin_client_id: origin,
     });
   }
-  const previous = baselines.get(id);
-  if (!previous) throw new Error("Load this Nuvio profile before saving.");
   if (previous.addons !== JSON.stringify(setup.addons))
     await rpc("sync_push_addons", {
       p_profile_id: profile.uses_primary_addons ? 1 : id,
@@ -533,7 +553,7 @@ export async function saveSetup(profile: Profile, setup: Setup) {
       })),
       p_origin_client_id: origin,
     });
-  baselines.set(id, {
+  baselines.set(keyForProfile, {
     ...previous,
     progress: setup.progress,
     addons: JSON.stringify(setup.addons),

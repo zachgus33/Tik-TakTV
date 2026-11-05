@@ -1,4 +1,8 @@
 /** Open a profile immediately and complete its remote refresh in the background. */
+export function profileSyncKey(ownerId: string, profileId: number) {
+  return `${ownerId}:${profileId}`;
+}
+
 export function beginProfileSync<T>(
   open: () => void,
   load: () => Promise<T>,

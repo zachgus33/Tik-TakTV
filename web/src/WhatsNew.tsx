@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.5";
+export const latestRelease = "2026.11.05.6";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,14 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "Live scores, better mobile layouts, and faster Sports",
+    title: "Safer profiles and a better TV experience",
     changes: [
+      "Profile sync now keeps a separate loaded baseline for every signed-in account and profile before it permits any remote write.",
+      "Live TV can stay playing in a small corner window while you browse the guide, then return to full-screen playback without opening a second stream.",
+      "The TV sidebar stays compact until it receives remote focus, then expands over the page so content never jumps sideways.",
+      "Android TV users with SmartTube installed can open a selected YouTube video there; the embedded TikTak TV player remains the automatic fallback.",
+      "Stream searches now report how many installed add-ons were queried, paused, incompatible, or failed without exposing private add-on addresses.",
+      "Issue forms now identify Shield, Google TV, Android TV, Fire TV, desktop, and mobile reports and remind users to redact credentials.",
       "Every primary page and Settings section now stays inside a portrait phone viewport, with compact Live TV cards and a single-column Sports layout.",
       "Channel logos now fall back to XMLTV artwork and securely load provider images that browsers cannot open directly.",
       "Sports now enriches confidently matched games with live scores, teams, status, venue, and broadcast information.",

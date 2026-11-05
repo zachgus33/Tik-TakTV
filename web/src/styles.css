@@ -611,6 +611,7 @@ textarea {
     align-self: flex-start;
   }
 }
+
 * {
   box-sizing: border-box;
 }
@@ -995,6 +996,7 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
 button,
 input,
 select {
@@ -4311,6 +4313,46 @@ body:has(dialog[open]) {
     border-color: var(--accent);
   }
 }
+
+.player-window-actions {
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+.tv-mode .player-dialog.tv-player-surface.mini-live-player {
+  inset: auto 32px 32px auto;
+  width: min(38vw, 520px);
+  height: auto;
+  aspect-ratio: 16 / 9;
+  z-index: 600;
+  border: 2px solid color-mix(in srgb, var(--accent) 65%, white 15%);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px #000c;
+}
+.tv-mode .mini-live-player::backdrop {
+  display: none;
+}
+.tv-mode .mini-live-player .player-top {
+  padding: 12px;
+  background: linear-gradient(#000b, transparent);
+  opacity: 1 !important;
+  pointer-events: none;
+}
+.tv-mode .mini-live-player .player-top > div:first-child,
+.tv-mode .mini-live-player .vod-controls,
+.tv-mode .mini-live-player .player-tools,
+.tv-mode .mini-live-player .party-status,
+.tv-mode .mini-live-player > .muted {
+  display: none;
+}
+.tv-mode .mini-live-player .player-top button {
+  min-width: 46px;
+  min-height: 46px;
+  padding: 10px;
+}
+.tv-mode .mini-live-player .player-window-actions {
+  margin-left: auto;
+}
 :root .service-tiles {
   display: flex;
   gap: 14px;
@@ -7495,4 +7537,76 @@ button.primary:hover,
   .feedback-list article footer button {
     width: 100%;
   }
+}
+/* Final ten-foot sidebar override: compact over content, expanded on remote focus. */
+@media (min-width: 801px) {
+  .tv-mode {
+    --tv-sidebar-compact: 104px;
+    --tv-sidebar-expanded: 260px;
+  }
+  .tv-mode .sidebar {
+    z-index: 80;
+    width: var(--tv-sidebar-compact);
+    overflow: hidden;
+    transition:
+      width 180ms ease,
+      box-shadow 180ms ease;
+  }
+  .tv-mode .sidebar:focus-within {
+    width: var(--tv-sidebar-expanded);
+    box-shadow: 24px 0 48px rgba(0, 0, 0, 0.48);
+  }
+  .tv-mode .main-shell {
+    margin-left: var(--tv-sidebar-compact);
+  }
+  .tv-mode .sidebar .brand,
+  .tv-mode .sidebar nav a {
+    justify-content: center;
+  }
+  .tv-mode .sidebar .brand > span,
+  .tv-mode .sidebar .nav-label,
+  .tv-mode .sidebar nav a > span,
+  .tv-mode .sidebar-bottom {
+    width: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 120ms ease;
+  }
+  .tv-mode .sidebar:focus-within .brand,
+  .tv-mode .sidebar:focus-within nav a {
+    justify-content: flex-start;
+  }
+  .tv-mode .sidebar:focus-within .brand > span,
+  .tv-mode .sidebar:focus-within .nav-label,
+  .tv-mode .sidebar:focus-within nav a > span,
+  .tv-mode .sidebar:focus-within .sidebar-bottom {
+    width: auto;
+    overflow: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (max-height: 700px) {
+    .tv-mode {
+      --tv-sidebar-compact: 82px;
+      --tv-sidebar-expanded: 178px;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-mode .sidebar {
+    transition: none;
+  }
+}
+/* Mini Live TV controls must remain reachable even after full-player controls time out. */
+.tv-mode .tv-player-surface.mini-live-player.controls-hidden .player-top {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none;
+}
+.tv-mode .tv-player-surface.mini-live-player .player-window-actions {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }

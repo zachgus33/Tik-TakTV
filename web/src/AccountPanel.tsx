@@ -35,6 +35,7 @@ export default function AccountPanel({
   }) => void;
 }) {
   const [email, setEmail] = useState("");
+  const [ownerId, setOwnerId] = useState("");
   const [selected, setSelected] = useState<Profile | null>(null);
   const [catalog, setCatalog] = useState<Avatar[]>([]);
   const [chosenAvatar, setChosenAvatar] = useState<Avatar>();
@@ -54,6 +55,7 @@ export default function AccountPanel({
       .then(async ({ data }) => {
         if (!data.session || !live) return;
         setEmail(data.session.user.email ?? "Signed in");
+        setOwnerId(data.session.user.id);
         const [available, avatarCatalog] = await Promise.all([
           profiles(),
           avatars().catch(() => []),
@@ -90,7 +92,7 @@ export default function AccountPanel({
   }, []);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || !ownerId) return;
     const next = JSON.stringify(setup);
     if (!initial.current) {
       initial.current = next;
@@ -99,7 +101,7 @@ export default function AccountPanel({
     if (next === initial.current) return;
     const timer = setTimeout(() => {
       setStatus("Saving changes…");
-      void saveSetup(selected, setup)
+      void saveSetup(selected, setup, ownerId)
         .then(() => {
           initial.current = next;
           const now = Date.now();
@@ -110,7 +112,7 @@ export default function AccountPanel({
         .catch((e) => setError(e.message));
     }, 1200);
     return () => clearTimeout(timer);
-  }, [setup, selected]);
+  }, [setup, selected, ownerId]);
 
   const currentAvatar =
     chosenAvatar ?? catalog.find((avatar) => avatar.id === selected?.avatar_id);
@@ -236,7 +238,7 @@ export default function AccountPanel({
             if (!selected) return;
             setBusy(true);
             setStatus("Syncing with Nuvio…");
-            void loadSetup(selected)
+            void loadSetup(selected, ownerId)
               .then(({ setup: remote, warnings }) => {
                 onLoad(remote);
                 initial.current = JSON.stringify(remote);

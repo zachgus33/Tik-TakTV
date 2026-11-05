@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
             }
             webViewClient = TvClient()
             webChromeClient = TvChromeClient()
+            addJavascriptInterface(TvBridge(), "TikTakTV")
             setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
                 startDownload(url, userAgent, contentDisposition, mimeType)
             }
@@ -359,6 +361,31 @@ class MainActivity : ComponentActivity() {
 
     private fun openExternal(uri: Uri) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+    }
+
+    private inner class TvBridge {
+        @JavascriptInterface
+        fun openSmartTube(videoId: String) {
+            if (!SmartTubePolicy.accepts(videoId)) return
+            runOnUiThread {
+                val uri = Uri.parse("vnd.youtube://$videoId")
+                val opened = SmartTubePolicy.packages.any { packageName ->
+                    runCatching {
+                        startActivity(
+                            Intent(Intent.ACTION_VIEW, uri)
+                                .setPackage(packageName)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }.isSuccess
+                }
+                if (!opened)
+                    Toast.makeText(
+                        this@MainActivity,
+                        "SmartTube is not installed. Continuing in TikTak TV.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+            }
+        }
     }
 
     private fun startDownload(

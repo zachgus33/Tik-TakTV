@@ -104,7 +104,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.5"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.6"));
   });
   await mockSources(page);
 });
@@ -117,14 +117,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Live scores, better mobile layouts/,
+    name: /Safer profiles and a better TV experience/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Live scores, better mobile layouts, and faster Sports",
+      name: "Safer profiles and a better TV experience",
     }),
   ).toBeVisible();
   await page.reload();
@@ -368,6 +368,36 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(tvPlayer).toBeHidden();
 });
 
+test("TV YouTube player can hand a video to the optional SmartTube app", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    (
+      window as Window & {
+        openedSmartTube?: string;
+        TikTakTV?: { openSmartTube(id: string): void };
+      }
+    ).TikTakTV = {
+      openSmartTube(id: string) {
+        (window as Window & { openedSmartTube?: string }).openedSmartTube = id;
+      },
+    };
+  });
+  await page.goto("/?tv=1#youtube");
+  await page
+    .getByLabel("Search YouTube or paste a link")
+    .fill("https://youtu.be/dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Open in SmartTube" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { openedSmartTube?: string }).openedSmartTube,
+      ),
+    )
+    .toBe("dQw4w9WgXcQ");
+});
+
 test("first visit offers Nuvio sign in and account creation", async ({
   page,
 }) => {
@@ -485,12 +515,22 @@ test("TV remote scrolls long pages and Discover uses ten-foot spacing", async ({
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before);
 });
 
-test("TV sidebar is readable and the decorative brand is not a remote target", async ({
+test("TV sidebar expands for remote focus and the decorative brand is not a target", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/?tv=1#home");
   await expect(page.locator("html")).toHaveClass(/tv-mode/);
+  await page.locator(".hero button").first().focus();
+  await expect
+    .poll(() =>
+      page
+        .locator(".sidebar")
+        .evaluate((sidebar) =>
+          Math.round(sidebar.getBoundingClientRect().width),
+        ),
+    )
+    .toBeLessThanOrEqual(110);
   const layout = await page.locator(".sidebar").evaluate((sidebar) => {
     const brand = sidebar.querySelector<HTMLElement>(".brand")!;
     const home = sidebar.querySelector<HTMLElement>("nav a")!;
@@ -504,12 +544,23 @@ test("TV sidebar is readable and the decorative brand is not a remote target", a
       homeFontSize: Number.parseFloat(getComputedStyle(home).fontSize),
     };
   });
-  expect(layout.sidebarWidth).toBeGreaterThanOrEqual(250);
+  expect(layout.sidebarWidth).toBeGreaterThanOrEqual(100);
+  expect(layout.sidebarWidth).toBeLessThanOrEqual(110);
   expect(layout.mainLeft).toBeGreaterThanOrEqual(layout.sidebarWidth - 1);
   expect(layout.brandTag).toBe("DIV");
   expect(layout.brandWidth).toBeLessThan(layout.sidebarWidth);
   expect(layout.homeHeight).toBeGreaterThanOrEqual(58);
   expect(layout.homeFontSize).toBeGreaterThanOrEqual(16);
+  await page.locator(".sidebar nav a").first().focus();
+  await expect
+    .poll(() =>
+      page
+        .locator(".sidebar")
+        .evaluate((sidebar) =>
+          Math.round(sidebar.getBoundingClientRect().width),
+        ),
+    )
+    .toBeGreaterThanOrEqual(250);
   await expect(page.getByRole("link", { name: /TikTak TV home/i })).toHaveCount(
     0,
   );
@@ -522,6 +573,16 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
   await page.goto("/?tv=1#home");
   await expect(page.locator(".sidebar")).toBeVisible();
   await expect(page.locator(".hero")).toBeVisible();
+  await page.locator(".hero button").first().focus();
+  await expect
+    .poll(() =>
+      page
+        .locator(".sidebar")
+        .evaluate((sidebar) =>
+          Math.round(sidebar.getBoundingClientRect().width),
+        ),
+    )
+    .toBeLessThanOrEqual(86);
   const layout = await page.evaluate(() => {
     const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
     const main = document.querySelector<HTMLElement>(".main-shell")!;
@@ -535,8 +596,8 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
       lastLinkBottom: links.at(-1)?.getBoundingClientRect().bottom ?? Infinity,
     };
   });
-  expect(layout.sidebar).toBeGreaterThanOrEqual(170);
-  expect(layout.sidebar).toBeLessThanOrEqual(185);
+  expect(layout.sidebar).toBeGreaterThanOrEqual(78);
+  expect(layout.sidebar).toBeLessThanOrEqual(86);
   expect(layout.mainLeft).toBe(layout.sidebar);
   expect(layout.heroHeight).toBeLessThanOrEqual(365);
   expect(layout.labels).toEqual([
@@ -1148,6 +1209,52 @@ test("live TV sends the provider transport stream through browser-safe Pi transc
   expect(prepared.mode).toBe("transcode");
   expect(prepared.live).toBe(true);
   expect(prepared.url).toContain("/live/test-user/test-password/10.ts");
+});
+
+test("TV viewers can keep a live mini player open while browsing the guide", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://playback.example/prepare", (route) =>
+    route.fulfill({ json: { path: "/media/live/index.m3u8", hls: true } }),
+  );
+  await page.route("https://playback.example/media/live/index.m3u8", (route) =>
+    route.fulfill({
+      contentType: "application/vnd.apple.mpegurl",
+      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+    }),
+  );
+  await connect(page);
+  await page.goto("/?tv=1#live");
+  await page
+    .locator(".tv-guide-channel")
+    .filter({ hasText: "Test News" })
+    .click();
+  await page
+    .getByRole("button", { name: "Browse guide with mini player" })
+    .click();
+  const mini = page.locator("dialog.mini-live-player");
+  await expect(mini).toBeVisible();
+  await expect(page.locator(".tv-guide-grid")).toBeVisible();
+  await page.locator(".tv-guide-programmes button").first().focus();
+  await expect(
+    page.locator(".tv-guide-programmes button").first(),
+  ).toBeFocused();
+  const restore = mini.getByRole("button", { name: "Restore live player" });
+  await restore.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("dialog.tv-player-surface")).not.toHaveClass(
+    /mini-live-player/,
+  );
 });
 test("HTTP Xtream API and playback stay behind the HTTPS companion", async ({
   page,

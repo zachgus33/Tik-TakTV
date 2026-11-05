@@ -289,7 +289,7 @@ function ProfileGate({
       sessionStorage.setItem("tiktak:profile-active", "1");
       beginProfileSync(
         () => onEnter(profile, ownerId),
-        () => loadSetup(profile),
+        () => loadSetup(profile, ownerId),
         (result) => onSetup(result.setup, profile, ownerId, result.warnings),
         (reason) => onSetupError(reason, profile, ownerId),
       );
@@ -882,6 +882,7 @@ function Detail({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
+  const [streamSummary, setStreamSummary] = useState("");
   const [downloadMode, setDownloadMode] = useState(false);
   const [readyDownload, setReadyDownload] = useState<{
     url: string;
@@ -1220,6 +1221,7 @@ function Detail({
     setError("");
     setStreams([]);
     setStreamsLoaded(false);
+    setStreamSummary("");
     setFiles(null);
     const position =
       resume && resume.episode?.id === ep?.id ? resume?.seconds : undefined;
@@ -1253,6 +1255,16 @@ function Detail({
     try {
       const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
+      const incompatible = Math.max(
+        0,
+        result.installedStreaming - result.eligible,
+      );
+      setStreamSummary(
+        `Queried ${result.count} of ${result.installedStreaming} enabled streaming add-ons` +
+          `${result.quarantined ? `; ${result.quarantined} temporarily paused` : ""}` +
+          `${result.failed ? `; ${result.failed} failed or timed out` : ""}` +
+          `${incompatible ? `; ${incompatible} do not support this title ID/type` : ""}.`,
+      );
       const hasDebrid = !!torboxKey || !!realDebridKey;
       const ranked = rankedStreams(result.streams, hasDebrid);
       const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
@@ -1518,6 +1530,11 @@ function Detail({
               </button>
             )}
           </div>
+        )}
+        {streamSummary && (
+          <p className="muted stream-search-summary" role="status">
+            {streamSummary}
+          </p>
         )}
         {readyDownload && (
           <div className="download-ready" role="status">
@@ -1851,6 +1868,10 @@ export default function App() {
   );
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
+  const [minimizedPlayback, setMinimizedPlayback] = useState(false);
+  useEffect(() => {
+    if (playback?.item.type !== "live") setMinimizedPlayback(false);
+  }, [playback]);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [recentChannels, setRecentChannels] = useStored<Item[]>(
@@ -3626,6 +3647,8 @@ export default function App() {
         >
           <Player
             playback={playback}
+            minimized={minimizedPlayback}
+            onMinimize={setMinimizedPlayback}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,
@@ -3638,6 +3661,7 @@ export default function App() {
                 partyAttemptedRef.current = "";
               }
               setPlayback(null);
+              setMinimizedPlayback(false);
               setProgress(read("progress", []));
             }}
           />

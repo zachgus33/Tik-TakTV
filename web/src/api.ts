@@ -481,6 +481,7 @@ export async function addonStreams(
   return {
     streams: results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     failed: results.filter((r) => r.status === "rejected").length,
+    eligible: eligible.length,
     count: active.length,
     quarantined: eligible.length - active.length,
     installedStreaming: addons.filter(

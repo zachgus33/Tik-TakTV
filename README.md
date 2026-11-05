@@ -1,3 +1,22 @@
+# TikTak TV
+
+TikTak TV brings movies, series, Live TV and its guide, Sports, YouTube, profiles, friend codes, downloads, and user-installed Nuvio/Stremio add-ons into one interface for the web, Fire TV, Android TV, and Google TV.
+
+- **Use the web app:** [tiktaktv.me](https://www.tiktaktv.me/)
+- **Install on a TV:** see the [TV installation and update guide](./tvApp/README.md)
+- **Download releases:** [TikTak TV releases](https://github.com/zachgus33/Tik-TakTV/releases)
+- **Report a problem or request a feature:** use **Settings → What's new → Report a problem or request a feature** inside TikTak TV. Screenshots are supported and submissions go to the private owner inbox.
+
+| Experience | Website | Fire TV / Android TV / Google TV |
+| --- | --- | --- |
+| Movies, series, profiles, collections, add-ons | Yes | Yes |
+| IPTV, channel artwork, two-hour guide, Sports | Yes | Yes |
+| YouTube and optional SmartTube handoff | YouTube | YouTube + optional SmartTube |
+| Live TV mini-player while browsing the guide | Yes in TV mode | Yes |
+| Automatic updates | Web deployment | Signed APK update checker |
+
+TikTak TV does not include channels, subscriptions, or media sources. Users connect services and add-ons they are authorized to use. Never include an email address, password, Xtream credentials, API key, token, private add-on URL, or friend code in a public issue.
+
 ## Web edition
 
 This branch adds a browser-native Nuvio Enhanced app for desktop, iPhone and iPad, including Xtream IPTV. See the [web app README](./web/README.md) for local setup and the [deployment guide](./web/DEPLOYMENT.md) for GitHub Pages and a custom domain. Native source code and its documentation follow below.

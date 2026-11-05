@@ -68,6 +68,12 @@ body:
       label: Platform
       options:
         - Android (phone/tablet)
+        - Nvidia Shield TV
+        - Google TV / Google TV Streamer
+        - Android TV
+        - Fire TV / Firestick
+        - Website (desktop browser)
+        - Website (mobile browser)
         - iOS (iPhone)
         - iOS (iPad)
         - macOS (desktop)
@@ -233,3 +239,8 @@ body:
       description: Screenshots/recordings, related issues, workarounds, etc.
     validations:
       required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy check:** Before submitting, remove email addresses, IPTV usernames/passwords, Xtream URLs, private add-on or EPG URLs, API keys, access tokens, friend codes, and viewing history you do not want public. The in-app private feedback form is available under **Settings → Feedback** if a screenshot should only go to the TikTak TV owner.

@@ -15,7 +15,13 @@ import {
   X,
   Youtube,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   parseYouTubeSelection,
   disconnectYouTube,
@@ -56,6 +62,7 @@ declare global {
     YT?: { Player: PlayerConstructor; PlayerState: { PLAYING: number } };
     onYouTubeIframeAPIReady?: () => void;
     __tiktakYouTubeApi?: Promise<void>;
+    TikTakTV?: { openSmartTube(videoId: string): void };
   }
 }
 
@@ -124,6 +131,7 @@ export default function YouTubeHub() {
   const segmentVideoRef = useRef("");
   const resultsRef = useRef<HTMLElement>(null);
   const [resultsTitle, setResultsTitle] = useState("Search results");
+  const smartTubeAvailable = tvMode && !!window.TikTakTV?.openSmartTube;
 
   playingRef.current = playing;
   const revealTvControls = useCallback(() => {
@@ -134,7 +142,8 @@ export default function YouTubeHub() {
     tvControlsTimerRef.current = window.setTimeout(() => {
       setTvControlsVisible(false);
       const active = document.activeElement as HTMLElement | null;
-      if (active?.closest(".youtube-tv-close, .youtube-player-info")) active.blur();
+      if (active?.closest(".youtube-tv-close, .youtube-player-info"))
+        active.blur();
     }, 3500);
   }, [tvMode]);
 
@@ -143,7 +152,9 @@ export default function YouTubeHub() {
     try {
       setAccount(await youtubeAccount(false));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "YouTube sign-in failed.");
+      setError(
+        reason instanceof Error ? reason.message : "YouTube sign-in failed.",
+      );
     } finally {
       setAccountBusy(false);
     }
@@ -167,10 +178,17 @@ export default function YouTubeHub() {
           await loadAccount();
           return;
         }
-        timer = window.setTimeout(poll, (result.interval ?? device.interval) * 1000);
+        timer = window.setTimeout(
+          poll,
+          (result.interval ?? device.interval) * 1000,
+        );
       } catch (reason) {
         if (!cancelled)
-          setError(reason instanceof Error ? reason.message : "Google sign-in expired.");
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Google sign-in expired.",
+          );
       }
     };
     timer = window.setTimeout(poll, device.interval * 1000);
@@ -203,7 +221,11 @@ export default function YouTubeHub() {
       setSelection(playable);
       remember(playable);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "This YouTube item could not be opened.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "This YouTube item could not be opened.",
+      );
     }
   };
 
@@ -230,8 +252,12 @@ export default function YouTubeHub() {
     try {
       const found = await searchYouTube(query, kind);
       setResults(found);
-      setResultsTitle(kind === "music" ? "Music search results" : "Video search results");
-      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ block: "start" }));
+      setResultsTitle(
+        kind === "music" ? "Music search results" : "Video search results",
+      );
+      requestAnimationFrame(() =>
+        resultsRef.current?.scrollIntoView({ block: "start" }),
+      );
       if (!found.length) setError("No embeddable YouTube results were found.");
     } catch (reason) {
       setError(
@@ -250,10 +276,17 @@ export default function YouTubeHub() {
       const found = await searchYouTube("", "video", undefined, channelId);
       setResults(found);
       setResultsTitle(`Latest from ${title}`);
-      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ block: "start" }));
-      if (!found.length) setError(`No playable videos were found for ${title}.`);
+      requestAnimationFrame(() =>
+        resultsRef.current?.scrollIntoView({ block: "start" }),
+      );
+      if (!found.length)
+        setError(`No playable videos were found for ${title}.`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "That subscription could not be loaded.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "That subscription could not be loaded.",
+      );
     } finally {
       setBusy(false);
     }
@@ -402,7 +435,9 @@ export default function YouTubeHub() {
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
         document
-          .querySelector<HTMLElement>(".tv-youtube-player .youtube-controls button")
+          .querySelector<HTMLElement>(
+            ".tv-youtube-player .youtube-controls button",
+          )
           ?.focus();
       }
     };
@@ -484,7 +519,11 @@ export default function YouTubeHub() {
                 const next = await startYouTubeDeviceSignIn();
                 setDevice(next);
               } catch (reason) {
-                setError(reason instanceof Error ? reason.message : "Google sign-in failed.");
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : "Google sign-in failed.",
+                );
               } finally {
                 setAccountBusy(false);
               }
@@ -511,7 +550,9 @@ export default function YouTubeHub() {
             <span>Enter this code</span>
             <strong className="youtube-device-code">{device.userCode}</strong>
           </div>
-          <small>This screen will continue automatically after Google approves it.</small>
+          <small>
+            This screen will continue automatically after Google approves it.
+          </small>
         </section>
       )}
 
@@ -554,164 +595,239 @@ export default function YouTubeHub() {
                 onClick={() => void select(result)}
               >
                 <img src={result.thumbnail} alt="" loading="lazy" />
-                <span><strong>{result.title}</strong><small>{result.channel}</small></span>
+                <span>
+                  <strong>{result.title}</strong>
+                  <small>{result.channel}</small>
+                </span>
               </button>
             ))}
           </div>
         </section>
       )}
 
-      {selection && (tvMode ? (
-        <dialog
-          open
-          className={`youtube-player-card tv-youtube-player${tvControlsVisible ? "" : " controls-hidden"}`}
-          aria-label={`${selection.title} player`}
-          onPointerMove={revealTvControls}
-          onPointerDown={revealTvControls}
-          onCancel={(event) => {
-            event.preventDefault();
-            setSelection(null);
-          }}
-        >
-          <button
-            className="youtube-tv-close"
-            aria-label="Close player"
-            onClick={() => setSelection(null)}
-          ><X size={28} /></button>
-          <div className="youtube-player" ref={hostRef} />
-          <div className="youtube-player-info">
-            <div><strong>{selection.title}</strong>{selection.channel && <span>{selection.channel}</span>}</div>
-            <div className="youtube-controls" aria-label="YouTube playback controls">
-              <button onClick={() => seek(-10)} aria-label="Rewind 10 seconds"><Rewind size={24} /><span>10s</span></button>
-              <button data-tv-initial-focus onClick={() => playing ? playerRef.current?.pauseVideo() : playerRef.current?.playVideo()} aria-label={playing ? "Pause YouTube" : "Play YouTube"}>{playing ? <Pause size={30} /> : <Play size={30} />}</button>
-              <button onClick={() => seek(10)} aria-label="Fast forward 10 seconds"><FastForward size={24} /><span>10s</span></button>
-              <button onClick={() => { const player = playerRef.current; if (!player) return; if (player.isMuted()) { player.unMute(); setMuted(false); } else { player.mute(); setMuted(true); } }} aria-label={muted ? "Unmute YouTube" : "Mute YouTube"}>{muted ? <VolumeX size={24} /> : <Volume2 size={24} />}</button>
-            </div>
-          </div>
-        </dialog>
-      ) : (
-        <section className="youtube-player-card">
-          <div className="youtube-player" ref={hostRef} />
-          <div className="youtube-player-info">
-            <div>
-              <strong>{selection.title}</strong>
-              {selection.channel && <span>{selection.channel}</span>}
-            </div>
-            <div
-              className="youtube-controls"
-              aria-label="YouTube playback controls"
+      {selection &&
+        (tvMode ? (
+          <dialog
+            open
+            className={`youtube-player-card tv-youtube-player${tvControlsVisible ? "" : " controls-hidden"}`}
+            aria-label={`${selection.title} player`}
+            onPointerMove={revealTvControls}
+            onPointerDown={revealTvControls}
+            onCancel={(event) => {
+              event.preventDefault();
+              setSelection(null);
+            }}
+          >
+            <button
+              className="youtube-tv-close"
+              aria-label="Close player"
+              onClick={() => setSelection(null)}
             >
-              <button onClick={() => seek(-10)} aria-label="Rewind 10 seconds">
-                <Rewind size={20} />
-                <span>10s</span>
-              </button>
-              <button
-                onClick={() =>
-                  playing
-                    ? playerRef.current?.pauseVideo()
-                    : playerRef.current?.playVideo()
-                }
-                aria-label={playing ? "Pause YouTube" : "Play YouTube"}
+              <X size={28} />
+            </button>
+            <div className="youtube-player" ref={hostRef} />
+            <div className="youtube-player-info">
+              <div>
+                <strong>{selection.title}</strong>
+                {selection.channel && <span>{selection.channel}</span>}
+              </div>
+              <div
+                className="youtube-controls"
+                aria-label="YouTube playback controls"
               >
-                {playing ? <Pause size={22} /> : <Play size={22} />}
-              </button>
-              <button
-                onClick={() => seek(10)}
-                aria-label="Fast forward 10 seconds"
-              >
-                <FastForward size={20} />
-                <span>10s</span>
-              </button>
-              <button
-                onClick={() => {
-                  const player = playerRef.current;
-                  if (!player) return;
-                  if (player.isMuted()) {
-                    player.unMute();
-                    setMuted(false);
-                  } else {
-                    player.mute();
-                    setMuted(true);
+                <button
+                  onClick={() => seek(-10)}
+                  aria-label="Rewind 10 seconds"
+                >
+                  <Rewind size={24} />
+                  <span>10s</span>
+                </button>
+                <button
+                  data-tv-initial-focus
+                  onClick={() =>
+                    playing
+                      ? playerRef.current?.pauseVideo()
+                      : playerRef.current?.playVideo()
                   }
-                }}
-                aria-label={muted ? "Unmute YouTube" : "Mute YouTube"}
-              >
-                {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-              </button>
-              <button
-                onClick={() =>
-                  document
-                    .querySelector<HTMLElement>(".youtube-player-card")
-                    ?.requestFullscreen?.()
-                }
-                aria-label="Fullscreen YouTube"
-              >
-                <Maximize size={20} />
-              </button>
-            </div>
-            <label className="youtube-sponsor-toggle">
-              <input
-                type="checkbox"
-                checked={sponsorEnabled}
-                onChange={(event) => {
-                  setSponsorEnabled(event.target.checked);
-                  localStorage.setItem(
-                    "tiktak:youtube-sponsorblock",
-                    event.target.checked ? "1" : "0",
-                  );
-                }}
-              />
-              <ShieldCheck size={18} /> Skip SponsorBlock segments
-            </label>
-          </div>
-        </section>
-      ))}
-
-      {!!account?.connected && !!(kind === "music" ? account.musicFeed : account.videoFeed)?.length && (
-        <section className="youtube-section">
-          <h2>{kind === "music" ? "Your music" : "Videos for you"}</h2>
-          <div className="youtube-grid">
-            {(kind === "music" ? account.musicFeed : account.videoFeed)!.map((item, index) => (
-              <button
-                key={`${item.videoId}-${index}`}
-                className="youtube-card"
-                onClick={() => void select(item)}
-              >
-                <img src={item.thumbnail} alt="" loading="lazy" />
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.channel}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!!account?.connected && !!account.playlists?.filter((item) => item.kind === kind).length && (
-        <section className="youtube-section">
-          <h2>{kind === "music" ? "Saved music & playlists" : "Your playlists"}</h2>
-          <div className="youtube-grid compact">
-            {account.playlists.filter((item) => item.kind === kind).map((item) => (
-              <button
-                key={item.playlistId}
-                className="youtube-card"
-                onClick={() => void select(item)}
-              >
-                {item.thumbnail ? (
-                  <img src={item.thumbnail} alt="" loading="lazy" />
-                ) : (
-                  <span className="youtube-fallback"><Youtube /></span>
+                  aria-label={playing ? "Pause YouTube" : "Play YouTube"}
+                >
+                  {playing ? <Pause size={30} /> : <Play size={30} />}
+                </button>
+                <button
+                  onClick={() => seek(10)}
+                  aria-label="Fast forward 10 seconds"
+                >
+                  <FastForward size={24} />
+                  <span>10s</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const player = playerRef.current;
+                    if (!player) return;
+                    if (player.isMuted()) {
+                      player.unMute();
+                      setMuted(false);
+                    } else {
+                      player.mute();
+                      setMuted(true);
+                    }
+                  }}
+                  aria-label={muted ? "Unmute YouTube" : "Mute YouTube"}
+                >
+                  {muted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                </button>
+                {smartTubeAvailable && selection.videoId && (
+                  <button
+                    onClick={() =>
+                      window.TikTakTV?.openSmartTube(selection.videoId!)
+                    }
+                    aria-label="Open in SmartTube"
+                    title="Open in SmartTube"
+                  >
+                    <Youtube size={24} />
+                    <span>SmartTube</span>
+                  </button>
                 )}
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.itemCount ?? 0} items</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+              </div>
+            </div>
+          </dialog>
+        ) : (
+          <section className="youtube-player-card">
+            <div className="youtube-player" ref={hostRef} />
+            <div className="youtube-player-info">
+              <div>
+                <strong>{selection.title}</strong>
+                {selection.channel && <span>{selection.channel}</span>}
+              </div>
+              <div
+                className="youtube-controls"
+                aria-label="YouTube playback controls"
+              >
+                <button
+                  onClick={() => seek(-10)}
+                  aria-label="Rewind 10 seconds"
+                >
+                  <Rewind size={20} />
+                  <span>10s</span>
+                </button>
+                <button
+                  onClick={() =>
+                    playing
+                      ? playerRef.current?.pauseVideo()
+                      : playerRef.current?.playVideo()
+                  }
+                  aria-label={playing ? "Pause YouTube" : "Play YouTube"}
+                >
+                  {playing ? <Pause size={22} /> : <Play size={22} />}
+                </button>
+                <button
+                  onClick={() => seek(10)}
+                  aria-label="Fast forward 10 seconds"
+                >
+                  <FastForward size={20} />
+                  <span>10s</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const player = playerRef.current;
+                    if (!player) return;
+                    if (player.isMuted()) {
+                      player.unMute();
+                      setMuted(false);
+                    } else {
+                      player.mute();
+                      setMuted(true);
+                    }
+                  }}
+                  aria-label={muted ? "Unmute YouTube" : "Mute YouTube"}
+                >
+                  {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                </button>
+                <button
+                  onClick={() =>
+                    document
+                      .querySelector<HTMLElement>(".youtube-player-card")
+                      ?.requestFullscreen?.()
+                  }
+                  aria-label="Fullscreen YouTube"
+                >
+                  <Maximize size={20} />
+                </button>
+              </div>
+              <label className="youtube-sponsor-toggle">
+                <input
+                  type="checkbox"
+                  checked={sponsorEnabled}
+                  onChange={(event) => {
+                    setSponsorEnabled(event.target.checked);
+                    localStorage.setItem(
+                      "tiktak:youtube-sponsorblock",
+                      event.target.checked ? "1" : "0",
+                    );
+                  }}
+                />
+                <ShieldCheck size={18} /> Skip SponsorBlock segments
+              </label>
+            </div>
+          </section>
+        ))}
+
+      {!!account?.connected &&
+        !!(kind === "music" ? account.musicFeed : account.videoFeed)
+          ?.length && (
+          <section className="youtube-section">
+            <h2>{kind === "music" ? "Your music" : "Videos for you"}</h2>
+            <div className="youtube-grid">
+              {(kind === "music" ? account.musicFeed : account.videoFeed)!.map(
+                (item, index) => (
+                  <button
+                    key={`${item.videoId}-${index}`}
+                    className="youtube-card"
+                    onClick={() => void select(item)}
+                  >
+                    <img src={item.thumbnail} alt="" loading="lazy" />
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.channel}</small>
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+          </section>
+        )}
+
+      {!!account?.connected &&
+        !!account.playlists?.filter((item) => item.kind === kind).length && (
+          <section className="youtube-section">
+            <h2>
+              {kind === "music" ? "Saved music & playlists" : "Your playlists"}
+            </h2>
+            <div className="youtube-grid compact">
+              {account.playlists
+                .filter((item) => item.kind === kind)
+                .map((item) => (
+                  <button
+                    key={item.playlistId}
+                    className="youtube-card"
+                    onClick={() => void select(item)}
+                  >
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt="" loading="lazy" />
+                    ) : (
+                      <span className="youtube-fallback">
+                        <Youtube />
+                      </span>
+                    )}
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.itemCount ?? 0} items</small>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </section>
+        )}
 
       {kind === "video" &&
         !!account?.connected &&
@@ -725,7 +841,9 @@ export default function YouTubeHub() {
                   onClick={() => void loadSubscription(item.id, item.title)}
                   aria-label={`Search videos from ${item.title}`}
                 >
-                  {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" />}
+                  {item.thumbnail && (
+                    <img src={item.thumbnail} alt="" loading="lazy" />
+                  )}
                   <strong>{item.title}</strong>
                 </button>
               ))}
@@ -739,27 +857,30 @@ export default function YouTubeHub() {
             <History size={20} /> Recently played
           </h2>
           <div className="youtube-grid compact">
-            {history.filter((item) => item.kind === kind).map((item, index) => (
-              <button
-                key={`${item.videoId ?? item.playlistId}-${index}`}
-                className="youtube-card"
-                onClick={() => void select(item)}
-              >
-                {item.thumbnail ? (
-                  <img src={item.thumbnail} alt="" loading="lazy" />
-                ) : (
-                  <span className="youtube-fallback">
-                    <Youtube />
+            {history
+              .filter((item) => item.kind === kind)
+              .map((item, index) => (
+                <button
+                  key={`${item.videoId ?? item.playlistId}-${index}`}
+                  className="youtube-card"
+                  onClick={() => void select(item)}
+                >
+                  {item.thumbnail ? (
+                    <img src={item.thumbnail} alt="" loading="lazy" />
+                  ) : (
+                    <span className="youtube-fallback">
+                      <Youtube />
+                    </span>
+                  )}
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>
+                      {item.channel ??
+                        (item.playlistId ? "Playlist" : "YouTube")}
+                    </small>
                   </span>
-                )}
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>
-                    {item.channel ?? (item.playlistId ? "Playlist" : "YouTube")}
-                  </small>
-                </span>
-              </button>
-            ))}
+                </button>
+              ))}
           </div>
         </section>
       )}
