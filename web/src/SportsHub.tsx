@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
+import ChannelArt from "./ChannelArt";
 
 export type SportKind =
   | "football"
@@ -167,18 +168,16 @@ export function buildSportsEvents(
   });
 }
 
-function channelImage(channel: Item) {
-  return channel.poster || channel.background;
-}
-
 export default function SportsHub({
   channels,
   getPrograms,
+  getArtwork,
   now,
   onPlay,
 }: {
   channels: Item[];
   getPrograms: (channel: Item) => Programme[];
+  getArtwork: (channel: Item) => string | undefined;
   now: number;
   onPlay: (channel: Item) => void;
 }) {
@@ -268,6 +267,7 @@ export default function SportsHub({
               followed={followed}
               onFollow={toggleFollow}
               onPlay={onPlay}
+              getArtwork={getArtwork}
             />
           )}
           {!!upcoming.length && (
@@ -278,6 +278,7 @@ export default function SportsHub({
               followed={followed}
               onFollow={toggleFollow}
               onPlay={onPlay}
+              getArtwork={getArtwork}
             />
           )}
         </>
@@ -293,6 +294,7 @@ function EventSection({
   followed,
   onFollow,
   onPlay,
+  getArtwork,
 }: {
   title: string;
   events: SportsEvent[];
@@ -300,6 +302,7 @@ function EventSection({
   followed: string[];
   onFollow: (id: string) => void;
   onPlay: (channel: Item) => void;
+  getArtwork: (channel: Item) => string | undefined;
 }) {
   return (
     <section className="sports-event-section">
@@ -335,11 +338,10 @@ function EventSection({
                     key={`${event.id}-${channel.id}`}
                     onClick={() => onPlay(channel)}
                   >
-                    {channelImage(channel) ? (
-                      <img src={channelImage(channel)} alt="" />
-                    ) : (
-                      <span>TV</span>
-                    )}
+                    <ChannelArt
+                      channel={channel}
+                      guideArtwork={getArtwork(channel)}
+                    />
                     <strong>{channel.name}</strong>
                     <Play size={16} fill="currentColor" />
                   </button>

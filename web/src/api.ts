@@ -47,8 +47,12 @@ export function safeSourceUrl(value: unknown): string | undefined {
 function safeArtwork(value: unknown, base: string): string | undefined {
   try {
     const url = new URL(String(value ?? ""), `${base.replace(/\/$/, "")}/`);
-    if (url.protocol === "http:") url.protocol = "https:";
-    return url.protocol === "https:" && !url.username && !url.password
+    // Keep provider supplied HTTP artwork intact. ChannelArt securely fetches
+    // it through the signed-in companion; changing it to HTTPS breaks hosts
+    // that only expose their picon service over HTTP.
+    return ["http:", "https:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password
       ? url.href
       : undefined;
   } catch {

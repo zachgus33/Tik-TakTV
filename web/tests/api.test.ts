@@ -99,7 +99,7 @@ describe("provider URLs and data", () => {
       "category_id=4",
     );
   });
-  it("upgrades provider channel icons to HTTPS and resolves relative logos", async () => {
+  it("preserves provider artwork protocols and resolves relative logos", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify([
@@ -113,7 +113,7 @@ describe("provider URLs and data", () => {
       ),
     );
     const items = await providerItems(provider, "live", "");
-    expect(items[0].poster).toBe("https://img.example/news.png");
+    expect(items[0].poster).toBe("http://img.example/news.png");
     expect(items[1].poster).toBe("https://provider.example/logos/sports.png");
   });
   it("keeps only guide-linked channels when Live TV requests them", async () => {

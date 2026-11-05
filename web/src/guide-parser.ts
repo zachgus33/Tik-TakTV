@@ -16,6 +16,7 @@ export function xmltvTime(value: string): number {
 export function createGuideParser(now = Date.now()) {
   const programmes: Record<string, Programme[]> = Object.create(null);
   const aliases: Record<string, string> = Object.create(null);
+  const artwork: Record<string, string> = Object.create(null);
   const parser = new SaxesParser({ xmlns: false });
   let current: (Programme & { channel: string }) | null = null;
   let field = "";
@@ -27,6 +28,10 @@ export function createGuideParser(now = Date.now()) {
     if (tag.name === "channel") {
       channelId = String(tag.attributes.id ?? "");
       channelName = "";
+    }
+    if (channelId && tag.name === "icon") {
+      const source = String(tag.attributes.src ?? "").trim();
+      if (source) artwork[channelId] = source;
     }
     if (tag.name === "programme") {
       const channel = String(tag.attributes.channel ?? "");
@@ -102,6 +107,9 @@ export function createGuideParser(now = Date.now()) {
     },
     aliases() {
       return aliases;
+    },
+    artwork() {
+      return artwork;
     },
   };
 }

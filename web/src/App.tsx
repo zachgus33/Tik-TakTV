@@ -78,6 +78,7 @@ import {
   useStored,
 } from "./storage";
 import { WhatsNewPrompt } from "./WhatsNew";
+import ChannelArt from "./ChannelArt";
 import { beginProfileSync } from "./profile-sync";
 import {
   itemKey,
@@ -237,9 +238,7 @@ function ProfileGate({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [preview, setPreview] = useState<"home" | "live" | "youtube">(
-    "home",
-  );
+  const [preview, setPreview] = useState<"home" | "live" | "youtube">("home");
   const [notice, setNotice] = useState("");
   async function refresh() {
     const { data } = await account.auth.getSession();
@@ -312,7 +311,9 @@ function ProfileGate({
           <div className="profile-gate-preview">
             <div className="profile-preview-window">
               <span className="profile-preview-dots" aria-hidden="true">
-                <i /><i /><i />
+                <i />
+                <i />
+                <i />
               </span>
               <img
                 className={`profile-preview-${preview}`}
@@ -326,14 +327,27 @@ function ProfileGate({
                 }
               />
             </div>
-            <div className="profile-preview-tabs" role="tablist" aria-label="See TikTak TV features">
-              <button className={preview === "home" ? "active" : ""} onClick={() => setPreview("home")}>
+            <div
+              className="profile-preview-tabs"
+              role="tablist"
+              aria-label="See TikTak TV features"
+            >
+              <button
+                className={preview === "home" ? "active" : ""}
+                onClick={() => setPreview("home")}
+              >
                 <Film size={16} /> Movies & series
               </button>
-              <button className={preview === "live" ? "active" : ""} onClick={() => setPreview("live")}>
+              <button
+                className={preview === "live" ? "active" : ""}
+                onClick={() => setPreview("live")}
+              >
                 <Radio size={16} /> Live TV & guide
               </button>
-              <button className={preview === "youtube" ? "active" : ""} onClick={() => setPreview("youtube")}>
+              <button
+                className={preview === "youtube" ? "active" : ""}
+                onClick={() => setPreview("youtube")}
+              >
                 <Youtube size={16} /> YouTube & music
               </button>
             </div>
@@ -575,13 +589,17 @@ function Art({
   item,
   wide = false,
   priority = false,
+  guideArtwork,
 }: {
   item: Item;
   wide?: boolean;
   priority?: boolean;
+  guideArtwork?: string;
 }) {
   const [failed, setFailed] = useState(false);
   const src = wide ? (item.background ?? item.poster) : item.poster;
+  if (item.type === "live")
+    return <ChannelArt channel={item} guideArtwork={guideArtwork} />;
   return src && !failed ? (
     <img
       src={src}
@@ -593,23 +611,9 @@ function Art({
       onError={() => setFailed(true)}
     />
   ) : (
-    <div
-      className={`art-fallback ${item.type === "live" ? "channel-art-fallback" : ""}`}
-      aria-hidden="true"
-    >
-      {item.type === "live" ? <Tv /> : <Film />}
-      <span>
-        {item.type === "live"
-          ? item.name
-              .replace(/^\s*[^|]+\|\s*/, "")
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((word) => word[0])
-              .join("")
-              .toUpperCase()
-          : item.name}
-      </span>
+    <div className="art-fallback" aria-hidden="true">
+      <Film />
+      <span>{item.name}</span>
     </div>
   );
 }
@@ -2648,7 +2652,9 @@ export default function App() {
                           My library
                         </button>
                       </div>
-                      <span className="hero-credit">CURATED BY YOUR ADD-ONS</span>
+                      <span className="hero-credit">
+                        CURATED BY YOUR ADD-ONS
+                      </span>
                     </div>
                     <div className="hero-footer">
                       <div className="hero-navigation">
@@ -3051,6 +3057,7 @@ export default function App() {
                     <SportsHub
                       channels={guideDisplayChannels}
                       getPrograms={guideState.get}
+                      getArtwork={guideState.artwork}
                       now={guideState.now}
                       onPlay={playChannel}
                     />
@@ -3116,7 +3123,10 @@ export default function App() {
                                 key={itemKey(channel)}
                                 onClick={() => playChannel(channel)}
                               >
-                                <Art item={channel} />
+                                <Art
+                                  item={channel}
+                                  guideArtwork={guideState.artwork(channel)}
+                                />
                                 <strong>{channel.name}</strong>
                                 <small>Live</small>
                               </button>
@@ -3143,7 +3153,12 @@ export default function App() {
                               aria-label="Selected live programme"
                             >
                               <div className="guide-feature-art">
-                                <Art item={featuredGuide.channel} />
+                                <Art
+                                  item={featuredGuide.channel}
+                                  guideArtwork={guideState.artwork(
+                                    featuredGuide.channel,
+                                  )}
+                                />
                               </div>
                               <div className="guide-feature-copy">
                                 <span className="guide-feature-channel">
@@ -3264,7 +3279,12 @@ export default function App() {
                                       onClick={() => playChannel(channel)}
                                     >
                                       <span className="tv-guide-channel-art">
-                                        <Art item={channel} />
+                                        <Art
+                                          item={channel}
+                                          guideArtwork={guideState.artwork(
+                                            channel,
+                                          )}
+                                        />
                                       </span>
                                       <strong>{channel.name}</strong>
                                       <span

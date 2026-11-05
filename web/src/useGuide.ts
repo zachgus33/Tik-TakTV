@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { epg } from "./api";
+import { epg, safeSourceUrl } from "./api";
 import { getService, serviceRequest, sourceFetch } from "./connection";
 import { readLiveCache, writeLiveCache } from "./live-cache";
 import type { Item, Programme, Provider } from "./types";
@@ -9,6 +9,7 @@ type State = {
   xml: Record<string, Programme[]>;
   channels: Record<string, Programme[]>;
   aliases: Record<string, string>;
+  artwork: Record<string, string>;
   failed: string[];
   loading: boolean;
   fallback: boolean;
@@ -18,6 +19,7 @@ const empty: State = {
   xml: {},
   channels: {},
   aliases: {},
+  artwork: {},
   failed: [],
   loading: false,
   fallback: false,
@@ -66,7 +68,7 @@ export function useGuide(
     let stopped = false;
     const controller = new AbortController();
     const cacheKey = `guide:${scope}`;
-    void readLiveCache<Pick<State, "xml" | "channels" | "aliases">>(
+    void readLiveCache<Pick<State, "xml" | "channels" | "aliases" | "artwork">>(
       cacheKey,
     ).then((cached) => {
       if (!stopped && cached)
@@ -83,6 +85,7 @@ export function useGuide(
         ready?: boolean;
         programmes?: Record<string, Programme[]>;
         aliases?: Record<string, string>;
+        artwork?: Record<string, string>;
         error?: string;
       }>,
     ) => {
@@ -96,10 +99,12 @@ export function useGuide(
       if (!stopped) {
         const xml = e.data.programmes ?? {};
         const aliases = e.data.aliases ?? {};
+        const artwork = e.data.artwork ?? {};
         setState((s) => ({
           ...s,
           xml,
           aliases,
+          artwork,
           loading: false,
           fallback: !!e.data.error,
         }));
@@ -108,6 +113,7 @@ export function useGuide(
             xml,
             channels: stateRef.current.channels,
             aliases,
+            artwork,
           });
       }
       worker.terminate();
@@ -284,6 +290,7 @@ export function useGuide(
           xml: current.xml,
           channels: current.channels,
           aliases: current.aliases,
+          artwork: current.artwork,
         });
       }
     }
@@ -324,6 +331,13 @@ export function useGuide(
       ),
     [guideId, now, valid.channels, valid.xml],
   );
+  const artwork = useCallback(
+    (item: Item) => {
+      const value = valid.artwork[guideId(item) ?? ""];
+      return safeSourceUrl(value);
+    },
+    [guideId, valid.artwork],
+  );
   const hasUpcoming = useCallback(
     (item: Item) =>
       (valid.xml[guideId(item) ?? ""] ?? valid.channels[item.id] ?? []).some(
@@ -333,6 +347,7 @@ export function useGuide(
   );
   return {
     get,
+    artwork,
     hasUpcoming,
     now,
     loading: valid.loading,

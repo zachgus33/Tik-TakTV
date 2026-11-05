@@ -8,7 +8,11 @@ self.onmessage = (
     if (event.data.chunk !== undefined) parser?.write(event.data.chunk);
     if (event.data.finish) {
       const programmes = parser?.finish() ?? {};
-      self.postMessage({ programmes, aliases: parser?.aliases() ?? {} });
+      self.postMessage({
+        programmes,
+        aliases: parser?.aliases() ?? {},
+        artwork: parser?.artwork() ?? {},
+      });
       parser = undefined;
     } else self.postMessage({ ready: true });
   } catch {
