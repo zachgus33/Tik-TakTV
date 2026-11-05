@@ -187,7 +187,7 @@ function VideoPlayer({
       );
       if (event.key === "Escape" || event.key === "BrowserBack") {
         event.preventDefault();
-        close();
+        dismiss();
         return;
       }
       if (onControl) return;
@@ -718,6 +718,13 @@ function VideoPlayer({
       );
     onClose();
   }
+  function dismiss() {
+    if (playback.item.type === "live" && !minimized && onMinimize) {
+      onMinimize(true);
+      return;
+    }
+    close();
+  }
   const timelineEnd = Math.max(
     seekEnd,
     playback.item.type === "live" ? 0 : runtimeSeconds(playback.item.runtime),
@@ -743,7 +750,10 @@ function VideoPlayer({
     <dialog
       ref={dialogRef}
       className={`player-dialog${tvMode ? " tv-player-surface" : ""}${minimized ? " mini-live-player" : ""}${tvMode && !tvControlsVisible ? " controls-hidden" : ""}`}
-      onCancel={close}
+      onCancel={(event) => {
+        event.preventDefault();
+        dismiss();
+      }}
       aria-label={`${playback.item.name} player`}
       onPointerMove={revealTvControls}
       onPointerDown={revealTvControls}
@@ -777,8 +787,12 @@ function VideoPlayer({
           )}
           <button
             className="icon-button"
-            onClick={close}
-            aria-label="Close player"
+            onClick={dismiss}
+            aria-label={
+              playback.item.type === "live" && !minimized
+                ? "Minimize live player"
+                : "Close player"
+            }
           >
             <X />
           </button>

@@ -4319,39 +4319,72 @@ body:has(dialog[open]) {
   gap: 10px;
   pointer-events: auto;
 }
+.player-dialog.mini-live-player,
 .tv-mode .player-dialog.tv-player-surface.mini-live-player {
+  position: fixed;
   inset: auto 32px 32px auto;
   width: min(38vw, 520px);
+  max-width: calc(100vw - 32px);
   height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   aspect-ratio: 16 / 9;
-  z-index: 600;
+  z-index: 30000;
   border: 2px solid color-mix(in srgb, var(--accent) 65%, white 15%);
   border-radius: 18px;
   box-shadow: 0 24px 70px #000c;
+  background: #000;
 }
-.tv-mode .mini-live-player::backdrop {
+.mini-live-player::backdrop {
   display: none;
 }
-.tv-mode .mini-live-player .player-top {
+.mini-live-player > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 0;
+}
+.mini-live-player .player-top,
+.tv-mode .tv-player-surface.mini-live-player .player-top {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  margin: 0;
   padding: 12px;
   background: linear-gradient(#000b, transparent);
   opacity: 1 !important;
   pointer-events: none;
 }
-.tv-mode .mini-live-player .player-top > div:first-child,
-.tv-mode .mini-live-player .vod-controls,
-.tv-mode .mini-live-player .player-tools,
-.tv-mode .mini-live-player .party-status,
-.tv-mode .mini-live-player > .muted {
+.mini-live-player .player-top > div:first-child,
+.tv-mode .tv-player-surface.mini-live-player .player-top > div:first-child,
+.mini-live-player .vod-controls,
+.mini-live-player .player-tools,
+.mini-live-player .party-status,
+.mini-live-player > .muted,
+.mini-live-player > .error {
   display: none;
 }
-.tv-mode .mini-live-player .player-top button {
+.mini-live-player .player-top button {
   min-width: 46px;
   min-height: 46px;
   padding: 10px;
 }
-.tv-mode .mini-live-player .player-window-actions {
+.mini-live-player .player-window-actions {
   margin-left: auto;
+}
+@media (max-width: 800px) {
+  .player-dialog.mini-live-player,
+  .tv-mode .player-dialog.tv-player-surface.mini-live-player {
+    inset: auto 10px calc(76px + env(safe-area-inset-bottom)) auto;
+    width: min(68vw, 360px);
+    max-width: calc(100vw - 20px);
+    border-radius: 14px;
+  }
 }
 :root .service-tiles {
   display: flex;
@@ -7600,12 +7633,12 @@ button.primary:hover,
   }
 }
 /* Mini Live TV controls must remain reachable even after full-player controls time out. */
-.tv-mode .tv-player-surface.mini-live-player.controls-hidden .player-top {
+.tv-player-surface.mini-live-player.controls-hidden .player-top {
   visibility: visible !important;
   opacity: 1 !important;
   pointer-events: none;
 }
-.tv-mode .tv-player-surface.mini-live-player .player-window-actions {
+.tv-player-surface.mini-live-player .player-window-actions {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;

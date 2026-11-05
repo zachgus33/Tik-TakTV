@@ -104,7 +104,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.6"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.7"));
   });
   await mockSources(page);
 });
@@ -1239,11 +1239,25 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
     .locator(".tv-guide-channel")
     .filter({ hasText: "Test News" })
     .click();
-  await page
-    .getByRole("button", { name: "Browse guide with mini player" })
-    .click();
+  const originalVideo = page.locator("dialog.player-dialog video");
+  await originalVideo.evaluate((video) => {
+    (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo =
+      video as HTMLVideoElement;
+  });
+  await page.getByRole("button", { name: "Minimize live player" }).click();
   const mini = page.locator("dialog.mini-live-player");
   await expect(mini).toBeVisible();
+  await expect
+    .poll(() =>
+      mini
+        .locator("video")
+        .evaluate(
+          (video) =>
+            video ===
+            (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo,
+        ),
+    )
+    .toBe(true);
   await expect(page.locator(".tv-guide-grid")).toBeVisible();
   await page.locator(".tv-guide-programmes button").first().focus();
   await expect(
@@ -1255,6 +1269,85 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
   await expect(page.locator("dialog.tv-player-surface")).not.toHaveClass(
     /mini-live-player/,
   );
+  await page.keyboard.press("Escape");
+  await expect(mini).toBeVisible();
+  await mini
+    .getByRole("button", { name: "Close player" })
+    .click({ force: true });
+  await expect(page.locator("dialog.player-dialog")).toBeHidden();
+});
+
+test("desktop and mobile browsers minimize live playback instead of closing it", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    ),
+  );
+  await page.route("https://playback.example/prepare", (route) =>
+    route.fulfill({ json: { path: "/media/live/index.m3u8", hls: true } }),
+  );
+  await page.route("https://playback.example/media/live/index.m3u8", (route) =>
+    route.fulfill({
+      contentType: "application/vnd.apple.mpegurl",
+      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+    }),
+  );
+  await connect(page);
+  await page.goto("/#live");
+  await page
+    .locator(".tv-guide-channel")
+    .filter({ hasText: "Test News" })
+    .click();
+  const originalVideo = page.locator("dialog.player-dialog video");
+  await originalVideo.evaluate((video) => {
+    (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo =
+      video as HTMLVideoElement;
+  });
+  await page.getByRole("button", { name: "Minimize live player" }).click();
+  const mini = page.locator("dialog.mini-live-player");
+  await expect(mini).toBeVisible();
+  await expect(page.locator(".tv-guide-grid")).toBeVisible();
+  await expect
+    .poll(() =>
+      mini
+        .locator("video")
+        .evaluate(
+          (video) =>
+            video ===
+            (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo,
+        ),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      mini.evaluate((dialog) => {
+        const bounds = dialog.getBoundingClientRect();
+        return (
+          bounds.left >= 0 &&
+          bounds.top >= 0 &&
+          bounds.right <= innerWidth &&
+          bounds.bottom <= innerHeight
+        );
+      }),
+    )
+    .toBe(true);
+  await mini.getByRole("button", { name: "Restore live player" }).click();
+  await expect(page.locator("dialog.player-dialog")).not.toHaveClass(
+    /mini-live-player/,
+  );
+  await page.keyboard.press("Escape");
+  await expect(mini).toBeVisible();
+  await mini
+    .getByRole("button", { name: "Close player" })
+    .click({ force: true });
+  await expect(page.locator("dialog.player-dialog")).toBeHidden();
 });
 test("HTTP Xtream API and playback stay behind the HTTPS companion", async ({
   page,

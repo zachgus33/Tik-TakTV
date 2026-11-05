@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 1.6
+**Backlog version:** 1.7
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -147,7 +147,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 ### FEATURE-04 · Mini live-TV video preview while browsing the EPG/guide
 - **Priority:** P2 — user-requested convenience feature; schedule after basic TV playback and remote-navigation stability.
-- **Status:** **Verified in automated web/TV tests; awaiting physical-device confirmation.** Live playback now changes the same active player dialog into a non-modal 16:9 corner window while the guide retains D-pad focus. Restore returns that same player to full screen without creating a second playback session.
+- **Status:** **Fixed after cross-platform regression; automated matrix verified, physical-device confirmation pending.** The first implementation only worked through its dedicated minimize button in TV mode; ordinary X/Back still stopped playback and non-TV CSS was incomplete. X, Escape, and Android TV Back now minimize full-screen live playback; Restore reuses the exact same video element/session; only closing the mini-player stops it. Tests cover TV mode and ordinary browser mode in Chromium, Firefox, iPhone/WebKit, and iPad/WebKit, including viewport containment and same-element identity.
 - **User-reported:** Reddit tester `Wonderful-Ordinary-1` (November 5, 2026, 12:45 PM) asked: “Will you be adding small preview video of what’s currently playing when in guide?” Developer replied: “I’d be happy to do that!”
 - **Intent:** When the user opens the Live TV electronic program guide, preserve visibility of the currently playing channel in a small picture-in-guide preview pane, so browsing programs does not interrupt viewing. Clarify whether the requester means the *currently tuned channel* (safest default) or the highlighted guide channel (optional future preview behavior).
 - **Proposed behavior:** Keep the current video session playing while the guide overlays or shrinks the playback surface; show a small video tile at a consistent location without covering program titles or focus targets; allow the user to navigate EPG rows and times with a D-pad, select a channel to tune, return to fullscreen using OK/Back or a clear “Expand” action; preserve current audio unless user deliberately changes channels. Clearly distinguish program metadata from stream playback.
@@ -251,7 +251,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **TV classification:** The Android TV APK is Leanback-only, landscape, no-touch, and forces `https://www.tiktaktv.me/?tv=1` plus `TikTakTV-AndroidTV/<version>`. Google TV cannot silently fall back to the mobile layout through ordinary user-agent detection.
 - **Remote/player evidence:** Automated tests cover Discover row movement, long-page scrolling, modal focus, guide navigation, full-screen TV playback and 3.5-second control hiding. Physical Nvidia Shield/Google TV/Fire TV verification is still required where stated.
 - **Already shipped and verified by audit:** Sports score/channel separation and filters; channel artwork/EPG feature panel; responsive portrait routes; in-app feedback with screenshots/private inbox; What's New; private active/returning/retention analytics; signed/checksummed TV update pipeline.
-- **Validation in this pass:** 77 web unit tests and all 216 runnable Playwright checks passed across desktop Chromium, Firefox, iPhone, and iPad projects (12 intentional engine-specific skips); the production bundle built successfully. GitHub run `42121112942` independently passed build, unit tests, all four E2E projects, and production deployment. Android TV run `42121112789` passed unit tests, lint, APK build, emulator launch, remote/media keys, and crash smoke. Signed-release run `42121788799` verified the APK signature and published stable 0.3.4 metadata/checksum/assets.
+- **Validation in this pass:** 77 web unit tests and all 220 runnable Playwright checks passed across desktop Chromium, Firefox, iPhone, and iPad projects (12 intentional engine-specific skips); the production bundle built successfully. GitHub run `42121112942` independently passed build, unit tests, all four E2E projects, and production deployment. Android TV run `42121112789` passed unit tests, lint, APK build, emulator launch, remote/media keys, and crash smoke. Signed-release run `42121788799` verified the APK signature and published stable 0.3.4 metadata/checksum/assets.
 - **Still intentionally open:** Physical-device confirmation for BUG-01/03/04/07 and FEATURE-02/04, Downloader-code revalidation, optional analytics event detail, and long-term launcher research FEATURE-03.
 
 ## Suggested implementation sequence for Codex
@@ -284,6 +284,8 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-05 — v1.5:** Audited the exact deployed commit `6a080626a`; mapped shipped behavior and automated evidence; hardened account+profile sync baselines before any writes; added privacy-safe add-on enumeration diagnostics; implemented the focus-expanding compact TV sidebar; verified 77 web tests, production build and focused TV navigation/layout tests; kept physical-device-only and unimplemented requests open.
 
 - **2026-11-05 — v1.6:** Implemented the optional SmartTube Android TV handoff with safe fallback, the same-session Live TV guide mini-player, compact focus-expanding TV navigation, safer account+profile sync baselines, add-on enumeration diagnostics, improved device/privacy issue forms, TV APK 0.3.4 (version code 7), and user-facing release notes. Physical TV hardware confirmation and the external Downloader code remain open.
+- **2026-11-05 ? v1.7:** Withdrew the earlier overbroad FEATURE-04 completion claim after user testing found X/Back still ended Live TV and ordinary mobile/desktop styling was incomplete. Fixed X/Escape/Android TV Back to minimize the same live video session, made the corner player responsive outside TV mode, added same-element and viewport assertions, passed 77 unit tests and the full 220-test browser/device matrix, and bumped the TV APK to 0.3.5 (version code 8).
+
 ## New feedback inbox (append here before triage)
 
 _No untriaged items yet. Every new screenshot/comment should be analyzed, converted into a new item or linked to an existing ID, and then recorded in the update log._

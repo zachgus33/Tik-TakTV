@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.6";
+export const latestRelease = "2026.11.05.7";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -11,6 +11,7 @@ export const releases = [
     date: "November 5, 2026",
     title: "Safer profiles and a better TV experience",
     changes: [
+      "Closing or backing out of full-screen Live TV now keeps the same stream playing in a corner mini-player while you browse the guide; closing the mini-player stops it.",
       "Profile sync now keeps a separate loaded baseline for every signed-in account and profile before it permits any remote write.",
       "Live TV can stay playing in a small corner window while you browse the guide, then return to full-screen playback without opening a second stream.",
       "The TV sidebar stays compact until it receives remote focus, then expands over the page so content never jumps sideways.",

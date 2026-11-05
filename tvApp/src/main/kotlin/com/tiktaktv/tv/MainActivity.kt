@@ -514,8 +514,8 @@ class MainActivity : ComponentActivity() {
               const dialogs = Array.from(document.querySelectorAll('dialog[open]'));
               const dialog = dialogs[dialogs.length - 1];
               if (!dialog) return false;
-              const close = dialog.querySelector('[aria-label*="Close"], .close, button[value="cancel"]');
-              if (close) close.click(); else dialog.close();
+              const action = dialog.querySelector('${TvDialogBackPolicy.actionSelector}');
+              if (action) action.click(); else dialog.close();
               return true;
             })();
         """
