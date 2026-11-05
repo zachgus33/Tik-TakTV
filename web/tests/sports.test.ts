@@ -75,6 +75,30 @@ describe("sports guide", () => {
       classifySport("Metallica: Masters of Metal", "Fuse Music"),
     ).toBeNull();
     expect(classifySport("The Masters", "CBS Sports")).toBe("golf");
+    expect(
+      classifySport(
+        "The Loud House",
+        "Teen Nick",
+        "Kids",
+        "Lynn wants to win a basketball championship but gets drafted onto a terrible team.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
+        "Walker, Texas Ranger",
+        "GET TV",
+        "Entertainment",
+        "Walker creates a midnight basketball league to prevent violence.",
+      ),
+    ).toBeNull();
+    expect(
+      classifySport(
+        "Center Court",
+        "Tennis Channel",
+        "Sports",
+        "Tennis action from around the world.",
+      ),
+    ).toBe("tennis");
   });
 
   it("combines the same event carried on multiple user channels", () => {

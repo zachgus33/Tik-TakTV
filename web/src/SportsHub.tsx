@@ -141,6 +141,12 @@ export function classifySport(
   for (const sport of SPORTS)
     if (sport.words.some((word) => hasPhrase(titleText, word)))
       return sport.id;
+  const context = normalized(`${channel} ${category}`);
+  const sportsContext =
+    /\b(sport|sports|espn|ppv|redzone)\b/.test(context) ||
+    SPORTS.some((sport) =>
+      sport.words.some((word) => hasPhrase(context, word)),
+    );
   // Short guide descriptions can clarify intentionally generic event titles
   // such as NFL RedZone's "Every Sunday Afternoon". Long descriptions often
   // contain scraped site navigation or plot text with incidental sports words,
@@ -166,16 +172,16 @@ export function classifySport(
         "game|match|action|coverage|round|tournament|championship|season|league|tour|final|race|racing";
       if (
         specific ||
-        new RegExp(`\\b${phrase}\\b.{0,12}\\b(?:${eventWord})\\b`).test(
-          descriptionText,
-        ) ||
-        new RegExp(`\\b(?:${eventWord})\\b.{0,12}\\b${phrase}\\b`).test(
-          descriptionText,
-        )
+        (sportsContext &&
+          (new RegExp(`\\b${phrase}\\b.{0,12}\\b(?:${eventWord})\\b`).test(
+            descriptionText,
+          ) ||
+            new RegExp(`\\b(?:${eventWord})\\b.{0,12}\\b${phrase}\\b`).test(
+              descriptionText,
+            )))
       )
         return sport.id;
     }
-  const context = normalized(`${channel} ${category}`);
   const matchup = /\b(vs?|versus|x)\b/.test(titleText);
   if (matchup)
     for (const sport of SPORTS)
