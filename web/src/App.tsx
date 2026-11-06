@@ -122,6 +122,7 @@ import { settingMatchesChoice } from "./catalog-settings";
 import {
   closestTitleCorrection,
   correctionSearchProbes,
+  rankExactTitleFirst,
 } from "./smart-search";
 
 const tvInterface =
@@ -2295,17 +2296,20 @@ export default function App() {
               catalogMatches = corrected.slice(1);
             }
             const seen = new Set<string>();
-            result = [
-              ...catalogMatches.flatMap((match) =>
-                match.status === "fulfilled" ? match.value : [],
-              ),
-              ...tmdbMatches.filter((item) => scopes.includes(item.type)),
-            ].filter((item) => {
-              const key = `${item.type}:${item.name.toLocaleLowerCase()}:${item.year ?? ""}`;
-              if (seen.has(key)) return false;
-              seen.add(key);
-              return true;
-            });
+            result = rankExactTitleFirst(
+              [
+                ...catalogMatches.flatMap((match) =>
+                  match.status === "fulfilled" ? match.value : [],
+                ),
+                ...tmdbMatches.filter((item) => scopes.includes(item.type)),
+              ].filter((item) => {
+                const key = `${item.type}:${item.name.toLocaleLowerCase()}:${item.year ?? ""}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              }),
+              searchTerm,
+            );
           } else if (chosen) {
             setSearchSuggestion("");
             result = await catalog(

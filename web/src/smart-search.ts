@@ -26,6 +26,23 @@ export function correctionSearchProbes(query: string) {
   return [...new Set(probes)].slice(0, 4);
 }
 
+export function rankExactTitleFirst<T extends { name: string }>(
+  items: T[],
+  query: string,
+) {
+  return [...items].sort(
+    (left, right) =>
+      Number(
+        right.name.localeCompare(query, undefined, { sensitivity: "base" }) ===
+          0,
+      ) -
+      Number(
+        left.name.localeCompare(query, undefined, { sensitivity: "base" }) ===
+          0,
+      ),
+  );
+}
+
 function editDistance(left: string, right: string) {
   const row = Array.from({ length: right.length + 1 }, (_, index) => index);
   for (let l = 1; l <= left.length; l += 1) {

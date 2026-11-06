@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   closestTitleCorrection,
   correctionSearchProbes,
+  rankExactTitleFirst,
 } from "../src/smart-search";
 
 describe("smart title spelling", () => {
@@ -45,5 +46,14 @@ describe("smart title spelling", () => {
       "secre",
       "madm",
     ]);
+  });
+
+  it("places the interpreted exact title above related results", () => {
+    expect(
+      rankExactTitleFirst(
+        [{ name: "Aegon's Conquest" }, { name: "Game of Thrones" }],
+        "Game of Thrones",
+      ).map((item) => item.name),
+    ).toEqual(["Game of Thrones", "Aegon's Conquest"]);
   });
 });
