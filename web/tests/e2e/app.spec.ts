@@ -22,39 +22,43 @@ async function mockSources(page: Page) {
       json: path.includes("/meta/") ? { meta } : { metas: [meta] },
     });
   });
-  await page.context().unroute(
-    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
-  );
-  await page.context().route(
-    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
-    async (route) => {
-      const action = new URL(route.request().url()).searchParams.get("action");
-      const data = !action
-        ? { user_info: { auth: 1, status: "Active" } }
-        : action.endsWith("_categories")
-          ? [{ category_id: "1", category_name: "News" }]
-          : action === "get_short_epg"
-            ? {
-                epg_listings: [
+  await page
+    .context()
+    .unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
+  await page
+    .context()
+    .route(
+      "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+      async (route) => {
+        const action = new URL(route.request().url()).searchParams.get(
+          "action",
+        );
+        const data = !action
+          ? { user_info: { auth: 1, status: "Active" } }
+          : action.endsWith("_categories")
+            ? [{ category_id: "1", category_name: "News" }]
+            : action === "get_short_epg"
+              ? {
+                  epg_listings: [
+                    {
+                      id: "1",
+                      title: btoa("Evening news"),
+                      start_timestamp: Math.floor(Date.now() / 1000) - 100,
+                      stop_timestamp: Math.floor(Date.now() / 1000) + 900,
+                    },
+                  ],
+                }
+              : [
                   {
-                    id: "1",
-                    title: btoa("Evening news"),
-                    start_timestamp: Math.floor(Date.now() / 1000) - 100,
-                    stop_timestamp: Math.floor(Date.now() / 1000) + 900,
+                    stream_id: 10,
+                    name: "Test News",
+                    category_id: "1",
+                    epg_channel_id: "test.news",
                   },
-                ],
-              }
-            : [
-                {
-                  stream_id: 10,
-                  name: "Test News",
-                  category_id: "1",
-                  epg_channel_id: "test.news",
-                },
-              ];
-      await route.fulfill({ json: data });
-    },
-  );
+                ];
+        await route.fulfill({ json: data });
+      },
+    );
   await page.route("https://playback.example/request", async (route) => {
     const source = new URL(route.request().postDataJSON().url);
     if (
@@ -107,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.8"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.9"));
   });
   await mockSources(page);
 });
@@ -120,14 +124,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /A faster Live TV mini-player/,
+    name: /Stable Sports browsing and live scores/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "A faster Live TV mini-player",
+      name: "Stable Sports browsing and live scores",
     }),
   ).toBeVisible();
   await page.reload();
@@ -1263,9 +1267,7 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
     .toBe(true);
   await expect(page.locator(".tv-guide-grid")).toBeVisible();
   await expect
-    .poll(() =>
-      page.evaluate(() => getComputedStyle(document.body).overflow),
-    )
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
     .not.toBe("hidden");
   await page.evaluate(() => {
     const main = document.querySelector<HTMLElement>("#main-content");
@@ -1335,9 +1337,7 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
   await expect(mini).toBeVisible();
   await expect(page.locator(".tv-guide-grid")).toBeVisible();
   await expect
-    .poll(() =>
-      page.evaluate(() => getComputedStyle(document.body).overflow),
-    )
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
     .not.toBe("hidden");
   await page.evaluate(() => {
     const main = document.querySelector<HTMLElement>("#main-content");
@@ -1390,41 +1390,102 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
 test("Sports stays responsive when college football playback is minimized", async ({
   page,
 }) => {
-  await page.context().unroute(
-    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
-  );
-  await page.context().route(
-    "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
-    async (route) => {
-      const action = new URL(route.request().url()).searchParams.get("action");
-      const now = Math.floor(Date.now() / 1000);
-      const data = !action
-        ? { user_info: { auth: 1, status: "Active" } }
-        : action.endsWith("_categories")
-          ? [{ category_id: "7", category_name: "US| SPORTS NETWORK" }]
-          : action === "get_short_epg"
-            ? {
-                epg_listings: [
-                  {
-                    id: "football-1",
-                    title: btoa("College Football: State vs Tech"),
-                    description: btoa("Live NCAA football game coverage."),
-                    start_timestamp: now - 300,
-                    stop_timestamp: now + 7_200,
-                  },
-                ],
-              }
-            : [
+  await page.route(
+    "https://site.api.espn.com/apis/site/v2/sports/**",
+    (route) => {
+      const collegeFootball = route
+        .request()
+        .url()
+        .includes("/football/college-football/");
+      return route.fulfill({
+        headers: { "Access-Control-Allow-Origin": "*" },
+        json: {
+          leagues: [{ name: "College Football", slug: "college-football" }],
+          events: collegeFootball
+            ? [
                 {
-                  stream_id: 117,
-                  name: "US| ESPN COLLEGE FOOTBALL HD",
-                  category_id: "7",
-                  epg_channel_id: "espn.college.football",
+                  id: "state-tech-live",
+                  name: "State vs Tech",
+                  shortName: "State vs Tech",
+                  date: new Date().toISOString(),
+                  status: {
+                    period: 3,
+                    displayClock: "8:42",
+                    type: { state: "in", shortDetail: "3rd · 8:42" },
+                  },
+                  competitions: [
+                    {
+                      competitors: [
+                        {
+                          homeAway: "away",
+                          score: "21",
+                          team: {
+                            id: "state",
+                            displayName: "State",
+                            shortDisplayName: "State",
+                            abbreviation: "STA",
+                          },
+                        },
+                        {
+                          homeAway: "home",
+                          score: "17",
+                          team: {
+                            id: "tech",
+                            displayName: "Tech",
+                            shortDisplayName: "Tech",
+                            abbreviation: "TEC",
+                          },
+                        },
+                      ],
+                      broadcasts: [{ names: ["ESPN"] }],
+                    },
+                  ],
                 },
-              ];
-      await route.fulfill({ json: data });
+              ]
+            : [],
+        },
+      });
     },
   );
+  await page
+    .context()
+    .unroute("https://vpn.trx-pro-iptvstore.cc/player_api.php**");
+  await page
+    .context()
+    .route(
+      "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
+      async (route) => {
+        const action = new URL(route.request().url()).searchParams.get(
+          "action",
+        );
+        const now = Math.floor(Date.now() / 1000);
+        const data = !action
+          ? { user_info: { auth: 1, status: "Active" } }
+          : action.endsWith("_categories")
+            ? [{ category_id: "7", category_name: "US| SPORTS NETWORK" }]
+            : action === "get_short_epg"
+              ? {
+                  epg_listings: [
+                    {
+                      id: "football-1",
+                      title: btoa("College Football: State vs Tech"),
+                      description: btoa("Live NCAA football game coverage."),
+                      start_timestamp: now - 300,
+                      stop_timestamp: now + 7_200,
+                    },
+                  ],
+                }
+              : [
+                  {
+                    stream_id: 117,
+                    name: "US| ESPN COLLEGE FOOTBALL HD",
+                    category_id: "7",
+                    epg_channel_id: "espn.college.football",
+                  },
+                ];
+        await route.fulfill({ json: data });
+      },
+    );
   await page.route("https://playback.example/prepare", (route) =>
     route.fulfill({ json: { path: "/media/live/index.m3u8", hls: true } }),
   );
@@ -1455,6 +1516,27 @@ test("Sports stays responsive when college football playback is minimized", asyn
   await expect(
     page.getByRole("heading", { name: "College Football: State vs Tech" }),
   ).toBeVisible();
+  const liveScores = page.getByRole("region", { name: "Live scores" });
+  await expect(liveScores).toBeVisible();
+  await expect(liveScores).toContainText("21");
+  await expect(liveScores).toContainText("17");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const scores = document.querySelector('[aria-label="Live scores"]');
+        const ordinary = [
+          ...document.querySelectorAll(".sports-event-section"),
+        ].find((element) => element.getAttribute("aria-label") === "Live now");
+        return (
+          !ordinary ||
+          !!(
+            scores?.compareDocumentPosition(ordinary) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+          )
+        );
+      }),
+    )
+    .toBe(true);
   await page
     .locator(".sports-channels button")
     .filter({ hasText: "ESPN COLLEGE FOOTBALL" })
@@ -1466,9 +1548,7 @@ test("Sports stays responsive when college football playback is minimized", asyn
     page.getByRole("heading", { name: "College Football: State vs Tech" }),
   ).toBeVisible({ timeout: 1_000 });
   await expect
-    .poll(() =>
-      page.evaluate(() => getComputedStyle(document.body).overflow),
-    )
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
     .not.toBe("hidden");
   await page.getByRole("button", { name: "All sports" }).click();
   await expect(page.getByRole("button", { name: "All sports" })).toHaveClass(

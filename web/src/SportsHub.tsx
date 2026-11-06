@@ -1,4 +1,11 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
 import ChannelArt from "./ChannelArt";
@@ -139,8 +146,7 @@ export function classifySport(
   // as golf when the title explicitly identifies the tournament.
   if (/^(?:the )?masters(?: golf| tournament)?$/.test(titleText)) return "golf";
   for (const sport of SPORTS)
-    if (sport.words.some((word) => hasPhrase(titleText, word)))
-      return sport.id;
+    if (sport.words.some((word) => hasPhrase(titleText, word))) return sport.id;
   const context = normalized(`${channel} ${category}`);
   const sportsContext =
     /\b(sport|sports|espn|ppv|redzone)\b/.test(context) ||
@@ -165,9 +171,10 @@ export function classifySport(
       );
       if (!word) continue;
       const phrase = normalized(word).replace(/\s+/g, "\\s+");
-      const specific = /^(nfl|nba|wnba|mlb|nhl|ufc|mma|pga|lpga|atp|wta|wwe|aew|mls|fifa|nascar|indycar|motogp|f1)$/i.test(
-        word,
-      );
+      const specific =
+        /^(nfl|nba|wnba|mlb|nhl|ufc|mma|pga|lpga|atp|wta|wwe|aew|mls|fifa|nascar|indycar|motogp|f1)$/i.test(
+          word,
+        );
       const eventWord =
         "game|match|action|coverage|round|tournament|championship|season|league|tour|final|race|racing";
       if (
@@ -185,10 +192,8 @@ export function classifySport(
   const matchup = /\b(vs?|versus|x)\b/.test(titleText);
   if (matchup)
     for (const sport of SPORTS)
-      if (sport.words.some((word) => hasPhrase(context, word)))
-        return sport.id;
-  if (matchup && /sport|espn|league|cup/.test(context))
-    return "other";
+      if (sport.words.some((word) => hasPhrase(context, word))) return sport.id;
+  if (matchup && /sport|espn|league|cup/.test(context)) return "other";
   return null;
 }
 
@@ -236,6 +241,36 @@ export function buildSportsEvents(
   });
 }
 
+export function prioritizeLiveScoreEvents(
+  events: SportsEvent[],
+  scores: ScoreEvent[],
+  now: number,
+  maximum = 12,
+) {
+  const scoreByEvent = new Map<string, ScoreEvent>();
+  for (const event of events) {
+    const score = matchScore(event, scores);
+    if (score) scoreByEvent.set(event.id, score);
+  }
+  const liveScores = events
+    .filter((event) => {
+      const score = scoreByEvent.get(event.id);
+      return (
+        event.start <= now &&
+        event.end > now &&
+        score?.state === "in" &&
+        score.teams.some((team) => team.score !== undefined)
+      );
+    })
+    .slice(0, maximum);
+  const priorityIds = new Set(liveScores.map((event) => event.id));
+  return {
+    liveScores,
+    remaining: events.filter((event) => !priorityIds.has(event.id)),
+    scoreByEvent,
+  };
+}
+
 function SportsHub({
   channels,
   getPrograms,
@@ -255,6 +290,8 @@ function SportsHub({
   const [all, setAll] = useState<SportsEvent[]>([]);
   const [scanning, setScanning] = useState(true);
   const [scores, setScores] = useState<ScoreEvent[]>([]);
+  const hasEvents = useRef(false);
+  const scoreFingerprint = useRef("");
   const [followed, setFollowed] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("tiktak:sports-follows") || "[]");
@@ -278,8 +315,10 @@ function SportsHub({
     };
     let cursor = 0;
     const merged = new Map<string, SportsEvent>();
-    setAll([]);
-    setScanning(true);
+    // Keep the current results mounted while guide data refreshes. Clearing
+    // the list made Sports look like the whole page reloaded and moved people
+    // away from the event they were browsing.
+    if (!hasEvents.current) setScanning(true);
     const schedule = () => {
       if (typeof idleWindow.requestIdleCallback === "function") {
         idle = idleWindow.requestIdleCallback(consume, { timeout: 120 });
@@ -316,8 +355,11 @@ function SportsHub({
         const bLive = b.start <= scanNow && b.end > scanNow ? 0 : 1;
         return aLive - bLive || a.start - b.start;
       });
-      setAll(next);
-      setScanning(false);
+      hasEvents.current = next.length > 0;
+      startTransition(() => {
+        setAll(next);
+        setScanning(false);
+      });
     };
     schedule();
     return () => {
@@ -326,22 +368,46 @@ function SportsHub({
       if (idle !== undefined) idleWindow.cancelIdleCallback?.(idle);
     };
   }, [channels, getPrograms, scanNow]);
-  const visible = all.filter((event) => {
-    if (sport !== "all" && event.sport !== sport) return false;
-    return !mine || followed.includes(event.id);
-  });
+  const visible = useMemo(
+    () =>
+      all.filter((event) => {
+        if (sport !== "all" && event.sport !== sport) return false;
+        return !mine || followed.includes(event.id);
+      }),
+    [all, followed, mine, sport],
+  );
   useEffect(() => setLimit(48), [mine, sport]);
   useEffect(() => {
     let active = true;
-    const update = (force = false) =>
+    const update = (force = false) => {
+      if (force && document.visibilityState !== "visible") return;
       void loadSportsScores(force).then((events) => {
-        if (active) setScores(events);
+        if (!active) return;
+        const fingerprint = events
+          .map((event) =>
+            [
+              event.id,
+              event.state,
+              event.detail,
+              ...event.teams.map((team) => team.score ?? ""),
+            ].join(":"),
+          )
+          .join("|");
+        if (fingerprint === scoreFingerprint.current) return;
+        scoreFingerprint.current = fingerprint;
+        startTransition(() => setScores(events));
       });
+    };
     update();
-    const timer = setInterval(() => update(true), 45_000);
+    const timer = setInterval(() => update(true), 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") update(true);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       active = false;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
   const toggleFollow = (id: string) => {
@@ -351,7 +417,14 @@ function SportsHub({
     setFollowed(next);
     localStorage.setItem("tiktak:sports-follows", JSON.stringify(next));
   };
-  const displayed = visible.slice(0, limit);
+  // A scored game can otherwise be buried after hundreds of generic sports
+  // listings. Pull genuinely live, score-bearing matches into a priority row
+  // before applying the progressive-render limit to everything else.
+  const { liveScores, remaining, scoreByEvent } = useMemo(
+    () => prioritizeLiveScoreEvents(visible, scores, now),
+    [now, scores, visible],
+  );
+  const displayed = remaining.slice(0, limit);
   const live = displayed.filter(
     (event) => event.start <= now && event.end > now,
   );
@@ -414,6 +487,19 @@ function SportsHub({
         </div>
       ) : (
         <>
+          {!!liveScores.length && (
+            <EventSection
+              title="Live scores"
+              events={liveScores}
+              now={now}
+              followed={followed}
+              onFollow={toggleFollow}
+              onPlay={onPlay}
+              getArtwork={getArtwork}
+              scoreByEvent={scoreByEvent}
+              priority
+            />
+          )}
           {!!live.length && (
             <EventSection
               title="Live now"
@@ -423,7 +509,7 @@ function SportsHub({
               onFollow={toggleFollow}
               onPlay={onPlay}
               getArtwork={getArtwork}
-              scores={scores}
+              scoreByEvent={scoreByEvent}
             />
           )}
           {!!upcoming.length && (
@@ -435,15 +521,15 @@ function SportsHub({
               onFollow={toggleFollow}
               onPlay={onPlay}
               getArtwork={getArtwork}
-              scores={scores}
+              scoreByEvent={scoreByEvent}
             />
           )}
-          {visible.length > displayed.length && (
+          {remaining.length > displayed.length && (
             <button
               className="sports-show-more"
               onClick={() => setLimit((value) => value + 48)}
             >
-              Show more events · {visible.length - displayed.length} remaining
+              Show more events · {remaining.length - displayed.length} remaining
             </button>
           )}
         </>
@@ -464,7 +550,8 @@ function EventSection({
   onFollow,
   onPlay,
   getArtwork,
-  scores,
+  scoreByEvent,
+  priority = false,
 }: {
   title: string;
   events: SportsEvent[];
@@ -473,10 +560,14 @@ function EventSection({
   onFollow: (id: string) => void;
   onPlay: (channel: Item) => void;
   getArtwork: (channel: Item) => string | undefined;
-  scores: ScoreEvent[];
+  scoreByEvent: Map<string, ScoreEvent>;
+  priority?: boolean;
 }) {
   return (
-    <section className="sports-event-section">
+    <section
+      className={`sports-event-section${priority ? " sports-score-priority" : ""}`}
+      aria-label={title}
+    >
       <div className="sports-section-title">
         <span className="live-dot" /> <h2>{title}</h2>
         <span>{events.length} events</span>
@@ -485,7 +576,7 @@ function EventSection({
         {events.map((event) => {
           const kind = SPORTS.find((item) => item.id === event.sport);
           const live = event.start <= now && event.end > now;
-          const score = matchScore(event, scores);
+          const score = scoreByEvent.get(event.id);
           return (
             <article className="sports-event" key={event.id}>
               <div className="sports-event-meta">

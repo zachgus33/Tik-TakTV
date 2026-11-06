@@ -3,7 +3,9 @@ import {
   buildSportsEvents,
   classifySport,
   isInactiveSportsSlot,
+  prioritizeLiveScoreEvents,
 } from "../src/SportsHub";
+import type { ScoreEvent } from "../src/sports-scores";
 import type { Item, Programme } from "../src/types";
 
 const channel = (id: string, name: string): Item => ({
@@ -144,5 +146,68 @@ describe("sports guide", () => {
     ).toBe(true);
     expect(isInactiveSportsSlot("Sendepause")).toBe(true);
     expect(isInactiveSportsSlot("Celtics vs Pistons")).toBe(false);
+  });
+
+  it("moves live events with real scores ahead of ordinary sports listings", () => {
+    const now = Date.now();
+    const events = [
+      {
+        id: "generic",
+        title: "SportsCenter",
+        description: "Sports news",
+        start: now - 60_000,
+        end: now + 60_000,
+        sport: "other" as const,
+        channels: [channel("news", "Sports Network")],
+      },
+      {
+        id: "game",
+        title: "Celtics vs Pistons",
+        description: "Live NBA game",
+        start: now - 60_000,
+        end: now + 60_000,
+        sport: "basketball" as const,
+        channels: [channel("nba", "NBA TV")],
+      },
+    ];
+    const scores: ScoreEvent[] = [
+      {
+        id: "nba-game",
+        sport: "basketball",
+        league: "nba",
+        leagueName: "NBA",
+        name: "Detroit Pistons at Boston Celtics",
+        shortName: "DET @ BOS",
+        start: now,
+        state: "in",
+        detail: "4th · 7:24",
+        broadcasts: ["NBA TV"],
+        teams: [
+          {
+            id: "bos",
+            name: "Boston Celtics",
+            shortName: "Celtics",
+            abbreviation: "BOS",
+            score: "99",
+            home: true,
+            winner: true,
+          },
+          {
+            id: "det",
+            name: "Detroit Pistons",
+            shortName: "Pistons",
+            abbreviation: "DET",
+            score: "95",
+            home: false,
+            winner: false,
+          },
+        ],
+      },
+    ];
+
+    const result = prioritizeLiveScoreEvents(events, scores, now);
+    expect(result.liveScores.map((event) => event.id)).toEqual(["game"]);
+    expect(result.remaining.map((event) => event.id)).toEqual(["generic"]);
+    expect(result.scoreByEvent.get("game")?.teams[0].score).toBe("99");
   });
 });

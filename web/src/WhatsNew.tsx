@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.8";
+export const latestRelease = "2026.11.05.9";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,11 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "A faster Live TV mini-player",
+    title: "Stable Sports browsing and live scores",
     changes: [
+      "Sports guide refreshes now update invisibly without clearing the event list, changing filters, collapsing loaded results, or moving you away from the game you were viewing.",
+      "Live games with verified score data now appear in a dedicated Live scores section above ordinary live and upcoming sports listings.",
+      "Score polling pauses while TikTak TV is hidden and unchanged score responses no longer rebuild the Sports screen.",
       "Minimizing Live TV no longer locks the outer guide page or rebuilds the full guide and Sports screen, keeping large channel lists responsive while the same stream continues playing.",
       "Sports guide scanning now runs in small idle-time batches so providers with thousands of channels do not freeze browsers or Android and Fire TV WebViews.",
       "Closing or backing out of full-screen Live TV now keeps the same stream playing in a corner mini-player while you browse the guide; closing the mini-player stops it.",

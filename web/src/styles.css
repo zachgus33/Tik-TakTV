@@ -6834,6 +6834,21 @@ button.primary:hover,
   margin-left: auto;
   color: var(--muted);
 }
+.sports-score-priority {
+  padding: 18px;
+  border: 1px solid #55d89545;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 12% 0%, #55d89517, transparent 42%), #0d1112;
+}
+.sports-score-priority .sports-section-title h2,
+.sports-score-priority .sports-section-title .live-dot {
+  color: #77e7ac;
+}
+.sports-score-priority .sports-event {
+  border-color: #55d89532;
+  background: linear-gradient(145deg, #17211f, #0d1112);
+}
 .sports-event-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
