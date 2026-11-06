@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.10"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.11"));
   });
   await mockSources(page);
 });
@@ -124,14 +124,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Automatic previews and stable Sports browsing/,
+    name: /Smarter movie and series search/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Automatic previews and stable Sports browsing",
+      name: "Smarter movie and series search",
     }),
   ).toBeVisible();
   await page.reload();
@@ -429,6 +429,22 @@ test("landing showcase rotates automatically and manual selection stays longer",
     localStorage.removeItem("tiktak:established-local"),
   );
   await page.goto("/#home");
+  const viewport = page.viewportSize();
+  const gateBounds = await page.locator(".profile-gate").evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left, width: bounds.width };
+  });
+  expect(Math.abs(gateBounds.left)).toBeLessThan(1);
+  expect(
+    Math.abs(gateBounds.width - (viewport?.width ?? gateBounds.width)),
+  ).toBeLessThan(1);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true);
   if ((page.viewportSize()?.width ?? 0) <= 900) {
     await expect(page.locator(".profile-gate-preview")).toBeHidden();
     await expect(
@@ -442,7 +458,7 @@ test("landing showcase rotates automatically and manual selection stays longer",
   const sports = page.getByRole("tab", { name: "Sports & scores" });
   await expect(home).toHaveAttribute("aria-selected", "true");
   await expect(preview).toHaveAttribute("src", "/showcase/home.png");
-  await page.clock.fastForward(6_600);
+  await page.clock.fastForward(5_850);
   await expect(live).toHaveAttribute("aria-selected", "true");
   await expect(preview).toHaveAttribute("src", "/showcase/live.png");
   await sports.click();
@@ -2118,6 +2134,9 @@ test("an independent user's configured Torrentio debrid stream uses the playback
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {
+  await page.route("https://api.themoviedb.org/3/search/multi**", (route) =>
+    route.fulfill({ json: { results: [] } }),
+  );
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:addons",
@@ -2160,7 +2179,112 @@ test("search uses every searchable catalog even when a trending catalog is selec
   await page.getByLabel("Search titles or channels").fill("the rookie");
   await expect(page.locator(".media-card strong")).toHaveText("The Rookie");
   expect(searched).toContain("search=the%20rookie");
+  await page.getByRole("button", { name: "Clear search" }).click();
   await expect(page.getByLabel("Catalog")).toHaveValue(/trending/);
+});
+test("home search covers movies and series and offers a spelling correction", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://smart-search.example",
+          manifest: {
+            id: "smart-search-test",
+            name: "Smart search test",
+            types: ["movie", "series"],
+            resources: ["catalog", "meta"],
+            catalogs: [
+              {
+                id: "find",
+                type: "movie",
+                name: "Movie search",
+                extra: [{ name: "search" }],
+              },
+              {
+                id: "find",
+                type: "series",
+                name: "Series search",
+                extra: [{ name: "search" }],
+              },
+            ],
+          },
+        },
+      ]),
+    ),
+  );
+  const searches: string[] = [];
+  await page.route("https://api.themoviedb.org/3/search/multi**", (route) =>
+    route.fulfill({
+      json: {
+        results: [
+          {
+            id: 61378,
+            media_type: "tv",
+            name: "Madam Secretary",
+            first_air_date: "2014-09-21",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://smart-search.example/**", (route) => {
+    const path = decodeURIComponent(new URL(route.request().url()).pathname);
+    if (path.includes("/search=")) searches.push(path);
+    return route.fulfill({
+      json: {
+        metas:
+          path.includes("/catalog/series/") &&
+          path.includes("search=Madam Secretary")
+            ? [
+                {
+                  ...meta,
+                  id: "tt3501074",
+                  name: "Madam Secretary",
+                  type: "series",
+                },
+              ]
+            : [],
+      },
+    });
+  });
+  await page.goto("/#home");
+  await page.getByLabel("Search titles or channels").fill("madame secretery");
+  await expect(page).toHaveURL(/#discover/);
+  await expect(page.getByRole("button", { name: "All" })).toHaveClass(
+    /selected/,
+  );
+  await expect(
+    page.getByText("Showing results for Madam Secretary"),
+  ).toBeVisible();
+  await expect(page.locator(".media-card strong").first()).toHaveText(
+    "Madam Secretary",
+  );
+  await expect
+    .poll(() => searches.some((path) => path.includes("/catalog/movie/")))
+    .toBe(true);
+  await expect
+    .poll(() => searches.some((path) => path.includes("/catalog/series/")))
+    .toBe(true);
+  await page.getByRole("button", { name: "Movies" }).click();
+  await expect(page.getByText("Nothing found this time")).toBeVisible();
+  await page.getByRole("button", { name: "Series" }).click();
+  await expect(page.locator(".media-card strong").first()).toHaveText(
+    "Madam Secretary",
+  );
+  await page
+    .getByRole("button", { name: "Search instead for madame secretery" })
+    .click();
+  await expect(
+    page.getByText("Searching instead for madame secretery"),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      searches.some((path) => path.includes("search=madame secretery")),
+    )
+    .toBe(true);
 });
 test("browser-incompatible MKV is normalized before playback", async ({
   page,

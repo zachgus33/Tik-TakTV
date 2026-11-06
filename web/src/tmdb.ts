@@ -43,6 +43,48 @@ async function get<T>(
     );
   return (await response.json()) as T;
 }
+
+function tmdbSearchItem(row: Record<string, unknown>): Item {
+  const media = row.media_type === "tv" ? "series" : "movie";
+  return {
+    id: `tmdb:${row.id}`,
+    name: String(row.title ?? row.name ?? "Untitled"),
+    type: media,
+    source: "addon",
+    provider: defaultAddon.base,
+    poster: row.poster_path
+      ? safeUrl(`https://image.tmdb.org/t/p/w500${row.poster_path}`)
+      : undefined,
+    background: row.backdrop_path
+      ? safeUrl(`https://image.tmdb.org/t/p/w1280${row.backdrop_path}`)
+      : undefined,
+    description: String(row.overview ?? ""),
+    year: String(row.release_date ?? row.first_air_date ?? "").slice(0, 4),
+  };
+}
+
+export async function searchTmdbTitles(
+  query: string,
+  signal?: AbortSignal,
+): Promise<Item[]> {
+  const data = await get<{ results?: Record<string, unknown>[] }>(
+    "search/multi",
+    {
+      query: query.trim(),
+      language: "en-US",
+      page: "1",
+      include_adult: "false",
+    },
+    signal,
+  );
+  return (data.results ?? [])
+    .filter(
+      (row) =>
+        (row.media_type === "movie" || row.media_type === "tv") && row.id,
+    )
+    .slice(0, 30)
+    .map(tmdbSearchItem);
+}
 export async function validateTmdbCredential(
   credential: string,
 ): Promise<void> {

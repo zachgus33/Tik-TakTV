@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 2.0
+**Backlog version:** 2.2
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -320,7 +320,11 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 - **2026-11-05 — v1.9:** User reported that the Sports page appeared to reload every 30–60 seconds and lose their browsing position, and that real live score games were buried among generic events. Sports now keeps its existing results mounted while guide scans rebuild in the background, applies completed scans atomically, pauses score polling in hidden tabs, and ignores unchanged score responses. Added a top-priority Live scores section for matched games that are live and contain real team scores. Validation passed 78 unit tests, production build, and the score/filter/playback/mini-player/mobile-layout flow across desktop Chromium, Firefox, iPhone/WebKit, and iPad/WebKit. Physical TV confirmation remains open.
 
-- **2026-11-05 - v2.0:** Added an automatic landing-page showcase that cycles through Movies, Live TV, YouTube, and Sports every 6.5 seconds. Manual selection holds the chosen preview for 12 seconds; hover, keyboard focus, hidden tabs, and reduced-motion preferences pause rotation. Tabs remain directly selectable and expose their selected state to assistive technology. Added desktop Chromium/Firefox timing and interaction coverage plus compact iPhone/iPad layout checks.
+- **2026-11-05 - v2.0:** Added an automatic landing-page showcase that cycles through Movies, Live TV, YouTube, and Sports every 5.75 seconds. Manual selection holds the chosen preview for 12 seconds; hover, keyboard focus, hidden tabs, and reduced-motion preferences pause rotation. Tabs remain directly selectable and expose their selected state to assistive technology. Added desktop Chromium/Firefox timing and interaction coverage plus compact iPhone/iPad layout checks.
+
+- **2026-11-05 - v2.1:** Reworked title search after a Home search for a TV series opened Discover in Movies and a one-letter misspelling returned no results. New searches default to a combined All scope across movie and series add-on catalogs, offer conservative TMDB-backed spelling corrections, preserve a one-click exact-query option, and retain Movies/Series filters. Search metadata loads lazily and failed add-ons remain isolated. Added pure spelling tests and the exact Home -> misspelling -> corrected series -> exact-query flow across Chromium, Firefox, iPhone, and iPad.
+
+- **2026-11-05 - v2.2:** Expanded the public landing layout across the complete desktop viewport, added low-height desktop sizing so the showcase, tabs, benefits, and account panel remain visible at 720p and 768p, and kept portrait layouts free of horizontal overflow. Shortened automatic showcase rotation slightly to 5.75 seconds. Verified layout metrics at 1920x1080, 1366x768, 1024x768, and 390x844 in addition to the cross-browser landing tests.
 
 ## New feedback inbox (append here before triage)
 

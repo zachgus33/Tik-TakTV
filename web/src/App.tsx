@@ -119,6 +119,7 @@ import {
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
 import { settingMatchesChoice } from "./catalog-settings";
+import { closestTitleCorrection } from "./smart-search";
 
 const tvInterface =
   new URLSearchParams(location.search).get("tv") === "1" ||
@@ -287,7 +288,7 @@ function ProfileGate({
       return;
     const timeout = window.setTimeout(
       () => setPreview((current) => nextLandingPreview(current)),
-      6_500,
+      5_750,
     );
     return () => window.clearTimeout(timeout);
   }, [busy, email, manualPreviewHold, pageVisible, preview, previewPaused]);
@@ -1894,6 +1895,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [kind, setKind] = useState<Kind>("movie");
+  const [searchScope, setSearchScope] = useState<"all" | Kind>("all");
+  const [searchSuggestion, setSearchSuggestion] = useState("");
+  const [exactSearch, setExactSearch] = useState(false);
   const [source, setSource] = useState("catalogs");
   const [selectedCatalog, setSelectedCatalog] = useState("");
   const [category, setCategory] = useState("");
@@ -1997,6 +2001,9 @@ export default function App() {
     setCollectionBrowsing(false);
     location.hash = next;
     setQuery("");
+    setSearchScope("all");
+    setSearchSuggestion("");
+    setExactSearch(false);
     setCategory("");
     setRegion("");
     setFavoritesOnly(false);
@@ -2203,32 +2210,68 @@ export default function App() {
           const chosen =
             catalogs.find((x) => x.key === selectedCatalog) ?? catalogs[0];
           if (deferredQuery) {
-            const searchable = catalogs.filter((entry) =>
-              entry.catalog.extra?.some((extra) => extra.name === "search"),
+            const scopes: Kind[] =
+              searchScope === "all" ? ["movie", "series"] : [searchScope];
+            let tmdbMatches: Item[] = [];
+            try {
+              tmdbMatches = await (
+                await import("./tmdb")
+              ).searchTmdbTitles(deferredQuery, c.signal);
+            } catch (failure) {
+              if (c.signal.aborted) return;
+              console.warn("Title suggestion search failed", failure);
+            }
+            const suggestion = closestTitleCorrection(
+              deferredQuery,
+              tmdbMatches.map((item) => item.name),
             );
-            if (searchable.length) {
+            if (!c.signal.aborted) setSearchSuggestion(suggestion);
+            const searchTerm =
+              suggestion && !exactSearch ? suggestion : deferredQuery;
+            if (searchTerm !== deferredQuery) {
               try {
-                result = await Promise.any(
-                  searchable.map(async (entry) => {
-                    const matches = await catalog(
-                      entry.addon,
-                      kind,
-                      entry.catalog.id,
-                      deferredQuery,
-                      c.signal,
-                    );
-                    if (!matches.length)
-                      throw new Error("This catalog found no matches.");
-                    return matches;
-                  }),
-                );
+                tmdbMatches = await (
+                  await import("./tmdb")
+                ).searchTmdbTitles(searchTerm, c.signal);
               } catch (failure) {
                 if (c.signal.aborted) return;
-                if (failure instanceof AggregateError) result = [];
-                else throw failure;
+                console.warn("Corrected title search failed", failure);
               }
             }
+            const searchable = addons.flatMap((addon) =>
+              (addon.manifest.catalogs ?? [])
+                .filter(
+                  (entry) =>
+                    scopes.includes(entry.type as Kind) &&
+                    entry.extra?.some((extra) => extra.name === "search"),
+                )
+                .map((entry) => ({ addon, catalog: entry })),
+            );
+            const catalogMatches = await Promise.allSettled(
+              searchable.map((entry) =>
+                catalog(
+                  entry.addon,
+                  entry.catalog.type as Kind,
+                  entry.catalog.id,
+                  searchTerm,
+                  c.signal,
+                ),
+              ),
+            );
+            const seen = new Set<string>();
+            result = [
+              ...catalogMatches.flatMap((match) =>
+                match.status === "fulfilled" ? match.value : [],
+              ),
+              ...tmdbMatches.filter((item) => scopes.includes(item.type)),
+            ].filter((item) => {
+              const key = `${item.type}:${item.name.toLocaleLowerCase()}:${item.year ?? ""}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
           } else if (chosen) {
+            setSearchSuggestion("");
             result = await catalog(
               chosen.addon,
               kind,
@@ -2261,6 +2304,8 @@ export default function App() {
     kind,
     category,
     selectedCatalog,
+    searchScope,
+    exactSearch,
     addons,
     guidedPlaylist,
     revision,
@@ -2351,6 +2396,7 @@ export default function App() {
       (page === "library" ? library : items).filter(
         (i) =>
           (!deferredQuery ||
+            (page === "discover" && source === "catalogs") ||
             i.name
               .toLocaleLowerCase()
               .includes(deferredQuery.toLocaleLowerCase())) &&
@@ -2366,6 +2412,7 @@ export default function App() {
       region,
       regionOf,
       savedKeys,
+      source,
     ],
   );
   const randomDiscoverPick = () => {
@@ -2608,6 +2655,9 @@ export default function App() {
               className={page === n.id ? "active" : ""}
               onClick={() => {
                 setQuery("");
+                setSearchScope("all");
+                setSearchSuggestion("");
+                setExactSearch(false);
                 setCategory("");
               }}
               aria-current={page === n.id ? "page" : undefined}
@@ -2656,7 +2706,11 @@ export default function App() {
               }
               value={query}
               onChange={(e) => {
-                setQuery(e.target.value);
+                const next = e.target.value;
+                if (!query.trim() && next.trim()) setSearchScope("all");
+                setQuery(next);
+                setSearchSuggestion("");
+                setExactSearch(false);
                 if (page === "home") location.hash = "discover";
               }}
             />
@@ -2664,7 +2718,12 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Clear search"
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  setSearchScope("all");
+                  setSearchSuggestion("");
+                  setExactSearch(false);
+                }}
               >
                 <X size={16} />
               </button>
@@ -2964,10 +3023,28 @@ export default function App() {
               {page === "discover" && (
                 <div className="filter-toolbar">
                   <div className="tabs">
+                    {query && source === "catalogs" && (
+                      <button
+                        className={searchScope === "all" ? "selected" : ""}
+                        onClick={() => setSearchScope("all")}
+                      >
+                        <Search size={16} />
+                        All
+                      </button>
+                    )}
                     <button
-                      className={kind === "movie" ? "selected" : ""}
+                      className={
+                        query && source === "catalogs"
+                          ? searchScope === "movie"
+                            ? "selected"
+                            : ""
+                          : kind === "movie"
+                            ? "selected"
+                            : ""
+                      }
                       onClick={() => {
                         setKind("movie");
+                        setSearchScope("movie");
                         setCategory("");
                       }}
                     >
@@ -2975,9 +3052,18 @@ export default function App() {
                       Movies
                     </button>
                     <button
-                      className={kind === "series" ? "selected" : ""}
+                      className={
+                        query && source === "catalogs"
+                          ? searchScope === "series"
+                            ? "selected"
+                            : ""
+                          : kind === "series"
+                            ? "selected"
+                            : ""
+                      }
                       onClick={() => {
                         setKind("series");
+                        setSearchScope("series");
                         setCategory("");
                       }}
                     >
@@ -2990,6 +3076,7 @@ export default function App() {
                     value={source}
                     onChange={(e) => {
                       setSource(e.target.value);
+                      if (e.target.value === "xtream") setSearchScope(kind);
                       setCategory("");
                     }}
                   >
@@ -3009,6 +3096,10 @@ export default function App() {
                         </option>
                       ))}
                     </select>
+                  ) : query ? (
+                    <span className="smart-search-source">
+                      Searching every compatible add-on
+                    </span>
                   ) : (
                     <select
                       aria-label="Catalog"
@@ -3032,6 +3123,26 @@ export default function App() {
                   </button>
                 </div>
               )}
+              {page === "discover" &&
+                query &&
+                searchSuggestion &&
+                source === "catalogs" && (
+                  <div className="smart-search-notice" role="status">
+                    <span>
+                      {exactSearch
+                        ? "Searching instead for "
+                        : "Showing results for "}
+                      <strong>
+                        {exactSearch ? query.trim() : searchSuggestion}
+                      </strong>
+                    </span>
+                    <button onClick={() => setExactSearch((value) => !value)}>
+                      {exactSearch
+                        ? `Show results for ${searchSuggestion}`
+                        : `Search instead for ${query.trim()}`}
+                    </button>
+                  </div>
+                )}
               {page === "library" && progress.length > 0 && (
                 <section className="media-row">
                   <div className="row-heading">
