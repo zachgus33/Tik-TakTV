@@ -2221,23 +2221,6 @@ export default function App() {
               if (c.signal.aborted) return;
               console.warn("Title suggestion search failed", failure);
             }
-            const suggestion = closestTitleCorrection(
-              deferredQuery,
-              tmdbMatches.map((item) => item.name),
-            );
-            if (!c.signal.aborted) setSearchSuggestion(suggestion);
-            const searchTerm =
-              suggestion && !exactSearch ? suggestion : deferredQuery;
-            if (searchTerm !== deferredQuery) {
-              try {
-                tmdbMatches = await (
-                  await import("./tmdb")
-                ).searchTmdbTitles(searchTerm, c.signal);
-              } catch (failure) {
-                if (c.signal.aborted) return;
-                console.warn("Corrected title search failed", failure);
-              }
-            }
             const searchable = addons.flatMap((addon) =>
               (addon.manifest.catalogs ?? [])
                 .filter(
@@ -2247,17 +2230,47 @@ export default function App() {
                 )
                 .map((entry) => ({ addon, catalog: entry })),
             );
-            const catalogMatches = await Promise.allSettled(
+            let catalogMatches = await Promise.allSettled(
               searchable.map((entry) =>
                 catalog(
                   entry.addon,
                   entry.catalog.type as Kind,
                   entry.catalog.id,
-                  searchTerm,
+                  deferredQuery,
                   c.signal,
                 ),
               ),
             );
+            const suggestion = closestTitleCorrection(deferredQuery, [
+              ...tmdbMatches.map((item) => item.name),
+              ...catalogMatches.flatMap((match) =>
+                match.status === "fulfilled"
+                  ? match.value.map((item) => item.name)
+                  : [],
+              ),
+            ]);
+            if (!c.signal.aborted) setSearchSuggestion(suggestion);
+            const searchTerm =
+              suggestion && !exactSearch ? suggestion : deferredQuery;
+            if (searchTerm !== deferredQuery) {
+              const corrected = await Promise.allSettled([
+                import("./tmdb").then((module) =>
+                  module.searchTmdbTitles(searchTerm, c.signal),
+                ),
+                ...searchable.map((entry) =>
+                  catalog(
+                    entry.addon,
+                    entry.catalog.type as Kind,
+                    entry.catalog.id,
+                    searchTerm,
+                    c.signal,
+                  ),
+                ),
+              ]);
+              if (corrected[0]?.status === "fulfilled")
+                tmdbMatches = corrected[0].value;
+              catalogMatches = corrected.slice(1);
+            }
             const seen = new Set<string>();
             result = [
               ...catalogMatches.flatMap((match) =>

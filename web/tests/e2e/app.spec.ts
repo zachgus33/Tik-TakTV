@@ -2221,10 +2221,10 @@ test("home search covers movies and series and offers a spelling correction", as
       json: {
         results: [
           {
-            id: 61378,
-            media_type: "tv",
-            name: "Madam Secretary",
-            first_air_date: "2014-09-21",
+            id: 999,
+            media_type: "movie",
+            title: "Madame Web",
+            release_date: "2024-02-14",
           },
         ],
       },
@@ -2235,9 +2235,7 @@ test("home search covers movies and series and offers a spelling correction", as
     if (path.includes("/search=")) searches.push(path);
     return route.fulfill({
       json: {
-        metas:
-          path.includes("/catalog/series/") &&
-          path.includes("search=Madam Secretary")
+        metas: path.includes("/catalog/series/")
             ? [
                 {
                   ...meta,
@@ -2269,7 +2267,9 @@ test("home search covers movies and series and offers a spelling correction", as
     .poll(() => searches.some((path) => path.includes("/catalog/series/")))
     .toBe(true);
   await page.getByRole("button", { name: "Movies" }).click();
-  await expect(page.getByText("Nothing found this time")).toBeVisible();
+  await expect(page.locator(".media-card strong").first()).toHaveText(
+    "Madame Web",
+  );
   await page.getByRole("button", { name: "Series" }).click();
   await expect(page.locator(".media-card strong").first()).toHaveText(
     "Madam Secretary",
