@@ -12,7 +12,7 @@ export const releases = [
     title: "Smarter movie and series search",
     changes: [
       "Searching from Home now opens combined movie and series results instead of silently defaulting to Movies.",
-      "Close title misspellings now offer a suggested correction while keeping a one-click option to search for exactly what was typed.",
+      "Title search now interprets multiple misspellings and omitted connecting words while keeping a one-click option to search for exactly what was typed.",
       "Search now combines every compatible add-on catalog with title metadata fallback, while All, Movies, and Series filters make results easy to narrow.",
       "The landing-page product preview now rotates automatically through Movies, Live TV, YouTube, and Sports while keeping every tab available for manual selection.",
       "Selecting a landing-page preview holds it longer, and rotation pauses while the showcase is hovered, keyboard-focused, hidden, or using reduced-motion preferences.",

@@ -2216,26 +2216,32 @@ test("home search covers movies and series and offers a spelling correction", as
     ),
   );
   const searches: string[] = [];
-  await page.route("https://api.themoviedb.org/3/search/multi**", (route) =>
-    route.fulfill({
+  await page.route("https://api.themoviedb.org/3/search/multi**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("query");
+    return route.fulfill({
       json: {
-        results: [
-          {
-            id: 999,
-            media_type: "movie",
-            title: "Madame Web",
-            release_date: "2024-02-14",
-          },
-        ],
+        results:
+          query === "secre" || query === "Madam Secretary"
+            ? [
+                {
+                  id: 61378,
+                  media_type: "tv",
+                  name: "Madam Secretary",
+                  first_air_date: "2014-09-21",
+                },
+              ]
+            : [],
       },
-    }),
-  );
+    });
+  });
   await page.route("https://smart-search.example/**", (route) => {
     const path = decodeURIComponent(new URL(route.request().url()).pathname);
     if (path.includes("/search=")) searches.push(path);
     return route.fulfill({
       json: {
-        metas: path.includes("/catalog/series/")
+        metas:
+          path.includes("/catalog/series/") &&
+          path.includes("search=Madam Secretary")
             ? [
                 {
                   ...meta,
@@ -2267,9 +2273,7 @@ test("home search covers movies and series and offers a spelling correction", as
     .poll(() => searches.some((path) => path.includes("/catalog/series/")))
     .toBe(true);
   await page.getByRole("button", { name: "Movies" }).click();
-  await expect(page.locator(".media-card strong").first()).toHaveText(
-    "Madame Web",
-  );
+  await expect(page.getByText("Nothing found this time")).toBeVisible();
   await page.getByRole("button", { name: "Series" }).click();
   await expect(page.locator(".media-card strong").first()).toHaveText(
     "Madam Secretary",

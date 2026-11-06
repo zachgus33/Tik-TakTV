@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 2.2
+**Backlog version:** 2.3
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -325,6 +325,8 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-05 - v2.1:** Reworked title search after a Home search for a TV series opened Discover in Movies and a one-letter misspelling returned no results. New searches default to a combined All scope across movie and series add-on catalogs, offer conservative TMDB-backed spelling corrections, preserve a one-click exact-query option, and retain Movies/Series filters. Search metadata loads lazily and failed add-ons remain isolated. Added pure spelling tests and the exact Home -> misspelling -> corrected series -> exact-query flow across Chromium, Firefox, iPhone, and iPad.
 
 - **2026-11-05 - v2.2:** Expanded the public landing layout across the complete desktop viewport, added low-height desktop sizing so the showcase, tabs, benefits, and account panel remain visible at 720p and 768p, and kept portrait layouts free of horizontal overflow. Shortened automatic showcase rotation slightly to 5.75 seconds. Verified layout metrics at 1920x1080, 1366x768, 1024x768, and 390x844 in addition to the cross-browser landing tests.
+
+- **2026-11-05 - v2.3:** Broadened title interpretation after a user showed that a close spelling could still reach an empty state with some add-on combinations. Correction discovery now considers metadata and add-on candidates, then uses a bounded set of individual-word and prefix probes only when the first pass has no confident match. The matcher accepts multiple mistakes and omitted short connector words while retaining the literal-query option and conservative protection against unrelated one-word substitutions. Added coverage for `madm secretery`, `oppenhiemer`, `game thrones`, and the full corrected/exact search flow on Chromium, Firefox, iPhone, and iPad.
 
 ## New feedback inbox (append here before triage)
 

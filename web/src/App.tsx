@@ -119,7 +119,10 @@ import {
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
 import { settingMatchesChoice } from "./catalog-settings";
-import { closestTitleCorrection } from "./smart-search";
+import {
+  closestTitleCorrection,
+  correctionSearchProbes,
+} from "./smart-search";
 
 const tvInterface =
   new URLSearchParams(location.search).get("tv") === "1" ||
@@ -2241,14 +2244,34 @@ export default function App() {
                 ),
               ),
             );
-            const suggestion = closestTitleCorrection(deferredQuery, [
+            const originalCandidates = [
               ...tmdbMatches.map((item) => item.name),
               ...catalogMatches.flatMap((match) =>
                 match.status === "fulfilled"
                   ? match.value.map((item) => item.name)
                   : [],
               ),
-            ]);
+            ];
+            let suggestion = exactSearch
+              ? searchSuggestion
+              : closestTitleCorrection(deferredQuery, originalCandidates);
+            if (!suggestion && !exactSearch) {
+              const probeMatches = await Promise.allSettled(
+                correctionSearchProbes(deferredQuery).map((probe) =>
+                  import("./tmdb").then((module) =>
+                    module.searchTmdbTitles(probe, c.signal),
+                  ),
+                ),
+              );
+              suggestion = closestTitleCorrection(deferredQuery, [
+                ...originalCandidates,
+                ...probeMatches.flatMap((match) =>
+                  match.status === "fulfilled"
+                    ? match.value.map((item) => item.name)
+                    : [],
+                ),
+              ]);
+            }
             if (!c.signal.aborted) setSearchSuggestion(suggestion);
             const searchTerm =
               suggestion && !exactSearch ? suggestion : deferredQuery;

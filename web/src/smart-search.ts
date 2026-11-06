@@ -8,6 +8,24 @@ function normalizeSearchText(value: string) {
     .replace(/\s+/g, " ");
 }
 
+const optionalTitleWords = new Set(["a", "an", "and", "of", "the", "to"]);
+
+export function correctionSearchProbes(query: string) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return [];
+  const words = normalized
+    .split(" ")
+    .filter((word) => word.length >= 4)
+    .sort((left, right) => right.length - left.length);
+  const probes: string[] = [];
+  for (const word of words) {
+    if (word !== normalized) probes.push(word);
+    if (word.length >= 6)
+      probes.push(word.slice(0, Math.max(4, Math.ceil(word.length * 0.55))));
+  }
+  return [...new Set(probes)].slice(0, 4);
+}
+
 function editDistance(left: string, right: string) {
   const row = Array.from({ length: right.length + 1 }, (_, index) => index);
   for (let l = 1; l <= left.length; l += 1) {
@@ -34,23 +52,42 @@ export function closestTitleCorrection(query: string, titles: string[]) {
   for (const title of titles) {
     const normalizedTitle = normalizeSearchText(title);
     if (!normalizedTitle || normalizedTitle === normalizedQuery) continue;
-    const titleWords = normalizedTitle.split(" ");
-    if (titleWords.length !== queryWords.length) continue;
-    const distances = queryWords.map((word, index) =>
-      editDistance(word, titleWords[index]),
+    let comparedQueryWords = queryWords;
+    let comparedTitleWords = normalizedTitle.split(" ");
+    if (comparedTitleWords.length !== comparedQueryWords.length) {
+      if (queryWords.length < 2) continue;
+      comparedQueryWords = queryWords.filter(
+        (word) => !optionalTitleWords.has(word),
+      );
+      comparedTitleWords = comparedTitleWords.filter(
+        (word) => !optionalTitleWords.has(word),
+      );
+    }
+    if (comparedTitleWords.length !== comparedQueryWords.length) continue;
+    const distances = comparedQueryWords.map((word, index) =>
+      editDistance(word, comparedTitleWords[index]),
     );
     if (
       distances.some(
         (distance, index) =>
           distance /
-            Math.max(queryWords[index].length, titleWords[index].length) >
+            Math.max(
+              comparedQueryWords[index].length,
+              comparedTitleWords[index].length,
+            ) >
           0.34,
       )
     )
       continue;
-    const distance = editDistance(normalizedQuery, normalizedTitle);
+    const comparedQuery = comparedQueryWords.join(" ");
+    const comparedTitle = comparedTitleWords.join(" ");
+    const distance = editDistance(comparedQuery, comparedTitle);
+    const maximumDistance =
+      comparedQueryWords.length === 1 && comparedQuery.length < 8
+        ? 1
+        : Math.max(1, Math.ceil(comparedQuery.length * 0.2));
     if (
-      distance > Math.max(1, Math.floor(normalizedQuery.length * 0.16)) ||
+      distance > maximumDistance ||
       distance >= best.distance
     )
       continue;
