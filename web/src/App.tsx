@@ -220,6 +220,15 @@ function localLiveRegion() {
   return liveRegions.some(([code]) => code === locale) ? locale : "";
 }
 
+type LandingPreview = "home" | "live" | "youtube" | "sports";
+
+const landingPreviews: LandingPreview[] = ["home", "live", "youtube", "sports"];
+
+export function nextLandingPreview(current: LandingPreview) {
+  const index = landingPreviews.indexOf(current);
+  return landingPreviews[(index + 1) % landingPreviews.length];
+}
+
 function ProfileGate({
   onEnter,
   onSetup,
@@ -244,10 +253,48 @@ function ProfileGate({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-  const [preview, setPreview] = useState<
-    "home" | "live" | "sports" | "youtube"
-  >("home");
+  const [preview, setPreview] = useState<LandingPreview>("home");
+  const [previewPaused, setPreviewPaused] = useState(false);
+  const [manualPreviewHold, setManualPreviewHold] = useState(false);
+  const [pageVisible, setPageVisible] = useState(
+    () => document.visibilityState === "visible",
+  );
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    const updateVisibility = () =>
+      setPageVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+  useEffect(() => {
+    if (!manualPreviewHold) return;
+    const timeout = window.setTimeout(
+      () => setManualPreviewHold(false),
+      12_000,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [manualPreviewHold, preview]);
+  useEffect(() => {
+    if (
+      email ||
+      busy ||
+      previewPaused ||
+      manualPreviewHold ||
+      !pageVisible ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    const timeout = window.setTimeout(
+      () => setPreview((current) => nextLandingPreview(current)),
+      6_500,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [busy, email, manualPreviewHold, pageVisible, preview, previewPaused]);
+  function selectPreview(next: LandingPreview) {
+    setPreview(next);
+    setManualPreviewHold(true);
+  }
   async function refresh() {
     const { data } = await account.auth.getSession();
     window.dispatchEvent(new Event("account-auth-changed"));
@@ -316,7 +363,16 @@ function ProfileGate({
             Bring movies, series, live TV, YouTube, music, and your own media
             services together in a clean experience built for every screen.
           </p>
-          <div className="profile-gate-preview">
+          <div
+            className="profile-gate-preview"
+            onMouseEnter={() => setPreviewPaused(true)}
+            onMouseLeave={() => setPreviewPaused(false)}
+            onFocusCapture={() => setPreviewPaused(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node))
+                setPreviewPaused(false);
+            }}
+          >
             <div className="profile-preview-window">
               <span className="profile-preview-dots" aria-hidden="true">
                 <i />
@@ -324,6 +380,7 @@ function ProfileGate({
                 <i />
               </span>
               <img
+                key={preview}
                 className={`profile-preview-${preview}`}
                 src={`/showcase/${preview}.png`}
                 alt={
@@ -344,25 +401,45 @@ function ProfileGate({
             >
               <button
                 className={preview === "home" ? "active" : ""}
-                onClick={() => setPreview("home")}
+                role="tab"
+                aria-selected={preview === "home"}
+                onClick={(event) => {
+                  selectPreview("home");
+                  if (event.detail > 0) event.currentTarget.blur();
+                }}
               >
                 <Film size={16} /> Movies & series
               </button>
               <button
                 className={preview === "live" ? "active" : ""}
-                onClick={() => setPreview("live")}
+                role="tab"
+                aria-selected={preview === "live"}
+                onClick={(event) => {
+                  selectPreview("live");
+                  if (event.detail > 0) event.currentTarget.blur();
+                }}
               >
                 <Radio size={16} /> Live TV & guide
               </button>
               <button
                 className={preview === "youtube" ? "active" : ""}
-                onClick={() => setPreview("youtube")}
+                role="tab"
+                aria-selected={preview === "youtube"}
+                onClick={(event) => {
+                  selectPreview("youtube");
+                  if (event.detail > 0) event.currentTarget.blur();
+                }}
               >
                 <Youtube size={16} /> YouTube & music
               </button>
               <button
                 className={preview === "sports" ? "active" : ""}
-                onClick={() => setPreview("sports")}
+                role="tab"
+                aria-selected={preview === "sports"}
+                onClick={(event) => {
+                  selectPreview("sports");
+                  if (event.detail > 0) event.currentTarget.blur();
+                }}
               >
                 <Trophy size={16} /> Sports & scores
               </button>

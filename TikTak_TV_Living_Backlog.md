@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 1.9
+**Backlog version:** 2.0
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -319,6 +319,8 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-05 — v1.8:** User testing exposed severe lag and an outer-page scroll lock after minimizing Live TV from both the guide and Sports, especially through Sports → Football → ESPN on a large provider. Root causes were global dialog scroll locking, top-level mini-player state rebuilding the large Live TV/Sports tree, and continuously queued Sports guide scans. Isolated player state, exempted only the nonmodal mini-player from scroll locking, memoized Sports playback/render boundaries, and scheduled guide scans in idle-time slices with an Android/Fire TV fallback. Added the exact reported Sports sequence and outer-page Live TV scroll regression tests. Validation passed 77 unit tests, production build, and all 224 runnable Playwright checks across desktop Chromium, Firefox, iPhone/WebKit, and iPad/WebKit (12 intentional engine-specific skips). Physical Shield/Google TV/Fire TV confirmation remains open.
 
 - **2026-11-05 — v1.9:** User reported that the Sports page appeared to reload every 30–60 seconds and lose their browsing position, and that real live score games were buried among generic events. Sports now keeps its existing results mounted while guide scans rebuild in the background, applies completed scans atomically, pauses score polling in hidden tabs, and ignores unchanged score responses. Added a top-priority Live scores section for matched games that are live and contain real team scores. Validation passed 78 unit tests, production build, and the score/filter/playback/mini-player/mobile-layout flow across desktop Chromium, Firefox, iPhone/WebKit, and iPad/WebKit. Physical TV confirmation remains open.
+
+- **2026-11-05 - v2.0:** Added an automatic landing-page showcase that cycles through Movies, Live TV, YouTube, and Sports every 6.5 seconds. Manual selection holds the chosen preview for 12 seconds; hover, keyboard focus, hidden tabs, and reduced-motion preferences pause rotation. Tabs remain directly selectable and expose their selected state to assistive technology. Added desktop Chromium/Firefox timing and interaction coverage plus compact iPhone/iPad layout checks.
 
 ## New feedback inbox (append here before triage)
 

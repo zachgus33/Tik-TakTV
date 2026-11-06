@@ -7104,6 +7104,17 @@ button.primary:hover,
   height: 100%;
   object-fit: contain;
   object-position: center;
+  animation: profile-preview-arrive 360ms ease-out both;
+}
+@keyframes profile-preview-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .profile-preview-dots {
   position: absolute;
@@ -7153,6 +7164,11 @@ button.primary:hover,
   color: #fff;
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: color-mix(in srgb, var(--accent) 22%, #16121b);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-preview-window img {
+    animation: none;
+  }
 }
 .profile-gate-points {
   display: flex;

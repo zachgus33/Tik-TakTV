@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.9";
+export const latestRelease = "2026.11.05.10";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,10 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 5, 2026",
-    title: "Stable Sports browsing and live scores",
+    title: "Automatic previews and stable Sports browsing",
     changes: [
+      "The landing-page product preview now rotates automatically through Movies, Live TV, YouTube, and Sports while keeping every tab available for manual selection.",
+      "Selecting a landing-page preview holds it longer, and rotation pauses while the showcase is hovered, keyboard-focused, hidden, or using reduced-motion preferences.",
       "Sports guide refreshes now update invisibly without clearing the event list, changing filters, collapsing loaded results, or moving you away from the game you were viewing.",
       "Live games with verified score data now appear in a dedicated Live scores section above ordinary live and upcoming sports listings.",
       "Score polling pauses while TikTak TV is hidden and unchanged score responses no longer rebuild the Sports screen.",

@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.9"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.10"));
   });
   await mockSources(page);
 });
@@ -124,14 +124,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Stable Sports browsing and live scores/,
+    name: /Automatic previews and stable Sports browsing/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Stable Sports browsing and live scores",
+      name: "Automatic previews and stable Sports browsing",
     }),
   ).toBeVisible();
   await page.reload();
@@ -420,6 +420,42 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await expect(
     page.getByText(/starts with Nuvio Catalog Addon.*OpenSubtitles v3/),
   ).toBeVisible();
+});
+test("landing showcase rotates automatically and manual selection stays longer", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.addInitScript(() =>
+    localStorage.removeItem("tiktak:established-local"),
+  );
+  await page.goto("/#home");
+  if ((page.viewportSize()?.width ?? 0) <= 900) {
+    await expect(page.locator(".profile-gate-preview")).toBeHidden();
+    await expect(
+      page.getByRole("heading", { name: "Your entertainment, your way" }),
+    ).toBeInViewport();
+    return;
+  }
+  const preview = page.locator(".profile-preview-window img");
+  const home = page.getByRole("tab", { name: "Movies & series" });
+  const live = page.getByRole("tab", { name: "Live TV & guide" });
+  const sports = page.getByRole("tab", { name: "Sports & scores" });
+  await expect(home).toHaveAttribute("aria-selected", "true");
+  await expect(preview).toHaveAttribute("src", "/showcase/home.png");
+  await page.clock.fastForward(6_600);
+  await expect(live).toHaveAttribute("aria-selected", "true");
+  await expect(preview).toHaveAttribute("src", "/showcase/live.png");
+  await sports.click();
+  await expect(preview).toHaveAttribute("src", "/showcase/sports.png");
+  await page.clock.fastForward(11_500);
+  await expect(sports).toHaveAttribute("aria-selected", "true");
+  await page
+    .getByRole("heading", { name: "Your entertainment, your way" })
+    .click();
+  await page.clock.fastForward(700);
+  await page.waitForTimeout(0);
+  await page.clock.fastForward(6_600);
+  await expect(home).toHaveAttribute("aria-selected", "true");
 });
 test("TV sign-in and account creation remain inside a 720p viewport", async ({
   page,
