@@ -84,6 +84,7 @@ jobs:
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-720p.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-720p.txt
             grep -q "TikTakNativeTv.*Shell preview activity requested" native-tv-shell-720p-logcat.txt
+            grep -q "TikTakNativeTv.*Shell preview composed" native-tv-shell-720p-logcat.txt
 
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 1920x1080
@@ -99,6 +100,7 @@ jobs:
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-1080p.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-1080p.txt
             grep -q "TikTakNativeTv.*Shell preview activity requested" native-tv-shell-1080p-logcat.txt
+            grep -q "TikTakNativeTv.*Shell preview composed" native-tv-shell-1080p-logcat.txt
 
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 3840x2160
@@ -114,6 +116,7 @@ jobs:
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-4k.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-4k.txt
             grep -q "TikTakNativeTv.*Shell preview activity requested" native-tv-shell-4k-logcat.txt
+            grep -q "TikTakNativeTv.*Shell preview composed" native-tv-shell-4k-logcat.txt
 
             # Run the sign-in and TV-keyboard smoke test last so its IME window
             # cannot cover the deterministic shell screenshots above.
