@@ -85,6 +85,11 @@ jobs:
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity.txt
             ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
 
+            # The auth smoke test intentionally opens the TV keyboard. Dismiss
+            # it before restarting into the deterministic shell preview so the
+            # screenshots capture the app window rather than the stale IME.
+            adb shell input keyevent 4
+            sleep 1
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 1280x720
             adb shell wm density 213
