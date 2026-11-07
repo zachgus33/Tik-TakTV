@@ -87,7 +87,7 @@ internal fun TikTakTvNavigationRail(
             .width(TikTakTvNavigationRailWidth)
             .fillMaxHeight()
             .background(MaterialTheme.nuvio.colors.surface.copy(alpha = 0.96f))
-            .padding(horizontal = 14.dp, vertical = 24.dp),
+            .padding(horizontal = 14.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -104,11 +104,11 @@ internal fun TikTakTvNavigationRail(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             entries.forEach { entry ->
                 TikTakTvNavigationItem(
@@ -152,7 +152,7 @@ private fun TikTakTvNavigationItem(
         label = "tv_nav_border",
     )
     val itemSize by animateDpAsState(
-        targetValue = if (focused) 78.dp else 72.dp,
+        targetValue = if (focused) 64.dp else 58.dp,
         label = "tv_nav_item_size",
     )
 
@@ -175,7 +175,7 @@ private fun TikTakTvNavigationItem(
                 role = Role.Tab,
                 onClick = onClick,
             )
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -183,7 +183,7 @@ private fun TikTakTvNavigationItem(
             painter = painterResource(entry.icon),
             contentDescription = entry.label,
             tint = if (focused || selected) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.textMuted,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(24.dp),
         )
         Text(
             text = entry.label,
