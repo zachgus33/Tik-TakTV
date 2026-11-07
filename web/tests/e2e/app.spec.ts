@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.2"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.3"));
   });
   await mockSources(page);
 });
@@ -187,6 +187,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       mute() {
         this.muted = true;
       }
+      nextVideo() {
+        (window as any).__youtubePlaylistAdvanced = true;
+      }
       pauseVideo() {
         this.playing = false;
         this.options.events.onStateChange({ data: 2, target: this });
@@ -205,10 +208,14 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       fail(code: number) {
         this.options.events.onError({ data: code, target: this });
       }
+      end() {
+        this.playing = false;
+        this.options.events.onStateChange({ data: 0, target: this });
+      }
     }
     (window as any).YT = {
       Player: MockYouTubePlayer,
-      PlayerState: { PLAYING: 1 },
+      PlayerState: { ENDED: 0, PLAYING: 1 },
     };
   });
   await page.route("https://api.tiktaktv.me/sponsorblock", (route) =>
@@ -235,6 +242,13 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
             title: "Account song",
             channel: "Test artist",
             thumbnail: "https://img.example/song.jpg",
+            kind: "music",
+          },
+          {
+            videoId: "5qap5aO4i9A",
+            title: "Second account song",
+            channel: "Second artist",
+            thumbnail: "https://img.example/second-song.jpg",
             kind: "music",
           },
         ],
@@ -349,7 +363,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
   ).toBeVisible();
-  await expect(page.getByText("Account song")).toBeVisible();
+  await expect(page.getByText("Account song", { exact: true })).toBeVisible();
   await expect(page.getByText("Saved music playlist")).toBeVisible();
   await expect(page.getByText("Account recommendation")).toBeHidden();
   await page
@@ -376,6 +390,27 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       exact: false,
     }),
   ).toBeHidden();
+  const autoplay = page.getByLabel("Autoplay next YouTube item");
+  await expect(autoplay).toBeChecked();
+  await autoplay.evaluate((input: HTMLInputElement) => input.click());
+  await expect(autoplay).not.toBeChecked();
+  await page.evaluate(() => {
+    const players = (window as any).__youtubePlayers;
+    players[players.length - 1].end();
+  });
+  await page.waitForTimeout(800);
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId))
+    .toBe("M7lc1UVf-VE");
+  await autoplay.evaluate((input: HTMLInputElement) => input.click());
+  await expect(autoplay).toBeChecked();
+  await page.evaluate(() => {
+    const players = (window as any).__youtubePlayers;
+    players[players.length - 1].end();
+  });
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId))
+    .toBe("5qap5aO4i9A");
 
   await page.goto("/?tv=1#youtube");
   await page.getByText("Account recommendation", { exact: true }).click();
@@ -404,12 +439,14 @@ test("SponsorBlock category choices persist in Playback settings", async ({
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Playback/ }).click();
   await expect(
-    page.getByRole("heading", { name: "YouTube SponsorBlock" }),
+    page.getByRole("heading", { name: "YouTube playback" }),
   ).toBeVisible();
+  await page.getByLabel("Autoplay next YouTube item").uncheck();
   await page.getByLabel("Self-promotion").uncheck();
   await page.getByLabel("Enable SponsorBlock skipping").uncheck();
   await page.reload();
   await page.getByRole("button", { name: /Playback/ }).click();
+  await expect(page.getByLabel("Autoplay next YouTube item")).not.toBeChecked();
   await expect(page.getByLabel("Self-promotion")).not.toBeChecked();
   await expect(
     page.getByLabel("Enable SponsorBlock skipping"),

@@ -37,10 +37,15 @@ import {
   type YouTubeSelection,
 } from "./youtube";
 import SponsorBlockSettings from "./SponsorBlockSettings";
+import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
 import {
   readSponsorBlockPreferences,
   subscribeSponsorBlockPreferences,
 } from "./sponsorblock";
+import {
+  readYouTubeAutoplayPreferences,
+  subscribeYouTubeAutoplayPreferences,
+} from "./youtube-autoplay";
 
 type Player = {
   destroy(): void;
@@ -51,6 +56,7 @@ type Player = {
   getVideoData(): { video_id?: string; title?: string; author?: string };
   isMuted(): boolean;
   mute(): void;
+  nextVideo?(): void;
   pauseVideo(): void;
   playVideo(): void;
   seekTo(seconds: number, allowSeekAhead?: boolean): void;
@@ -64,7 +70,10 @@ type PlayerConstructor = new (
 
 declare global {
   interface Window {
-    YT?: { Player: PlayerConstructor; PlayerState: { PLAYING: number } };
+    YT?: {
+      Player: PlayerConstructor;
+      PlayerState: { ENDED: number; PLAYING: number };
+    };
     onYouTubeIframeAPIReady?: () => void;
     __tiktakYouTubeApi?: Promise<void>;
     TikTakTV?: {
@@ -132,6 +141,9 @@ export default function YouTubeHub() {
     readSponsorBlockPreferences,
   );
   const [embedError, setEmbedError] = useState<number | null>(null);
+  const [autoplayPreferences, setAutoplayPreferences] = useState(
+    readYouTubeAutoplayPreferences,
+  );
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const tvControlsTimerRef = useRef<number>(0);
@@ -139,7 +151,9 @@ export default function YouTubeHub() {
   const segmentsRef = useRef<SponsorSegment[]>([]);
   const segmentVideoRef = useRef("");
   const failedMusicRef = useRef(new Set<string>());
-  const musicCandidatesRef = useRef<YouTubeSelection[]>([]);
+  const playbackCandidatesRef = useRef<YouTubeSelection[]>([]);
+  const autoplayEnabledRef = useRef(autoplayPreferences.enabled);
+  const endedAdvanceRef = useRef(false);
   const selectRef = useRef<
     (next: YouTubeSelection, recovering?: boolean) => Promise<void>
   >(async () => {});
@@ -147,17 +161,18 @@ export default function YouTubeHub() {
   const [resultsTitle, setResultsTitle] = useState("Search results");
   const smartTubeAvailable = tvMode && !!window.TikTakTV?.openSmartTube;
 
-  musicCandidatesRef.current = [
+  playbackCandidatesRef.current = [
     ...results,
-    ...(account?.musicFeed ?? []),
-    ...(account?.playlists ?? []).filter((item) => item.kind === "music"),
-    ...history.filter((item) => item.kind === "music"),
+    ...(kind === "music"
+      ? (account?.musicFeed ?? [])
+      : (account?.videoFeed ?? [])),
   ].filter(
     (item, index, items) =>
       !!item.videoId &&
       items.findIndex((candidate) => candidate.videoId === item.videoId) ===
         index,
   );
+  autoplayEnabledRef.current = autoplayPreferences.enabled;
 
   playingRef.current = playing;
   const revealTvControls = useCallback(() => {
@@ -191,6 +206,10 @@ export default function YouTubeHub() {
   }, []);
 
   useEffect(() => subscribeSponsorBlockPreferences(setSponsorPreferences), []);
+  useEffect(
+    () => subscribeYouTubeAutoplayPreferences(setAutoplayPreferences),
+    [],
+  );
 
   useEffect(() => {
     if (!device) return;
@@ -329,6 +348,7 @@ export default function YouTubeHub() {
     let player: Player | null = null;
     setReady(false);
     setPlaying(false);
+    endedAdvanceRef.current = false;
     void loadPlayerApi()
       .then(() => {
         if (cancelled || !hostRef.current || !window.YT?.Player) return;
@@ -370,6 +390,32 @@ export default function YouTubeHub() {
                     segmentsRef.current = segments;
                 });
               }
+              if (
+                event.data === window.YT?.PlayerState.ENDED &&
+                autoplayEnabledRef.current &&
+                !endedAdvanceRef.current
+              ) {
+                endedAdvanceRef.current = true;
+                if (selection.playlistId && event.target.nextVideo) {
+                  event.target.nextVideo();
+                  endedAdvanceRef.current = false;
+                  return;
+                }
+                const currentIndex = playbackCandidatesRef.current.findIndex(
+                  (candidate) => candidate.videoId === selection.videoId,
+                );
+                const next =
+                  currentIndex >= 0
+                    ? playbackCandidatesRef.current[currentIndex + 1]
+                    : playbackCandidatesRef.current[0];
+                if (next) {
+                  setNotice(`Up next: ${next.title}`);
+                  window.setTimeout(() => {
+                    setNotice("");
+                    void selectRef.current(next, true);
+                  }, 650);
+                }
+              }
             },
             onError: (event: { data?: number }) => {
               const code = Number(event.data || 0);
@@ -381,7 +427,7 @@ export default function YouTubeHub() {
                 [100, 101, 150].includes(code)
               ) {
                 failedMusicRef.current.add(currentId);
-                const next = musicCandidatesRef.current.find(
+                const next = playbackCandidatesRef.current.find(
                   (candidate) =>
                     candidate.videoId &&
                     !failedMusicRef.current.has(candidate.videoId),
@@ -488,7 +534,12 @@ export default function YouTubeHub() {
         setSelection(null);
         return;
       }
-      if (active?.closest(".youtube-controls, .sponsorblock-settings")) return;
+      if (
+        active?.closest(
+          ".youtube-controls, .sponsorblock-settings, .youtube-autoplay-setting",
+        )
+      )
+        return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         seek(-10);
@@ -777,6 +828,7 @@ export default function YouTubeHub() {
                 )}
               </div>
               <SponsorBlockSettings compact />
+              <YouTubeAutoplaySetting compact />
             </div>
           </dialog>
         ) : (
@@ -843,6 +895,7 @@ export default function YouTubeHub() {
                 </button>
               </div>
               <SponsorBlockSettings compact />
+              <YouTubeAutoplaySetting compact />
             </div>
           </section>
         ))}

@@ -5834,6 +5834,8 @@ button.primary:hover,
 }
 .sponsorblock-master,
 .sponsorblock-master > span,
+.youtube-autoplay-setting,
+.youtube-autoplay-setting > span,
 .sponsorblock-categories label,
 .youtube-error-actions,
 .youtube-error-actions a,
@@ -5844,6 +5846,32 @@ button.primary:hover,
 .sponsorblock-master {
   justify-content: space-between;
   gap: 18px;
+}
+.youtube-autoplay-setting {
+  justify-content: space-between;
+  gap: 18px;
+}
+.youtube-autoplay-setting > span {
+  gap: 11px;
+}
+.youtube-autoplay-setting > span > span {
+  display: grid;
+  gap: 3px;
+}
+.youtube-autoplay-setting small {
+  color: var(--muted);
+}
+.youtube-autoplay-setting input {
+  width: 19px;
+  height: 19px;
+  min-height: 0;
+  flex: 0 0 auto;
+  accent-color: var(--pink);
+}
+.settings-card .youtube-autoplay-setting + .sponsorblock-settings {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 .sponsorblock-master > span {
   gap: 11px;
@@ -5896,6 +5924,13 @@ button.primary:hover,
 .sponsorblock-settings.compact {
   position: relative;
   min-width: 220px;
+}
+.youtube-autoplay-setting.compact {
+  min-width: 165px;
+  font-size: 0.78rem;
+}
+.youtube-autoplay-setting.compact > span {
+  gap: 7px;
 }
 .sponsorblock-settings.compact .sponsorblock-master {
   font-size: 0.78rem;
@@ -6060,7 +6095,11 @@ button.primary:hover,
   .sponsorblock-settings.compact {
     width: 100%;
   }
+  .youtube-autoplay-setting.compact {
+    width: 100%;
+  }
   .sponsorblock-settings.compact .sponsorblock-categories {
+    position: static;
     right: auto;
     left: 0;
     width: min(100%, 420px);

@@ -57,6 +57,7 @@ import {
 } from "./WhatsNew";
 import FeedbackCenter from "./FeedbackCenter";
 import SponsorBlockSettings from "./SponsorBlockSettings";
+import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -282,10 +283,11 @@ export default function Settings(props: Props) {
               <div className="card-heading">
                 <ShieldCheck />
                 <div>
-                  <h2>YouTube SponsorBlock</h2>
-                  <p>Choose which parts TikTak TV skips in YouTube videos.</p>
+                  <h2>YouTube playback</h2>
+                  <p>Manage continuous play and SponsorBlock behavior.</p>
                 </div>
               </div>
+              <YouTubeAutoplaySetting />
               <SponsorBlockSettings open />
               <p className="hint">
                 These choices apply immediately to the YouTube player on this
