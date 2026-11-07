@@ -187,19 +187,20 @@ The TV edition is distributed as a sideloadable Android APK. **Downloader code: 
 | Fire TV / Firestick | TV APK | D-pad/remote-first interface |
 | Android TV / Google TV | TV APK | Remote-first interface; performance and codec support depend on device |
 
-## What's new in the 0.3.5 TV update?
+## What's new in the 0.3.6 TV update?
 
-The [0.3.5 community release announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) highlights:
+The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest) includes:
 
-- **Live TV mini-player** while browsing the guide.
-- **Refreshed two-hour EPG** with better program detail, channel artwork, and filters.
-- **Sports** with live/upcoming events, scores, followed events, and IPTV channel matching.
-- **Better Android/Google/Fire TV navigation**, including the compact sidebar and auto-hiding player controls.
-- **YouTube improvements** and optional SmartTube handoff.
-- **In-app bug reports/feature requests**, screenshots, and What's New history.
-- **Account/profile sync and responsive layout improvements.**
+- **Every compatible movie and episode source remains selectable** in the player, even when it is outside the smaller automatic fallback set.
+- **Clearer add-on search progress** names each eligible add-on that responded, failed, or was temporarily paused without exposing private add-on addresses.
+- **Audio-aware playback selection and conversion** improves handling of sources whose original audio format is not supported by the device.
+- **Broader older-TV compatibility** with a Chromium 69-compatible web bundle for Android 9 televisions.
+- **A diagnosable TV startup screen** with retry controls and the installed WebView version instead of leaving the screen blank when startup fails.
+- The 0.3.5 features remain included: **Live TV mini-player, refreshed EPG, Sports and scores, compact TV navigation, SmartTube handoff, in-app feedback, and responsive layouts.**
 
-These are shipped/release-announced features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
+The shared web interface also now gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. This documents how the existing privacy-safe counters are calculated without changing their historical meaning.
+
+These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
 
 ## Feedback, bug reports & feature requests
 

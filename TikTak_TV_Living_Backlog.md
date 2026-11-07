@@ -251,9 +251,10 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 ### RELEASE-01 · Lightweight release notes / What's New
 
-- **Status:** **Verified.** A dismissible once-per-release prompt and reopenable update history are implemented in-app.
+- **Status:** **Verified.** A dismissible once-per-release prompt and reopenable update history are implemented in-app. The public README's current-update section is maintained with published changes.
+- **Release discipline:** Every published change must update the relevant README release/current-update text. Major changes to appearance, behavior, compatibility, setup, or screenshots must also update the corresponding README feature description, image, limitation, or instruction without replacing unrelated documentation.
 - **Add or refine:** In-app update notes, release version/date, fixes/new features/known limitations, link to full changelog, show once per release or allow reopening; especially helpful to testers who asked whether fixes landed.
-- **Acceptance:** User knows whether a known problem has been addressed; release notes correspond to actual shipped builds.
+- **Acceptance:** User knows whether a known problem has been addressed; in-app notes and README claims correspond to actual shipped builds, affected links/images are checked, and unchanged README content remains intact.
 
 ### RELEASE-02 · Reliable update/install process
 
@@ -317,7 +318,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 ### GROWTH-03 · README / compatibility / known issues page
 
-- **Status:** Suggested.
+- **Status:** **In progress.** The README documents the web and TV experiences, current TV version, Downloader installation, major features, screenshots, feedback paths and privacy boundaries. It must remain synchronized with each published release.
 - **Add:** Official web vs TV builds, install details, tested Android/Google TV/Shield/Fire TV devices, supported inputs, remote layout, known playback/add-on limitations, troubleshooting guide, source/privacy notes.
 - **Acceptance:** New tester can self-serve installation and provide actionable feedback without a private chat.
 
@@ -384,6 +385,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-06 — v2.7:** Added BUG-09/10 for Shield audio and manual source selection. Implemented named per-add-on query status, the in-player all-source chooser, audio-aware ranking/conversion, Chromium 69 bundle targeting/polyfills, a native TV startup timeout/retry screen with WebView diagnostics, and API 28 CI coverage. Commit `224c2e103` passed 85 unit tests, production build, the 252-case Chromium/Firefox/iPhone/iPad matrix (236 passes, 15 intentional skips, one isolated iPad timing miss that passed immediately on clean rerun), Android unit/lint/APK build, API 28/API 34 TV emulator smoke, production deploy and signed-release publishing. Public TV metadata is version code 9 / version 0.3.6 with SHA-256 `fec125a42490e03359d4516db63cc63d8b6406cf425758911f970958d91f0bb0`. Physical Shield/Wisdom Share confirmation remains required before hardware-only items become Verified.
 - **2026-11-06/07 — v2.8:** Added the newest private-dashboard and repository screenshots: 157 accounts, 59 signed in over 24 hours, 13 returning, 16.2% D1 retention among 111 eligible, 3 sessions/account, 2.6-minute average active session, 52 new sign-ups/30 days, 663 device IDs (122 TV app), 841 visits and 10 GitHub stars. Recorded directional deltas from the older displayed counters while flagging that cohort windows, D1 eligibility, returning-account logic and device-ID stability require a definition audit before trend claims. No new active bug or user report was introduced by this snapshot.
 - **2026-11-06 — v2.9:** Completed the analytics-definition audit without changing historical calculation semantics. The private dashboard now shows returned and eligible retention counts, labels the average as heartbeat-observed session time, identifies returning accounts as activity on 2+ UTC dates, and includes an expandable definition panel. The service returns versioned definitions for signed-in activity, returning accounts, sessions, average session duration, cumulative retention, rotating device IDs, 30-day platform counts and 30-minute visit boundaries. Added service contract assertions; 12 service tests, 85 web tests and the production build pass.
+- **2026-11-06 — v3.0:** Made README synchronization part of the release checklist. Updated the current TV section from 0.3.5 to 0.3.6 with all-source manual selection, named add-on progress, audio-aware playback handling, Android 9/Chromium 69 compatibility, startup diagnostics, retained 0.3.5 features and the versioned private analytics definitions. Future published changes must update affected README release text, features, screenshots, compatibility notes and setup instructions while preserving unrelated documentation.
 
 ## New feedback inbox (append here before triage)
 
