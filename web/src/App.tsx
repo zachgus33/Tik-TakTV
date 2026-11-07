@@ -115,6 +115,7 @@ import {
   rankedStreams,
   streamQuality,
   streamAudioLanguages,
+  streamAudioCodec,
   seeders,
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
@@ -965,6 +966,13 @@ function Detail({
   const [error, setError] = useState("");
   const [streamsLoaded, setStreamsLoaded] = useState(false);
   const [streamSummary, setStreamSummary] = useState("");
+  const [streamSources, setStreamSources] = useState<
+    {
+      name: string;
+      status: "responded" | "failed" | "paused";
+      streams: number;
+    }[]
+  >([]);
   const [downloadMode, setDownloadMode] = useState(false);
   const [readyDownload, setReadyDownload] = useState<{
     url: string;
@@ -1067,39 +1075,41 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
-      const compatibilityMode = getService()
-        ? compatibilityPlaybackMode(stream)
-        : undefined;
+      const playbackForStream = (candidate: Stream): Playback => {
+        const quality = streamQuality(candidate);
+        const audio = streamAudioCodec(candidate);
+        return {
+          item,
+          episode: ep,
+          url: candidate.url!,
+          resume: position,
+          sourceLabel: candidate.name ?? candidate.addonName ?? "Stream",
+          sourceDetail: [
+            candidate.addonName && candidate.addonName !== candidate.name
+              ? candidate.addonName
+              : undefined,
+            quality ? `${quality}p` : "Quality not reported",
+            audio ? `Audio: ${audio.toUpperCase()}` : undefined,
+            candidate.title,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          mode: getService() ? compatibilityPlaybackMode(candidate) : undefined,
+          requestHeaders: (
+            candidate.behaviorHints?.proxyHeaders as
+              { request?: Record<string, string> } | undefined
+          )?.request,
+          subtitleRequest: { addons, id: ep?.id ?? item.id },
+          relay: debridStream(candidate),
+        };
+      };
       onPlay({
-        item,
-        episode: ep,
-        url: stream.url!,
-        resume: position,
-        mode: compatibilityMode,
-        requestHeaders: (
-          stream.behaviorHints?.proxyHeaders as
-            { request?: Record<string, string> } | undefined
-        )?.request,
-        subtitleRequest: { addons, id: ep?.id ?? item.id },
-        relay: debridStream(stream),
+        ...playbackForStream(stream),
+        automaticFallbackCount: 4,
         alternatives: fallbackStreams
           .filter((candidate) => directStream(candidate))
-          .slice(0, 4)
-          .map((candidate) => ({
-            item,
-            episode: ep,
-            url: candidate.url!,
-            resume: position,
-            mode: getService()
-              ? compatibilityPlaybackMode(candidate)
-              : undefined,
-            requestHeaders: (
-              candidate.behaviorHints?.proxyHeaders as
-                { request?: Record<string, string> } | undefined
-            )?.request,
-            subtitleRequest: { addons, id: ep?.id ?? item.id },
-            relay: debridStream(candidate),
-          })),
+          .slice(0, 49)
+          .map(playbackForStream),
       });
       return;
     }
@@ -1304,6 +1314,7 @@ function Detail({
     setStreams([]);
     setStreamsLoaded(false);
     setStreamSummary("");
+    setStreamSources([]);
     setFiles(null);
     const position =
       resume && resume.episode?.id === ep?.id ? resume?.seconds : undefined;
@@ -1347,6 +1358,7 @@ function Detail({
           `${result.failed ? `; ${result.failed} failed or timed out` : ""}` +
           `${incompatible ? `; ${incompatible} do not support this title ID/type` : ""}.`,
       );
+      setStreamSources(result.sources);
       const hasDebrid = !!torboxKey || !!realDebridKey;
       const ranked = rankedStreams(result.streams, hasDebrid);
       const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
@@ -1614,9 +1626,28 @@ function Detail({
           </div>
         )}
         {streamSummary && (
-          <p className="muted stream-search-summary" role="status">
-            {streamSummary}
-          </p>
+          <div className="stream-search-summary" role="status">
+            <p className="muted">{streamSummary}</p>
+            {!!streamSources.length && (
+              <details>
+                <summary>Show queried add-ons</summary>
+                <ul>
+                  {streamSources.map((source, index) => (
+                    <li key={`${source.name}-${index}`}>
+                      <strong>{source.name}</strong>
+                      <span>
+                        {source.status === "responded"
+                          ? `${source.streams} stream${source.streams === 1 ? "" : "s"}`
+                          : source.status === "paused"
+                            ? "Temporarily paused"
+                            : "Failed or timed out"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
         )}
         {readyDownload && (
           <div className="download-ready" role="status">
@@ -2560,40 +2591,43 @@ export default function App() {
     ],
     [categoryList, playlist],
   );
-  const playChannel = useCallback((item: Item) => {
-    setRecentChannels((current) =>
-      [
-        cleanItem(item),
-        ...current.filter((channel) => itemKey(channel) !== itemKey(item)),
-      ].slice(0, 12),
-    );
-    if (item.source === "xtream") {
-      if (!provider || provider.scope !== item.provider) {
-        setToast("Connect this channel’s IPTV account in Settings.");
-        return;
-      }
-      setPlayback({
-        item,
-        url:
-          item.url ??
-          streamUrl(
-            provider,
-            "live",
-            item.id,
-            getService() ? (item.extension ?? "ts") : "m3u8",
-          ),
-        requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
-        mode: getService() ? "transcode" : undefined,
-        hls: true,
-      });
-    } else if (item.url)
-      setPlayback({
-        item,
-        url: item.url,
-        mode: getService() ? "transcode" : undefined,
-        hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
-      });
-  }, [provider, setRecentChannels]);
+  const playChannel = useCallback(
+    (item: Item) => {
+      setRecentChannels((current) =>
+        [
+          cleanItem(item),
+          ...current.filter((channel) => itemKey(channel) !== itemKey(item)),
+        ].slice(0, 12),
+      );
+      if (item.source === "xtream") {
+        if (!provider || provider.scope !== item.provider) {
+          setToast("Connect this channel’s IPTV account in Settings.");
+          return;
+        }
+        setPlayback({
+          item,
+          url:
+            item.url ??
+            streamUrl(
+              provider,
+              "live",
+              item.id,
+              getService() ? (item.extension ?? "ts") : "m3u8",
+            ),
+          requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
+          mode: getService() ? "transcode" : undefined,
+          hls: true,
+        });
+      } else if (item.url)
+        setPlayback({
+          item,
+          url: item.url,
+          mode: getService() ? "transcode" : undefined,
+          hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
+        });
+    },
+    [provider, setRecentChannels],
+  );
   async function restoreSetup(transfer: Transfer) {
     const installed = await installMany(transfer.addons);
     setAddons((previous) => mergeAddons(previous, installed.addons));

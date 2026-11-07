@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.05.11"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.06.1"));
   });
   await mockSources(page);
 });
@@ -124,14 +124,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Smarter movie and series search/,
+    name: /Clearer sources and broader TV compatibility/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Smarter movie and series search",
+      name: "Clearer sources and broader TV compatibility",
     }),
   ).toBeVisible();
   await page.reload();
@@ -2045,6 +2045,102 @@ test("autoplay shows a top loading state without opening the manual stream list"
   await expect(page.locator("video")).toHaveAttribute(
     "src",
     "https://cdn.example/fast.mp4",
+  );
+});
+
+test("the player exposes every compatible stream while automatic fallback stays bounded", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: Array.from({ length: 7 }, (_, index) => ({
+          name: `Option ${index + 1} 1080p AAC`,
+          title: `Manual stream ${index + 1}`,
+          seeders: 100 - index,
+          url: `https://cdn.example/option-${index + 1}.mp4`,
+        })),
+      },
+    }),
+  );
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect(
+    page.getByRole("button", { name: "Choose stream" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Choose stream" }).click();
+  const chooser = page.getByRole("dialog", { name: "Choose a stream" });
+  await expect(chooser).toContainText(
+    "Automatic playback tries up to 5 streams",
+  );
+  await expect(chooser.locator(".player-source-list > button")).toHaveCount(7);
+  await chooser
+    .locator(".player-source-list > button")
+    .filter({ hasText: "Option 7" })
+    .click();
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/option-7.mp4",
+  );
+});
+
+test("TV remote users can open the in-player stream chooser and switch sources", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "The ten-foot player targets the Chromium Android TV shell.",
+  );
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: Array.from({ length: 6 }, (_, index) => ({
+          name: `TV option ${index + 1} 1080p AAC`,
+          title: `Remote stream ${index + 1}`,
+          seeders: 50 - index,
+          url: `https://cdn.example/tv-option-${index + 1}.mp4`,
+        })),
+      },
+    }),
+  );
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/?tv=1");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  const choose = page.getByRole("button", { name: "Choose stream" });
+  await choose.focus();
+  await page.keyboard.press("Enter");
+  const last = page
+    .getByRole("dialog", { name: "Choose a stream" })
+    .locator(".player-source-list > button")
+    .filter({ hasText: "TV option 6" });
+  await last.evaluate((element) => {
+    const target = element as HTMLElement;
+    target.focus();
+    target.click();
+  });
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/tv-option-6.mp4",
   );
 });
 

@@ -62,7 +62,10 @@ declare global {
     YT?: { Player: PlayerConstructor; PlayerState: { PLAYING: number } };
     onYouTubeIframeAPIReady?: () => void;
     __tiktakYouTubeApi?: Promise<void>;
-    TikTakTV?: { openSmartTube(videoId: string): void };
+    TikTakTV?: {
+      appReady?: () => void;
+      openSmartTube(videoId: string): void;
+    };
   }
 }
 

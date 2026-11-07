@@ -1,16 +1,21 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.05.11";
+export const latestRelease = "2026.11.06.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
-    date: "November 5, 2026",
-    title: "Smarter movie and series search",
+    date: "November 6, 2026",
+    title: "Clearer sources and broader TV compatibility",
     changes: [
+      "Older Android 9 televisions now receive a Chromium 69-compatible web bundle, and the TV app shows a retry screen with its WebView version instead of remaining blank when startup fails.",
+      "Stream search now names every eligible add-on that responded, failed, or was temporarily paused, while keeping private add-on addresses hidden.",
+      "Movies and episodes now keep every compatible result in an in-player stream chooser instead of limiting manual selection to the automatic fallback set.",
+      "Automatic playback now clearly identifies its five-stream safety fallback, and stream rows show add-on, quality, and reported audio details.",
+      "Playback now prefers browser-safe audio and sends reported DTS, TrueHD, E-AC-3, and AC-3 sources through compatibility conversion when that service is connected.",
       "Searching from Home now opens combined movie and series results instead of silently defaulting to Movies.",
       "Title search now interprets multiple misspellings and omitted connecting words while keeping a one-click option to search for exactly what was typed.",
       "Search now combines every compatible add-on catalog with title metadata fallback, while All, Movies, and Series filters make results easy to narrow.",

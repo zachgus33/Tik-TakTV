@@ -10,10 +10,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
@@ -26,6 +29,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.FrameLayout
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -40,6 +46,13 @@ import java.security.MessageDigest
 class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var webView: WebView
+    private lateinit var startupOverlay: LinearLayout
+    private lateinit var startupTitle: TextView
+    private lateinit var startupDetail: TextView
+    private lateinit var startupRetry: Button
+    private val startupHandler = Handler(Looper.getMainLooper())
+    private var webAppReady = false
+    private val startupTimeout = Runnable { showStartupFailure() }
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
@@ -87,6 +100,7 @@ class MainActivity : ComponentActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
+        createStartupOverlay()
         setContentView(root)
         onBackPressedDispatcher.addCallback(
             this,
@@ -94,8 +108,9 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() = handleBack()
             },
         )
+        beginStartup()
         if (savedInstanceState == null) webView.loadUrl(BuildConfig.START_URL)
-        else webView.restoreState(savedInstanceState)
+        else if (webView.restoreState(savedInstanceState) == null) webView.loadUrl(BuildConfig.START_URL)
         webView.requestFocus()
         checkForUpdate()
     }
@@ -174,6 +189,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        startupHandler.removeCallbacks(startupTimeout)
         fileCallback?.onReceiveValue(null)
         fileCallback = null
         webView.stopLoading()
@@ -184,6 +200,105 @@ class MainActivity : ComponentActivity() {
     private fun applyTvMode() {
         webView.evaluateJavascript(TV_BOOTSTRAP, null)
     }
+
+    private fun createStartupOverlay() {
+        startupTitle = TextView(this).apply {
+            setTextColor(0xFFF7F5FB.toInt())
+            textSize = 28f
+            gravity = Gravity.CENTER
+        }
+        startupDetail = TextView(this).apply {
+            setTextColor(0xFFB9B3C5.toInt())
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, dp(20))
+        }
+        startupRetry = Button(this).apply {
+            text = getString(R.string.startup_retry)
+            setOnClickListener { retryStartup() }
+            visibility = View.GONE
+        }
+        startupOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(64), dp(48), dp(64), dp(48))
+            setBackgroundColor(0xFF0D0D0F.toInt())
+            addView(
+                startupTitle,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                startupDetail,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                startupRetry,
+                LinearLayout.LayoutParams(dp(220), ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
+        root.addView(
+            startupOverlay,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
+
+    private fun beginStartup() {
+        webAppReady = false
+        startupHandler.removeCallbacks(startupTimeout)
+        startupTitle.setText(R.string.startup_loading)
+        startupDetail.setText(R.string.startup_loading_detail)
+        startupRetry.visibility = View.GONE
+        startupOverlay.visibility = View.VISIBLE
+        startupHandler.postDelayed(startupTimeout, STARTUP_TIMEOUT_MS)
+    }
+
+    private fun finishStartup() {
+        if (webAppReady) return
+        webAppReady = true
+        startupHandler.removeCallbacks(startupTimeout)
+        startupOverlay.visibility = View.GONE
+        webView.requestFocus()
+    }
+
+    private fun showStartupFailure(reason: String? = null) {
+        if (webAppReady || isFinishing || isDestroyed) return
+        startupHandler.removeCallbacks(startupTimeout)
+        startupTitle.setText(R.string.startup_failed)
+        val guidance = reason?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.startup_failed_detail)
+        startupDetail.text = "$guidance\n${getString(R.string.startup_webview_version, webViewVersion())}"
+        startupRetry.visibility = View.VISIBLE
+        startupOverlay.visibility = View.VISIBLE
+        startupRetry.requestFocus()
+    }
+
+    private fun retryStartup() {
+        beginStartup()
+        val retryUrl = Uri.parse(BuildConfig.START_URL).buildUpon()
+            .appendQueryParameter("release", System.currentTimeMillis().toString())
+            .build()
+            .toString()
+        webView.loadUrl(retryUrl)
+    }
+
+    private fun webViewVersion(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WebView.getCurrentWebViewPackage()?.let { "${it.packageName} ${it.versionName}" }
+                ?: "unavailable"
+        } else {
+            "Android system provider"
+        }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun checkForUpdate() {
         if (updateCheckStarted) return
@@ -365,6 +480,11 @@ class MainActivity : ComponentActivity() {
 
     private inner class TvBridge {
         @JavascriptInterface
+        fun appReady() {
+            runOnUiThread { finishStartup() }
+        }
+
+        @JavascriptInterface
         fun openSmartTube(videoId: String) {
             if (!SmartTubePolicy.accepts(videoId)) return
             runOnUiThread {
@@ -470,15 +590,38 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-            if (!TvUrlPolicy.isInternal(url)) view.stopLoading()
+            if (!TvUrlPolicy.isInternal(url)) {
+                view.stopLoading()
+                return
+            }
+            beginStartup()
         }
 
         override fun onPageFinished(view: WebView, url: String) {
             if (TvUrlPolicy.isInternal(url)) applyTvMode()
         }
 
+        override fun onReceivedError(
+            view: WebView,
+            request: WebResourceRequest,
+            error: android.webkit.WebResourceError,
+        ) {
+            if (request.isForMainFrame) showStartupFailure(error.description?.toString())
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView,
+            request: WebResourceRequest,
+            errorResponse: WebResourceResponse,
+        ) {
+            if (request.isForMainFrame) {
+                showStartupFailure("The website returned HTTP ${errorResponse.statusCode}.")
+            }
+        }
+
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
             handler.cancel()
+            showStartupFailure("Android could not verify the website connection.")
         }
     }
 
@@ -509,6 +652,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val FILE_PICKER_REQUEST = 4107
+        private const val STARTUP_TIMEOUT_MS = 25_000L
         private const val HANDLE_WEB_BACK = """
             (() => {
               const dialogs = Array.from(document.querySelectorAll('dialog[open]'));

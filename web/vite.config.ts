@@ -44,5 +44,8 @@ export default defineConfig({
       },
     }),
   ],
-  build: { target: "es2020", sourcemap: false },
+  // Android 9 televisions may still use their original Chromium 69 WebView.
+  // Transpile syntax for that engine; legacy-compat.ts covers the handful of
+  // newer runtime helpers used by the application.
+  build: { target: "chrome69", sourcemap: false },
 });

@@ -42,6 +42,10 @@ jobs:
   tv-emulator-smoke:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [28, 34]
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -55,7 +59,7 @@ jobs:
       - name: Launch app and verify remote focus on Android TV
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ matrix.api-level }}
           arch: x86
           target: android-tv
           profile: tv_1080p
@@ -91,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: TikTak-TV-emulator-smoke
+          name: TikTak-TV-emulator-smoke-api-${{ matrix.api-level }}
           path: |
             tvApp/build/tv-emulator-smoke.png
             tv-app-logcat.txt

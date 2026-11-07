@@ -470,6 +470,7 @@ export async function addonStreams(
         recordAddonSuccess(a);
         return (data.streams ?? []).map((s) => ({
           ...s,
+          addonName: a.manifest.name,
           name: s.name ?? a.manifest.name,
         }));
       } catch (error) {
@@ -491,6 +492,23 @@ export async function addonStreams(
           typeof r === "string" ? r === "stream" : r.name === "stream",
         ),
     ).length,
+    sources: eligible.map((addon) => {
+      const activeIndex = active.indexOf(addon);
+      if (activeIndex < 0)
+        return {
+          name: addon.manifest.name,
+          status: "paused" as const,
+          streams: 0,
+        };
+      const result = results[activeIndex];
+      return result?.status === "fulfilled"
+        ? {
+            name: addon.manifest.name,
+            status: "responded" as const,
+            streams: result.value.length,
+          }
+        : { name: addon.manifest.name, status: "failed" as const, streams: 0 };
+    }),
   };
 }
 export async function addonSubtitles(

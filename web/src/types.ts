@@ -29,6 +29,8 @@ export type Episode = {
   released?: string;
 };
 export type Stream = {
+  /** Privacy-safe display name of the add-on that returned this stream. */
+  addonName?: string;
   name?: string;
   title?: string;
   url?: string;

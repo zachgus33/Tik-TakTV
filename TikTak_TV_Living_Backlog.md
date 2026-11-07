@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 2.3
+**Backlog version:** 2.7
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -54,11 +54,36 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 ### BUG-02 · Only 5 of roughly 15 installed add-ons appear to be searched
 
-- **Status:** **Verified in code and automated tests; awaiting reporter confirmation.** All enabled, compatible stream add-ons are queried concurrently with no five-add-on cap. The UI now reports total installed streaming add-ons, eligible/queried count, paused count, failures/timeouts and incompatible manifests without revealing private URLs.
+- **Status:** **Verified in code and automated tests; awaiting reporter confirmation.** All enabled, compatible stream add-ons are queried concurrently with no five-add-on cap. The UI now names every eligible add-on and shows whether it responded, failed or was temporarily paused plus its result count, without revealing private URLs. The number five now appears only as the clearly labelled automatic playback safety fallback; every compatible result remains available in the manual chooser.
 - **User-reported:** The same Nvidia Shield tester says TikTak TV keeps searching and searches only five add-ons even though they have approximately 15 that work in Nuvio/Stremio.
 - **Investigate:** Which installed add-ons support stream queries (not all add-ons necessarily do), user/account/profile synchronization, cached install list, manifest handling, disabled/unavailable add-ons, per-addon request fan-out, per-addon failures/timeouts, limit/pagination or hard-coded cap, UI counter semantics, error isolation, and missing results.
 - **Acceptance:** Search accurately enumerates _eligible_ stream-capable enabled add-ons, never silently caps at five, surfaces successful/failed/timed-out counts without leaking endpoint secrets, and preserves results from other add-ons when one fails. Confirm separately that missing playable sources are not actually a playback issue.
 - **Link:** BUG-01; do not combine these into one cause without evidence.
+
+### BUG-09 · Video plays without audio on Nvidia Shield
+
+- **Priority:** **P0 playback blocker.**
+- **Status:** **Fixed in code and automated selection tests — awaiting physical Nvidia Shield verification.** Stream parsing recognizes reported AAC, MP3, Opus, AC-3, E-AC-3 / Dolby Digital Plus, DTS / DTS-HD and TrueHD audio. Automatic selection prefers browser-safe audio and routes reported risky codecs through the configured compatibility service when available.
+- **User-reported:** `Swap16` reports video can play while producing no audio on Nvidia Shield.
+- **Limit:** Some add-ons do not report codecs. A browser/WebView cannot reliably infer every codec before playback, and a compatibility service must be connected to convert formats the Shield WebView cannot decode. Do not mark this Verified until the reporter confirms video and audio with their lawful sources.
+- **Acceptance:** A Shield user can select a working movie/episode stream and receive both video and audio; risky reported audio is converted or clearly explained, and the user can manually try another source without leaving the player.
+- **Related:** BUG-01, BUG-10.
+
+### BUG-10 · User cannot see or manually select all returned streams
+
+- **Priority:** **P1 playback usability.**
+- **Status:** **Verified in browser and simulated TV remote tests; awaiting physical TV confirmation.** The active player now exposes a D-pad-accessible **Choose stream** dialog containing every compatible direct result (up to the explicit safety ceiling), including stream name, add-on, quality and reported audio. Selecting a source switches in place. Automatic recovery remains limited to five attempts so bad providers cannot create an endless retry loop.
+- **User-reported:** `Swap16` could not choose streams manually and interpreted the “1 of 5” automatic fallback status as only five add-ons being searched.
+- **Acceptance:** User can open the source list during playback, inspect source/add-on/quality/audio details, choose any returned compatible stream, and return to playback using mouse, touch or TV remote. The UI clearly distinguishes queried add-ons, returned streams and automatic fallback attempts.
+- **Related:** BUG-01, BUG-02, BUG-09.
+
+### BUG-11 · TikTak TV 0.3.5 opens to a blank screen on an Android 9 Wisdom Share television
+
+- **Priority:** **P1 startup blocker on confirmed hardware.**
+- **Status:** **Fixed in 0.3.6 code — awaiting Android 9 emulator CI and reporter verification.** The web bundle now targets Chromium 69 syntax and supplies the newer runtime helpers used by TikTak TV. The wrapper keeps a native startup screen visible until React explicitly reports that it rendered; network, HTTP and TLS failures or a 25-second startup timeout reveal a Retry action and the installed WebView provider/version instead of a featureless black screen. CI now includes Android TV API 28 and API 34 emulator jobs.
+- **User-reported (November 6, 2026):** A Wisdom Share smart TV running Android 9 installs the current signed 0.3.5 APK but displays a completely blank screen. The reporter confirmed 0.3.5, so an old APK does not explain the report. This is one device report; do not generalize it to every Android 9 television.
+- **Likely cause (not yet proven):** The prior production bundle targeted ES2020 and used runtime APIs newer than the original Chromium 69-era WebView shipped with Android 9. The identical dark native and web backgrounds hid parse/startup failure. Device-specific WebView state, network/TLS behavior or hardware remains possible.
+- **Acceptance:** Version 0.3.6 installs and reaches sign-in/home on the reporter's television. If it cannot, it must show a retryable, readable diagnostic screen including a non-sensitive WebView version. API 28 and current Android TV emulators launch without app crashes; browser TV mode also renders on the supported legacy target.
 
 ### BUG-03 · Google TV user reports app unusable
 
@@ -252,6 +277,27 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 # P3 — Discovery, community, positioning
 
+### FEATURE-05 · Gradually strengthen native Android TV playback and navigation; retain sideloadable iOS planning
+
+- **Status:** **Planned / architectural research.** Do not pause core reliability for a wholesale rewrite.
+- **Motivation:** A reviewer described the wrapper as clunky and limited. The immediate source visibility, manual selection, audio handling, startup recovery and remote UX issues should be fixed first. After those are stable, evaluate native Media3 playback and selected native TV screens where they provide measurable codec, performance or focus benefits while preserving the working web setup/sync flow.
+- **iOS:** Preserve the existing cross-platform/native project path and document a sideloadable IPA workflow only after signing, playback and update constraints are tested. Do not imply an iOS build is currently distributed.
+- **Acceptance for research:** Written boundary between web and native ownership, migration path that preserves accounts/settings, prototype measurements on low-end Android TV hardware, and no regression to web/mobile/PWA experiences.
+
+### FEATURE-06 · Optional managed provider dashboard / setup-code mode
+
+- **Status:** **Discovery only; no customer commitment and no implementation started.** Keep the public TikTak TV experience free and independent.
+- **Concept:** An authorized provider could manage server/EPG defaults, supported settings and optional branding from a separate dashboard; customers install TikTak TV, enter a setup code plus their own credentials, and receive configuration without remote-control typing.
+- **Constraints:** Obtain a written specification, authorization boundaries, hosting/support scope and commercial agreement before substantial development. Provider administrators must never receive customer passwords or unrestricted access to personal viewing/account data. Keep this optional mode isolated from ordinary users.
+- **Acceptance for discovery:** Threat model, tenant isolation, revocable one-time setup codes, customer credential ownership, explicit allowed configuration fields, deployment/support estimate and prototype approval before production work.
+
+### FEATURE-08 · CloudStream plugin compatibility
+
+- **Status:** **Deferred research.** Existing experimental compatibility notes/adapters must be audited before new work. The released web/TV experience does not run arbitrary CloudStream plugins.
+- **Scope:** Determine which repository metadata and selected adapters can be supported safely across the existing web, Android TV and future native paths. Avoid claiming full CloudStream binary/plugin compatibility where platform runtimes differ.
+- **Priority:** Below playback, source/audio, startup and real-device stability work.
+- **Acceptance for research:** Compatibility matrix, sandbox/security model, maintained test extension, clear unsupported cases and a staged implementation estimate.
+
 ### GROWTH-01 · Clear TikTak TV identity and first impression
 
 - **Status:** Ongoing.
@@ -327,6 +373,11 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-05 - v2.2:** Expanded the public landing layout across the complete desktop viewport, added low-height desktop sizing so the showcase, tabs, benefits, and account panel remain visible at 720p and 768p, and kept portrait layouts free of horizontal overflow. Shortened automatic showcase rotation slightly to 5.75 seconds. Verified layout metrics at 1920x1080, 1366x768, 1024x768, and 390x844 in addition to the cross-browser landing tests.
 
 - **2026-11-05 - v2.3:** Broadened title interpretation after a user showed that a close spelling could still reach an empty state with some add-on combinations. Correction discovery now considers metadata and add-on candidates, then uses a bounded set of individual-word and prefix probes only when the first pass has no confident match. The matcher accepts multiple mistakes and omitted short connector words while retaining the literal-query option and conservative protection against unrelated one-word substitutions. The exact interpreted title is ranked above related add-on results. Added coverage for `madm secretery`, `oppenhiemer`, `game thrones`, and the full corrected/exact search flow on Chromium, Firefox, iPhone, and iPad.
+
+- **2026-11-06 — v2.4:** Added FEATURE-06 for a possible managed provider dashboard/setup-code mode and FEATURE-08 for future CloudStream compatibility research. Both remain discovery items below core playback/stability, with explicit credential, authorization and scope boundaries.
+- **2026-11-06 — v2.5:** Added the confirmed Wisdom Share Android 9 blank-start report and requested exact APK/device information before assuming the previously fixed Google TV classification issue explained it.
+- **2026-11-06 — v2.6:** Reporter confirmed the failure persists on signed TV APK 0.3.5. Created BUG-11 and prioritized WebView/bundle compatibility plus a diagnosable native startup path.
+- **2026-11-06 — v2.7:** Added BUG-09/10 for Shield audio and manual source selection. Implemented named per-add-on query status, the in-player all-source chooser, audio-aware ranking/conversion, Chromium 69 bundle targeting/polyfills, a native TV startup timeout/retry screen with WebView diagnostics, and API 28 CI coverage. Code and browser automation are complete; Android CI and physical Shield/Wisdom Share confirmation remain required before hardware-only items become Verified.
 
 ## New feedback inbox (append here before triage)
 

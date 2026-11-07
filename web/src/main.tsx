@@ -1,3 +1,4 @@
+import "./legacy-compat";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
@@ -61,6 +62,22 @@ createRoot(document.getElementById("root")!).render(
       <App />
     </ErrorBoundary>
   </React.StrictMode>,
+);
+
+declare global {
+  interface Window {
+    TikTakTV?: {
+      appReady?: () => void;
+      openSmartTube(videoId: string): void;
+    };
+  }
+}
+
+// The Android TV wrapper keeps a native loading/recovery screen visible until
+// the application has rendered. A loaded HTML document alone is not proof that
+// an older WebView could parse and start the JavaScript bundle.
+requestAnimationFrame(() =>
+  requestAnimationFrame(() => window.TikTakTV?.appReady?.()),
 );
 
 const isTvShell =

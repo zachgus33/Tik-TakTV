@@ -81,6 +81,25 @@ function streamDescriptor(stream: Stream): string {
     .filter(Boolean)
     .join(" ");
 }
+export type StreamAudioCodec =
+  "aac" | "mp3" | "opus" | "ac3" | "eac3" | "dts" | "truehd";
+export function streamAudioCodec(stream: Stream): StreamAudioCodec | undefined {
+  const source = streamDescriptor(stream);
+  if (/\b(?:truehd|true[ ._-]?hd|mlp)\b/i.test(source)) return "truehd";
+  if (/\b(?:dts[ ._-]?hd|dts[ ._-]?ma|dts)\b/i.test(source)) return "dts";
+  if (/\b(?:e[ ._-]?ac[ ._-]?3|eac3|ddp|dd\+)\b/i.test(source)) return "eac3";
+  if (/\b(?:ac[ ._-]?3|dolby[ ._-]?digital)\b/i.test(source)) return "ac3";
+  if (/\b(?:aac|he[ ._-]?aac)\b/i.test(source)) return "aac";
+  if (/\b(?:mp3|mpeg[ ._-]?audio)\b/i.test(source)) return "mp3";
+  if (/\bopus\b/i.test(source)) return "opus";
+  return undefined;
+}
+export function audioCompatibility(stream: Stream): number {
+  const codec = streamAudioCodec(stream);
+  if (codec === "aac" || codec === "mp3" || codec === "opus") return 2;
+  if (codec) return -2;
+  return 0;
+}
 export type StreamPreferences = {
   maxQuality: number;
   maxSizeGb: number;
@@ -130,6 +149,7 @@ export function compatibilityPlaybackMode(
   stream: Stream,
 ): "remux" | "transcode" | undefined {
   const source = streamDescriptor(stream);
+  if (audioCompatibility(stream) < 0) return "transcode";
   if (
     stream.behaviorHints?.notWebReady === true ||
     /\b(?:av1|x265|h\.?265|hevc)\b/i.test(source) ||
@@ -162,6 +182,7 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
     )
     .sort(
       (a, b) =>
+        audioCompatibility(b) - audioCompatibility(a) ||
         streamQuality(b) - streamQuality(a) ||
         seeders(b) - seeders(a) ||
         codecCompatibility(b) - codecCompatibility(a),

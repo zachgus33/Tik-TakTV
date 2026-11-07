@@ -1,4 +1,4 @@
-import { getService, prepareMedia, sourceFetch } from "./connection";
+﻿import { getService, prepareMedia, sourceFetch } from "./connection";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Airplay,
@@ -44,6 +44,11 @@ export type Playback = {
   relay?: boolean;
   party?: { id: string; host: boolean };
   alternatives?: Playback[];
+  /** Number of alternatives that may be tried automatically. */
+  automaticFallbackCount?: number;
+  /** Privacy-safe stream/add-on details for the in-player chooser. */
+  sourceLabel?: string;
+  sourceDetail?: string;
   mediaOffset?: number;
 };
 function srtToVtt(text: string) {
@@ -69,6 +74,7 @@ function VideoPlayer({
   minimized = false,
   onMinimize,
   onFailure,
+  onChooseSource,
   partyIdentity,
   onSeek,
 }: {
@@ -77,6 +83,7 @@ function VideoPlayer({
   minimized?: boolean;
   onMinimize?: (value: boolean) => void;
   onFailure?: () => boolean;
+  onChooseSource?: () => void;
   partyIdentity: PartyIdentity;
   onSeek?: (seconds: number) => void;
 }) {
@@ -182,6 +189,7 @@ function VideoPlayer({
     const handleTvPlaybackKeys = (event: KeyboardEvent) => {
       revealTvControls();
       const active = document.activeElement as HTMLElement | null;
+      if (document.querySelector(".player-source-picker[open]")) return;
       const onControl = !!active?.closest(
         ".tv-player-controls, .player-tools, .party-status, .error",
       );
@@ -962,6 +970,11 @@ function VideoPlayer({
         </p>
       )}
       <div className="player-tools">
+        {onChooseSource && (
+          <button type="button" onClick={onChooseSource}>
+            <Settings2 size={18} /> Choose stream
+          </button>
+        )}
         {playback.item.type !== "live" && !party && (
           <button disabled={partyBusy} onClick={() => void startParty()}>
             <Link size={18} />
@@ -1182,15 +1195,32 @@ export default function Player({
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const sourcePickerRef = useRef<HTMLDialogElement>(null);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
   const alternatives = playback.alternatives ?? [];
   const selected = attempt === 0 ? playback : alternatives[attempt - 1];
   const totalSources = alternatives.length + 1;
+  const automaticFallbackEnd = Math.min(
+    playback.automaticFallbackCount ?? alternatives.length,
+    alternatives.length,
+  );
+  const sourceChoices = [playback, ...alternatives];
   useEffect(() => {
     setAttempt(0);
     setMinimized(false);
+    setSourcePickerOpen(false);
   }, [playback.item.id, playback.episode?.id]);
+  useEffect(() => {
+    const dialog = sourcePickerRef.current;
+    if (!dialog) return;
+    if (sourcePickerOpen && !dialog.open) dialog.showModal();
+    else if (!sourcePickerOpen && dialog.open) dialog.close();
+    return () => {
+      if (dialog.open) dialog.close();
+    };
+  }, [sourcePickerOpen, ready, error]);
   useEffect(() => {
     const c = new AbortController();
     setReady(null);
@@ -1242,7 +1272,7 @@ export default function Player({
       },
       (e) => {
         if (!c.signal.aborted) {
-          if (attempt < alternatives.length) setAttempt((value) => value + 1);
+          if (attempt < automaticFallbackEnd) setAttempt((value) => value + 1);
           else setError(e.message);
         }
       },
@@ -1250,13 +1280,17 @@ export default function Player({
     return cleanup;
   }, [selected, attempt]);
   const tryNextSource = () => {
-    if (attempt >= alternatives.length) return false;
+    if (attempt >= automaticFallbackEnd) return false;
     setReady(null);
     setError("");
     setAttempt((value) => value + 1);
     return true;
   };
   const recoverWithCompatibility = () => {
+    // Keep the chooser stable while the user is deciding. A media error may be
+    // shown behind it, but automatic fallback must not steal focus or replace
+    // the list under a remote/touch selection.
+    if (sourcePickerOpen) return false;
     const service = getService();
     if (
       fallbackStarted.current ||
@@ -1345,36 +1379,118 @@ export default function Player({
       },
     );
   };
+  const selectSource = (index: number) => {
+    setSourcePickerOpen(false);
+    if (index === attempt) return;
+    setError("");
+    setReady(null);
+    setAttempt(index);
+  };
+  const sourcePicker = sourcePickerOpen ? (
+    <dialog
+      ref={sourcePickerRef}
+      className="player-source-picker"
+      aria-label="Choose a stream"
+      onCancel={(event) => {
+        event.preventDefault();
+        setSourcePickerOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" || event.key === "BrowserBack") {
+          event.preventDefault();
+          event.stopPropagation();
+          setSourcePickerOpen(false);
+        }
+      }}
+    >
+      <section>
+        <div className="player-source-picker-heading">
+          <div>
+            <span>Playback source</span>
+            <h2>Choose a stream</h2>
+            <p>
+              Automatic playback tries up to {automaticFallbackEnd + 1} streams.
+              Every compatible result remains available here.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Close stream chooser"
+            onClick={() => setSourcePickerOpen(false)}
+          >
+            <X />
+          </button>
+        </div>
+        <div className="player-source-list">
+          {sourceChoices.map((choice, index) => (
+            <button
+              type="button"
+              key={`${choice.sourceLabel ?? "stream"}-${index}`}
+              className={index === attempt ? "active" : ""}
+              aria-pressed={index === attempt}
+              onClick={() => selectSource(index)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                selectSource(index);
+              }}
+            >
+              <span>
+                <strong>{choice.sourceLabel ?? `Stream ${index + 1}`}</strong>
+                <small>
+                  {choice.sourceDetail ?? "Stream details not reported"}
+                </small>
+              </span>
+              {index === attempt ? <Check size={18} /> : <Play size={18} />}
+            </button>
+          ))}
+        </div>
+      </section>
+    </dialog>
+  ) : null;
   if (ready)
     return (
-      <VideoPlayer
-        playback={ready}
-        onClose={onClose}
-        minimized={minimized}
-        onMinimize={setMinimized}
-        onFailure={recoverWithCompatibility}
-        partyIdentity={partyIdentity}
-        onSeek={seekConversion}
-      />
+      <>
+        <VideoPlayer
+          playback={ready}
+          onClose={onClose}
+          minimized={minimized}
+          onMinimize={setMinimized}
+          onFailure={recoverWithCompatibility}
+          onChooseSource={
+            sourceChoices.length > 1
+              ? () => setSourcePickerOpen(true)
+              : undefined
+          }
+          partyIdentity={partyIdentity}
+          onSeek={seekConversion}
+        />
+        {sourcePicker}
+      </>
     );
   return (
-    <dialog
-      open
-      className="player-dialog player-preparing"
-      aria-label="Preparing playback"
-    >
-      <span className="spinner" />
-      <h2>
-        {error
-          ? "Could not prepare playback"
-          : totalSources > 1
-            ? `Trying source ${attempt + 1} of ${totalSources}`
-            : `Preparing ${selected.item.name}`}
-      </h2>
-      <p role={error ? "alert" : "status"}>
-        {error || "Optimizing the selected source for your browser…"}
-      </p>
-      <button onClick={onClose}>{error ? "Close player" : "Cancel"}</button>
-    </dialog>
+    <>
+      <dialog
+        open
+        className="player-dialog player-preparing"
+        aria-label="Preparing playback"
+      >
+        <span className="spinner" />
+        <h2>
+          {error
+            ? "Could not prepare playback"
+            : totalSources > 1
+              ? `Trying automatic stream ${attempt + 1} of ${automaticFallbackEnd + 1}`
+              : `Preparing ${selected.item.name}`}
+        </h2>
+        <p role={error ? "alert" : "status"}>
+          {error || "Optimizing the selected source for your browser…"}
+        </p>
+        <button onClick={onClose}>{error ? "Close player" : "Cancel"}</button>
+      </dialog>
+      {sourcePicker}
+    </>
   );
 }

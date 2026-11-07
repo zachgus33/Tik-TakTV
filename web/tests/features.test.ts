@@ -16,6 +16,7 @@ import {
 } from "../src/catalog-settings";
 import {
   autoplayStreams,
+  audioCompatibility,
   codecCompatibility,
   compatibilityPlaybackMode,
   directStream,
@@ -24,6 +25,7 @@ import {
   rankedStreams,
   needsCompatibilityTranscode,
   seeders,
+  streamAudioCodec,
 } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
@@ -656,6 +658,28 @@ describe("720p+ preference and safe episode matching", () => {
     expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
     expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
   });
+  it("prefers browser-safe audio and converts Shield-risky audio formats", () => {
+    const dts = {
+      name: "4K DTS-HD",
+      title: "Movie.2160p.x264.DTS-HD.MA",
+      url: "https://cdn.example/movie.mp4",
+    };
+    const aac = {
+      name: "1080p AAC",
+      title: "Movie.1080p.x264.AAC",
+      url: "https://cdn.example/movie-aac.mp4",
+    };
+    const trueHd = {
+      name: "1080p TrueHD 7.1",
+      url: "https://cdn.example/truehd.mp4",
+    };
+    expect(streamAudioCodec(dts)).toBe("dts");
+    expect(streamAudioCodec(trueHd)).toBe("truehd");
+    expect(audioCompatibility(aac)).toBeGreaterThan(audioCompatibility(dts));
+    expect(compatibilityPlaybackMode(dts)).toBe("transcode");
+    expect(compatibilityPlaybackMode(trueHd)).toBe("transcode");
+    expect(autoplayStreams([dts, aac], false)[0]).toBe(aac);
+  });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {
       name: "[TB+] Torrentio 1080p",
@@ -889,5 +913,9 @@ describe("stream manifest compatibility", () => {
     expect(result.eligible).toBe(1);
     expect(result.installedStreaming).toBe(1);
     expect(result.streams).toHaveLength(1);
+    expect(result.sources).toEqual([
+      { name: "Streamer", status: "responded", streams: 1 },
+    ]);
+    expect(result.streams[0].addonName).toBe("Streamer");
   });
 });

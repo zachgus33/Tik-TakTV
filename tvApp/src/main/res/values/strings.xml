@@ -9,4 +9,10 @@
     <string name="update_downloading">Downloading TikTak TV update</string>
     <string name="update_permission">Allow TikTak TV to install updates, then return to the app.</string>
     <string name="update_install_failed">The update downloaded, but Android could not open the installer.</string>
+    <string name="startup_loading">Starting TikTak TV…</string>
+    <string name="startup_loading_detail">Preparing your TV experience.</string>
+    <string name="startup_failed">TikTak TV could not start</string>
+    <string name="startup_failed_detail">Check your connection and update Android System WebView or Google Chrome, then try again.</string>
+    <string name="startup_retry">Retry</string>
+    <string name="startup_webview_version">WebView: %1$s</string>
 </resources>
