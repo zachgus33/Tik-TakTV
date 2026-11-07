@@ -9,6 +9,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.nuvio.app.core.auth.AuthStorage
@@ -19,6 +21,7 @@ import com.nuvio.app.core.network.DnsOverHttpsSettingsStorage
 import com.nuvio.app.core.storage.PlatformLocalAccountDataCleaner
 import com.nuvio.app.core.sync.SyncClientIdentityStorage
 import com.nuvio.app.core.ui.AppSystemUiController
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.addons.AddonStorage
 import com.nuvio.app.features.ai.AiAssistantSettingsStorage
 import com.nuvio.app.features.collection.CollectionMobileSettingsStorage
@@ -161,7 +164,13 @@ open class MainActivity : AppCompatActivity() {
         AppSystemUiController.bind(this)
         handleIncomingAppIntent(intent)
 
-        setContent {
+        setContent { AppContent() }
+    }
+
+    /** Allows platform-specific hosts to provide their own root environment. */
+    @Composable
+    protected open fun AppContent() {
+        CompositionLocalProvider(LocalTvMode provides NativeTvHostMode.enabled) {
             App()
         }
     }
@@ -297,5 +306,14 @@ open class MainActivity : AppCompatActivity() {
                 if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
             }
         }.getOrNull().orEmpty().ifBlank { "Shared M3U playlist" }
+    }
+}
+
+object NativeTvHostMode {
+    var enabled: Boolean = false
+        private set
+
+    fun enable() {
+        enabled = true
     }
 }

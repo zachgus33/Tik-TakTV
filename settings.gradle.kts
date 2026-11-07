@@ -36,4 +36,5 @@ dependencyResolutionManagement {
 include(":composeApp")
 include(":androidApp")
 include(":tvApp")
+include(":nativeTvApp")
 include(":mobileApp")

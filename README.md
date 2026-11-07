@@ -210,6 +210,10 @@ YouTube autoplay and SponsorBlock behavior can now be changed without leaving th
 
 These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
 
+### Native Android TV development
+
+A dedicated native Android TV client is now under active development. The first side-by-side preview reuses the repository's native Kotlin/Compose account, profile, catalog, Live TV, library, sync, and Media3/MPV playback stack. It uses a separate package and is **not yet the public TV release** while remote navigation, TikTak Sports/YouTube parity, saved-data migration, and real-device testing are completed. See the [native TV architecture plan](Docs/NATIVE_TV_ARCHITECTURE.md).
+
 ## Feedback, bug reports & feature requests
 
 TikTak TV is being improved with community feedback — especially reports from actual Android TV, Google TV, Fire TV, and Nvidia Shield devices.
