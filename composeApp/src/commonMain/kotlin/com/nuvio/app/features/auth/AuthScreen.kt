@@ -430,12 +430,7 @@ private fun AuthLargeLayout(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.Start,
         ) {
-            Image(
-                painter = painterResource(Res.drawable.app_logo_wordmark),
-                contentDescription = null,
-                modifier = Modifier.height(60.dp * scale),
-                contentScale = ContentScale.Fit,
-            )
+            AuthLogo(logoHeight = 60.dp * scale)
             Spacer(modifier = Modifier.height(32.dp * scale))
             Text(
                 text = stringResource(Res.string.compose_auth_tagline),
@@ -525,45 +520,49 @@ private fun AuthLargeLayout(
 private fun AuthBrandLockup(
     logoHeight: Dp,
 ) {
-    val isNativeTv = LocalTvMode.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (isNativeTv) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "TikTak",
-                    color = AuthTextPrimary,
-                    fontSize = (logoHeight.value * 0.78f).sp,
-                    lineHeight = logoHeight.value.sp,
-                    fontWeight = FontWeight.Black,
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "TV",
-                    color = Color(0xFF24C7D9),
-                    fontSize = (logoHeight.value * 0.78f).sp,
-                    lineHeight = logoHeight.value.sp,
-                    fontWeight = FontWeight.Black,
-                )
-            }
-        } else {
-            Image(
-                painter = painterResource(Res.drawable.app_logo_wordmark),
-                contentDescription = null,
-                modifier = Modifier.height(logoHeight),
-                contentScale = ContentScale.Fit,
-            )
-        }
+        AuthLogo(logoHeight = logoHeight)
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = if (isNativeTv) "Stream your world" else stringResource(Res.string.compose_auth_tagline),
+            text = if (LocalTvMode.current) "Stream your world" else stringResource(Res.string.compose_auth_tagline),
             style = MaterialTheme.typography.bodyMedium.copy(
                 color = AuthTextSecondary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Normal,
             ),
+        )
+    }
+}
+
+@Composable
+private fun AuthLogo(logoHeight: Dp) {
+    if (LocalTvMode.current) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "TikTak",
+                color = AuthTextPrimary,
+                fontSize = (logoHeight.value * 0.78f).sp,
+                lineHeight = logoHeight.value.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "TV",
+                color = Color(0xFF24C7D9),
+                fontSize = (logoHeight.value * 0.78f).sp,
+                lineHeight = logoHeight.value.sp,
+                fontWeight = FontWeight.Black,
+            )
+        }
+    } else {
+        Image(
+            painter = painterResource(Res.drawable.app_logo_wordmark),
+            contentDescription = null,
+            modifier = Modifier.height(logoHeight),
+            contentScale = ContentScale.Fit,
         )
     }
 }
