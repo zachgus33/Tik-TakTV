@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { hasProductionAppRoot } from "./production-smoke-root.mjs";
 
 const site = (process.env.SITE_URL || "https://www.tiktaktv.me").replace(
   /\/$/,
@@ -22,7 +23,7 @@ const checkedFetch = async (url, options = {}) => {
 const home = await (
   await checkedFetch(`${site}/?smoke=${Date.now()}#home`)
 ).text();
-assert.match(home, /<div id="root"><\/div>/, "Production app root is missing");
+assert.ok(hasProductionAppRoot(home), "Production app root is missing");
 assert.match(home, /TikTak TV/i, "Production page title is missing");
 for (const path of ["/manifest.webmanifest", "/sw.js", "/icon.svg"])
   await checkedFetch(`${site}${path}`);

@@ -196,6 +196,7 @@ The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/
 - **Audio-aware playback selection and conversion** improves handling of sources whose original audio format is not supported by the device.
 - **Broader older-TV compatibility** with a Chromium 69-compatible web bundle for Android 9 televisions.
 - **A diagnosable TV startup screen** with retry controls and the installed WebView version instead of leaving the screen blank when startup fails.
+- **More accurate production monitoring** recognizes the visible startup fallback while continuing to check built assets, companion health, account access, source discovery, and playback preparation.
 - The 0.3.5 features remain included: **Live TV mini-player, refreshed EPG, Sports and scores, compact TV navigation, SmartTube handoff, in-app feedback, and responsive layouts.**
 
 The shared web interface also now gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. This documents how the existing privacy-safe counters are calculated without changing their historical meaning.
