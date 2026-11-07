@@ -70,26 +70,6 @@ jobs:
           script: |
             set -eu
             adb install -r nativeTvApp/build/outputs/apk/debug/nativeTvApp-debug.apk
-            adb logcat -c
-            adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvActivity
-            sleep 20
-            adb shell input keyevent 20
-            adb shell input keyevent 22
-            adb shell input keyevent 21
-            adb shell input keyevent 19
-            adb shell input keyevent 23
-            sleep 3
-            adb shell dumpsys activity activities > native-tv-activity.txt
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth.png
-            adb logcat -d > native-tv-logcat.txt
-            grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity.txt
-            ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
-
-            # The auth smoke test intentionally opens the TV keyboard. Dismiss
-            # it before restarting into the deterministic shell preview so the
-            # screenshots capture the app window rather than the stale IME.
-            adb shell input keyevent 4
-            sleep 1
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 1280x720
             adb shell wm density 213
@@ -135,7 +115,24 @@ jobs:
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-4k.txt
             grep -q "TikTakNativeTv.*Shell preview requested" native-tv-shell-4k-logcat.txt
 
+            # Run the sign-in and TV-keyboard smoke test last so its IME window
+            # cannot cover the deterministic shell screenshots above.
+            adb shell am force-stop com.tiktaktv.tv.nativepreview
+            adb shell wm size 1920x1080
+            adb shell wm density 320
+            adb logcat -c
+            adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvActivity
+            sleep 20
+            adb shell input keyevent 20
+            adb shell input keyevent 22
+            adb shell input keyevent 21
+            adb shell input keyevent 19
+            adb shell input keyevent 23
+            sleep 3
+            adb shell dumpsys activity activities > native-tv-activity.txt
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth.png
             adb logcat -d > native-tv-logcat.txt
+            grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity.txt
             ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
       - name: Upload emulator evidence
         if: always()
