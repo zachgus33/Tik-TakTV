@@ -2,6 +2,7 @@ package com.tiktaktv.nativepreview
 
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -28,6 +29,9 @@ class NativeTvActivity : MainActivity() {
         // preview is a CI-only rendering mode used to verify the ten-foot shell
         // without requiring account credentials.
         showShellPreview = intent?.getBooleanExtra(EXTRA_SHELL_PREVIEW, false) == true
+        if (showShellPreview) {
+            Log.i(PREVIEW_LOG_TAG, PREVIEW_LOG_MESSAGE)
+        }
         NativeTvHostMode.enable()
         super.onCreate(savedInstanceState)
         enterTvFullscreen()
@@ -72,5 +76,7 @@ class NativeTvActivity : MainActivity() {
 
     private companion object {
         const val EXTRA_SHELL_PREVIEW = "native_tv_shell_preview"
+        const val PREVIEW_LOG_TAG = "TikTakNativeTv"
+        const val PREVIEW_LOG_MESSAGE = "Shell preview requested"
     }
 }
