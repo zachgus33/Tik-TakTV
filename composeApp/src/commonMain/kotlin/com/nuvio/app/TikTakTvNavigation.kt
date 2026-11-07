@@ -226,11 +226,15 @@ fun TikTakTvShellPreview() {
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.height(36.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+            ) {
                 repeat(4) { index ->
                     Box(
                         modifier = Modifier
-                            .size(width = 220.dp, height = 124.dp)
+                            .weight(1f)
+                            .height(124.dp)
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.nuvio.colors.surface)
                             .border(1.dp, MaterialTheme.nuvio.colors.borderDefault, RoundedCornerShape(18.dp)),
