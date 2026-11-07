@@ -30,6 +30,18 @@ export type UsageSummary = {
     averageSessionMinutes: number;
     retention: Record<"day1" | "day7" | "day30", { eligible: number; returned: number; rate: number | null }>;
   };
+  definitions?: {
+    version: number;
+    timezone: string;
+    signedIn: string;
+    returning: string;
+    session: string;
+    averageSession: string;
+    retention: string;
+    device: string;
+    platform: string;
+    visit: string;
+  };
   generatedAt: number;
 };
 

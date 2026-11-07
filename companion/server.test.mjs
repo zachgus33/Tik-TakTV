@@ -116,6 +116,11 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
     assert.equal(summary.accounts.sessionsPerAccount, 1);
     assert.equal(summary.accounts.returning, 0);
     assert.equal(summary.accounts.retention.day1.eligible, 0);
+    assert.equal(summary.definitions.version, 2);
+    assert.equal(summary.definitions.timezone, "UTC");
+    assert.match(summary.definitions.retention, /on or after UTC day N/);
+    assert.match(summary.definitions.returning, /two UTC calendar dates/);
+    assert.match(summary.definitions.device, /Clearing storage or reinstalling/);
     await new Promise((resolve) => setTimeout(resolve, 400));
     const stored = await readFile(process.env.ANALYTICS_PATH, "utf8");
     assert.ok(!stored.includes(rawVisitor));

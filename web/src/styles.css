@@ -5485,6 +5485,34 @@ button.primary:hover,
   font-size: 0.92rem;
   color: var(--muted);
 }
+.usage-definitions {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.usage-definitions summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.usage-definitions dl {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+}
+.usage-definitions dl div {
+  display: grid;
+  gap: 3px;
+}
+.usage-definitions dt {
+  font-weight: 750;
+}
+.usage-definitions dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
 .usage-signups {
   grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
 }

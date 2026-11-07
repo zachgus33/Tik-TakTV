@@ -208,9 +208,9 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
           </div>
           <h3 className="usage-section-title">Engagement</h3>
           <div className="usage-metrics usage-engagement">
-            <article><strong>{usage.accounts.returning ?? 0}</strong><span>Returning accounts</span></article>
+            <article><strong>{usage.accounts.returning ?? 0}</strong><span>Returning accounts</span><small>Seen on 2+ UTC dates</small></article>
             <article><strong>{usage.accounts.sessionsPerAccount ?? 0}</strong><span>Sessions per account</span></article>
-            <article><strong>{usage.accounts.averageSessionMinutes ?? 0}m</strong><span>Average session</span></article>
+            <article><strong>{usage.accounts.averageSessionMinutes ?? 0}m</strong><span>Average observed session</span></article>
           </div>
           <h3 className="usage-section-title">Retention</h3>
           <div className="usage-metrics usage-retention">
@@ -219,7 +219,7 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
               return <article key={period}>
                 <strong>{value?.rate == null ? "—" : `${value.rate}%`}</strong>
                 <span>{period === "day1" ? "Day 1" : period === "day7" ? "Day 7" : "Day 30"} retention</span>
-                <small>{value?.eligible ?? 0} eligible accounts</small>
+                <small>{value?.returned ?? 0} returned · {value?.eligible ?? 0} eligible</small>
               </article>;
             })}
           </div>
@@ -244,8 +244,20 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
             <span>Android phone {usage.platforms["android-mobile"] ?? 0}</span>
             <span>TV app {usage.platforms["android-tv"] ?? 0}</span>
           </div>
+          <details className="usage-definitions">
+            <summary>How these metrics are calculated</summary>
+            <dl>
+              <div><dt>Signed-in activity</dt><dd>{usage.definitions?.signedIn ?? "Distinct privacy-safe account hashes with a heartbeat in each rolling time window."}</dd></div>
+              <div><dt>Returning accounts</dt><dd>{usage.definitions?.returning ?? "Accounts observed on at least two UTC calendar dates in retained activity history."}</dd></div>
+              <div><dt>Sessions</dt><dd>{usage.definitions?.session ?? "A browser tab or app session; a new tab or app restart can start another session."}</dd></div>
+              <div><dt>Average session</dt><dd>{usage.definitions?.averageSession ?? "Heartbeat-observed foreground time per session; visible idle time can be included."}</dd></div>
+              <div><dt>Retention</dt><dd>{usage.definitions?.retention ?? "Cumulative: eligible after N x 24 hours and returned after activity on or after UTC day N."}</dd></div>
+              <div><dt>Devices and platforms</dt><dd>{usage.definitions?.device ?? "A pseudonymous browser or app installation ID that can change after storage is cleared or the app is reinstalled."} {usage.definitions?.platform ?? "Platform totals cover device IDs active in the last 30 days."}</dd></div>
+              <div><dt>Visits</dt><dd>{usage.definitions?.visit ?? "A device visit starts after at least 30 minutes without a heartbeat."}</dd></div>
+            </dl>
+          </details>
           <small>
-            Account totals count distinct signed-in accounts. Active use includes recent remote, keyboard, touch, or playback activity. Session and retention data starts with this release. No titles, searches, viewing history, emails, or raw account IDs are stored. {" "}
+            Metric definitions v{usage.definitions?.version ?? 1} · Times and retention dates use {usage.definitions?.timezone ?? "UTC"}. No titles, searches, viewing history, emails, or raw account IDs are stored. {" "}
             Updated {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.generatedAt))}
           </small>
         </section>

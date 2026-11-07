@@ -539,6 +539,18 @@ export function createService({ token, origins, authorizeAccount }) {
           day30: retention(30),
         },
       },
+      definitions: {
+        version: 2,
+        timezone: "UTC",
+        signedIn: "Distinct privacy-safe account hashes with a heartbeat in each rolling time window.",
+        returning: "Accounts observed on at least two UTC calendar dates in retained activity history.",
+        session: "A browser tab or app session identified by session storage; a new tab or app restart can start another session.",
+        averageSession: "Heartbeat-observed foreground time per session. Visible idle time can be included, and each sample is capped at five minutes.",
+        retention: "Cumulative retention: an account becomes eligible after N x 24 hours and counts as returned after activity on or after UTC day N.",
+        device: "A pseudonymous browser or app installation ID. Clearing storage or reinstalling can create another ID.",
+        platform: "Device IDs active in the last 30 days, grouped by their most recently reported platform.",
+        visit: "A device visit starts after at least 30 minutes without a heartbeat.",
+      },
       generatedAt: now,
     };
   }
