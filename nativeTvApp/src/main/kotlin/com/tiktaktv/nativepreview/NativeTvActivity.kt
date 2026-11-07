@@ -5,8 +5,12 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.nuvio.app.App
 import com.nuvio.app.MainActivity
 import com.nuvio.app.NativeTvHostMode
+import com.nuvio.app.core.ui.LocalTvMode
 
 /**
  * Android TV host for the native Compose application.
@@ -19,6 +23,13 @@ class NativeTvActivity : MainActivity() {
         NativeTvHostMode.enable()
         super.onCreate(savedInstanceState)
         enterTvFullscreen()
+    }
+
+    @Composable
+    override fun AppContent() {
+        CompositionLocalProvider(LocalTvMode provides true) {
+            App()
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
