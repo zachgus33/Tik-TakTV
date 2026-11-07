@@ -10,7 +10,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.nuvio.app.App
 import com.nuvio.app.MainActivity
 import com.nuvio.app.NativeTvHostMode
+import com.nuvio.app.TikTakTvShellPreview
 import com.nuvio.app.core.ui.LocalTvMode
+import com.nuvio.app.core.ui.NuvioTheme
 
 /**
  * Android TV host for the native Compose application.
@@ -28,7 +30,13 @@ class NativeTvActivity : MainActivity() {
     @Composable
     override fun AppContent() {
         CompositionLocalProvider(LocalTvMode provides true) {
-            App()
+            if (intent?.getBooleanExtra(EXTRA_SHELL_PREVIEW, false) == true) {
+                NuvioTheme(darkTheme = true) {
+                    TikTakTvShellPreview()
+                }
+            } else {
+                App()
+            }
         }
     }
 
@@ -54,5 +62,9 @@ class NativeTvActivity : MainActivity() {
                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
+    }
+
+    private companion object {
+        const val EXTRA_SHELL_PREVIEW = "native_tv_shell_preview"
     }
 }

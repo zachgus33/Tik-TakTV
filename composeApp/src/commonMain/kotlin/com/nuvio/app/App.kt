@@ -120,6 +120,7 @@ import com.nuvio.app.core.sync.AppForegroundMonitor
 import com.nuvio.app.core.sync.ProfileSettingsSync
 import com.nuvio.app.core.sync.SyncManager
 import com.nuvio.app.core.ui.LocalNuvioNavBarScrollState
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioClassicNavigationBar
 import com.nuvio.app.core.ui.NuvioNavigationBar
 import com.nuvio.app.core.ui.NuvioContinueWatchingActionSheet
@@ -1935,9 +1936,10 @@ private fun MainAppContent(
                             .fillMaxSize()
                             .nestedScroll(nativeTabAutoHideScrollConnection),
                     ) {
-                        val isTabletLayout = maxWidth >= 768.dp
+                        val isNativeTv = LocalTvMode.current
+                        val isTabletLayout = !isNativeTv && maxWidth >= 768.dp
                         val useNativeBottomTabs =
-                            liquidGlassNativeTabBarSupported && liquidGlassNativeTabBarEnabled && initialHomeReady
+                            !isNativeTv && liquidGlassNativeTabBarSupported && liquidGlassNativeTabBarEnabled && initialHomeReady
                         val nativeTabSafeBottomPadding = nuvioBottomNavigationBarInsets()
                             .asPaddingValues()
                             .calculateBottomPadding()
@@ -1965,7 +1967,7 @@ private fun MainAppContent(
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0),
                             bottomBar = {
-                                if (!isTabletLayout && !useNativeBottomTabs && navBarStyleSetting == NavBarStyle.CLASSIC) {
+                                if (!isNativeTv && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting == NavBarStyle.CLASSIC) {
                                     NuvioClassicNavigationBar {
                                         NavItem(
                                             selected = selectedTab == AppScreenTab.Home,
@@ -2024,6 +2026,7 @@ private fun MainAppContent(
                                     AppTabHost(
                                         modifier = Modifier
                                             .fillMaxSize()
+                                            .padding(start = if (isNativeTv) TikTakTvNavigationRailWidth else 0.dp)
                                             .then(
                                                 if (navBarStyleSetting != NavBarStyle.CLASSIC) {
                                                     Modifier.hazeSource(state = navBarHazeState)
@@ -2177,7 +2180,16 @@ private fun MainAppContent(
                                     )
                                 }
 
-                                if (!isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC) {
+                                if (isNativeTv) {
+                                    TikTakTvNavigationRail(
+                                        selectedTab = selectedTab,
+                                        liveTvEnabled = liveTvEnabled,
+                                        onTabSelected = ::handleRootTabClick,
+                                        modifier = Modifier.align(Alignment.CenterStart),
+                                    )
+                                }
+
+                                if (!isNativeTv && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC) {
                                     when (navBarStyleSetting) {
                                         NavBarStyle.EXPANDED -> navBarScrollState.expand()
                                         NavBarStyle.COMPACT -> navBarScrollState.collapse()

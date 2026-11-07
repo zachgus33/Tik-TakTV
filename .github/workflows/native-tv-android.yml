@@ -80,9 +80,30 @@ jobs:
             adb shell input keyevent 23
             sleep 3
             adb shell dumpsys activity activities > native-tv-activity.txt
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-emulator-smoke.png
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth.png
             adb logcat -d > native-tv-logcat.txt
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity.txt
+            ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
+
+            for spec in "1280x720:213:720p" "1920x1080:320:1080p" "3840x2160:640:4k"; do
+              size="${spec%%:*}"
+              remainder="${spec#*:}"
+              density="${remainder%%:*}"
+              label="${remainder#*:}"
+              adb shell am force-stop com.tiktaktv.tv.nativepreview
+              adb shell wm size "$size"
+              adb shell wm density "$density"
+              adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvActivity --ez native_tv_shell_preview true
+              sleep 5
+              adb shell input keyevent 20
+              adb shell input keyevent 23
+              sleep 2
+              adb shell dumpsys activity activities > "native-tv-activity-${label}.txt"
+              adb exec-out screencap -p > "nativeTvApp/build/native-tv-shell-${label}.png"
+              grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" "native-tv-activity-${label}.txt"
+            done
+
+            adb logcat -d > native-tv-logcat.txt
             ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
       - name: Upload emulator evidence
         if: always()
@@ -90,8 +111,8 @@ jobs:
         with:
           name: TikTak-TV-native-emulator-api-${{ matrix.api-level }}
           path: |
-            nativeTvApp/build/native-tv-emulator-smoke.png
-            native-tv-activity.txt
+            nativeTvApp/build/native-tv-*.png
+            native-tv-activity*.txt
             native-tv-logcat.txt
           if-no-files-found: warn
           retention-days: 14
