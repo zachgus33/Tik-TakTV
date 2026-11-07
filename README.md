@@ -70,7 +70,7 @@ Explore live and upcoming sporting events, filter by sport or country, follow ev
 
 ### YouTube and YouTube Music in one interface
 
-Search videos, browse recommendations, and use the separate Music view without constantly leaving TikTak TV. Supported Google sign-in can surface subscriptions, playlists, and account-related recommendations. On supported TV devices, an **optional SmartTube handoff** is available when SmartTube is installed.
+Search videos, browse recommendations, and use the separate Music view without constantly leaving TikTak TV. Supported Google sign-in can surface subscriptions, playlists, and account-related recommendations. Playback uses the YouTube player, with **optional SponsorBlock segment skipping**. On supported TV devices, an **optional SmartTube handoff** is available when SmartTube is installed.
 
 <table>
 <tr>
