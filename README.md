@@ -201,6 +201,8 @@ The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/
 
 The shared web interface also gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. It now separates heartbeat-observed UI session time from privacy-safe playback engagement: aggregate player opens, successful starts, final errors, sessions that reached playback, and playing-time buckets by app type/release. Titles, channels, searches, source URLs, credentials, and per-account viewing histories are never included. Users can disable usage analytics under **Settings → Privacy & status**.
 
+Navigation now uses a slimmer, always-visible sidebar on desktop, a compact rail that expands only while it has remote focus on TV, and the existing bottom navigation on phones. This gives content more room without hiding touch or remote controls.
+
 These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
 
 ## Feedback, bug reports & feature requests

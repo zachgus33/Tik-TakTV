@@ -1,14 +1,14 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.06.1";
+export const latestRelease = "2026.11.07.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
-    date: "November 6, 2026",
+    date: "November 7, 2026",
     title: "Clearer sources and broader TV compatibility",
     changes: [
       "Older Android 9 televisions now receive a Chromium 69-compatible web bundle, and the TV app shows a retry screen with its WebView version instead of remaining blank when startup fails.",
@@ -30,7 +30,7 @@ export const releases = [
       "Closing or backing out of full-screen Live TV now keeps the same stream playing in a corner mini-player while you browse the guide; closing the mini-player stops it.",
       "Profile sync now keeps a separate loaded baseline for every signed-in account and profile before it permits any remote write.",
       "Live TV can stay playing in a small corner window while you browse the guide, then return to full-screen playback without opening a second stream.",
-      "The TV sidebar stays compact until it receives remote focus, then expands over the page so content never jumps sideways.",
+      "Desktop navigation is slimmer without hiding any controls, TV keeps a compact rail that expands on remote focus, and phones retain the familiar bottom navigation.",
       "Android TV users with SmartTube installed can open a selected YouTube video there; the embedded TikTak TV player remains the automatic fallback.",
       "Stream searches now report how many installed add-ons were queried, paused, incompatible, or failed without exposing private add-on addresses.",
       "Issue forms now identify Shield, Google TV, Android TV, Fire TV, desktop, and mobile reports and remind users to redact credentials.",
@@ -193,10 +193,14 @@ export function WhatsNewPanel({
 
 export function requestedWhatsNewSection() {
   try {
-    const requested = sessionStorage.getItem(openKey) === "1";
-    if (requested) sessionStorage.removeItem(openKey);
-    return requested;
+    return sessionStorage.getItem(openKey) === "1";
   } catch {
     return false;
   }
+}
+
+export function clearRequestedWhatsNewSection() {
+  try {
+    sessionStorage.removeItem(openKey);
+  } catch {}
 }

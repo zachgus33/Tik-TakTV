@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.06.1"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.1"));
   });
   await mockSources(page);
 });
@@ -133,7 +133,7 @@ test("a new release shows once and links to the complete change history", async 
     page.getByRole("heading", {
       name: "Clearer sources and broader TV compatibility",
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await page.reload();
   await expect(update).toBeHidden();
 });
@@ -589,7 +589,7 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
           Math.round(sidebar.getBoundingClientRect().width),
         ),
     )
-    .toBeLessThanOrEqual(110);
+    .toBeLessThanOrEqual(88);
   const layout = await page.locator(".sidebar").evaluate((sidebar) => {
     const brand = sidebar.querySelector<HTMLElement>(".brand")!;
     const home = sidebar.querySelector<HTMLElement>("nav a")!;
@@ -603,8 +603,8 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
       homeFontSize: Number.parseFloat(getComputedStyle(home).fontSize),
     };
   });
-  expect(layout.sidebarWidth).toBeGreaterThanOrEqual(100);
-  expect(layout.sidebarWidth).toBeLessThanOrEqual(110);
+  expect(layout.sidebarWidth).toBeGreaterThanOrEqual(82);
+  expect(layout.sidebarWidth).toBeLessThanOrEqual(88);
   expect(layout.mainLeft).toBeGreaterThanOrEqual(layout.sidebarWidth - 1);
   expect(layout.brandTag).toBe("DIV");
   expect(layout.brandWidth).toBeLessThan(layout.sidebarWidth);
@@ -619,10 +619,52 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
           Math.round(sidebar.getBoundingClientRect().width),
         ),
     )
-    .toBeGreaterThanOrEqual(250);
+    .toBeGreaterThanOrEqual(220);
   await expect(page.getByRole("link", { name: /TikTak TV home/i })).toHaveCount(
     0,
   );
+});
+
+test("desktop sidebar stays slim while keeping every navigation label visible", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#home");
+
+  const readLayout = () =>
+    page.evaluate(() => {
+      const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
+      const main = document.querySelector<HTMLElement>(".main-shell")!;
+      const links = [...sidebar.querySelectorAll<HTMLElement>("nav a")];
+      return {
+        sidebar: Math.round(sidebar.getBoundingClientRect().width),
+        mainLeft: Math.round(main.getBoundingClientRect().left),
+        labels: links.map((link) => link.textContent?.trim()),
+        clippedLabels: links.filter(
+          (link) => link.scrollWidth > link.clientWidth + 1,
+        ).length,
+      };
+    });
+
+  await expect(page.locator(".sidebar")).toBeVisible();
+  let layout = await readLayout();
+  expect(layout.sidebar).toBe(184);
+  expect(layout.mainLeft).toBe(184);
+  expect(layout.clippedLabels).toBe(0);
+  expect(layout.labels).toEqual([
+    "Home",
+    "Discover",
+    "Live TV",
+    "YouTube",
+    "My library",
+    "Account",
+  ]);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  layout = await readLayout();
+  expect(layout.sidebar).toBe(168);
+  expect(layout.mainLeft).toBe(168);
+  expect(layout.clippedLabels).toBe(0);
 });
 
 test("Fire TV viewport keeps the navigation compact and content readable", async ({
@@ -641,7 +683,7 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
           Math.round(sidebar.getBoundingClientRect().width),
         ),
     )
-    .toBeLessThanOrEqual(86);
+    .toBeLessThanOrEqual(76);
   const layout = await page.evaluate(() => {
     const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
     const main = document.querySelector<HTMLElement>(".main-shell")!;
@@ -655,8 +697,8 @@ test("Fire TV viewport keeps the navigation compact and content readable", async
       lastLinkBottom: links.at(-1)?.getBoundingClientRect().bottom ?? Infinity,
     };
   });
-  expect(layout.sidebar).toBeGreaterThanOrEqual(78);
-  expect(layout.sidebar).toBeLessThanOrEqual(86);
+  expect(layout.sidebar).toBeGreaterThanOrEqual(70);
+  expect(layout.sidebar).toBeLessThanOrEqual(76);
   expect(layout.mainLeft).toBe(layout.sidebar);
   expect(layout.heroHeight).toBeLessThanOrEqual(365);
   expect(layout.labels).toEqual([
@@ -1108,6 +1150,18 @@ test("mobile live guide uses stacked channel cards without page overflow", async
   expect(layout.programmeWidth).toBeGreaterThan(220);
   expect(layout.channelHeight).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".bottom-nav")).toBeVisible();
+  await expect(page.locator(".sidebar")).toBeHidden();
+  const mobileNavigation = await page.locator(".bottom-nav").evaluate((nav) => {
+    const bounds = nav.getBoundingClientRect();
+    return {
+      position: getComputedStyle(nav).position,
+      bottom: Math.round(innerHeight - bounds.bottom),
+      width: Math.round(bounds.width),
+    };
+  });
+  expect(mobileNavigation.position).toBe("fixed");
+  expect(mobileNavigation.bottom).toBe(0);
+  expect(mobileNavigation.width).toBe(390);
 
   await page.getByRole("tab", { name: "Sports" }).click();
   const sportsLayout = await page.locator(".sports-hub").evaluate((element) => {

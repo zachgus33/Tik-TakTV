@@ -50,7 +50,11 @@ import HealthPanel from "./HealthPanel";
 import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
 import { streamPreferences } from "./stream-selection";
-import { requestedWhatsNewSection, WhatsNewPanel } from "./WhatsNew";
+import {
+  clearRequestedWhatsNewSection,
+  requestedWhatsNewSection,
+  WhatsNewPanel,
+} from "./WhatsNew";
 import FeedbackCenter from "./FeedbackCenter";
 
 export type FriendTemplate = {
@@ -183,6 +187,7 @@ export default function Settings(props: Props) {
     owner: boolean;
     published: boolean;
   } | null>(null);
+  useEffect(() => clearRequestedWhatsNewSection(), []);
   useEffect(() => setEpgDraft(props.epgUrl), [props.epgUrl]);
   useEffect(() => {
     if (!props.playbackConnected) {
