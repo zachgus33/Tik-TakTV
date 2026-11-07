@@ -55,8 +55,8 @@ android {
 
 dependencies {
     implementation(project(":composeApp"))
-    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.appcompat)
+    implementation(libs.compose.ui)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)

@@ -7,10 +7,10 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.ComposeView
 import com.nuvio.app.App
 import com.nuvio.app.MainActivity
 import com.nuvio.app.NativeTvHostMode
@@ -104,15 +104,19 @@ class NativeTvShellPreviewActivity : ComponentActivity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        setContent {
-            LaunchedEffect(Unit) {
-                Log.i("TikTakNativeTv", "Shell preview composed")
-            }
-            CompositionLocalProvider(LocalTvMode provides true) {
-                NuvioTheme(darkTheme = true) {
-                    TikTakTvShellPreview()
+        setContentView(
+            ComposeView(this).apply {
+                setContent {
+                    LaunchedEffect(Unit) {
+                        Log.i("TikTakNativeTv", "Shell preview composed")
+                    }
+                    CompositionLocalProvider(LocalTvMode provides true) {
+                        NuvioTheme(darkTheme = true) {
+                            TikTakTvShellPreview()
+                        }
+                    }
                 }
-            }
-        }
+            },
+        )
     }
 }
