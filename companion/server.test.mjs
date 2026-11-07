@@ -81,12 +81,15 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
     });
   const rawVisitor = "random-browser-installation-123456";
   const rawSession = "random-browser-session-123456789";
+  const rawPlayback = "random-playback-measurement-123456";
   try {
     assert.equal(
-      (await post("/analytics/heartbeat", {
-        visitorId: rawVisitor,
-        client: "web-mobile",
-      })).status,
+      (
+        await post("/analytics/heartbeat", {
+          visitorId: rawVisitor,
+          client: "web-mobile",
+        })
+      ).status,
       200,
     );
     assert.equal(
@@ -94,12 +97,52 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
       403,
     );
     assert.equal(
-      (await post("/analytics/account", {
-        client: "web-desktop",
-        createdAt: new Date().toISOString(),
-        sessionId: rawSession,
-        active: true,
-      }, "regular-user")).status,
+      (
+        await post(
+          "/analytics/account",
+          {
+            client: "web-desktop",
+            createdAt: new Date().toISOString(),
+            sessionId: rawSession,
+            active: true,
+          },
+          "regular-user",
+        )
+      ).status,
+      200,
+    );
+    for (const event of ["opened", "opened", "started", "started", "failed"])
+      assert.equal(
+        (
+          await post(
+            "/analytics/playback",
+            {
+              client: "android-tv",
+              release: "0.3.6",
+              sessionId: rawSession,
+              playbackId: rawPlayback,
+              event,
+            },
+            "regular-user",
+          )
+        ).status,
+        200,
+      );
+    assert.equal(
+      (
+        await post(
+          "/analytics/playback",
+          {
+            client: "android-tv",
+            release: "0.3.6",
+            sessionId: rawSession,
+            playbackId: rawPlayback,
+            event: "closed",
+            durationSeconds: 31 * 60,
+          },
+          "regular-user",
+        )
+      ).status,
       200,
     );
     const response = await post("/analytics/admin", {}, "site-owner");
@@ -116,20 +159,35 @@ test("usage counts are anonymous and visible only to the configured owner", asyn
     assert.equal(summary.accounts.sessionsPerAccount, 1);
     assert.equal(summary.accounts.returning, 0);
     assert.equal(summary.accounts.retention.day1.eligible, 0);
-    assert.equal(summary.definitions.version, 2);
+    assert.equal(summary.playback.opened, 1);
+    assert.equal(summary.playback.started, 1);
+    assert.equal(summary.playback.failed, 1);
+    assert.equal(summary.playback.closed, 1);
+    assert.equal(summary.playback.sessionsWithPlayback, 1);
+    assert.equal(summary.playback.successRate, 100);
+    assert.equal(summary.playback.averageDurationMinutes, 31);
+    assert.equal(summary.playback.durationBuckets.thirtyPlus, 1);
+    assert.equal(summary.playback.byPlatform["android-tv"].started, 1);
+    assert.equal(summary.playback.byRelease["0.3.6"].durationSamples, 1);
+    assert.equal(summary.definitions.version, 3);
     assert.equal(summary.definitions.timezone, "UTC");
     assert.match(summary.definitions.retention, /on or after UTC day N/);
     assert.match(summary.definitions.returning, /two UTC calendar dates/);
-    assert.match(summary.definitions.device, /Clearing storage or reinstalling/);
+    assert.match(
+      summary.definitions.device,
+      /Clearing storage or reinstalling/,
+    );
     await new Promise((resolve) => setTimeout(resolve, 400));
     const stored = await readFile(process.env.ANALYTICS_PATH, "utf8");
     assert.ok(!stored.includes(rawVisitor));
     assert.ok(!stored.includes(rawSession));
+    assert.ok(!stored.includes(rawPlayback));
     assert.ok(!stored.includes("regular-user"));
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
-    if (previous.admin === undefined) delete process.env.ANALYTICS_ADMIN_USER_ID;
+    if (previous.admin === undefined)
+      delete process.env.ANALYTICS_ADMIN_USER_ID;
     else process.env.ANALYTICS_ADMIN_USER_ID = previous.admin;
     if (previous.path === undefined) delete process.env.ANALYTICS_PATH;
     else process.env.ANALYTICS_PATH = previous.path;
@@ -164,35 +222,50 @@ test("signed-in users can send private feedback and only the owner can review it
       body: JSON.stringify(body),
     });
   try {
-    const submitted = await post("/feedback/submit", {
-      type: "bug",
-      title: "Player does not open",
-      details: "The player stays closed after selecting a result.",
-      page: "https://site.example/#youtube",
-      client: "android-tv",
-      attachments: [{
-        name: "screen.png",
-        type: "image/png",
-        data: "data:image/png;base64,aGVsbG8=",
-      }],
-    }, "reporter-account");
+    const submitted = await post(
+      "/feedback/submit",
+      {
+        type: "bug",
+        title: "Player does not open",
+        details: "The player stays closed after selecting a result.",
+        page: "https://site.example/#youtube",
+        client: "android-tv",
+        attachments: [
+          {
+            name: "screen.png",
+            type: "image/png",
+            data: "data:image/png;base64,aGVsbG8=",
+          },
+        ],
+      },
+      "reporter-account",
+    );
     assert.equal(submitted.status, 200);
     assert.equal(
-      (await post("/feedback/admin", { action: "list" }, "reporter-account")).status,
+      (await post("/feedback/admin", { action: "list" }, "reporter-account"))
+        .status,
       403,
     );
-    const listed = await post("/feedback/admin", { action: "list" }, "site-owner");
+    const listed = await post(
+      "/feedback/admin",
+      { action: "list" },
+      "site-owner",
+    );
     assert.equal(listed.status, 200);
     const inbox = await listed.json();
     assert.equal(inbox.entries.length, 1);
     assert.equal(inbox.entries[0].title, "Player does not open");
     assert.equal(inbox.entries[0].attachments.length, 1);
     assert.notEqual(inbox.entries[0].account, "reporter-account");
-    const updated = await post("/feedback/admin", {
-      action: "update",
-      id: inbox.entries[0].id,
-      status: "planned",
-    }, "site-owner");
+    const updated = await post(
+      "/feedback/admin",
+      {
+        action: "update",
+        id: inbox.entries[0].id,
+        status: "planned",
+      },
+      "site-owner",
+    );
     assert.equal(updated.status, 200);
     assert.equal((await updated.json()).entries[0].status, "planned");
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -486,7 +559,8 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       headers,
       body: JSON.stringify({ query: "Nuvio", kind: "video" }),
     });
-    if (!process.env.YOUTUBE_API_KEY) assert.equal(missingYouTubeKey.status, 503);
+    if (!process.env.YOUTUBE_API_KEY)
+      assert.equal(missingYouTubeKey.status, 503);
     const youtubeAccount = await fetch(base + "/youtube/account", {
       method: "POST",
       headers,

@@ -4,7 +4,7 @@
 
 **Your entertainment. Beautifully organized.**
 
-*Movies, shows, Live TV, sports, YouTube, and music — together in one place, on your screens.*
+_Movies, shows, Live TV, sports, YouTube, and music — together in one place, on your screens._
 
 [![Open TikTak TV](https://img.shields.io/badge/Launch%20Web%20App-9b5cff?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.tiktaktv.me/)
 [![Download for TV](https://img.shields.io/badge/Download%20TV%20APK-20212b?style=for-the-badge&logo=android&logoColor=white)](https://github.com/zachgus33/Tik-TakTV/releases)
@@ -28,15 +28,15 @@ Use **the website** on desktop, iPhone, iPad, and Android browsers, or install *
 
 ### At a glance
 
-| | What you get |
-| --- | --- |
-| **Movies & series** | Catalog-powered Home, Discover, search, title details, seasons, episodes, and Continue Watching |
-| **Live TV** | User-supplied Xtream/M3U services, XMLTV/EPG matching, channel artwork, and a two-hour guide |
-| **Sports** | Live/upcoming events, scores where available, followed events, and matched channels from *your* IPTV setup |
-| **YouTube & music** | Separate YouTube and YouTube Music experiences, search, and account-based features where available |
-| **Your library** | Profiles, collections, favorites, watch progress, and supported Nuvio account/add-on sync |
-| **TV-friendly controls** | Remote navigation, focus states, compact sidebar, fullscreen playback, and a Live TV mini-player |
-| **Multiple screens** | Web, installable PWA, Fire TV, Android TV, and Google TV |
+|                          | What you get                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **Movies & series**      | Catalog-powered Home, Discover, search, title details, seasons, episodes, and Continue Watching            |
+| **Live TV**              | User-supplied Xtream/M3U services, XMLTV/EPG matching, channel artwork, and a two-hour guide               |
+| **Sports**               | Live/upcoming events, scores where available, followed events, and matched channels from _your_ IPTV setup |
+| **YouTube & music**      | Separate YouTube and YouTube Music experiences, search, and account-based features where available         |
+| **Your library**         | Profiles, collections, favorites, watch progress, and supported Nuvio account/add-on sync                  |
+| **TV-friendly controls** | Remote navigation, focus states, compact sidebar, fullscreen playback, and a Live TV mini-player           |
+| **Multiple screens**     | Web, installable PWA, Fire TV, Android TV, and Google TV                                                   |
 
 ## Take a look around
 
@@ -179,13 +179,13 @@ The TV edition is distributed as a sideloadable Android APK. **Downloader code: 
 
 ### Platform support
 
-| Platform | How to use TikTak TV | Notes |
-| --- | --- | --- |
-| Desktop / laptop | Website | Current Chrome, Firefox, Edge, Safari and similar modern browsers |
-| iPhone / iPad | Website / Add to Home Screen | Web/PWA experience; **native iOS IPA is not released** |
-| Android phone / tablet | Website / PWA | Browser-based experience |
-| Fire TV / Firestick | TV APK | D-pad/remote-first interface |
-| Android TV / Google TV | TV APK | Remote-first interface; performance and codec support depend on device |
+| Platform               | How to use TikTak TV         | Notes                                                                  |
+| ---------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| Desktop / laptop       | Website                      | Current Chrome, Firefox, Edge, Safari and similar modern browsers      |
+| iPhone / iPad          | Website / Add to Home Screen | Web/PWA experience; **native iOS IPA is not released**                 |
+| Android phone / tablet | Website / PWA                | Browser-based experience                                               |
+| Fire TV / Firestick    | TV APK                       | D-pad/remote-first interface                                           |
+| Android TV / Google TV | TV APK                       | Remote-first interface; performance and codec support depend on device |
 
 ## What's new in the 0.3.6 TV update?
 
@@ -199,7 +199,7 @@ The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/
 - **More accurate production monitoring** recognizes the visible startup fallback while continuing to check built assets, companion health, account access, source discovery, and playback preparation.
 - The 0.3.5 features remain included: **Live TV mini-player, refreshed EPG, Sports and scores, compact TV navigation, SmartTube handoff, in-app feedback, and responsive layouts.**
 
-The shared web interface also now gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. This documents how the existing privacy-safe counters are calculated without changing their historical meaning.
+The shared web interface also gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. It now separates heartbeat-observed UI session time from privacy-safe playback engagement: aggregate player opens, successful starts, final errors, sessions that reached playback, and playing-time buckets by app type/release. Titles, channels, searches, source URLs, credentials, and per-account viewing histories are never included. Users can disable usage analytics under **Settings → Privacy & status**.
 
 These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
 
@@ -266,6 +266,6 @@ TikTak TV is a frontend for services and sources that users connect themselves. 
 
 **[Open TikTak TV](https://www.tiktaktv.me/)** · **[Get the TV APK](https://github.com/zachgus33/Tik-TakTV/releases)** · **[Share feedback](https://github.com/zachgus33/Tik-TakTV/issues)**
 
-*Built for people who want their entertainment in one place.*
+_Built for people who want their entertainment in one place._
 
 </div>

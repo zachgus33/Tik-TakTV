@@ -247,8 +247,7 @@ export function createService({ token, origins, authorizeAccount }) {
   });
   const friendAttempts = new Map();
   const friendOwner = process.env.FRIEND_OWNER_USER_ID ?? "";
-  const analyticsAdmin =
-    process.env.ANALYTICS_ADMIN_USER_ID ?? friendOwner;
+  const analyticsAdmin = process.env.ANALYTICS_ADMIN_USER_ID ?? friendOwner;
   const analyticsPath =
     process.env.ANALYTICS_PATH ??
     join(process.cwd(), "runtime", "usage-analytics.json");
@@ -280,14 +279,20 @@ export function createService({ token, origins, authorizeAccount }) {
   }
   function scheduleFeedbackWrite() {
     if (feedbackWriteTimer) clearTimeout(feedbackWriteTimer);
-    feedbackWriteTimer = setTimeout(() => void (async () => {
-      feedbackWriteTimer = null;
-      if (!feedbackCache) return;
-      await mkdir(join(feedbackPath, ".."), { recursive: true });
-      const temporary = `${feedbackPath}.${randomBytes(6).toString("hex")}`;
-      await writeFile(temporary, JSON.stringify(feedbackCache), { mode: 0o600 });
-      await rename(temporary, feedbackPath);
-    })().catch(() => {}), 100);
+    feedbackWriteTimer = setTimeout(
+      () =>
+        void (async () => {
+          feedbackWriteTimer = null;
+          if (!feedbackCache) return;
+          await mkdir(join(feedbackPath, ".."), { recursive: true });
+          const temporary = `${feedbackPath}.${randomBytes(6).toString("hex")}`;
+          await writeFile(temporary, JSON.stringify(feedbackCache), {
+            mode: 0o600,
+          });
+          await rename(temporary, feedbackPath);
+        })().catch(() => {}),
+      100,
+    );
     feedbackWriteTimer.unref();
   }
   async function submitFeedback(userId, value) {
@@ -296,22 +301,30 @@ export function createService({ token, origins, authorizeAccount }) {
     const details = String(value?.details ?? "").trim();
     const page = String(value?.page ?? "").slice(0, 240);
     const client = String(value?.client ?? "web").slice(0, 40);
-    if (!["bug", "feature"].includes(type)) throw new Error("Choose a feedback type.");
+    if (!["bug", "feature"].includes(type))
+      throw new Error("Choose a feedback type.");
     if (title.length < 5 || title.length > 140)
       throw new Error("Use a title between 5 and 140 characters.");
     if (details.length < 10 || details.length > 5_000)
       throw new Error("Describe the request in 10 to 5,000 characters.");
-    const attachments = Array.isArray(value?.attachments) ? value.attachments : [];
-    if (attachments.length > 3) throw new Error("Attach no more than three images.");
+    const attachments = Array.isArray(value?.attachments)
+      ? value.attachments
+      : [];
+    if (attachments.length > 3)
+      throw new Error("Attach no more than three images.");
     const images = attachments.map((attachment) => {
       const name =
         String(attachment?.name ?? "screenshot")
           .replace(/[^a-zA-Z0-9._ -]/g, "")
           .slice(0, 100) || "screenshot";
       const data = String(attachment?.data ?? "");
-      const match = data.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
+      const match = data.match(
+        /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/,
+      );
       if (!match || Buffer.byteLength(match[2], "base64") > 2_000_000)
-        throw new Error("Each attachment must be a PNG, JPEG, WebP, or GIF under 2 MB.");
+        throw new Error(
+          "Each attachment must be a PNG, JPEG, WebP, or GIF under 2 MB.",
+        );
       return { name, type: match[1], data };
     });
     const data = await readFeedback();
@@ -354,15 +367,19 @@ export function createService({ token, origins, authorizeAccount }) {
   }
   function scheduleAnalyticsWrite() {
     if (analyticsWriteTimer) clearTimeout(analyticsWriteTimer);
-    analyticsWriteTimer = setTimeout(() => void (async () => {
-      analyticsWriteTimer = null;
-      const value = analyticsCache;
-      if (!value) return;
-      await mkdir(join(analyticsPath, ".."), { recursive: true });
-      const temporary = `${analyticsPath}.${randomBytes(6).toString("hex")}`;
-      await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
-      await rename(temporary, analyticsPath);
-    })().catch(() => {}), 250);
+    analyticsWriteTimer = setTimeout(
+      () =>
+        void (async () => {
+          analyticsWriteTimer = null;
+          const value = analyticsCache;
+          if (!value) return;
+          await mkdir(join(analyticsPath, ".."), { recursive: true });
+          const temporary = `${analyticsPath}.${randomBytes(6).toString("hex")}`;
+          await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+          await rename(temporary, analyticsPath);
+        })().catch(() => {}),
+      250,
+    );
     analyticsWriteTimer.unref();
   }
   async function recordUsage(value) {
@@ -440,28 +457,158 @@ export function createService({ token, origins, authorizeAccount }) {
       : 0;
     const day = new Date(now).toISOString().slice(0, 10);
     const activityDays = Array.from(
-      new Set([...(Array.isArray(previous?.activityDays) ? previous.activityDays : []), day]),
-    ).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)).slice(-45);
+      new Set([
+        ...(Array.isArray(previous?.activityDays) ? previous.activityDays : []),
+        day,
+      ]),
+    )
+      .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+      .slice(-45);
     const previousCurrentSeconds = Number(previous?.currentSessionSeconds) || 0;
     data.accounts[id] = {
       firstSeen: Number(previous?.firstSeen) || now,
       lastSeen: now,
-      lastActive: value?.active === true
-        ? now
-        : Number(previous?.lastActive) || 0,
+      lastActive:
+        value?.active === true ? now : Number(previous?.lastActive) || 0,
       createdAt: Number(previous?.createdAt) || createdAt,
       client,
-      sessions: Math.max(1, Number(previous?.sessions) || 1) + (previous && !sameSession ? 1 : 0),
+      sessions:
+        Math.max(1, Number(previous?.sessions) || 1) +
+        (previous && !sameSession ? 1 : 0),
       currentSession: session,
       currentSessionStarted: sameSession
         ? Number(previous?.currentSessionStarted) || previousLastSeen
         : now,
-      currentSessionSeconds: sameSession ? previousCurrentSeconds + elapsedSeconds : 0,
+      currentSessionSeconds: sameSession
+        ? previousCurrentSeconds + elapsedSeconds
+        : 0,
       completedSessionSeconds:
         (Number(previous?.completedSessionSeconds) || 0) +
         (previous && !sameSession ? previousCurrentSeconds : 0),
       activityDays,
     };
+    scheduleAnalyticsWrite();
+    return true;
+  }
+  async function recordPlaybackMetric(userId, value) {
+    const client = String(value?.client ?? "web");
+    const release = String(value?.release ?? "web").slice(0, 24);
+    const event = String(value?.event ?? "");
+    const rawPlaybackId = String(value?.playbackId ?? "");
+    const rawSessionId = String(value?.sessionId ?? "");
+    const validClients = [
+      "web-desktop",
+      "web-mobile",
+      "pwa",
+      "android-mobile",
+      "android-tv",
+    ];
+    const validEvents = ["opened", "started", "failed", "ended", "closed"];
+    if (
+      !userId ||
+      userId === "service" ||
+      !validClients.includes(client) ||
+      !validEvents.includes(event) ||
+      !/^[A-Za-z0-9._-]{1,24}$/.test(release) ||
+      !/^[A-Za-z0-9_-]{20,100}$/.test(rawPlaybackId) ||
+      !/^[A-Za-z0-9_-]{20,100}$/.test(rawSessionId)
+    )
+      return false;
+    const data = await readAnalytics();
+    const now = Date.now();
+    data.playback ??= {
+      measurementStartedAt: now,
+      opened: 0,
+      started: 0,
+      failed: 0,
+      ended: 0,
+      closed: 0,
+      sessionsWithPlayback: 0,
+      totalDurationSeconds: 0,
+      durationSamples: 0,
+      durationBuckets: {
+        under1m: 0,
+        oneTo5m: 0,
+        fiveTo15m: 0,
+        fifteenTo30m: 0,
+        thirtyPlus: 0,
+      },
+      byPlatform: {},
+      byRelease: {},
+    };
+    data.playbackEvents ??= {};
+    data.playbackSessions ??= {};
+    const eventId = createHmac("sha256", token)
+      .update(`playback-event:${rawPlaybackId}:${event}`)
+      .digest("base64url");
+    if (data.playbackEvents[eventId]) return true;
+    data.playbackEvents[eventId] = now;
+    const oldestRetained = now - 45 * 24 * 60 * 60_000;
+    data.playbackEvents = Object.fromEntries(
+      Object.entries(data.playbackEvents)
+        .filter(([, timestamp]) => Number(timestamp) >= oldestRetained)
+        .sort((a, b) => Number(b[1]) - Number(a[1]))
+        .slice(0, 20_000),
+    );
+    const emptyGroup = () => ({
+      opened: 0,
+      started: 0,
+      failed: 0,
+      ended: 0,
+      closed: 0,
+      totalDurationSeconds: 0,
+      durationSamples: 0,
+      durationBuckets: {
+        under1m: 0,
+        oneTo5m: 0,
+        fiveTo15m: 0,
+        fifteenTo30m: 0,
+        thirtyPlus: 0,
+      },
+    });
+    const platform = (data.playback.byPlatform[client] ??= emptyGroup());
+    const releaseGroup = (data.playback.byRelease[release] ??= emptyGroup());
+    for (const group of [data.playback, platform, releaseGroup])
+      group[event] = (Number(group[event]) || 0) + 1;
+    if (event === "started") {
+      const sessionId = createHmac("sha256", token)
+        .update(`playback-session:${rawSessionId}`)
+        .digest("base64url");
+      if (!data.playbackSessions[sessionId]) {
+        data.playbackSessions[sessionId] = now;
+        data.playback.sessionsWithPlayback =
+          (Number(data.playback.sessionsWithPlayback) || 0) + 1;
+      }
+      data.playbackSessions = Object.fromEntries(
+        Object.entries(data.playbackSessions)
+          .filter(([, timestamp]) => Number(timestamp) >= oldestRetained)
+          .sort((a, b) => Number(b[1]) - Number(a[1]))
+          .slice(0, 20_000),
+      );
+    }
+    if (event === "ended" || event === "closed") {
+      const durationSeconds = Math.max(
+        0,
+        Math.min(24 * 60 * 60, Math.round(Number(value?.durationSeconds) || 0)),
+      );
+      const bucket =
+        durationSeconds < 60
+          ? "under1m"
+          : durationSeconds < 5 * 60
+            ? "oneTo5m"
+            : durationSeconds < 15 * 60
+              ? "fiveTo15m"
+              : durationSeconds < 30 * 60
+                ? "fifteenTo30m"
+                : "thirtyPlus";
+      for (const group of [data.playback, platform, releaseGroup]) {
+        group.totalDurationSeconds =
+          (Number(group.totalDurationSeconds) || 0) + durationSeconds;
+        group.durationSamples = (Number(group.durationSamples) || 0) + 1;
+        group.durationBuckets[bucket] =
+          (Number(group.durationBuckets[bucket]) || 0) + 1;
+      }
+    }
     scheduleAnalyticsWrite();
     return true;
   }
@@ -473,16 +620,12 @@ export function createService({ token, origins, authorizeAccount }) {
       visitors.filter((entry) => now - Number(entry.lastSeen) <= duration);
     const recent = within(30 * 24 * 60 * 60_000);
     const platforms = Object.fromEntries(
-      [
-        "web-desktop",
-        "web-mobile",
-        "pwa",
-        "android-mobile",
-        "android-tv",
-      ].map((name) => [
-        name,
-        recent.filter((entry) => entry.client === name).length,
-      ]),
+      ["web-desktop", "web-mobile", "pwa", "android-mobile", "android-tv"].map(
+        (name) => [
+          name,
+          recent.filter((entry) => entry.client === name).length,
+        ],
+      ),
     );
     const accounts = Object.values(data.accounts ?? {});
     const accountsWithin = (duration) =>
@@ -496,33 +639,58 @@ export function createService({ token, origins, authorizeAccount }) {
     const utcDay = (value) => Date.parse(`${value}T00:00:00.000Z`);
     const retention = (days) => {
       const threshold = days * 24 * 60 * 60_000;
-      const eligible = accounts.filter((entry) => now - Number(entry.firstSeen) >= threshold);
+      const eligible = accounts.filter(
+        (entry) => now - Number(entry.firstSeen) >= threshold,
+      );
       const returned = eligible.filter((entry) => {
-        const firstDay = Date.parse(new Date(Number(entry.firstSeen)).toISOString().slice(0, 10) + "T00:00:00.000Z");
-        return (entry.activityDays ?? []).some((day) => utcDay(day) - firstDay >= threshold);
+        const firstDay = Date.parse(
+          new Date(Number(entry.firstSeen)).toISOString().slice(0, 10) +
+            "T00:00:00.000Z",
+        );
+        return (entry.activityDays ?? []).some(
+          (day) => utcDay(day) - firstDay >= threshold,
+        );
       }).length;
       return {
         eligible: eligible.length,
         returned,
-        rate: eligible.length ? Math.round((returned / eligible.length) * 1000) / 10 : null,
+        rate: eligible.length
+          ? Math.round((returned / eligible.length) * 1000) / 10
+          : null,
       };
     };
-    const totalSessions = accounts.reduce((total, entry) => total + Math.max(1, Number(entry.sessions) || 1), 0);
-    const totalSessionSeconds = accounts.reduce(
-      (total, entry) => total + Number(entry.completedSessionSeconds || 0) + Number(entry.currentSessionSeconds || 0),
+    const totalSessions = accounts.reduce(
+      (total, entry) => total + Math.max(1, Number(entry.sessions) || 1),
       0,
     );
+    const totalSessionSeconds = accounts.reduce(
+      (total, entry) =>
+        total +
+        Number(entry.completedSessionSeconds || 0) +
+        Number(entry.currentSessionSeconds || 0),
+      0,
+    );
+    const playback = data.playback ?? {};
+    const durationSamples = Number(playback.durationSamples) || 0;
+    const totalDurationSeconds = Number(playback.totalDurationSeconds) || 0;
+    const playbackOpened = Number(playback.opened) || 0;
+    const playbackStarted = Number(playback.started) || 0;
     return {
       activeNow: within(5 * 60_000).length,
       today: within(24 * 60 * 60_000).length,
       sevenDays: within(7 * 24 * 60 * 60_000).length,
       thirtyDays: recent.length,
       allTime: visitors.length,
-      visits: visitors.reduce((total, entry) => total + Number(entry.visits || 0), 0),
+      visits: visitors.reduce(
+        (total, entry) => total + Number(entry.visits || 0),
+        0,
+      ),
       platforms,
       accounts: {
         onlineNow: accountsWithin(5 * 60_000).length,
-        activeNow: accounts.filter((entry) => now - Number(entry.lastActive) <= 5 * 60_000).length,
+        activeNow: accounts.filter(
+          (entry) => now - Number(entry.lastActive) <= 5 * 60_000,
+        ).length,
         today: accountsWithin(24 * 60 * 60_000).length,
         sevenDays: accountsWithin(7 * 24 * 60 * 60_000).length,
         thirtyDays: accountsWithin(30 * 24 * 60 * 60_000).length,
@@ -530,26 +698,69 @@ export function createService({ token, origins, authorizeAccount }) {
         signupsToday: signupsWithin(24 * 60 * 60_000).length,
         signupsSevenDays: signupsWithin(7 * 24 * 60 * 60_000).length,
         signupsThirtyDays: signupsWithin(30 * 24 * 60 * 60_000).length,
-        returning: accounts.filter((entry) => (entry.activityDays ?? []).length >= 2).length,
-        sessionsPerAccount: accounts.length ? Math.round((totalSessions / accounts.length) * 10) / 10 : 0,
-        averageSessionMinutes: totalSessions ? Math.round((totalSessionSeconds / totalSessions / 60) * 10) / 10 : 0,
+        returning: accounts.filter(
+          (entry) => (entry.activityDays ?? []).length >= 2,
+        ).length,
+        sessionsPerAccount: accounts.length
+          ? Math.round((totalSessions / accounts.length) * 10) / 10
+          : 0,
+        averageSessionMinutes: totalSessions
+          ? Math.round((totalSessionSeconds / totalSessions / 60) * 10) / 10
+          : 0,
         retention: {
           day1: retention(1),
           day7: retention(7),
           day30: retention(30),
         },
       },
+      playback: {
+        opened: playbackOpened,
+        started: playbackStarted,
+        failed: Number(playback.failed) || 0,
+        ended: Number(playback.ended) || 0,
+        closed: Number(playback.closed) || 0,
+        sessionsWithPlayback: Number(playback.sessionsWithPlayback) || 0,
+        successRate: playbackOpened
+          ? Math.round((playbackStarted / playbackOpened) * 1000) / 10
+          : null,
+        averageDurationMinutes: durationSamples
+          ? Math.round((totalDurationSeconds / durationSamples / 60) * 10) / 10
+          : 0,
+        totalDurationHours:
+          Math.round((totalDurationSeconds / 60 / 60) * 10) / 10,
+        durationSamples,
+        durationBuckets: {
+          under1m: Number(playback.durationBuckets?.under1m) || 0,
+          oneTo5m: Number(playback.durationBuckets?.oneTo5m) || 0,
+          fiveTo15m: Number(playback.durationBuckets?.fiveTo15m) || 0,
+          fifteenTo30m: Number(playback.durationBuckets?.fifteenTo30m) || 0,
+          thirtyPlus: Number(playback.durationBuckets?.thirtyPlus) || 0,
+        },
+        byPlatform: playback.byPlatform ?? {},
+        byRelease: playback.byRelease ?? {},
+        measurementStartedAt: Number(playback.measurementStartedAt) || null,
+      },
       definitions: {
-        version: 2,
+        version: 3,
         timezone: "UTC",
-        signedIn: "Distinct privacy-safe account hashes with a heartbeat in each rolling time window.",
-        returning: "Accounts observed on at least two UTC calendar dates in retained activity history.",
-        session: "A browser tab or app session identified by session storage; a new tab or app restart can start another session.",
-        averageSession: "Heartbeat-observed foreground time per session. Visible idle time can be included, and each sample is capped at five minutes.",
-        retention: "Cumulative retention: an account becomes eligible after N x 24 hours and counts as returned after activity on or after UTC day N.",
-        device: "A pseudonymous browser or app installation ID. Clearing storage or reinstalling can create another ID.",
-        platform: "Device IDs active in the last 30 days, grouped by their most recently reported platform.",
-        visit: "A device visit starts after at least 30 minutes without a heartbeat.",
+        signedIn:
+          "Distinct privacy-safe account hashes with a heartbeat in each rolling time window.",
+        returning:
+          "Accounts observed on at least two UTC calendar dates in retained activity history.",
+        session:
+          "A browser tab or app session identified by session storage; a new tab or app restart can start another session.",
+        averageSession:
+          "Heartbeat-observed foreground time per session. Visible idle time can be included, and each sample is capped at five minutes.",
+        retention:
+          "Cumulative retention: an account becomes eligible after N x 24 hours and counts as returned after activity on or after UTC day N.",
+        device:
+          "A pseudonymous browser or app installation ID. Clearing storage or reinstalling can create another ID.",
+        platform:
+          "Device IDs active in the last 30 days, grouped by their most recently reported platform.",
+        visit:
+          "A device visit starts after at least 30 minutes without a heartbeat.",
+        playback:
+          "Aggregate embedded-player opens, successful starts, final errors, and wall-clock time while media was actually playing. Paused time, titles, channels, URLs, and external-player watch time are not collected.",
       },
       generatedAt: now,
     };
@@ -714,15 +925,18 @@ export function createService({ token, origins, authorizeAccount }) {
       return account.accessToken;
     const config = youtubeOAuthConfig();
     if (!config || !account.refreshToken) return null;
-    const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: youtubeTokenBody(config, {
-        refresh_token: account.refreshToken,
-        grant_type: "refresh_token",
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const response = await upstreamFetch(
+      "https://oauth2.googleapis.com/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: youtubeTokenBody(config, {
+          refresh_token: account.refreshToken,
+          grant_type: "refresh_token",
+        }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.access_token) return null;
     Object.assign(account, {
@@ -1284,7 +1498,11 @@ export function createService({ token, origins, authorizeAccount }) {
         if (value?.action === "update") {
           const entry = data.entries.find((item) => item.id === value.id);
           if (!entry) return send(404, { error: "Feedback not found" });
-          if (!["new", "reviewing", "planned", "completed", "closed"].includes(value.status))
+          if (
+            !["new", "reviewing", "planned", "completed", "closed"].includes(
+              value.status,
+            )
+          )
             return send(400, { error: "Invalid status" });
           entry.status = value.status;
           entry.updatedAt = Date.now();
@@ -1313,6 +1531,11 @@ export function createService({ token, origins, authorizeAccount }) {
           return send(400, { error: "Invalid account usage event" });
         return send(200, { ok: true });
       }
+      if (route.pathname === "/analytics/playback") {
+        if (!(await recordPlaybackMetric(userId, body)))
+          return send(400, { error: "Invalid playback metric" });
+        return send(200, { ok: true });
+      }
       if (route.pathname === "/analytics/admin") {
         if (!analyticsAdmin || userId !== analyticsAdmin)
           return send(403, { error: "Not available" });
@@ -1323,7 +1546,9 @@ export function createService({ token, origins, authorizeAccount }) {
           return send(403, { error: "Sign in to TikTak TV first." });
         const config = youtubeOAuthConfig();
         if (!config)
-          return send(503, { error: "YouTube account sign-in is being configured." });
+          return send(503, {
+            error: "YouTube account sign-in is being configured.",
+          });
         const response = await upstreamFetch(
           "https://oauth2.googleapis.com/device/code",
           {
@@ -1365,23 +1590,31 @@ export function createService({ token, origins, authorizeAccount }) {
         if (Date.now() - pending.lastPoll < pending.interval * 900)
           return send(202, { pending: true });
         pending.lastPoll = Date.now();
-        const response = await upstreamFetch("https://oauth2.googleapis.com/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: youtubeTokenBody(config, {
-            device_code: pending.deviceCode,
-            grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-          }),
-          signal: controller.signal,
-        });
+        const response = await upstreamFetch(
+          "https://oauth2.googleapis.com/token",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: youtubeTokenBody(config, {
+              device_code: pending.deviceCode,
+              grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+            }),
+            signal: controller.signal,
+          },
+        );
         const payload = await response.json().catch(() => ({}));
-        if (payload.error === "authorization_pending" || payload.error === "slow_down") {
+        if (
+          payload.error === "authorization_pending" ||
+          payload.error === "slow_down"
+        ) {
           if (payload.error === "slow_down") pending.interval += 5;
           return send(202, { pending: true, interval: pending.interval });
         }
         if (!response.ok || !payload.access_token) {
           youtubeDevices.delete(userId);
-          return send(400, { error: "Google sign-in was cancelled or expired." });
+          return send(400, {
+            error: "Google sign-in was cancelled or expired.",
+          });
         }
         const vault = await readYoutubeVault();
         vault.accounts[userId] = {
@@ -1433,13 +1666,20 @@ export function createService({ token, origins, authorizeAccount }) {
           first?.snippet?.resourceId?.videoId ??
           "";
         if (!videoId)
-          return send(404, { error: "This playlist does not contain a playable video." });
+          return send(404, {
+            error: "This playlist does not contain a playable video.",
+          });
         return send(200, {
           selection: {
             playlistId,
             videoId,
-            title: String(first?.snippet?.title ?? "YouTube playlist").slice(0, 300),
-            channel: String(first?.snippet?.videoOwnerChannelTitle ?? "Playlist").slice(0, 200),
+            title: String(first?.snippet?.title ?? "YouTube playlist").slice(
+              0,
+              300,
+            ),
+            channel: String(
+              first?.snippet?.videoOwnerChannelTitle ?? "Playlist",
+            ).slice(0, 200),
             thumbnail: String(
               first?.snippet?.thumbnails?.medium?.url ??
                 first?.snippet?.thumbnails?.default?.url ??
@@ -1450,7 +1690,10 @@ export function createService({ token, origins, authorizeAccount }) {
       }
       if (route.pathname === "/youtube/account") {
         if (userId === "service")
-          return send(200, { configured: !!youtubeOAuthConfig(), connected: false });
+          return send(200, {
+            configured: !!youtubeOAuthConfig(),
+            connected: false,
+          });
         const channel = await youtubeApi(userId, "channels", {
           part: "snippet,contentDetails",
           mine: "true",
@@ -1494,19 +1737,19 @@ export function createService({ token, origins, authorizeAccount }) {
           }),
         ]);
         const selectionFromActivity = (item) => ({
-            videoId:
-              item?.contentDetails?.upload?.videoId ??
-              item?.contentDetails?.playlistItem?.resourceId?.videoId ??
-              item?.contentDetails?.recommendation?.resourceId?.videoId ??
+          videoId:
+            item?.contentDetails?.upload?.videoId ??
+            item?.contentDetails?.playlistItem?.resourceId?.videoId ??
+            item?.contentDetails?.recommendation?.resourceId?.videoId ??
+            "",
+          title: String(item?.snippet?.title ?? "YouTube video").slice(0, 300),
+          channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
+          thumbnail: String(
+            item?.snippet?.thumbnails?.medium?.url ??
+              item?.snippet?.thumbnails?.default?.url ??
               "",
-            title: String(item?.snippet?.title ?? "YouTube video").slice(0, 300),
-            channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
-            thumbnail: String(
-              item?.snippet?.thumbnails?.medium?.url ??
-                item?.snippet?.thumbnails?.default?.url ??
-                "",
-            ),
-          });
+          ),
+        });
         const subscriptionItems = (subscriptions?.items ?? [])
           .map((item) => ({
             id: item?.snippet?.resourceId?.channelId ?? "",
@@ -1519,7 +1762,8 @@ export function createService({ token, origins, authorizeAccount }) {
           .filter((item) => /^[A-Za-z0-9_-]{10,64}$/.test(item.id));
         const subscriptionOffset =
           subscriptionItems.length > 0
-            ? (youtubeSubscriptionOffsets.get(userId) ?? 0) % subscriptionItems.length
+            ? (youtubeSubscriptionOffsets.get(userId) ?? 0) %
+              subscriptionItems.length
             : 0;
         const subscriptionSample = [
           ...subscriptionItems.slice(subscriptionOffset),
@@ -1528,7 +1772,8 @@ export function createService({ token, origins, authorizeAccount }) {
         if (subscriptionItems.length > 0)
           youtubeSubscriptionOffsets.set(
             userId,
-            (subscriptionOffset + subscriptionSample.length) % subscriptionItems.length,
+            (subscriptionOffset + subscriptionSample.length) %
+              subscriptionItems.length,
           );
         const subscriptionActivity = await Promise.all(
           subscriptionSample.map((subscription) =>
@@ -1546,7 +1791,9 @@ export function createService({ token, origins, authorizeAccount }) {
           ...(activities?.items ?? []).map(selectionFromActivity),
         ].filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
         const uniqueFeed = [
-          ...new Map(feedCandidates.map((item) => [item.videoId, item])).values(),
+          ...new Map(
+            feedCandidates.map((item) => [item.videoId, item]),
+          ).values(),
         ].slice(0, 48);
         const playlistItems = (playlists?.items ?? []).slice(0, 30);
         const playlistLeads = await Promise.all(
@@ -1574,17 +1821,22 @@ export function createService({ token, origins, authorizeAccount }) {
               "",
           );
           if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return [];
-          return [{
-            playlistId: item?.id ?? "",
-            videoId,
-            title: String(item?.snippet?.title ?? "YouTube playlist").slice(0, 300),
-            channel: "Playlist",
-            thumbnail:
-              item?.snippet?.thumbnails?.medium?.url ??
-              item?.snippet?.thumbnails?.default?.url ??
-              "",
-            itemCount: Number(item?.contentDetails?.itemCount ?? 0),
-          }];
+          return [
+            {
+              playlistId: item?.id ?? "",
+              videoId,
+              title: String(item?.snippet?.title ?? "YouTube playlist").slice(
+                0,
+                300,
+              ),
+              channel: "Playlist",
+              thumbnail:
+                item?.snippet?.thumbnails?.medium?.url ??
+                item?.snippet?.thumbnails?.default?.url ??
+                "",
+              itemCount: Number(item?.contentDetails?.itemCount ?? 0),
+            },
+          ];
         });
         const detailIds = [
           ...new Set([
@@ -1605,7 +1857,9 @@ export function createService({ token, origins, authorizeAccount }) {
           ),
         );
         const detailsById = new Map(
-          videoDetails.flatMap((payload) => payload?.items ?? []).map((item) => [item?.id, item]),
+          videoDetails
+            .flatMap((payload) => payload?.items ?? [])
+            .map((item) => [item?.id, item]),
         );
         const decorate = (item) => {
           const detail = detailsById.get(item.videoId);
@@ -1614,18 +1868,25 @@ export function createService({ token, origins, authorizeAccount }) {
           return {
             ...item,
             title: String(detail?.snippet?.title ?? item.title).slice(0, 300),
-            channel: String(detail?.snippet?.channelTitle ?? item.channel).slice(0, 200),
+            channel: String(
+              detail?.snippet?.channelTitle ?? item.channel,
+            ).slice(0, 200),
             thumbnail: String(
               detail?.snippet?.thumbnails?.medium?.url ??
                 detail?.snippet?.thumbnails?.default?.url ??
                 item.thumbnail ??
                 "",
             ),
-            kind: String(detail?.snippet?.categoryId ?? "") === "10" ? "music" : "video",
+            kind:
+              String(detail?.snippet?.categoryId ?? "") === "10"
+                ? "music"
+                : "video",
           };
         };
         const decoratedFeed = uniqueFeed.map(decorate).filter(Boolean);
-        const decoratedPlaylists = playlistSelections.map(decorate).filter(Boolean);
+        const decoratedPlaylists = playlistSelections
+          .map(decorate)
+          .filter(Boolean);
         const account = {
           configured: true,
           connected: true,
@@ -1698,7 +1959,9 @@ export function createService({ token, origins, authorizeAccount }) {
             }))
             .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
           if (kind === "video" && results.length) {
-            const videosTarget = new URL("https://www.googleapis.com/youtube/v3/videos");
+            const videosTarget = new URL(
+              "https://www.googleapis.com/youtube/v3/videos",
+            );
             videosTarget.search = new URLSearchParams({
               part: "snippet,status",
               id: results.map((item) => item.videoId).join(","),
@@ -1776,7 +2039,9 @@ export function createService({ token, origins, authorizeAccount }) {
             return send(200, { segments: [] });
           }
           if (!upstream.response.ok)
-            return send(502, { error: "SponsorBlock is temporarily unavailable." });
+            return send(502, {
+              error: "SponsorBlock is temporarily unavailable.",
+            });
           const payload = JSON.parse(
             await limitedText(upstream.response, 1_000_000),
           );
@@ -2724,7 +2989,9 @@ export function createService({ token, origins, authorizeAccount }) {
               !/^image\//i.test(contentType) &&
               !/^application\/octet-stream/i.test(contentType)
             )
-              return send(415, { error: "The artwork source did not return an image." });
+              return send(415, {
+                error: "The artwork source did not return an image.",
+              });
             res.writeHead(result.response.status, {
               "Content-Type": contentType,
               "Content-Length": data.length,

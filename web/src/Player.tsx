@@ -68,8 +68,24 @@ function formatPlayerTime(value: number) {
     ? `${hours}:${minutes.toString().padStart(2, "0")}:${seconds}`
     : `${minutes}:${seconds}`;
 }
+
+function reportMediaActivity(
+  playbackId: string,
+  detail: {
+    active: boolean;
+    event?: "opened" | "started" | "failed" | "ended" | "closed";
+  },
+) {
+  window.dispatchEvent(
+    new CustomEvent("tiktak-media-activity", {
+      detail: { ...detail, playbackId },
+    }),
+  );
+}
+
 function VideoPlayer({
   playback,
+  playbackMetricId,
   onClose,
   minimized = false,
   onMinimize,
@@ -79,6 +95,7 @@ function VideoPlayer({
   onSeek,
 }: {
   playback: Playback;
+  playbackMetricId: string;
   onClose: () => void;
   minimized?: boolean;
   onMinimize?: (value: boolean) => void;
@@ -328,6 +345,10 @@ function VideoPlayer({
         : undefined);
     if (!url) {
       setError("This stream needs a secure HTTPS connection.");
+      reportMediaActivity(playbackMetricId, {
+        active: false,
+        event: "failed",
+      });
       return;
     }
     const mediaOffset = playback.mediaOffset ?? 0;
@@ -398,6 +419,10 @@ function VideoPlayer({
     };
     const failed = () => {
       if (onFailure?.()) return;
+      reportMediaActivity(playbackMetricId, {
+        active: false,
+        event: "failed",
+      });
       const code = video.error?.code;
       setError(
         code === MediaError.MEDIA_ERR_DECODE
@@ -411,15 +436,22 @@ function VideoPlayer({
     };
     const playingStarted = () => {
       setPlaying(true);
-      window.dispatchEvent(
-        new CustomEvent("tiktak-media-activity", { detail: { active: true } }),
-      );
+      reportMediaActivity(playbackMetricId, {
+        active: true,
+        event: "started",
+      });
     };
     const playingStopped = () => {
       setPlaying(false);
-      window.dispatchEvent(
-        new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
-      );
+      reportMediaActivity(playbackMetricId, { active: false });
+    };
+    const playbackEnded = () => {
+      setPlaying(false);
+      reportMediaActivity(playbackMetricId, {
+        active: false,
+        event: "ended",
+      });
+      persist();
     };
     const play = async () => {
       try {
@@ -435,7 +467,7 @@ function VideoPlayer({
     video.addEventListener("play", playingStarted);
     video.addEventListener("pause", playingStopped);
     video.addEventListener("pause", persist);
-    video.addEventListener("ended", persist);
+    video.addEventListener("ended", playbackEnded);
     video.addEventListener("error", failed);
     window.addEventListener("pagehide", persist);
     document.addEventListener("visibilitychange", persistVisible);
@@ -449,6 +481,10 @@ function VideoPlayer({
         .then(({ default: HlsClass }) => {
           if (disposed) return;
           if (!HlsClass.isSupported()) {
+            reportMediaActivity(playbackMetricId, {
+              active: false,
+              event: "failed",
+            });
             setError(
               "This browser cannot play HLS. Try Safari or a current Chromium browser.",
             );
@@ -513,20 +549,22 @@ function VideoPlayer({
           hls.loadSource(url);
           hls.attachMedia(video);
         })
-        .catch(() =>
+        .catch(() => {
+          reportMediaActivity(playbackMetricId, {
+            active: false,
+            event: "failed",
+          });
           setError(
             "The video player could not load. Check your connection and retry.",
-          ),
-        );
+          );
+        });
     } else {
       video.src = url;
       void play();
     }
     return () => {
       disposed = true;
-      window.dispatchEvent(
-        new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
-      );
+      reportMediaActivity(playbackMetricId, { active: false });
       persist();
       video.removeEventListener("loadedmetadata", loaded);
       video.removeEventListener("timeupdate", time);
@@ -535,7 +573,7 @@ function VideoPlayer({
       video.removeEventListener("play", playingStarted);
       video.removeEventListener("pause", playingStopped);
       video.removeEventListener("pause", persist);
-      video.removeEventListener("ended", persist);
+      video.removeEventListener("ended", playbackEnded);
       video.removeEventListener("error", failed);
       window.removeEventListener("pagehide", persist);
       document.removeEventListener("visibilitychange", persistVisible);
@@ -1196,6 +1234,9 @@ export default function Player({
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const playbackMetricId = useRef(
+    crypto.randomUUID().replaceAll("-", ""),
+  ).current;
   const sourcePickerRef = useRef<HTMLDialogElement>(null);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
@@ -1207,6 +1248,17 @@ export default function Player({
     alternatives.length,
   );
   const sourceChoices = [playback, ...alternatives];
+  useEffect(() => {
+    reportMediaActivity(playbackMetricId, {
+      active: false,
+      event: "opened",
+    });
+    return () =>
+      reportMediaActivity(playbackMetricId, {
+        active: false,
+        event: "closed",
+      });
+  }, [playbackMetricId]);
   useEffect(() => {
     setAttempt(0);
     setMinimized(false);
@@ -1455,6 +1507,7 @@ export default function Player({
       <>
         <VideoPlayer
           playback={ready}
+          playbackMetricId={playbackMetricId}
           onClose={onClose}
           minimized={minimized}
           onMinimize={setMinimized}

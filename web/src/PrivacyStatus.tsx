@@ -18,7 +18,11 @@ import {
   type UsageSummary,
 } from "./usage-analytics";
 
-export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () => void }) {
+export default function PrivacyStatus({
+  onOpenFeedback,
+}: {
+  onOpenFeedback: () => void;
+}) {
   const [service, setService] = useState<"checking" | "online" | "offline">(
     "checking",
   );
@@ -52,8 +56,7 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
   }, []);
   useEffect(() => {
     void checkService();
-    if (getService()?.account)
-      void privateUsageSummary().then(setUsage);
+    if (getService()?.account) void privateUsageSummary().then(setUsage);
   }, [checkService]);
   return (
     <div className="privacy-status">
@@ -162,8 +165,10 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
         <div className="card-heading">
           <ShieldCheck />
           <div>
-            <h2>Anonymous usage</h2>
-            <p>Help the owner understand how many devices use TikTak TV.</p>
+            <h2>Usage analytics</h2>
+            <p>
+              Help the owner understand whether TikTak TV works and gets used.
+            </p>
           </div>
         </div>
         <label className="check">
@@ -176,9 +181,10 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
             }}
           />
           <span>
-            Share an anonymous heartbeat. It contains a hashed random device ID
-            and app type, never your email, provider details, viewing activity,
-            searches, or media URLs.
+            Share privacy-safe device and signed-in activity counts. Playback
+            reports include only aggregate opens, starts, final errors, and time
+            buckets by app type and release—never titles, channels, searches,
+            provider details, credentials, or media URLs.
           </span>
         </label>
       </section>
@@ -199,42 +205,162 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
             </button>
           </div>
           <div className="usage-metrics">
-            <article><strong>{usage.accounts.onlineNow ?? usage.accounts.activeNow}</strong><span>Signed in online now</span></article>
-            <article><strong>{usage.accounts.activeNow}</strong><span>Actively using now</span></article>
-            <article><strong>{usage.accounts.today}</strong><span>Signed in · 24 hours</span></article>
-            <article><strong>{usage.accounts.sevenDays}</strong><span>Signed in · 7 days</span></article>
-            <article><strong>{usage.accounts.thirtyDays}</strong><span>Signed in · 30 days</span></article>
-            <article><strong>{usage.accounts.allTime}</strong><span>Accounts using TikTak TV</span></article>
+            <article>
+              <strong>
+                {usage.accounts.onlineNow ?? usage.accounts.activeNow}
+              </strong>
+              <span>Signed in online now</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.activeNow}</strong>
+              <span>Actively using now</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.today}</strong>
+              <span>Signed in · 24 hours</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.sevenDays}</strong>
+              <span>Signed in · 7 days</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.thirtyDays}</strong>
+              <span>Signed in · 30 days</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.allTime}</strong>
+              <span>Accounts using TikTak TV</span>
+            </article>
           </div>
           <h3 className="usage-section-title">Engagement</h3>
           <div className="usage-metrics usage-engagement">
-            <article><strong>{usage.accounts.returning ?? 0}</strong><span>Returning accounts</span><small>Seen on 2+ UTC dates</small></article>
-            <article><strong>{usage.accounts.sessionsPerAccount ?? 0}</strong><span>Sessions per account</span></article>
-            <article><strong>{usage.accounts.averageSessionMinutes ?? 0}m</strong><span>Average observed session</span></article>
+            <article>
+              <strong>{usage.accounts.returning ?? 0}</strong>
+              <span>Returning accounts</span>
+              <small>Seen on 2+ UTC dates</small>
+            </article>
+            <article>
+              <strong>{usage.accounts.sessionsPerAccount ?? 0}</strong>
+              <span>Sessions per account</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.averageSessionMinutes ?? 0}m</strong>
+              <span>Average observed session</span>
+            </article>
           </div>
+          {usage.playback && (
+            <>
+              <h3 className="usage-section-title">Playback engagement</h3>
+              <div className="usage-metrics usage-playback">
+                <article>
+                  <strong>{usage.playback.started}</strong>
+                  <span>Successful playback starts</span>
+                </article>
+                <article>
+                  <strong>{usage.playback.sessionsWithPlayback}</strong>
+                  <span>Sessions with playback</span>
+                </article>
+                <article>
+                  <strong>
+                    {usage.playback.successRate == null
+                      ? "—"
+                      : `${usage.playback.successRate}%`}
+                  </strong>
+                  <span>Player open → start rate</span>
+                </article>
+                <article>
+                  <strong>{usage.playback.failed}</strong>
+                  <span>Final playback errors</span>
+                </article>
+                <article>
+                  <strong>{usage.playback.averageDurationMinutes}m</strong>
+                  <span>Average confirmed play time</span>
+                </article>
+                <article>
+                  <strong>{usage.playback.totalDurationHours}h</strong>
+                  <span>Total confirmed play time</span>
+                </article>
+              </div>
+              <div
+                className="usage-platforms usage-duration-buckets"
+                aria-label="Playback duration buckets"
+              >
+                <span>&lt;1m {usage.playback.durationBuckets.under1m}</span>
+                <span>1–5m {usage.playback.durationBuckets.oneTo5m}</span>
+                <span>5–15m {usage.playback.durationBuckets.fiveTo15m}</span>
+                <span>
+                  15–30m {usage.playback.durationBuckets.fifteenTo30m}
+                </span>
+                <span>30m+ {usage.playback.durationBuckets.thirtyPlus}</span>
+              </div>
+              <small>
+                {usage.playback.durationSamples} completed or closed
+                embedded-player sessions measured
+                {usage.playback.measurementStartedAt
+                  ? ` since ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.playback.measurementStartedAt))}`
+                  : ""}
+                . Paused time and external-player viewing are excluded.
+              </small>
+            </>
+          )}
           <h3 className="usage-section-title">Retention</h3>
           <div className="usage-metrics usage-retention">
             {(["day1", "day7", "day30"] as const).map((period) => {
               const value = usage.accounts.retention?.[period];
-              return <article key={period}>
-                <strong>{value?.rate == null ? "—" : `${value.rate}%`}</strong>
-                <span>{period === "day1" ? "Day 1" : period === "day7" ? "Day 7" : "Day 30"} retention</span>
-                <small>{value?.returned ?? 0} returned · {value?.eligible ?? 0} eligible</small>
-              </article>;
+              return (
+                <article key={period}>
+                  <strong>
+                    {value?.rate == null ? "—" : `${value.rate}%`}
+                  </strong>
+                  <span>
+                    {period === "day1"
+                      ? "Day 1"
+                      : period === "day7"
+                        ? "Day 7"
+                        : "Day 30"}{" "}
+                    retention
+                  </span>
+                  <small>
+                    {value?.returned ?? 0} returned · {value?.eligible ?? 0}{" "}
+                    eligible
+                  </small>
+                </article>
+              );
             })}
           </div>
           <h3 className="usage-section-title">New sign-ups using TikTak TV</h3>
           <div className="usage-metrics usage-signups">
-            <article><strong>{usage.accounts.signupsToday}</strong><span>Last 24 hours</span></article>
-            <article><strong>{usage.accounts.signupsSevenDays}</strong><span>Last 7 days</span></article>
-            <article><strong>{usage.accounts.signupsThirtyDays}</strong><span>Last 30 days</span></article>
+            <article>
+              <strong>{usage.accounts.signupsToday}</strong>
+              <span>Last 24 hours</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.signupsSevenDays}</strong>
+              <span>Last 7 days</span>
+            </article>
+            <article>
+              <strong>{usage.accounts.signupsThirtyDays}</strong>
+              <span>Last 30 days</span>
+            </article>
           </div>
           <h3 className="usage-section-title">Anonymous traffic</h3>
           <div className="usage-metrics usage-traffic">
-            <article><strong>{usage.activeNow}</strong><span>Devices active now</span></article>
-            <article><strong>{usage.thirtyDays}</strong><span>Devices · 30 days</span></article>
-            <article><strong>{usage.allTime}</strong><span>All-time devices</span></article>
-            <article><strong>{usage.visits}</strong><span>Total visits</span></article>
+            <article>
+              <strong>{usage.activeNow}</strong>
+              <span>Devices active now</span>
+            </article>
+            <article>
+              <strong>{usage.thirtyDays}</strong>
+              <span>Devices · 30 days</span>
+            </article>
+            <article>
+              <strong>{usage.allTime}</strong>
+              <span>All-time devices</span>
+            </article>
+            <article>
+              <strong>{usage.visits}</strong>
+              <span>Total visits</span>
+            </article>
           </div>
           <div className="usage-platforms">
             <Users size={19} />
@@ -247,18 +373,75 @@ export default function PrivacyStatus({ onOpenFeedback }: { onOpenFeedback: () =
           <details className="usage-definitions">
             <summary>How these metrics are calculated</summary>
             <dl>
-              <div><dt>Signed-in activity</dt><dd>{usage.definitions?.signedIn ?? "Distinct privacy-safe account hashes with a heartbeat in each rolling time window."}</dd></div>
-              <div><dt>Returning accounts</dt><dd>{usage.definitions?.returning ?? "Accounts observed on at least two UTC calendar dates in retained activity history."}</dd></div>
-              <div><dt>Sessions</dt><dd>{usage.definitions?.session ?? "A browser tab or app session; a new tab or app restart can start another session."}</dd></div>
-              <div><dt>Average session</dt><dd>{usage.definitions?.averageSession ?? "Heartbeat-observed foreground time per session; visible idle time can be included."}</dd></div>
-              <div><dt>Retention</dt><dd>{usage.definitions?.retention ?? "Cumulative: eligible after N x 24 hours and returned after activity on or after UTC day N."}</dd></div>
-              <div><dt>Devices and platforms</dt><dd>{usage.definitions?.device ?? "A pseudonymous browser or app installation ID that can change after storage is cleared or the app is reinstalled."} {usage.definitions?.platform ?? "Platform totals cover device IDs active in the last 30 days."}</dd></div>
-              <div><dt>Visits</dt><dd>{usage.definitions?.visit ?? "A device visit starts after at least 30 minutes without a heartbeat."}</dd></div>
+              <div>
+                <dt>Signed-in activity</dt>
+                <dd>
+                  {usage.definitions?.signedIn ??
+                    "Distinct privacy-safe account hashes with a heartbeat in each rolling time window."}
+                </dd>
+              </div>
+              <div>
+                <dt>Returning accounts</dt>
+                <dd>
+                  {usage.definitions?.returning ??
+                    "Accounts observed on at least two UTC calendar dates in retained activity history."}
+                </dd>
+              </div>
+              <div>
+                <dt>Sessions</dt>
+                <dd>
+                  {usage.definitions?.session ??
+                    "A browser tab or app session; a new tab or app restart can start another session."}
+                </dd>
+              </div>
+              <div>
+                <dt>Average session</dt>
+                <dd>
+                  {usage.definitions?.averageSession ??
+                    "Heartbeat-observed foreground time per session; visible idle time can be included."}
+                </dd>
+              </div>
+              <div>
+                <dt>Retention</dt>
+                <dd>
+                  {usage.definitions?.retention ??
+                    "Cumulative: eligible after N x 24 hours and returned after activity on or after UTC day N."}
+                </dd>
+              </div>
+              <div>
+                <dt>Devices and platforms</dt>
+                <dd>
+                  {usage.definitions?.device ??
+                    "A pseudonymous browser or app installation ID that can change after storage is cleared or the app is reinstalled."}{" "}
+                  {usage.definitions?.platform ??
+                    "Platform totals cover device IDs active in the last 30 days."}
+                </dd>
+              </div>
+              <div>
+                <dt>Visits</dt>
+                <dd>
+                  {usage.definitions?.visit ??
+                    "A device visit starts after at least 30 minutes without a heartbeat."}
+                </dd>
+              </div>
+              <div>
+                <dt>Playback engagement</dt>
+                <dd>
+                  {usage.definitions?.playback ??
+                    "Aggregate embedded-player starts, final errors, and wall-clock time while media was actually playing; no titles, channels, or URLs are collected."}
+                </dd>
+              </div>
             </dl>
           </details>
           <small>
-            Metric definitions v{usage.definitions?.version ?? 1} · Times and retention dates use {usage.definitions?.timezone ?? "UTC"}. No titles, searches, viewing history, emails, or raw account IDs are stored. {" "}
-            Updated {new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(usage.generatedAt))}
+            Metric definitions v{usage.definitions?.version ?? 1} · Times and
+            retention dates use {usage.definitions?.timezone ?? "UTC"}. No
+            titles, searches, viewing history, emails, or raw account IDs are
+            stored. Updated{" "}
+            {new Intl.DateTimeFormat(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(usage.generatedAt))}
           </small>
         </section>
       )}

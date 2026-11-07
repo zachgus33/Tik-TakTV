@@ -7,6 +7,24 @@ const endpoint = "https://api.tiktaktv.me/analytics/heartbeat";
 let lastInteraction = Date.now();
 let embeddedMediaPlaying = false;
 
+type PlaybackMetricEvent = "opened" | "started" | "failed" | "ended" | "closed";
+
+type MediaActivityDetail = {
+  active?: boolean;
+  event?: PlaybackMetricEvent;
+  playbackId?: string;
+  durationSeconds?: number;
+};
+
+type PlaybackTimer = {
+  activeAt: number;
+  seconds: number;
+  started: boolean;
+  finished: boolean;
+};
+
+const playbackTimers = new Map<string, PlaybackTimer>();
+
 export type UsageSummary = {
   activeNow: number;
   today: number;
@@ -28,7 +46,45 @@ export type UsageSummary = {
     returning: number;
     sessionsPerAccount: number;
     averageSessionMinutes: number;
-    retention: Record<"day1" | "day7" | "day30", { eligible: number; returned: number; rate: number | null }>;
+    retention: Record<
+      "day1" | "day7" | "day30",
+      { eligible: number; returned: number; rate: number | null }
+    >;
+  };
+  playback?: {
+    opened: number;
+    started: number;
+    failed: number;
+    ended: number;
+    closed: number;
+    sessionsWithPlayback: number;
+    successRate: number | null;
+    averageDurationMinutes: number;
+    totalDurationHours: number;
+    durationSamples: number;
+    durationBuckets: Record<
+      "under1m" | "oneTo5m" | "fiveTo15m" | "fifteenTo30m" | "thirtyPlus",
+      number
+    >;
+    byPlatform: Record<
+      string,
+      {
+        opened: number;
+        started: number;
+        failed: number;
+        durationSamples: number;
+      }
+    >;
+    byRelease: Record<
+      string,
+      {
+        opened: number;
+        started: number;
+        failed: number;
+        durationSamples: number;
+      }
+    >;
+    measurementStartedAt: number | null;
   };
   definitions?: {
     version: number;
@@ -41,6 +97,7 @@ export type UsageSummary = {
     device: string;
     platform: string;
     visit: string;
+    playback?: string;
   };
   generatedAt: number;
 };
@@ -70,13 +127,23 @@ function sessionId() {
       sessionStorage.setItem(sessionKey, value);
     }
     return value;
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 function activelyUsingApp() {
-  const nativeMediaPlaying = Array.from(document.querySelectorAll("video, audio"))
-    .some((media) => !(media as HTMLMediaElement).paused && !(media as HTMLMediaElement).ended);
-  return embeddedMediaPlaying || nativeMediaPlaying || Date.now() - lastInteraction < 5 * 60_000;
+  const nativeMediaPlaying = Array.from(
+    document.querySelectorAll("video, audio"),
+  ).some(
+    (media) =>
+      !(media as HTMLMediaElement).paused && !(media as HTMLMediaElement).ended,
+  );
+  return (
+    embeddedMediaPlaying ||
+    nativeMediaPlaying ||
+    Date.now() - lastInteraction < 5 * 60_000
+  );
 }
 
 function clientType() {
@@ -87,6 +154,13 @@ function clientType() {
   return /Android|iPhone|iPad|Mobile/i.test(agent)
     ? "web-mobile"
     : "web-desktop";
+}
+
+function clientRelease() {
+  const match = navigator.userAgent.match(
+    /TikTakTV-(?:AndroidTV|Android)\/([0-9.]+)/i,
+  );
+  return match?.[1]?.slice(0, 24) || "web";
 }
 
 export function usageAnalyticsEnabled() {
@@ -121,7 +195,9 @@ async function anonymousHeartbeat() {
 
 function storedAccount() {
   try {
-    const session = JSON.parse(localStorage.getItem("tiktak:account") ?? "null");
+    const session = JSON.parse(
+      localStorage.getItem("tiktak:account") ?? "null",
+    );
     if (typeof session?.access_token !== "string") return null;
     return {
       createdAt:
@@ -136,12 +212,34 @@ function storedAccount() {
 
 async function accountHeartbeat() {
   const session = storedAccount();
-  if (!productionSite() || !session) return;
+  if (!productionSite() || !usageAnalyticsEnabled() || !session) return;
   await serviceRequest("/analytics/account", {
     client: clientType(),
     createdAt: session.createdAt,
     sessionId: sessionId(),
     active: activelyUsingApp(),
+  }).catch(() => undefined);
+}
+
+async function playbackMetric(
+  playbackId: string,
+  event: PlaybackMetricEvent,
+  durationSeconds?: number,
+) {
+  const session = storedAccount();
+  if (!productionSite() || !usageAnalyticsEnabled() || !session) return;
+  const boundedDuration = Number.isFinite(durationSeconds)
+    ? Math.max(0, Math.min(24 * 60 * 60, Math.round(durationSeconds ?? 0)))
+    : undefined;
+  await serviceRequest("/analytics/playback", {
+    client: clientType(),
+    release: clientRelease(),
+    sessionId: sessionId(),
+    playbackId,
+    event,
+    ...(boundedDuration === undefined
+      ? {}
+      : { durationSeconds: boundedDuration }),
   }).catch(() => undefined);
 }
 
@@ -152,9 +250,54 @@ export function startUsageAnalytics() {
     void anonymousHeartbeat();
     void accountHeartbeat();
   };
-  const interacted = () => { lastInteraction = Date.now(); };
+  const interacted = () => {
+    lastInteraction = Date.now();
+  };
   const mediaActivity = (event: Event) => {
-    embeddedMediaPlaying = Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active);
+    const detail = (event as CustomEvent<MediaActivityDetail>).detail ?? {};
+    embeddedMediaPlaying = Boolean(detail.active);
+    const playbackId = String(detail.playbackId ?? "");
+    if (/^[A-Za-z0-9_-]{20,100}$/.test(playbackId)) {
+      const existingTimer = playbackTimers.get(playbackId);
+      if (
+        !existingTimer &&
+        (detail.event === "ended" || detail.event === "closed")
+      )
+        return;
+      const timer = existingTimer ?? {
+        activeAt: 0,
+        seconds: 0,
+        started: false,
+        finished: false,
+      };
+      const stopTimer = () => {
+        if (!timer.activeAt) return;
+        timer.seconds += Math.max(0, (Date.now() - timer.activeAt) / 1000);
+        timer.activeAt = 0;
+      };
+      if (detail.active && !timer.activeAt) timer.activeAt = Date.now();
+      if (!detail.active) stopTimer();
+      if (detail.event === "opened") void playbackMetric(playbackId, "opened");
+      else if (detail.event === "started" && !timer.started) {
+        timer.started = true;
+        void playbackMetric(playbackId, "started");
+      } else if (detail.event === "failed")
+        void playbackMetric(playbackId, "failed");
+      else if (
+        (detail.event === "ended" || detail.event === "closed") &&
+        !timer.finished
+      ) {
+        timer.finished = true;
+        void playbackMetric(playbackId, detail.event, timer.seconds);
+      }
+      if (timer.finished) playbackTimers.delete(playbackId);
+      else playbackTimers.set(playbackId, timer);
+    } else if (detail.event)
+      void playbackMetric(
+        crypto.randomUUID().replaceAll("-", ""),
+        detail.event,
+        detail.durationSeconds,
+      );
     if (embeddedMediaPlaying) {
       lastInteraction = Date.now();
       send();

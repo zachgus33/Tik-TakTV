@@ -105,12 +105,15 @@ The `/health` endpoint requires the service key; an unauthenticated 401 is expec
 
 Set `ANALYTICS_ADMIN_USER_ID` in `.env.native` to the Nuvio account UUID that
 may view aggregate usage. When omitted, it uses `FRIEND_OWNER_USER_ID`. The
-website sends an optional heartbeat with a random installation identifier and
-coarse client type. The companion HMAC-hashes that identifier before saving it
-to `runtime/usage-analytics.json`; it does not store emails, provider details,
-viewing activity, searches, titles, URLs, or raw identifiers. Other accounts
-receive no dashboard payload. Every visitor can disable the heartbeat under
-**Settings > Privacy & status**.
+website sends optional privacy-safe usage events with a random installation
+identifier and coarse client type. The companion HMAC-hashes identifiers before
+saving them to `runtime/usage-analytics.json`. Signed-in events also feed global
+player-open, successful-start, final-error, sessions-with-playback, and elapsed
+playing-time buckets grouped by client type and app release. They do not include
+emails, provider details, searches, titles, channel names, source URLs,
+credentials, or a per-account viewing history. Other accounts receive no
+dashboard payload. Every visitor can disable usage analytics under **Settings >
+Privacy & status**.
 
 The `Production uptime and account smoke` GitHub Actions workflow runs every 10
 minutes. It checks the deployed app shell and assets, PWA files, signed endpoint
