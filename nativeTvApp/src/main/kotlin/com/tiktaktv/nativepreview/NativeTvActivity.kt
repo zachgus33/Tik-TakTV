@@ -21,7 +21,13 @@ import com.nuvio.app.core.ui.NuvioTheme
  * WebView client until migration and feature-parity checks are complete.
  */
 class NativeTvActivity : MainActivity() {
+    private var showShellPreview = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Capture this before MainActivity processes the incoming intent. The
+        // preview is a CI-only rendering mode used to verify the ten-foot shell
+        // without requiring account credentials.
+        showShellPreview = intent?.getBooleanExtra(EXTRA_SHELL_PREVIEW, false) == true
         NativeTvHostMode.enable()
         super.onCreate(savedInstanceState)
         enterTvFullscreen()
@@ -30,7 +36,7 @@ class NativeTvActivity : MainActivity() {
     @Composable
     override fun AppContent() {
         CompositionLocalProvider(LocalTvMode provides true) {
-            if (intent?.getBooleanExtra(EXTRA_SHELL_PREVIEW, false) == true) {
+            if (showShellPreview) {
                 NuvioTheme(darkTheme = true) {
                     TikTakTvShellPreview()
                 }

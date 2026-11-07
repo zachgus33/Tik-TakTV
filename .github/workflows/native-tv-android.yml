@@ -93,9 +93,12 @@ jobs:
             adb shell input keyevent 20
             adb shell input keyevent 23
             sleep 2
+            adb shell uiautomator dump /sdcard/native-tv-shell-720p.xml
+            adb pull /sdcard/native-tv-shell-720p.xml native-tv-shell-720p.xml
             adb shell dumpsys activity activities > native-tv-activity-720p.txt
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-720p.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-720p.txt
+            grep -q "Native Android TV preview" native-tv-shell-720p.xml
 
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 1920x1080
@@ -105,9 +108,12 @@ jobs:
             adb shell input keyevent 20
             adb shell input keyevent 23
             sleep 2
+            adb shell uiautomator dump /sdcard/native-tv-shell-1080p.xml
+            adb pull /sdcard/native-tv-shell-1080p.xml native-tv-shell-1080p.xml
             adb shell dumpsys activity activities > native-tv-activity-1080p.txt
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-1080p.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-1080p.txt
+            grep -q "Native Android TV preview" native-tv-shell-1080p.xml
 
             adb shell am force-stop com.tiktaktv.tv.nativepreview
             adb shell wm size 3840x2160
@@ -117,9 +123,12 @@ jobs:
             adb shell input keyevent 20
             adb shell input keyevent 23
             sleep 2
+            adb shell uiautomator dump /sdcard/native-tv-shell-4k.xml
+            adb pull /sdcard/native-tv-shell-4k.xml native-tv-shell-4k.xml
             adb shell dumpsys activity activities > native-tv-activity-4k.txt
             adb exec-out screencap -p > nativeTvApp/build/native-tv-shell-4k.png
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity-4k.txt
+            grep -q "Native Android TV preview" native-tv-shell-4k.xml
 
             adb logcat -d > native-tv-logcat.txt
             ! grep -A 30 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "com.tiktaktv.tv.nativepreview"
@@ -131,6 +140,7 @@ jobs:
           path: |
             nativeTvApp/build/native-tv-*.png
             native-tv-activity*.txt
+            native-tv-shell-*.xml
             native-tv-logcat.txt
           if-no-files-found: warn
           retention-days: 14
