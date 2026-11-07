@@ -225,22 +225,29 @@ async function playbackMetric(
   playbackId: string,
   event: PlaybackMetricEvent,
   durationSeconds?: number,
+  keepalive = false,
 ) {
   const session = storedAccount();
   if (!productionSite() || !usageAnalyticsEnabled() || !session) return;
   const boundedDuration = Number.isFinite(durationSeconds)
     ? Math.max(0, Math.min(24 * 60 * 60, Math.round(durationSeconds ?? 0)))
     : undefined;
-  await serviceRequest("/analytics/playback", {
-    client: clientType(),
-    release: clientRelease(),
-    sessionId: sessionId(),
-    playbackId,
-    event,
-    ...(boundedDuration === undefined
-      ? {}
-      : { durationSeconds: boundedDuration }),
-  }).catch(() => undefined);
+  await serviceRequest(
+    "/analytics/playback",
+    {
+      client: clientType(),
+      release: clientRelease(),
+      sessionId: sessionId(),
+      playbackId,
+      event,
+      ...(boundedDuration === undefined
+        ? {}
+        : { durationSeconds: boundedDuration }),
+    },
+    undefined,
+    undefined,
+    { keepalive },
+  ).catch(() => undefined);
 }
 
 export function startUsageAnalytics() {
@@ -303,6 +310,20 @@ export function startUsageAnalytics() {
       send();
     }
   };
+  const pageLeaving = () => {
+    const now = Date.now();
+    for (const [playbackId, timer] of playbackTimers) {
+      if (timer.finished) continue;
+      if (timer.activeAt) {
+        timer.seconds += Math.max(0, (now - timer.activeAt) / 1000);
+        timer.activeAt = 0;
+      }
+      timer.finished = true;
+      void playbackMetric(playbackId, "closed", timer.seconds, true);
+    }
+    playbackTimers.clear();
+    embeddedMediaPlaying = false;
+  };
   send();
   const timer = window.setInterval(send, 4 * 60_000);
   const visible = () => {
@@ -316,6 +337,7 @@ export function startUsageAnalytics() {
   window.addEventListener("wheel", interacted, { passive: true });
   window.addEventListener("touchstart", interacted, { passive: true });
   window.addEventListener("tiktak-media-activity", mediaActivity);
+  window.addEventListener("pagehide", pageLeaving);
   document.addEventListener("visibilitychange", visible);
   return () => {
     clearInterval(timer);
@@ -327,6 +349,7 @@ export function startUsageAnalytics() {
     window.removeEventListener("wheel", interacted);
     window.removeEventListener("touchstart", interacted);
     window.removeEventListener("tiktak-media-activity", mediaActivity);
+    window.removeEventListener("pagehide", pageLeaving);
     document.removeEventListener("visibilitychange", visible);
   };
 }

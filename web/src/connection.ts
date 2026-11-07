@@ -125,6 +125,7 @@ export async function serviceRequest(
   body: unknown,
   signal?: AbortSignal,
   config = getService(),
+  options: { keepalive?: boolean } = {},
 ) {
   if (!config)
     throw new Error(
@@ -139,6 +140,7 @@ export async function serviceRequest(
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
+      keepalive: options.keepalive,
       cache: "no-store",
       credentials: "omit",
       referrerPolicy: "no-referrer",
@@ -288,7 +290,9 @@ export async function prepareMedia(
     response = await serviceRequest("/prepare", payload, signal, config);
   }
   if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
     throw new Error(
       data.error ??
         `Playback service returned HTTP ${response.status}. Check its connection in Settings.`,
