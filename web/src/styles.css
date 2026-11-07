@@ -5828,6 +5828,119 @@ button.primary:hover,
   width: 18px;
   height: 18px;
 }
+.sponsorblock-settings {
+  display: grid;
+  gap: 12px;
+}
+.sponsorblock-master,
+.sponsorblock-master > span,
+.sponsorblock-categories label,
+.youtube-error-actions,
+.youtube-error-actions a,
+.youtube-error-actions button {
+  display: flex;
+  align-items: center;
+}
+.sponsorblock-master {
+  justify-content: space-between;
+  gap: 18px;
+}
+.sponsorblock-master > span {
+  gap: 11px;
+}
+.sponsorblock-master > span > span,
+.sponsorblock-categories label > span {
+  display: grid;
+  gap: 3px;
+}
+.sponsorblock-master small,
+.sponsorblock-categories small {
+  color: var(--muted);
+}
+.sponsorblock-master input,
+.sponsorblock-categories input {
+  width: 19px;
+  height: 19px;
+  min-height: 0;
+  flex: 0 0 auto;
+  accent-color: var(--pink);
+}
+.sponsorblock-settings details {
+  margin: 0;
+}
+.sponsorblock-settings summary {
+  min-height: 42px;
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 700;
+}
+.sponsorblock-categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  padding-top: 10px;
+}
+.sponsorblock-categories label {
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #0d0c10;
+  cursor: pointer;
+}
+.sponsorblock-categories label:has(input:disabled) {
+  opacity: 0.5;
+}
+.sponsorblock-settings.compact {
+  position: relative;
+  min-width: 220px;
+}
+.sponsorblock-settings.compact .sponsorblock-master {
+  font-size: 0.78rem;
+}
+.sponsorblock-settings.compact .sponsorblock-master > span {
+  gap: 7px;
+}
+.sponsorblock-settings.compact details {
+  position: relative;
+}
+.sponsorblock-settings.compact summary {
+  min-height: 36px;
+  font-size: 0.72rem;
+  text-align: right;
+}
+.sponsorblock-settings.compact .sponsorblock-categories {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  width: min(440px, 80vw);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #111015f5;
+  box-shadow: 0 16px 45px #000b;
+}
+.youtube-error-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.youtube-error-actions a,
+.youtube-error-actions button {
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #ed71884d;
+  border-radius: 10px;
+  color: #fff;
+  background: #23151a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
 .youtube-skip-notice {
   position: fixed;
   z-index: 80;
@@ -5941,6 +6054,17 @@ button.primary:hover,
     justify-content: center;
     width: 100%;
   }
+  .sponsorblock-categories {
+    grid-template-columns: 1fr;
+  }
+  .sponsorblock-settings.compact {
+    width: 100%;
+  }
+  .sponsorblock-settings.compact .sponsorblock-categories {
+    right: auto;
+    left: 0;
+    width: min(100%, 420px);
+  }
 }
 .tv-mode .youtube-hub {
   padding: 22px 28px 70px;
@@ -5969,6 +6093,23 @@ button.primary:hover,
 .tv-mode .youtube-account-card button,
 .tv-mode .youtube-subscriptions button {
   min-height: 54px;
+}
+.tv-mode .tv-youtube-player .sponsorblock-settings.compact {
+  min-width: 260px;
+}
+.tv-mode
+  .tv-youtube-player
+  .sponsorblock-settings.compact
+  .sponsorblock-categories {
+  top: auto;
+  right: 0;
+  bottom: 42px;
+  width: min(560px, 70vw);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.tv-mode .tv-youtube-player .sponsorblock-settings summary,
+.tv-mode .tv-youtube-player .sponsorblock-settings label {
+  pointer-events: auto;
 }
 
 /* TV playback is a dedicated ten-foot surface. The underlying page cannot

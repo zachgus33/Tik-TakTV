@@ -225,6 +225,13 @@ export function rotateYoutubeAccount(account, rotation = 0) {
   };
 }
 
+export function youtubeVideoAllowed(item, kind = "video") {
+  return (
+    item?.status?.embeddable !== false &&
+    (kind === "music" || String(item?.snippet?.categoryId ?? "") !== "10")
+  );
+}
+
 export function createService({ token, origins, authorizeAccount }) {
   if (!token || token.length < 32)
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
@@ -1958,7 +1965,7 @@ export function createService({ token, origins, authorizeAccount }) {
               ),
             }))
             .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
-          if (kind === "video" && results.length) {
+          if (results.length) {
             const videosTarget = new URL(
               "https://www.googleapis.com/youtube/v3/videos",
             );
@@ -1978,23 +1985,18 @@ export function createService({ token, origins, authorizeAccount }) {
                 );
                 const allowed = new Set(
                   (videosPayload.items ?? [])
-                    .filter(
-                      (item) =>
-                        String(item?.snippet?.categoryId ?? "") !== "10" &&
-                        item?.status?.embeddable !== false,
-                    )
+                    .filter((item) => youtubeVideoAllowed(item, kind))
                     .map((item) => item.id),
                 );
                 results = results
                   .filter((item) => allowed.has(item.videoId))
-                  .map((item) => ({ ...item, kind: "video" }));
+                  .map((item) => ({ ...item, kind }));
               }
             } finally {
               await videosUpstream.close();
             }
-          } else {
-            results = results.map((item) => ({ ...item, kind: "music" }));
           }
+          results = results.map((item) => ({ ...item, kind }));
           youtubeCache.set(cacheKey, {
             results,
             expires: Date.now() + 15 * 60_000,

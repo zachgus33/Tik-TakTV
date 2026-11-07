@@ -56,6 +56,7 @@ import {
   WhatsNewPanel,
 } from "./WhatsNew";
 import FeedbackCenter from "./FeedbackCenter";
+import SponsorBlockSettings from "./SponsorBlockSettings";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -277,6 +278,21 @@ export default function Settings(props: Props) {
           </header>
           <div hidden={section !== "playback"}>
             <ConnectionPanel restored={props.playbackConnected} />
+            <section className="settings-card">
+              <div className="card-heading">
+                <ShieldCheck />
+                <div>
+                  <h2>YouTube SponsorBlock</h2>
+                  <p>Choose which parts TikTak TV skips in YouTube videos.</p>
+                </div>
+              </div>
+              <SponsorBlockSettings open />
+              <p className="hint">
+                These choices apply immediately to the YouTube player on this
+                browser or TV. SponsorBlock data is community supplied, so a
+                segment may not exist for every video.
+              </p>
+            </section>
             <section className="settings-card">
               <div className="card-heading">
                 <UsersRound />

@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.1"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.2"));
   });
   await mockSources(page);
 });
@@ -124,14 +124,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Clearer sources and broader TV compatibility/,
+    name: /Better YouTube playback controls and recovery/,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Clearer sources and broader TV compatibility",
+      name: "Better YouTube playback controls and recovery",
     }),
   ).toBeVisible({ timeout: 15_000 });
   await page.reload();
@@ -153,9 +153,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       private muted = false;
       private playing = false;
       private options: any;
+      private videoId: string;
       constructor(_target: HTMLElement, options: any) {
         this.options = options;
+        this.videoId = options.videoId;
         (window as any).__playedYouTubeVideoId = options.videoId;
+        ((window as any).__youtubePlayers ??= []).push(this);
         queueMicrotask(() => options.events.onReady({ target: this }));
       }
       destroy() {}
@@ -173,7 +176,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       }
       getVideoData() {
         return {
-          video_id: "dQw4w9WgXcQ",
+          video_id: this.videoId,
           title: "Test video",
           author: "Test channel",
         };
@@ -198,6 +201,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       }
       unMute() {
         this.muted = false;
+      }
+      fail(code: number) {
+        this.options.events.onError({ data: code, target: this });
       }
     }
     (window as any).YT = {
@@ -353,6 +359,23 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByLabel("YouTube playback controls")).toBeVisible();
   await expect(page.getByLabel("Fast forward 10 seconds")).toBeVisible();
   await expect(page.getByText("Skip SponsorBlock segments")).toBeVisible();
+  await page.getByText("Choose what to skip").click();
+  await expect(page.getByLabel("Sponsors")).toBeChecked();
+  await page.getByLabel("Introductions").uncheck();
+  await expect(page.getByLabel("Introductions")).not.toBeChecked();
+
+  await page.evaluate(() => {
+    const players = (window as any).__youtubePlayers;
+    players[players.length - 1].fail(150);
+  });
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__playedYouTubeVideoId))
+    .toBe("M7lc1UVf-VE");
+  await expect(
+    page.getByText("This upload is unavailable in embedded players", {
+      exact: false,
+    }),
+  ).toBeHidden();
 
   await page.goto("/?tv=1#youtube");
   await page.getByText("Account recommendation", { exact: true }).click();
@@ -373,6 +396,24 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   }
   await page.keyboard.press("Escape");
   await expect(tvPlayer).toBeHidden();
+});
+
+test("SponsorBlock category choices persist in Playback settings", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Playback/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "YouTube SponsorBlock" }),
+  ).toBeVisible();
+  await page.getByLabel("Self-promotion").uncheck();
+  await page.getByLabel("Enable SponsorBlock skipping").uncheck();
+  await page.reload();
+  await page.getByRole("button", { name: /Playback/ }).click();
+  await expect(page.getByLabel("Self-promotion")).not.toBeChecked();
+  await expect(
+    page.getByLabel("Enable SponsorBlock skipping"),
+  ).not.toBeChecked();
 });
 
 test("TV YouTube player can hand a video to the optional SmartTube app", async ({

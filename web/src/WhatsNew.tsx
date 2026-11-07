@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.07.1";
+export const latestRelease = "2026.11.07.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,8 +9,11 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 7, 2026",
-    title: "Clearer sources and broader TV compatibility",
+    title: "Better YouTube playback controls and recovery",
     changes: [
+      "SponsorBlock now has category controls in both the YouTube player and Playback settings, with choices shared immediately across the current browser or TV.",
+      "YouTube Music search now filters uploads that prohibit embedded playback, and the player automatically tries the next available track when an older recommendation becomes unavailable.",
+      "Unavailable YouTube uploads now offer a clear Open in YouTube action, plus SmartTube on supported Android TV devices, instead of stopping at an unexplained player error.",
       "Older Android 9 televisions now receive a Chromium 69-compatible web bundle, and the TV app shows a retry screen with its WebView version instead of remaining blank when startup fails.",
       "Stream search now names every eligible add-on that responded, failed, or was temporarily paused, while keeping private add-on addresses hidden.",
       "Movies and episodes now keep every compatible result in an in-player stream chooser instead of limiting manual selection to the automatic fallback set.",

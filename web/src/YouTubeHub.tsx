@@ -1,6 +1,7 @@
 import {
   FastForward,
   History,
+  ExternalLink,
   LogIn,
   LogOut,
   Maximize,
@@ -9,7 +10,6 @@ import {
   Play,
   Rewind,
   Search,
-  ShieldCheck,
   Volume2,
   VolumeX,
   X,
@@ -36,6 +36,11 @@ import {
   type YouTubeKind,
   type YouTubeSelection,
 } from "./youtube";
+import SponsorBlockSettings from "./SponsorBlockSettings";
+import {
+  readSponsorBlockPreferences,
+  subscribeSponsorBlockPreferences,
+} from "./sponsorblock";
 
 type Player = {
   destroy(): void;
@@ -123,18 +128,36 @@ export default function YouTubeHub() {
     verificationUrl: string;
     interval: number;
   } | null>(null);
-  const [sponsorEnabled, setSponsorEnabled] = useState(
-    () => localStorage.getItem("tiktak:youtube-sponsorblock") !== "0",
+  const [sponsorPreferences, setSponsorPreferences] = useState(
+    readSponsorBlockPreferences,
   );
+  const [embedError, setEmbedError] = useState<number | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const tvControlsTimerRef = useRef<number>(0);
   const playingRef = useRef(false);
   const segmentsRef = useRef<SponsorSegment[]>([]);
   const segmentVideoRef = useRef("");
+  const failedMusicRef = useRef(new Set<string>());
+  const musicCandidatesRef = useRef<YouTubeSelection[]>([]);
+  const selectRef = useRef<
+    (next: YouTubeSelection, recovering?: boolean) => Promise<void>
+  >(async () => {});
   const resultsRef = useRef<HTMLElement>(null);
   const [resultsTitle, setResultsTitle] = useState("Search results");
   const smartTubeAvailable = tvMode && !!window.TikTakTV?.openSmartTube;
+
+  musicCandidatesRef.current = [
+    ...results,
+    ...(account?.musicFeed ?? []),
+    ...(account?.playlists ?? []).filter((item) => item.kind === "music"),
+    ...history.filter((item) => item.kind === "music"),
+  ].filter(
+    (item, index, items) =>
+      !!item.videoId &&
+      items.findIndex((candidate) => candidate.videoId === item.videoId) ===
+        index,
+  );
 
   playingRef.current = playing;
   const revealTvControls = useCallback(() => {
@@ -166,6 +189,8 @@ export default function YouTubeHub() {
   useEffect(() => {
     void loadAccount();
   }, []);
+
+  useEffect(() => subscribeSponsorBlockPreferences(setSponsorPreferences), []);
 
   useEffect(() => {
     if (!device) return;
@@ -214,8 +239,10 @@ export default function YouTubeHub() {
     localStorage.setItem(historyKey, JSON.stringify(value));
   };
 
-  const select = async (next: YouTubeSelection) => {
+  const select = async (next: YouTubeSelection, recovering = false) => {
     setError("");
+    setEmbedError(null);
+    if (!recovering) failedMusicRef.current.clear();
     try {
       const playable = await resolveYouTubePlaylist({
         ...next,
@@ -231,6 +258,7 @@ export default function YouTubeHub() {
       );
     }
   };
+  selectRef.current = select;
 
   const switchKind = (next: YouTubeKind) => {
     setKind(next);
@@ -343,8 +371,39 @@ export default function YouTubeHub() {
                 });
               }
             },
-            onError: () =>
-              setError("This video cannot be played in an embedded player."),
+            onError: (event: { data?: number }) => {
+              const code = Number(event.data || 0);
+              setEmbedError(code);
+              const currentId = selection.videoId;
+              if (
+                selection.kind === "music" &&
+                currentId &&
+                [100, 101, 150].includes(code)
+              ) {
+                failedMusicRef.current.add(currentId);
+                const next = musicCandidatesRef.current.find(
+                  (candidate) =>
+                    candidate.videoId &&
+                    !failedMusicRef.current.has(candidate.videoId),
+                );
+                if (next) {
+                  setError("");
+                  setNotice(
+                    "That track blocks embedded playback. Trying the next available version…",
+                  );
+                  window.setTimeout(() => {
+                    setNotice("");
+                    void selectRef.current(next, true);
+                  }, 500);
+                  return;
+                }
+              }
+              setError(
+                [100, 101, 150].includes(code)
+                  ? "This upload is unavailable in embedded players. You can open it in YouTube instead."
+                  : "YouTube could not play this item here. Try another result or open it in YouTube.",
+              );
+            },
           },
         });
       })
@@ -382,14 +441,19 @@ export default function YouTubeHub() {
   }, [selection, tvMode]);
 
   useEffect(() => {
-    if (!ready || !sponsorEnabled) return;
+    if (!ready || !sponsorPreferences.enabled) return;
     const timer = window.setInterval(() => {
       const player = playerRef.current;
       if (!player || player.getPlayerState() !== window.YT?.PlayerState.PLAYING)
         return;
       const time = player.getCurrentTime();
       const segment = segmentsRef.current.find(
-        (candidate) => time >= candidate.start && time < candidate.end - 0.15,
+        (candidate) =>
+          sponsorPreferences.categories.includes(
+            candidate.category as (typeof sponsorPreferences.categories)[number],
+          ) &&
+          time >= candidate.start &&
+          time < candidate.end - 0.15,
       );
       if (!segment) return;
       player.seekTo(segment.end, true);
@@ -397,7 +461,7 @@ export default function YouTubeHub() {
       window.setTimeout(() => setNotice(""), 2400);
     }, 500);
     return () => clearInterval(timer);
-  }, [ready, sponsorEnabled]);
+  }, [ready, sponsorPreferences]);
 
   const seek = (offset: number) => {
     const player = playerRef.current;
@@ -424,7 +488,7 @@ export default function YouTubeHub() {
         setSelection(null);
         return;
       }
-      if (active?.closest(".youtube-controls")) return;
+      if (active?.closest(".youtube-controls, .sponsorblock-settings")) return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         seek(-10);
@@ -578,7 +642,27 @@ export default function YouTubeHub() {
 
       {error && (
         <div className="error" role="alert">
-          {error}
+          <span>{error}</span>
+          {selection?.videoId && embedError !== null && (
+            <span className="youtube-error-actions">
+              <a
+                href={`https://www.youtube.com/watch?v=${selection.videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={17} /> Open in YouTube
+              </a>
+              {smartTubeAvailable && (
+                <button
+                  onClick={() =>
+                    window.TikTakTV?.openSmartTube(selection.videoId!)
+                  }
+                >
+                  <Youtube size={17} /> Open in SmartTube
+                </button>
+              )}
+            </span>
+          )}
         </div>
       )}
       {notice && (
@@ -692,6 +776,7 @@ export default function YouTubeHub() {
                   </button>
                 )}
               </div>
+              <SponsorBlockSettings compact />
             </div>
           </dialog>
         ) : (
@@ -757,20 +842,7 @@ export default function YouTubeHub() {
                   <Maximize size={20} />
                 </button>
               </div>
-              <label className="youtube-sponsor-toggle">
-                <input
-                  type="checkbox"
-                  checked={sponsorEnabled}
-                  onChange={(event) => {
-                    setSponsorEnabled(event.target.checked);
-                    localStorage.setItem(
-                      "tiktak:youtube-sponsorblock",
-                      event.target.checked ? "1" : "0",
-                    );
-                  }}
-                />
-                <ShieldCheck size={18} /> Skip SponsorBlock segments
-              </label>
+              <SponsorBlockSettings compact />
             </div>
           </section>
         ))}

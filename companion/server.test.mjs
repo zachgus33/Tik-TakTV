@@ -11,6 +11,7 @@ import {
   rotateYoutubeAccount,
   safeDownloadName,
   sourceHeaders,
+  youtubeVideoAllowed,
 } from "./server.mjs";
 
 test("YouTube account feeds rotate without dropping recommendations", () => {
@@ -32,6 +33,20 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
     new Set(first.videoFeed.map((item) => item.videoId)),
   );
   assert.equal(account.videoFeed[0].videoId, "video-0");
+});
+
+test("YouTube search rejects blocked embeds for video and music", () => {
+  const blockedMusic = {
+    snippet: { categoryId: "10" },
+    status: { embeddable: false },
+  };
+  const playableMusic = {
+    snippet: { categoryId: "10" },
+    status: { embeddable: true },
+  };
+  assert.equal(youtubeVideoAllowed(blockedMusic, "music"), false);
+  assert.equal(youtubeVideoAllowed(playableMusic, "music"), true);
+  assert.equal(youtubeVideoAllowed(playableMusic, "video"), false);
 });
 
 test("public liveness endpoint exposes no private configuration", async () => {

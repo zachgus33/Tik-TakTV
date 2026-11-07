@@ -197,11 +197,15 @@ The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/
 - **Broader older-TV compatibility** with a Chromium 69-compatible web bundle for Android 9 televisions.
 - **A diagnosable TV startup screen** with retry controls and the installed WebView version instead of leaving the screen blank when startup fails.
 - **More accurate production monitoring** recognizes the visible startup fallback while continuing to check built assets, companion health, account access, source discovery, and playback preparation.
+- **Configurable SponsorBlock controls** are available in the YouTube player and under **Settings → Playback**, including separate choices for sponsors, self-promotion, interaction reminders, intros, outros, previews, and non-music sections.
+- **More reliable YouTube Music playback** filters uploads that disallow embedding, automatically tries another available track when a saved recommendation becomes unavailable, and offers a clear YouTube/SmartTube fallback when needed.
 - The 0.3.5 features remain included: **Live TV mini-player, refreshed EPG, Sports and scores, compact TV navigation, SmartTube handoff, in-app feedback, and responsive layouts.**
 
 The shared web interface also gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. It now separates heartbeat-observed UI session time from privacy-safe playback engagement: aggregate player opens, successful starts, final errors, sessions that reached playback, and playing-time buckets by app type/release. Titles, channels, searches, source URLs, credentials, and per-account viewing histories are never included. Users can disable usage analytics under **Settings → Privacy & status**.
 
 Navigation now uses a slimmer, always-visible sidebar on desktop, a compact rail that expands only while it has remote focus on TV, and the existing bottom navigation on phones. This gives content more room without hiding touch or remote controls.
+
+YouTube SponsorBlock behavior can now be changed without leaving the player, and the same category choices are available under **Settings → Playback**. Music search excludes uploads that YouTube marks as non-embeddable; if a previously saved recommendation later becomes unavailable, TikTak TV tries the next available track and keeps an explicit external-playback option.
 
 These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
 
