@@ -29,3 +29,9 @@ The existing `tvApp` remains the supported public APK until the native client re
 - Updating or switching clients never deletes profiles, history, add-ons, provider credentials, or library data.
 - Live TV and Sports handle large provider lists without blocking the main thread.
 - The public wrapper remains downloadable until native parity and rollback tests pass.
+
+## Foundation validation
+
+GitHub Actions run `42414841320` passed the native preview build, unit tests, Android lint, APK assembly, and Android TV emulator smoke tests on API 28 and API 34. Both emulator jobs verified launch, D-pad input, resumed activity, and the absence of an app fatal exception. Their 1920 x 1080 screenshots also verified the TV-specific TikTak TV sign-in branding and remote-driven system keyboard input.
+
+This validates the isolated host and shared native engine. It does not establish feature parity, real-stream playback quality, data migration safety, or readiness to replace the public wrapper. Those remain subject to the stages and release gates above, including physical Shield, Google TV, Android TV, and Fire TV testing.
