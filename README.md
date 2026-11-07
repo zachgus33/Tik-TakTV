@@ -212,7 +212,7 @@ These are shipped features, not a claim that every TV model or stream works perf
 
 ### Native Android TV development
 
-A dedicated native Android TV client is now under active development. The first side-by-side preview reuses the repository's native Kotlin/Compose account, profile, catalog, Live TV, library, sync, and Media3/MPV playback stack. It uses a separate package and is **not yet the public TV release** while remote navigation, TikTak Sports/YouTube parity, saved-data migration, and real-device testing are completed. See the [native TV architecture plan](Docs/NATIVE_TV_ARCHITECTURE.md).
+A dedicated native Android TV client is now under active development. The side-by-side preview reuses the repository's native Kotlin/Compose account, profile, catalog, Live TV, library, sync, and Media3/MPV playback stack. Its first ten-foot shell now provides a native, always-visible rail for Home, Search, Live TV, Library, and Profile with D-pad focus and overscan-safe spacing. CI validates the shell and normal sign-in entry point on Android TV API 28 and 34 across 720p/1080p logical layouts, with a genuine 4K framebuffer check on API 28. It uses a separate package and is **not yet the public TV release** while per-screen focus behavior, TikTak feature parity, saved-data migration, and physical-device testing are completed. See the [native TV architecture plan](Docs/NATIVE_TV_ARCHITECTURE.md).
 
 ## Feedback, bug reports & feature requests
 
