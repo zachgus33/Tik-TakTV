@@ -21,7 +21,7 @@ import com.nuvio.app.core.ui.NuvioTheme
  * The preview intentionally uses a separate application id from the released
  * WebView client until migration and feature-parity checks are complete.
  */
-class NativeTvActivity : MainActivity() {
+open class NativeTvActivity : MainActivity() {
     private var showShellPreview = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,5 +78,22 @@ class NativeTvActivity : MainActivity() {
         const val EXTRA_SHELL_PREVIEW = "native_tv_shell_preview"
         const val PREVIEW_LOG_TAG = "TikTakNativeTv"
         const val PREVIEW_LOG_MESSAGE = "Shell preview requested"
+    }
+}
+
+/** CI-only host that always renders the deterministic ten-foot shell. */
+class NativeTvShellPreviewActivity : NativeTvActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        Log.i("TikTakNativeTv", "Shell preview activity requested")
+        super.onCreate(savedInstanceState)
+    }
+
+    @Composable
+    override fun AppContent() {
+        CompositionLocalProvider(LocalTvMode provides true) {
+            NuvioTheme(darkTheme = true) {
+                TikTakTvShellPreview()
+            }
+        }
     }
 }
