@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 2.7
+**Backlog version:** 2.8
 **Created:** November 5, 2026
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.
 **Owner:** TikTak TV developer.
@@ -227,6 +227,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 ### ANALYTICS-02 · Retention and session health metrics
 
 - **Status:** **Verified.** The private dashboard reports 24-hour/7-day/30-day activity, new/returning accounts, sessions, active duration and D1/D7/D30 retention without collecting titles, searches, credentials or media URLs.
+- **Definition audit required:** Preserve the cohort denominator and returning-account rules with each stored snapshot. If the eligible D1 cohort changes as accounts age into or out of the window, or if “returning” changes between account-, device- and session-based logic, show that directly in the dashboard and do not compare percentages as if their populations were identical.
 - **Add or verify:** Daily/weekly/monthly active users (DAU/WAU/MAU), new vs returning users, D1/D7/D30 cohort retention, sessions per user, average active session duration, optionally visits by TV/mobile/desktop/PWA, anonymous vs signed-in device counts. Display trends over time and **avoid treating raw visits as unique people**.
 - **Privacy:** Pseudonymous salted random device IDs and consent-aware anonymous heartbeat; minimize collection, enforce retention period, avoid tracking viewing history, provider details or media links.
 - **Acceptance:** 24h/7d/30d figures are accurate and deduplicated; developer can tell whether people come back without collecting sensitive viewing data.
@@ -241,6 +242,9 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 
 - **Status:** Product insight, not an engineering bug.
 - **Context:** Screenshots showed accounts using TikTak TV increasing 8 → 15 → 22 → 36 in a day, but `Signed in now` sometimes displayed 1, and 30-day new sign-ups were fewer than accounts using the app. Earlier screenshots showed 126 anonymous devices and 137 visits; these counts have different meanings and may include testing/multiple devices. Reddit post views alone don't prove app installs.
+- **November 6/7, 2026 snapshot (private dashboard and public repository screenshots):** 157 accounts; 59 accounts signed in during the prior 24 hours; 13 returning accounts; 16.2% D1 retention among 111 currently eligible accounts; 3 sessions per account; 2.6 minutes average active session; 52 new sign-ups over 30 days; 663 pseudonymous device IDs across platforms, including 122 classified as TV app; 841 visits; and 10 GitHub stars. These are observations from the displayed snapshot, not independently audited unique people, playback completions or long-term retained users.
+- **Directional delta only:** Compared with the earlier displayed 36 accounts / 126 device IDs / 137 visits, the counters increased by 121 accounts, 537 device IDs and 704 visits. The screenshots were captured at different times and may use evolving collection windows or definitions, so those arithmetic deltas must not be presented as same-period growth rates. GitHub stars are a separate public-interest signal and should not be mixed into in-app retention.
+- **Next audit:** Confirm the exact timestamps/window for every card, whether “59 signed in” is distinct accounts, whether “13 returning” uses distinct active dates, how the 111-account D1 denominator is formed, whether device IDs can rotate across browsers/app storage resets, and whether the 2.6-minute average excludes background or idle time. Store metric-definition version alongside future snapshots so historical comparisons remain valid.
 - **Goal:** Validate regular use with 7-day returning cohorts and non-friend testers rather than total installations or Reddit views.
 
 # P2 — Releases, feedback and stability
@@ -378,6 +382,7 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-06 — v2.5:** Added the confirmed Wisdom Share Android 9 blank-start report and requested exact APK/device information before assuming the previously fixed Google TV classification issue explained it.
 - **2026-11-06 — v2.6:** Reporter confirmed the failure persists on signed TV APK 0.3.5. Created BUG-11 and prioritized WebView/bundle compatibility plus a diagnosable native startup path.
 - **2026-11-06 — v2.7:** Added BUG-09/10 for Shield audio and manual source selection. Implemented named per-add-on query status, the in-player all-source chooser, audio-aware ranking/conversion, Chromium 69 bundle targeting/polyfills, a native TV startup timeout/retry screen with WebView diagnostics, and API 28 CI coverage. Commit `224c2e103` passed 85 unit tests, production build, the 252-case Chromium/Firefox/iPhone/iPad matrix (236 passes, 15 intentional skips, one isolated iPad timing miss that passed immediately on clean rerun), Android unit/lint/APK build, API 28/API 34 TV emulator smoke, production deploy and signed-release publishing. Public TV metadata is version code 9 / version 0.3.6 with SHA-256 `fec125a42490e03359d4516db63cc63d8b6406cf425758911f970958d91f0bb0`. Physical Shield/Wisdom Share confirmation remains required before hardware-only items become Verified.
+- **2026-11-06/07 — v2.8:** Added the newest private-dashboard and repository screenshots: 157 accounts, 59 signed in over 24 hours, 13 returning, 16.2% D1 retention among 111 eligible, 3 sessions/account, 2.6-minute average active session, 52 new sign-ups/30 days, 663 device IDs (122 TV app), 841 visits and 10 GitHub stars. Recorded directional deltas from the older displayed counters while flagging that cohort windows, D1 eligibility, returning-account logic and device-ID stability require a definition audit before trend claims. No new active bug or user report was introduced by this snapshot.
 
 ## New feedback inbox (append here before triage)
 
