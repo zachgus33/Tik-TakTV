@@ -76,8 +76,12 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvShellPreviewActivity
             sleep 5
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             adb shell input keyevent 20
             adb shell input keyevent 23
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             sleep 2
             adb logcat -d > native-tv-shell-720p-logcat.txt
             adb shell dumpsys activity activities > native-tv-activity-720p.txt
@@ -92,8 +96,12 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvShellPreviewActivity
             sleep 5
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             adb shell input keyevent 20
             adb shell input keyevent 23
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             sleep 2
             adb logcat -d > native-tv-shell-1080p-logcat.txt
             adb shell dumpsys activity activities > native-tv-activity-1080p.txt
@@ -108,8 +116,12 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvShellPreviewActivity
             sleep 5
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             adb shell input keyevent 20
             adb shell input keyevent 23
+            adb shell input keyevent 22
+            adb shell input keyevent 4
             sleep 2
             adb logcat -d > native-tv-shell-4k-logcat.txt
             adb shell dumpsys activity activities > native-tv-activity-4k.txt

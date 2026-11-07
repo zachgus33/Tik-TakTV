@@ -4,6 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,9 +34,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +79,8 @@ internal fun TikTakTvNavigationRail(
     selectedTab: AppScreenTab,
     liveTvEnabled: Boolean,
     onTabSelected: (AppScreenTab) -> Unit,
+    focusRequestKey: Int = 0,
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val entries = buildList {
@@ -86,6 +97,8 @@ internal fun TikTakTvNavigationRail(
         modifier = modifier
             .width(TikTakTvNavigationRailWidth)
             .fillMaxHeight()
+            .focusGroup()
+            .onFocusChanged { onFocusChanged(it.hasFocus) }
             .background(MaterialTheme.nuvio.colors.surface.copy(alpha = 0.96f))
             .padding(horizontal = 14.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,6 +128,7 @@ internal fun TikTakTvNavigationRail(
                     entry = entry,
                     selected = selectedTab == entry.tab,
                     initiallyFocused = selectedTab == entry.tab,
+                    focusRequestKey = focusRequestKey,
                     onClick = { onTabSelected(entry.tab) },
                 )
             }
@@ -135,10 +149,12 @@ private fun TikTakTvNavigationItem(
     entry: TikTakTvNavigationEntry,
     selected: Boolean,
     initiallyFocused: Boolean,
+    focusRequestKey: Int,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
     val background by animateColorAsState(
         targetValue = when {
             focused -> MaterialTheme.nuvio.colors.accent.copy(alpha = 0.28f)
@@ -156,7 +172,7 @@ private fun TikTakTvNavigationItem(
         label = "tv_nav_item_size",
     )
 
-    LaunchedEffect(initiallyFocused) {
+    LaunchedEffect(initiallyFocused, focusRequestKey) {
         if (initiallyFocused) focusRequester.requestFocus()
     }
 
@@ -167,6 +183,13 @@ private fun TikTakTvNavigationItem(
             .scale(if (focused) 1.04f else 1f)
             .focusRequester(focusRequester)
             .onFocusChanged { focused = it.hasFocus }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                    focusManager.moveFocus(FocusDirection.Right)
+                } else {
+                    false
+                }
+            }
             .clip(RoundedCornerShape(14.dp))
             .background(background)
             .border(2.dp, borderColor, RoundedCornerShape(14.dp))
@@ -199,6 +222,15 @@ private fun TikTakTvNavigationItem(
 @Composable
 fun TikTakTvShellPreview() {
     var selectedTab by remember { mutableStateOf(AppScreenTab.Home) }
+    var railHasFocus by remember { mutableStateOf(false) }
+    var railFocusRequestKey by remember { mutableStateOf(0) }
+    PlatformBackHandler(enabled = true) {
+        if (!railHasFocus) {
+            railFocusRequestKey++
+        } else if (selectedTab != AppScreenTab.Home) {
+            selectedTab = AppScreenTab.Home
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -208,6 +240,8 @@ fun TikTakTvShellPreview() {
             selectedTab = selectedTab,
             liveTvEnabled = true,
             onTabSelected = { selectedTab = it },
+            focusRequestKey = railFocusRequestKey,
+            onFocusChanged = { railHasFocus = it },
         )
         Column(
             modifier = Modifier
@@ -230,24 +264,36 @@ fun TikTakTvShellPreview() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
             ) {
-                repeat(4) { index ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(124.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(MaterialTheme.nuvio.colors.surface)
-                            .border(1.dp, MaterialTheme.nuvio.colors.borderDefault, RoundedCornerShape(18.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Content ${index + 1}",
-                            color = MaterialTheme.nuvio.colors.textPrimary,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                }
+                repeat(4) { index -> TikTakTvPreviewContentCard(index = index, modifier = Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+@Composable
+private fun TikTakTvPreviewContentCard(index: Int, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .height(124.dp)
+            .onFocusChanged { focused = it.hasFocus }
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (focused) MaterialTheme.nuvio.colors.accent.copy(alpha = 0.22f)
+                else MaterialTheme.nuvio.colors.surface,
+            )
+            .border(
+                width = if (focused) 3.dp else 1.dp,
+                color = if (focused) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.borderDefault,
+                shape = RoundedCornerShape(18.dp),
+            )
+            .focusable(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "Content ${index + 1}",
+            color = MaterialTheme.nuvio.colors.textPrimary,
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }

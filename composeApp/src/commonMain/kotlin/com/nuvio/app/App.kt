@@ -803,6 +803,8 @@ private fun MainAppContent(
         val uriHandler = LocalUriHandler.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+        var tvRailHasFocus by remember { mutableStateOf(false) }
+        var tvRailFocusRequestKey by remember { mutableStateOf(0) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -1920,10 +1922,13 @@ private fun MainAppContent(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                 composable<TabsRoute> {
+                    val isNativeTv = LocalTvMode.current
                     PlatformBackHandler(
                         enabled = true,
                         onBack = {
-                            if (selectedTab != AppScreenTab.Home) {
+                            if (isNativeTv && !tvRailHasFocus) {
+                                tvRailFocusRequestKey++
+                            } else if (selectedTab != AppScreenTab.Home) {
                                 selectedTab = AppScreenTab.Home
                             } else {
                                 showExitConfirmation = !showExitConfirmation
@@ -1936,7 +1941,6 @@ private fun MainAppContent(
                             .fillMaxSize()
                             .nestedScroll(nativeTabAutoHideScrollConnection),
                     ) {
-                        val isNativeTv = LocalTvMode.current
                         val isTabletLayout = !isNativeTv && maxWidth >= 768.dp
                         val useNativeBottomTabs =
                             !isNativeTv && liquidGlassNativeTabBarSupported && liquidGlassNativeTabBarEnabled && initialHomeReady
@@ -2185,6 +2189,8 @@ private fun MainAppContent(
                                         selectedTab = selectedTab,
                                         liveTvEnabled = liveTvEnabled,
                                         onTabSelected = ::handleRootTabClick,
+                                        focusRequestKey = tvRailFocusRequestKey,
+                                        onFocusChanged = { tvRailHasFocus = it },
                                         modifier = Modifier.align(Alignment.CenterStart),
                                     )
                                 }
