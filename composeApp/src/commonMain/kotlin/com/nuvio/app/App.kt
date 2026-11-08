@@ -69,6 +69,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -539,6 +540,21 @@ fun App() {
         var profileEditReturnTarget by rememberSaveable { mutableStateOf(ProfileEditReturnTarget.ProfileSelection.name) }
         var pendingMainInitialTabName by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingMainSettingsPageName by rememberSaveable { mutableStateOf<String?>(null) }
+        val appGateFocusManager = LocalFocusManager.current
+        val isNativeTvGate = LocalTvMode.current
+
+        LaunchedEffect(isNativeTvGate, gateScreen) {
+            if (
+                isNativeTvGate &&
+                (gateScreen == AppGateScreen.ProfileSelection.name ||
+                    gateScreen == AppGateScreen.ProfileEdit.name)
+            ) {
+                // Gate screens are separate focus trees. Wait for their entry
+                // animation, then give the remote a real, visible first target.
+                kotlinx.coroutines.delay(700)
+                appGateFocusManager.moveFocus(FocusDirection.Next)
+            }
+        }
 
         fun rememberedStartupProfile(profiles: List<NuvioProfile>): NuvioProfile? {
             val currentProfileState = ProfileRepository.state.value

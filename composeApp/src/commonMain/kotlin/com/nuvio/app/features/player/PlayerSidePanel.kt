@@ -67,7 +67,7 @@ internal fun PlayerSidePanel(
                 .background(Color.Black.copy(alpha = 0.34f))
                 .clickable(
                     interactionSource = backgroundInteraction,
-                    indication = null,
+                    indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     onClick = onDismiss,
                 ),
         ) {
@@ -88,7 +88,7 @@ internal fun PlayerSidePanel(
                         .background(tokens.colors.surfaceElevated)
                         .clickable(
                             interactionSource = panelInteraction,
-                            indication = null,
+                            indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             onClick = {},
                         ),
                     content = content,

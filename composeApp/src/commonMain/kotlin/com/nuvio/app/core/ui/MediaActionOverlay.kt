@@ -104,7 +104,7 @@ fun NuvioMediaActionOverlay(
                     .fillMaxSize()
                     .clickable(
                         interactionSource = dismissInteraction,
-                        indication = null,
+                        indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                         onClick = onDismissRequest,
                     )
             )
@@ -131,7 +131,7 @@ fun NuvioMediaActionOverlay(
                             }
                             .clickable(
                                 interactionSource = contentInteraction,
-                                indication = null,
+                                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                                 onClick = {},
                             ),
                     ) {

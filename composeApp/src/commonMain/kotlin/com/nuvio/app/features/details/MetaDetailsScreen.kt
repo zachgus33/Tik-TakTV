@@ -2232,7 +2232,7 @@ private fun TabbedSectionGroup(
                         modifier = Modifier
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
+                                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             ) { selectedIndex = index },
                     )
                 }

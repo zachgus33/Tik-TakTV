@@ -374,7 +374,7 @@ private fun ProfileAvatarCard(
             .clip(RoundedCornerShape(20.dp))
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                 onClick = onClick,
             )
             .padding(8.dp),
@@ -524,7 +524,7 @@ private fun AddProfileCard(
             .clip(RoundedCornerShape(20.dp))
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                 onClick = onClick,
             )
             .padding(8.dp),

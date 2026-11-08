@@ -61,7 +61,7 @@ internal fun PlayerQualityPanel(
             modifier = modifier
                 .fillMaxSize()
                 .clickable(
-                    indication = null,
+                    indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
                 )
@@ -84,7 +84,7 @@ internal fun PlayerQualityPanel(
                         .background(tokens.colors.surfaceSheet)
                         .border(tokens.borders.thin, tokens.colors.borderDefault, tokens.shapes.playerPanel)
                         .clickable(
-                            indication = null,
+                            indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
                         ),

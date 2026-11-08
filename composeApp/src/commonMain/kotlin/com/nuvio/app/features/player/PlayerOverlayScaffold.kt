@@ -43,7 +43,7 @@ internal fun PlayerOverlayScaffold(
                 .fillMaxSize()
                 .clickable(
                     interactionSource = interactionSource,
-                    indication = null,
+                    indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     onClick = onDismiss,
                 ),
         ) {

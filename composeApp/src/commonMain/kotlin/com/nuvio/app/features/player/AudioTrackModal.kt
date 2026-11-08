@@ -63,7 +63,7 @@ fun AudioTrackModal(
             modifier = modifier
                 .fillMaxSize()
                 .clickable(
-                    indication = null,
+                    indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
                 )
@@ -84,7 +84,7 @@ fun AudioTrackModal(
                         .background(colorScheme.surface)
                         .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
                         .clickable(
-                            indication = null,
+                            indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
                         ),

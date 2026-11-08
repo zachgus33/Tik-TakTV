@@ -80,7 +80,7 @@ fun PlayerSourcesPanel(
             modifier = modifier
                 .fillMaxSize()
                 .clickable(
-                    indication = null,
+                    indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
                 )
@@ -103,7 +103,7 @@ fun PlayerSourcesPanel(
                         .background(tokens.colors.surfaceSheet)
                         .border(tokens.borders.thin, tokens.colors.borderDefault, tokens.shapes.playerPanel)
                         .clickable(
-                            indication = null,
+                            indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
                         ),

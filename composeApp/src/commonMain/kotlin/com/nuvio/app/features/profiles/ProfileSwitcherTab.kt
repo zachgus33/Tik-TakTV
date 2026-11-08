@@ -205,7 +205,7 @@ fun ProfileSwitcherTab(
             .onGloballyPositioned { triggerCoordinates = it }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                 onClick = onClick,
             )
             .pointerInput(profiles) {
@@ -557,7 +557,7 @@ private fun PopupAddProfileBubble(
             .clip(tokens.shapes.compactCard)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                 onClick = onClick,
             )
             .padding(NuvioTokens.Space.s4),
@@ -651,7 +651,7 @@ private fun PopupProfileBubble(
             .clip(tokens.shapes.compactCard)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+                indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                 onClick = onClick,
             )
             .padding(NuvioTokens.Space.s4),
