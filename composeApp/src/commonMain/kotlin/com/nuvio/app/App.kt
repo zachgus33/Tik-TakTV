@@ -2065,7 +2065,13 @@ private fun MainAppContent(
                                     AppTabHost(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .padding(start = if (isNativeTv) TikTakTvNavigationRailWidth else 0.dp)
+                                            .padding(
+                                                start = if (isNativeTv) {
+                                                    TikTakTvNavigationRailWidth + 12.dp
+                                                } else {
+                                                    0.dp
+                                                },
+                                            )
                                             .then(
                                                 if (navBarStyleSetting != NavBarStyle.CLASSIC) {
                                                     Modifier.hazeSource(state = navBarHazeState)

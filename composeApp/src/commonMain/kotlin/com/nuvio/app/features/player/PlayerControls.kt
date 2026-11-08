@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -73,6 +74,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -693,6 +700,10 @@ private fun CenterControls(
     lowerActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
+    val internalPrimaryFocusRequester = remember { FocusRequester() }
+    val resolvedPrimaryFocusRequester = primaryActionFocusRequester ?: internalPrimaryFocusRequester
+    val seekBackFocusRequester = remember { FocusRequester() }
+    val seekForwardFocusRequester = remember { FocusRequester() }
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(metrics.centerGap),
@@ -703,13 +714,18 @@ private fun CenterControls(
             contentDescription = stringResource(Res.string.compose_player_seek_back_10),
             metrics = metrics,
             onClick = onSeekBack,
+            focusRequester = seekBackFocusRequester,
+            rightActionFocusRequester = resolvedPrimaryFocusRequester,
+            lowerActionFocusRequester = lowerActionFocusRequester,
         )
         PlayPauseControlButton(
             isPlaying = snapshot.isPlaying,
             isBuffering = snapshot.isLoading,
             metrics = metrics,
             onClick = onTogglePlayback,
-            focusRequester = primaryActionFocusRequester,
+            focusRequester = resolvedPrimaryFocusRequester,
+            leftActionFocusRequester = seekBackFocusRequester,
+            rightActionFocusRequester = seekForwardFocusRequester,
             lowerActionFocusRequester = lowerActionFocusRequester,
         )
         SideControlButton(
@@ -717,6 +733,9 @@ private fun CenterControls(
             contentDescription = stringResource(Res.string.compose_player_seek_forward_10),
             metrics = metrics,
             onClick = onSeekForward,
+            focusRequester = seekForwardFocusRequester,
+            leftActionFocusRequester = resolvedPrimaryFocusRequester,
+            lowerActionFocusRequester = lowerActionFocusRequester,
         )
     }
 }
@@ -727,10 +746,20 @@ private fun SideControlButton(
     contentDescription: String,
     metrics: PlayerLayoutMetrics,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    leftActionFocusRequester: FocusRequester? = null,
+    rightActionFocusRequester: FocusRequester? = null,
+    lowerActionFocusRequester: FocusRequester? = null,
 ) {
     Box(
         modifier = Modifier
             .tvPlayerFocus(CircleShape)
+            .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+            .tvPlayerDirectionalKeys(
+                left = leftActionFocusRequester,
+                right = rightActionFocusRequester,
+                down = lowerActionFocusRequester,
+            )
             .clip(CircleShape)
             .clickable(onClick = onClick)
             .padding(metrics.sideButtonPadding),
@@ -752,6 +781,8 @@ private fun PlayPauseControlButton(
     metrics: PlayerLayoutMetrics,
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null,
+    leftActionFocusRequester: FocusRequester? = null,
+    rightActionFocusRequester: FocusRequester? = null,
     lowerActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -775,6 +806,11 @@ private fun PlayPauseControlButton(
                 } else {
                     Modifier
                 },
+            )
+            .tvPlayerDirectionalKeys(
+                left = leftActionFocusRequester,
+                right = rightActionFocusRequester,
+                down = lowerActionFocusRequester,
             )
             .clip(CircleShape)
             .clickable(onClick = onClick)
@@ -1132,6 +1168,7 @@ private fun PlayerActionPillButton(
                     Modifier
                 },
             )
+            .tvPlayerDirectionalKeys(up = upperActionFocusRequester)
             .clip(RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -1161,6 +1198,38 @@ private fun PlayerActionPillButton(
             overflow = TextOverflow.Ellipsis,
             softWrap = false,
         )
+    }
+}
+
+private fun Modifier.tvPlayerDirectionalKeys(
+    left: FocusRequester? = null,
+    right: FocusRequester? = null,
+    up: FocusRequester? = null,
+    down: FocusRequester? = null,
+): Modifier = composed {
+    val focusManager = LocalFocusManager.current
+    onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        val explicitTarget = when (event.key) {
+            Key.DirectionLeft -> left
+            Key.DirectionRight -> right
+            Key.DirectionUp -> up
+            Key.DirectionDown -> down
+            else -> return@onPreviewKeyEvent false
+        }
+        if (explicitTarget != null) {
+            runCatching { explicitTarget.requestFocus() }
+            true
+        } else {
+            val direction = when (event.key) {
+                Key.DirectionLeft -> FocusDirection.Left
+                Key.DirectionRight -> FocusDirection.Right
+                Key.DirectionUp -> FocusDirection.Up
+                Key.DirectionDown -> FocusDirection.Down
+                else -> return@onPreviewKeyEvent false
+            }
+            focusManager.moveFocus(direction)
+        }
     }
 }
 
