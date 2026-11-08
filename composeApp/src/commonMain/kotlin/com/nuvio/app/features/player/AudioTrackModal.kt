@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.PlatformBackHandler
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_audio_tracks
 import nuvio.composeapp.generated.resources.compose_player_no_audio_tracks_available
@@ -53,6 +54,8 @@ fun AudioTrackModal(
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+
+    PlatformBackHandler(enabled = visible, onBack = onDismiss)
 
     AnimatedVisibility(
         visible = visible,
