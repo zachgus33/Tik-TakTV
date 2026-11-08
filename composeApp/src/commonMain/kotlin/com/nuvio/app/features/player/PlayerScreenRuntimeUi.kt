@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
@@ -125,13 +126,13 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     var tvSurfaceHasDirectFocus by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
 
-    LaunchedEffect(isTvMode) {
-        if (isTvMode) runCatching { tvFocusRequester.requestFocus() }
-    }
-
     LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest) {
-        if (isTvMode && controlsVisible && tvControlsFocusRequest > 0) {
-            runCatching { tvControlsFocusRequester.requestFocus() }
+        if (isTvMode) {
+            if (controlsVisible) {
+                runCatching { tvControlsFocusRequester.requestFocus() }
+            } else {
+                runCatching { tvFocusRequester.requestFocus() }
+            }
         }
     }
 
@@ -178,6 +179,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                 else -> false
                             }
                         }
+                        .focusProperties { canFocus = !controlsVisible }
                         .focusable()
                 } else {
                     Modifier
