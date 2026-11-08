@@ -836,7 +836,7 @@
     <string name="settings_homescreen_catalog_layout">Poster layout</string>
     <string name="settings_homescreen_catalog_layout_portrait">Portrait</string>
     <string name="settings_homescreen_catalog_layout_landscape">Landscape</string>
-    <string name="settings_homescreen_enhanced_catalog_hint">Catalog display controls now live under Nuvio Enhanced settings.</string>
+    <string name="settings_homescreen_enhanced_catalog_hint">Catalog display controls now live under TikTak TV settings.</string>
     <string name="settings_homescreen_summary">%1$d of %2$d catalogs visible • %3$d hero sources selected</string>
     <string name="settings_homescreen_summary_hint">Open a catalog only when you need to rename or reorder it.</string>
     <string name="settings_homescreen_visible">Visible</string>
@@ -2563,8 +2563,8 @@
         <item quantity="other">%d titles</item>
     </plurals>
     <string name="settings_nuvio_enhanced_category">Enhanced</string>
-    <string name="settings_nuvio_enhanced_section">Nuvio Enhanced</string>
-    <string name="settings_nuvio_enhanced_title">Nuvio Enhanced</string>
+    <string name="settings_nuvio_enhanced_section">TikTak TV</string>
+    <string name="settings_nuvio_enhanced_title">TikTak TV</string>
     <string name="settings_nuvio_enhanced_description">Fork-only premium controls, homepage intelligence, backup and import.</string>
     <string name="settings_new_feature_badge">New</string>
     <string name="home_smart_resume_signal_continue_now">Continue now</string>
@@ -2663,14 +2663,14 @@
     <string name="nuvio_enhanced_filter_movies">Movies</string>
     <string name="nuvio_enhanced_highlight_title">Highlight new Enhanced settings</string>
     <string name="nuvio_enhanced_highlight_desc">New fork-specific options receive a subtle outline until you use or mark them as seen.</string>
-    <string name="nuvio_enhanced_footer_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_footer_title">TikTak TV</string>
     <string name="nuvio_enhanced_footer_desc">Follow releases on GitHub or join Discord for updates, polls and feature requests.</string>
     <string name="nuvio_enhanced_footer_github">GitHub</string>
     <string name="nuvio_enhanced_footer_releases">Releases</string>
     <string name="nuvio_enhanced_footer_discord">Discord</string>
     <string name="nuvio_enhanced_footer_community">Community</string>
-    <string name="nuvio_discord_welcome_title">Join the Nuvio Discord</string>
-    <string name="nuvio_discord_welcome_description">Updates, polls, feature requests and community feedback now live in the Nuvio Discord.</string>
+    <string name="nuvio_discord_welcome_title">TikTak TV community</string>
+    <string name="nuvio_discord_welcome_description">Use TikTak TV's in-app feedback center for bug reports, screenshots and feature requests.</string>
     <string name="nuvio_discord_welcome_join">Join Discord</string>
     <string name="nuvio_discord_welcome_not_now">Not now</string>
     <string name="nuvio_discord_welcome_dont_show_again">Don&apos;t show again</string>
@@ -2685,9 +2685,9 @@
     <string name="nuvio_enhanced_copy_last_crash_title">Copy last crash report</string>
     <string name="nuvio_enhanced_copy_last_crash_desc">Copy the latest local crash report so it can be shared with the developer.</string>
     <string name="nuvio_enhanced_copy_last_crash_empty_desc">No local crash report has been saved on this device yet.</string>
-    <string name="nuvio_enhanced_feedback_title">Nuvio Enhanced feedback</string>
-    <string name="nuvio_enhanced_feedback_desc">Send bugs, ideas or user feedback directly to the Nuvio Enhanced maintainer.</string>
-    <string name="nuvio_enhanced_intro_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_feedback_title">TikTak TV feedback</string>
+    <string name="nuvio_enhanced_feedback_desc">Send bugs, ideas or user feedback directly to the TikTak TV maintainer.</string>
+    <string name="nuvio_enhanced_intro_title">TikTak TV</string>
     <string name="nuvio_enhanced_intro_desc">Fork-only features live here so users can clearly separate official settings from Nuvio additions.</string>
     <string name="nuvio_enhanced_mark_all_seen">Mark all Enhanced features as seen</string>
     <string name="nuvio_enhanced_backup_ready_title">Backup ready</string>

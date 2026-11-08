@@ -649,7 +649,7 @@ private class CloudStreamSettingsCopy private constructor(
                 if (turkish) {
                     "Bu provider, Nuvio Enhanced içine derlenmiş incelenmiş çapraz platform adaptörü kullanır."
                 } else {
-                    "This provider has a reviewed cross-platform adapter compiled into Nuvio Enhanced."
+                    "This provider has a reviewed cross-platform adapter compiled into TikTak TV."
                 }
             }
             CloudStreamPlatformSupport.AndroidOnly -> {

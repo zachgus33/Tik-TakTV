@@ -315,6 +315,17 @@ object LiveTvRepository {
         mutableUiState.value = mutableUiState.value.copy(recentChannel = recentChannel)
     }
 
+    fun loadExternalEpg(epgUrl: String) {
+        val normalizedUrl = epgUrl.trim()
+        if (!normalizedUrl.startsWith("http://", ignoreCase = true) &&
+            !normalizedUrl.startsWith("https://", ignoreCase = true)
+        ) return
+        val sourceUrl = mutableUiState.value.sourceUrl
+        if (sourceUrl.isBlank()) return
+        mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+        loadEpgInBackground(sourceUrl, listOf(normalizedUrl))
+    }
+
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {
         if (epgUrls.isEmpty()) return
         epgScope.launch {

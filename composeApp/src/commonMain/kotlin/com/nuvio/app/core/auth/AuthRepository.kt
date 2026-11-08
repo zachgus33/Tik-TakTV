@@ -129,6 +129,18 @@ object AuthRepository {
             this.email = email
             this.password = password
         }
+        // Do not wait for the session-status collector to eventually echo a
+        // successful interactive login. Some Android/Fire TV builds persist
+        // the new session without emitting that event until the activity is
+        // recreated, which left the sign-in screen visible and unfocusable.
+        val user = SupabaseProvider.client.auth.retrieveUserForCurrentSession(false)
+        validatedRemoteUserId = user.id
+        _state.value = AuthState.Authenticated(
+            userId = user.id,
+            email = user.email,
+            isAnonymous = false,
+        )
+        Unit
     }.onFailure { e ->
         logAuthFailure("Email sign-in failed", e)
         _error.value = readableAuthError(e, getString(Res.string.auth_sign_in_failed))

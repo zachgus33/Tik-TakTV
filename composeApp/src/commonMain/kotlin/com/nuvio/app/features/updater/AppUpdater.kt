@@ -23,10 +23,10 @@ import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
-private const val gitHubOwner = "yesnt10"
-private const val gitHubRepo = "NuvioMobile-Enhanced"
+private const val gitHubOwner = "zachgus33"
+private const val gitHubRepo = "Tik-TakTV"
 private const val gitHubApiBase = "https://api.github.com"
-private val releaseChannelBranches = listOf("enhanced", "cmp-rewrite")
+private val releaseChannelBranches = listOf("web-enhanced-pages", "main")
 
 data class AppUpdate(
     val tag: String,

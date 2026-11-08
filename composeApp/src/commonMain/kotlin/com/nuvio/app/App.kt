@@ -3886,13 +3886,6 @@ private fun MainAppContent(
                     .zIndex(15f),
             )
 
-            NuvioDiscordWelcomeDialog(
-                visible = !nuvioEnhancedSettings.discordWelcomeSeen && !discordWelcomeDismissedThisSession,
-                onJoinDiscord = ::openDiscordWelcome,
-                onDismiss = ::dismissDiscordWelcomeForNow,
-                onDontShowAgain = ::hideDiscordWelcomePermanently,
-            )
-
             NuvioToastHost(
                 modifier = Modifier
                     .align(Alignment.TopCenter)

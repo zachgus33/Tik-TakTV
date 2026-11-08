@@ -85,8 +85,7 @@ import nuvio.composeapp.generated.resources.settings_nuvio_enhanced_title
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.painterResource
 
-private const val NuvioEnhancedGithubUrl = "https://github.com/yesnt10/NuvioMobile-Enhanced"
-private const val NuvioEnhancedDiscordUrl = "https://discord.gg/at8xffxuRU"
+private const val NuvioEnhancedGithubUrl = "https://github.com/zachgus33/Tik-TakTV"
 
 internal fun LazyListScope.nuvioEnhancedSettingsContent(
     isTablet: Boolean,
@@ -696,10 +695,6 @@ private fun NuvioEnhancedSettingsPageContent(
                 markSeen(NuvioEnhancedFeature.CommunityLinks)
                 uriHandler.openUri(NuvioEnhancedGithubUrl)
             },
-            onDiscordClick = {
-                markSeen(NuvioEnhancedFeature.CommunityLinks)
-                uriHandler.openUri(NuvioEnhancedDiscordUrl)
-            },
         )
 
         if (CrashDiagnostics.reportsSupported) {
@@ -1007,7 +1002,6 @@ private fun EnhancedNewBadge() {
 private fun EnhancedCommunityFooter(
     isTablet: Boolean,
     onGithubClick: () -> Unit,
-    onDiscordClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
     Surface(
@@ -1031,25 +1025,13 @@ private fun EnhancedCommunityFooter(
                 style = MaterialTheme.typography.bodyMedium,
                 color = tokens.colors.textMuted,
             )
-            Row(
+            EnhancedFooterLink(
+                title = stringResource(Res.string.nuvio_enhanced_footer_github),
+                subtitle = stringResource(Res.string.nuvio_enhanced_footer_releases),
+                icon = appIconPainter(AppIconResource.GithubMark),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                EnhancedFooterLink(
-                    title = stringResource(Res.string.nuvio_enhanced_footer_github),
-                    subtitle = stringResource(Res.string.nuvio_enhanced_footer_releases),
-                    icon = appIconPainter(AppIconResource.GithubMark),
-                    modifier = Modifier.weight(1f),
-                    onClick = onGithubClick,
-                )
-                EnhancedFooterLink(
-                    title = stringResource(Res.string.nuvio_enhanced_footer_discord),
-                    subtitle = stringResource(Res.string.nuvio_enhanced_footer_community),
-                    icon = appIconPainter(AppIconResource.DiscordMark),
-                    modifier = Modifier.weight(1f),
-                    onClick = onDiscordClick,
-                )
-            }
+                onClick = onGithubClick,
+            )
         }
     }
 }

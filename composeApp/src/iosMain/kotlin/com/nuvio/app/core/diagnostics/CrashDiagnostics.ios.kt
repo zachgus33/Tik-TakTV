@@ -95,7 +95,7 @@ actual object CrashDiagnostics {
         val process = NSProcessInfo.processInfo
         val stackTrace = throwable.stackTraceToString().sanitizeCrashReport()
         return buildString {
-            appendLine("Nuvio Enhanced local crash report")
+            appendLine("TikTak TV local crash report")
             appendLine("Time: ${formattedNow()}")
             appendLine("Package: $bundleId")
             appendLine("Version: ${AppVersionConfig.VERSION_NAME} (${AppVersionConfig.VERSION_CODE})")

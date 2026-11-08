@@ -107,7 +107,7 @@ actual object CrashDiagnostics {
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US).format(Date(timestamp))
         val stackTrace = Log.getStackTraceString(throwable).sanitizeCrashReport()
         val rawReport = buildString {
-            appendLine("Nuvio Enhanced local crash report")
+            appendLine("TikTak TV local crash report")
             appendLine("Time: $time")
             appendLine("Package: ${context.packageName}")
             appendLine("Version: ${AppVersionConfig.VERSION_NAME} (${AppVersionConfig.VERSION_CODE})")

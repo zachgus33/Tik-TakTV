@@ -16,7 +16,7 @@ object CloudStreamCompatibilityResolver {
                 runtimeKind = CloudStreamRuntimeKind.PrecompiledCrossPlatformAdapter,
                 platformSupport = CloudStreamPlatformSupport.AndroidAndIos,
                 adapterId = adapterId,
-                reason = "This provider has a reviewed cross-platform adapter compiled into Nuvio Enhanced.",
+                reason = "This provider has a reviewed cross-platform adapter compiled into TikTak TV.",
             )
             }
             supportsAndroidDex -> {

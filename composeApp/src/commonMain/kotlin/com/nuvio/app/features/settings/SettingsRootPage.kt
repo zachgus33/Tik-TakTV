@@ -263,19 +263,19 @@ internal fun LazyListScope.settingsRootContent(
                 .padding(horizontal = 20.dp, vertical = if (isTablet) 20.dp else 16.dp),
         ) {
             Text(
-                text = "Nuvio Enhanced",
+                text = "TikTak TV",
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "github.com/yesnt10/NuvioMobile-Enhanced",
+                text = "github.com/zachgus33/Tik-TakTV",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
                     .clickable {
-                        uriHandler.openUri("https://github.com/yesnt10/NuvioMobile-Enhanced")
+                        uriHandler.openUri("https://github.com/zachgus33/Tik-TakTV")
                     },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
