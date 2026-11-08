@@ -163,6 +163,7 @@ jobs:
             # exit. This covers the transition that previously left the app with
             # no visible cursor and an apparently inert Back button.
             adb shell input keyevent 20
+            adb shell input keyevent 20
             adb shell input keyevent 23
             sleep 20
             adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-home-focus.png
