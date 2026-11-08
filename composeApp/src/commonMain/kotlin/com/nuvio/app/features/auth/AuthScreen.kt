@@ -47,17 +47,25 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
@@ -66,11 +74,17 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -124,6 +138,7 @@ private val AuthPaneBorder = Color.White.copy(alpha = 0.07f)
 private val AuthDividerColor = Color.White.copy(alpha = 0.10f)
 private val AuthSecondaryButtonBackground = Color.White.copy(alpha = 0.05f)
 private val AuthSecondaryButtonBorder = Color.White.copy(alpha = 0.09f)
+private val AuthTvFocusAccent = Color(0xFFFF5B9C)
 
 private data class AuthFormMetrics(
     val fieldHeight: Dp,
@@ -634,6 +649,7 @@ private fun AuthForm(
             icon = Icons.Rounded.Email,
             metrics = metrics,
             scale = scale,
+            initiallyFocused = true,
             modifier = Modifier.onGloballyPositioned { coordinates ->
                 onEmailBoundsChange(coordinates.boundsInRoot())
             },
@@ -742,6 +758,8 @@ private fun AuthTermsAcknowledgement(
     scale: Float,
     onTermsClick: () -> Unit,
 ) {
+    val isTv = LocalTvMode.current
+    var termsFocused by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
@@ -759,7 +777,16 @@ private fun AuthTermsAcknowledgement(
         Spacer(modifier = Modifier.width(4.dp * scale))
         Text(
             text = stringResource(Res.string.compose_auth_terms_link),
-            modifier = Modifier.clickable(onClick = onTermsClick),
+            modifier = Modifier
+                .onFocusChanged { termsFocused = it.hasFocus }
+                .clip(RoundedCornerShape(8.dp))
+                .border(
+                    width = if (isTv && termsFocused) 2.dp else 0.dp,
+                    color = if (isTv && termsFocused) AuthTvFocusAccent else Color.Transparent,
+                    shape = RoundedCornerShape(8.dp),
+                )
+                .clickable(onClick = onTermsClick)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodyMedium.copy(
                 color = AuthTextPrimary,
                 fontSize = (13f * scale).sp,
@@ -784,14 +811,64 @@ private fun AuthTextField(
     onPasswordVisibilityToggle: () -> Unit = {},
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    initiallyFocused: Boolean = false,
 ) {
     val shape = RoundedCornerShape(14.dp)
+    val isTv = LocalTvMode.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
+    val containerFocusRequester = remember { FocusRequester() }
+    val editorFocusRequester = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+
+    fun beginEditing() {
+        if (!isTv || editing) return
+        editing = true
+        scope.launch {
+            withFrameNanos { }
+            editorFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
+    fun leaveEditor(direction: FocusDirection): Boolean {
+        if (!isTv || !editing) return false
+        keyboardController?.hide()
+        editing = false
+        scope.launch {
+            withFrameNanos { }
+            containerFocusRequester.requestFocus()
+            focusManager.moveFocus(direction)
+        }
+        return true
+    }
+
+    LaunchedEffect(isTv, initiallyFocused) {
+        if (isTv && initiallyFocused) containerFocusRequester.requestFocus()
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(metrics.fieldHeight)
+            .then(
+                if (isTv) {
+                    Modifier
+                        .focusRequester(containerFocusRequester)
+                        .onFocusChanged { state -> focused = state.hasFocus }
+                        .clickable(onClick = ::beginEditing)
+                } else {
+                    Modifier
+                },
+            )
             .background(metrics.fieldBackground, shape)
-            .border(1.dp, AuthFieldBorder, shape)
+            .border(
+                width = if (isTv && focused) 3.dp else 1.dp,
+                color = if (isTv && focused) AuthTvFocusAccent else AuthFieldBorder,
+                shape = shape,
+            )
             .padding(horizontal = metrics.fieldHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -807,7 +884,31 @@ private fun AuthTextField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxHeight()
+                .then(
+                    if (isTv) {
+                        Modifier
+                            .focusRequester(editorFocusRequester)
+                            .focusProperties { canFocus = editing }
+                            .onFocusChanged { state ->
+                                if (state.hasFocus) focused = true
+                            }
+                            .onPreviewKeyEvent { event ->
+                                if (event.type != KeyEventType.KeyDown) {
+                                    false
+                                } else {
+                                    when (event.key) {
+                                        Key.DirectionDown -> leaveEditor(FocusDirection.Down)
+                                        Key.DirectionUp -> leaveEditor(FocusDirection.Up)
+                                        else -> false
+                                    }
+                                }
+                            }
+                    } else {
+                        Modifier
+                    },
+                ),
+            readOnly = isTv && !editing,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = AuthTextPrimary,
@@ -849,6 +950,7 @@ private fun AuthTextField(
                 modifier = Modifier
                     .size(30.dp)
                     .clip(RoundedCornerShape(15.dp))
+                    .then(if (isTv) Modifier.focusProperties { canFocus = false } else Modifier)
                     .clickable(onClick = onPasswordVisibilityToggle),
                 contentAlignment = Alignment.Center,
             ) {
@@ -873,13 +975,18 @@ private fun AuthPrimaryButton(
     scale: Float,
     onClick: () -> Unit,
 ) {
+    val isTv = LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(height),
+            .height(height)
+            .onFocusChanged { focused = it.hasFocus }
+            .scale(if (isTv && focused) 1.035f else 1f),
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
+        border = if (isTv && focused) BorderStroke(4.dp, AuthTvFocusAccent) else null,
         contentPadding = PaddingValues(0.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = AuthPrimaryButtonBackground,
@@ -916,8 +1023,27 @@ private fun AuthModeToggle(
     scale: Float,
     onToggleAuthMode: () -> Unit,
 ) {
+    val isTv = LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.hasFocus }
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (isTv) {
+                    Modifier
+                        .border(
+                            width = if (focused) 3.dp else 1.dp,
+                            color = if (focused) AuthTvFocusAccent else Color.Transparent,
+                            shape = RoundedCornerShape(12.dp),
+                        )
+                        .clickable(onClick = onToggleAuthMode)
+                        .padding(vertical = 8.dp, horizontal = 10.dp)
+                } else {
+                    Modifier
+                },
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -949,7 +1075,7 @@ private fun AuthModeToggle(
             Text(
                 text = if (signUp) stringResource(Res.string.compose_auth_sign_in)
                 else stringResource(Res.string.compose_auth_sign_up),
-                modifier = Modifier.clickable(onClick = onToggleAuthMode),
+                modifier = if (isTv) Modifier else Modifier.clickable(onClick = onToggleAuthMode),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = AuthTextPrimary,
                     fontSize = (14f * scale).sp,
@@ -1000,14 +1126,21 @@ private fun AuthSecondaryButton(
     scale: Float,
     onClick: () -> Unit,
 ) {
+    val isTv = LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(height),
+            .height(height)
+            .onFocusChanged { focused = it.hasFocus }
+            .scale(if (isTv && focused) 1.035f else 1f),
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, AuthSecondaryButtonBorder),
+        border = BorderStroke(
+            width = if (isTv && focused) 4.dp else 1.dp,
+            color = if (isTv && focused) AuthTvFocusAccent else AuthSecondaryButtonBorder,
+        ),
         contentPadding = PaddingValues(0.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = AuthSecondaryButtonBackground,

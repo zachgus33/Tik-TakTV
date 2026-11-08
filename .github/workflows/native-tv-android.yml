@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -138,14 +138,28 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.tiktaktv.tv.nativepreview/com.tiktaktv.nativepreview.NativeTvActivity
             sleep 20
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-email-focus.png
             adb shell input keyevent 20
-            adb shell input keyevent 22
-            adb shell input keyevent 21
+            sleep 1
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-password-focus.png
+            adb shell input keyevent 20
+            sleep 1
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-submit-focus.png
+            adb shell input keyevent 19
             adb shell input keyevent 19
             adb shell input keyevent 23
+            sleep 2
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-keyboard.png
+            adb shell input keyevent 4
+            sleep 1
+            adb shell input keyevent 20
+            sleep 1
+            adb shell input keyevent 20
             sleep 3
             adb shell dumpsys activity activities > native-tv-activity.txt
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth.png
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-recovered.png
+            adb shell uiautomator dump /sdcard/native-tv-auth.xml || true
+            adb pull /sdcard/native-tv-auth.xml native-tv-auth.xml || true
             adb logcat -d > native-tv-logcat.txt
             grep -Eq "(topResumedActivity|ResumedActivity).*com.tiktaktv.tv.nativepreview" native-tv-activity.txt
             ! grep -A 3 "FATAL EXCEPTION" native-tv-logcat.txt | grep -q "Process: com.tiktaktv.tv.nativepreview"
@@ -159,5 +173,80 @@ jobs:
             native-tv-activity*.txt
             native-tv-shell-*-logcat.txt
             native-tv-logcat.txt
+            native-tv-auth.xml
           if-no-files-found: warn
           retention-days: 14
+
+  publish-signed-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
+    needs: [build, tv-emulator-smoke]
+    runs-on: ubuntu-latest
+    env:
+      TIKTAK_TV_STORE_PASSWORD: ${{ secrets.TIKTAK_TV_STORE_PASSWORD }}
+      TIKTAK_TV_KEY_ALIAS: ${{ secrets.TIKTAK_TV_KEY_ALIAS }}
+      TIKTAK_TV_KEY_PASSWORD: ${{ secrets.TIKTAK_TV_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Restore permanent TV signing key
+        env:
+          TIKTAK_TV_KEYSTORE_BASE64: ${{ secrets.TIKTAK_TV_KEYSTORE_BASE64 }}
+        run: |
+          test -n "${TIKTAK_TV_KEYSTORE_BASE64}"
+          test -n "${TIKTAK_TV_STORE_PASSWORD}"
+          test -n "${TIKTAK_TV_KEY_ALIAS}"
+          test -n "${TIKTAK_TV_KEY_PASSWORD}"
+          TIKTAK_TV_KEYSTORE_FILE="${RUNNER_TEMP}/tiktak-native-preview.p12"
+          printf '%s' "${TIKTAK_TV_KEYSTORE_BASE64}" | base64 --decode > "${TIKTAK_TV_KEYSTORE_FILE}"
+          echo "TIKTAK_TV_KEYSTORE_FILE=${TIKTAK_TV_KEYSTORE_FILE}" >> "${GITHUB_ENV}"
+      - name: Build signed native preview
+        run: ./gradlew :nativeTvApp:assembleRelease -Pnuvio.android.distribution=playstore --stacktrace
+      - name: Verify and prepare updater metadata
+        run: |
+          apk="nativeTvApp/build/outputs/apk/release/nativeTvApp-release.apk"
+          apksigner="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          aapt="$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -f "${apk}"
+          "${apksigner}" verify --verbose --print-certs "${apk}"
+          cp "${apk}" tiktak-tv-native-preview.apk
+          badging="$("${aapt}" dump badging "${apk}" | head -1)"
+          version_code="$(printf '%s' "${badging}" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
+          version_name="$(printf '%s' "${badging}" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")"
+          sha256="$(sha256sum tiktak-tv-native-preview.apk | cut -d ' ' -f1)"
+          test -n "${version_code}"
+          test -n "${version_name}"
+          cat > tiktak-tv-native-preview.json <<JSON
+          {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/native-preview-latest/tiktak-tv-native-preview.apk","sha256":"${sha256}"}
+          JSON
+          printf '%s  %s\n' "${sha256}" tiktak-tv-native-preview.apk > tiktak-tv-native-preview.apk.sha256
+      - name: Publish stable native-preview update assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view native-preview-latest >/dev/null 2>&1; then
+            gh release create native-preview-latest \
+              --target "${GITHUB_SHA}" \
+              --title "TikTak TV native preview" \
+              --notes "Side-by-side native Android TV and Fire TV development preview. This is not the public TV release." \
+              --prerelease \
+              --latest=false
+          fi
+          gh release upload native-preview-latest \
+            tiktak-tv-native-preview.apk \
+            tiktak-tv-native-preview.apk.sha256 \
+            tiktak-tv-native-preview.json \
+            --clobber
+      - name: Upload signed preview evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: TikTak-TV-Native-Preview-Signed
+          path: |
+            tiktak-tv-native-preview.apk
+            tiktak-tv-native-preview.apk.sha256
+            tiktak-tv-native-preview.json
+          if-no-files-found: error
+          retention-days: 30

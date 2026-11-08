@@ -2,6 +2,17 @@ plugins {
     alias(libs.plugins.androidApplication)
 }
 
+val tvReleaseStoreFile = providers.environmentVariable("TIKTAK_TV_KEYSTORE_FILE")
+val tvReleaseStorePassword = providers.environmentVariable("TIKTAK_TV_STORE_PASSWORD")
+val tvReleaseKeyAlias = providers.environmentVariable("TIKTAK_TV_KEY_ALIAS")
+val tvReleaseKeyPassword = providers.environmentVariable("TIKTAK_TV_KEY_PASSWORD")
+val hasTvReleaseSigning = listOf(
+    tvReleaseStoreFile,
+    tvReleaseStorePassword,
+    tvReleaseKeyAlias,
+    tvReleaseKeyPassword,
+).all { it.isPresent }
+
 android {
     namespace = "com.tiktaktv.nativepreview"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -11,12 +22,29 @@ android {
         applicationId = "com.tiktaktv.tv.nativepreview"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0-preview"
+        versionCode = 2
+        versionName = "0.1.1-preview"
+        buildConfigField(
+            "String",
+            "UPDATE_METADATA_URL",
+            "\"https://github.com/zachgus33/Tik-TakTV/releases/download/native-preview-latest/tiktak-tv-native-preview.json\"",
+        )
     }
 
     buildFeatures {
         buildConfig = true
+    }
+
+    signingConfigs {
+        create("tvRelease") {
+            if (hasTvReleaseSigning) {
+                storeFile = file(tvReleaseStoreFile.get())
+                storePassword = tvReleaseStorePassword.get()
+                keyAlias = tvReleaseKeyAlias.get()
+                keyPassword = tvReleaseKeyPassword.get()
+                storeType = "PKCS12"
+            }
+        }
     }
 
     buildTypes {
@@ -27,6 +55,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "../composeApp/proguard-rules.pro",
             )
+            if (hasTvReleaseSigning) {
+                signingConfig = signingConfigs.getByName("tvRelease")
+            }
         }
     }
 
@@ -56,6 +87,7 @@ android {
 dependencies {
     implementation(project(":composeApp"))
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.core.ktx)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)

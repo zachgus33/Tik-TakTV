@@ -25,6 +25,7 @@ import com.nuvio.app.core.ui.NuvioTheme
  */
 open class NativeTvActivity : MainActivity() {
     private var showShellPreview = false
+    private lateinit var previewUpdater: NativePreviewUpdater
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Capture this before MainActivity processes the incoming intent. The
@@ -36,7 +37,14 @@ open class NativeTvActivity : MainActivity() {
         }
         NativeTvHostMode.enable()
         super.onCreate(savedInstanceState)
+        previewUpdater = NativePreviewUpdater(this)
+        if (!showShellPreview) previewUpdater.checkForUpdates()
         enterTvFullscreen()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::previewUpdater.isInitialized) previewUpdater.resumePendingInstall()
     }
 
     @Composable
