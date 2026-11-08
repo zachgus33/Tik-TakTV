@@ -54,14 +54,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontStyle
@@ -71,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.nuvioTypeScale
 import nuvio.composeapp.generated.resources.*
@@ -648,6 +655,7 @@ private fun PlayerHeaderIconButton(
 ) {
     Box(
         modifier = Modifier
+            .tvPlayerFocus(CircleShape)
             .size(buttonSize)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.35f))
@@ -707,6 +715,7 @@ private fun SideControlButton(
 ) {
     Box(
         modifier = Modifier
+            .tvPlayerFocus(CircleShape)
             .clip(CircleShape)
             .clickable(onClick = onClick)
             .padding(metrics.sideButtonPadding),
@@ -734,6 +743,7 @@ private fun PlayPauseControlButton(
 
     Box(
         modifier = Modifier
+            .tvPlayerFocus(CircleShape)
             .clip(CircleShape)
             .clickable(onClick = onClick)
             .padding(metrics.playButtonPadding),
@@ -1068,6 +1078,7 @@ private fun PlayerActionPillButton(
 ) {
     Row(
         modifier = Modifier
+            .tvPlayerFocus(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -1098,4 +1109,21 @@ private fun PlayerActionPillButton(
             softWrap = false,
         )
     }
+}
+
+private fun Modifier.tvPlayerFocus(shape: Shape): Modifier = composed {
+    val isTvMode = LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
+    this
+        .onFocusChanged { focused = it.hasFocus }
+        .graphicsLayer {
+            val scale = if (isTvMode && focused) 1.12f else 1f
+            scaleX = scale
+            scaleY = scale
+        }
+        .border(
+            width = if (isTvMode && focused) 4.dp else 0.dp,
+            color = if (isTvMode && focused) Color(0xFFFF4F9A) else Color.Transparent,
+            shape = shape,
+        )
 }

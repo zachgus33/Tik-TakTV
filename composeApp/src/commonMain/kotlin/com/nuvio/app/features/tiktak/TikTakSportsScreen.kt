@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
@@ -50,8 +52,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import io.ktor.util.date.GMTDate
 
-private data class NativeScoreTeam(val name: String, val score: String)
+private data class NativeScoreTeam(
+    val name: String,
+    val score: String,
+    val logoUrl: String? = null,
+    val record: String? = null,
+)
 
 private data class NativeScoreEvent(
     val id: String,
@@ -61,6 +69,8 @@ private data class NativeScoreEvent(
     val detail: String,
     val state: String,
     val teams: List<NativeScoreTeam>,
+    val venue: String? = null,
+    val broadcast: String? = null,
 )
 
 private val SportsJson = Json { ignoreUnknownKeys = true }
@@ -75,6 +85,8 @@ private val ScoreFeeds = listOf(
     Triple("soccer", "soccer/usa.1", "MLS"),
     Triple("fighting", "mma/ufc", "UFC"),
 )
+private var scoreCache: List<NativeScoreEvent> = emptyList()
+private var scoreCacheTimeMs: Long = 0L
 
 @Composable
 fun TikTakSportsScreen(
@@ -220,10 +232,24 @@ private fun ScoreCard(event: NativeScoreEvent) {
         Text(event.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.nuvio.colors.textPrimary)
         event.teams.forEach { team ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(team.name, color = MaterialTheme.nuvio.colors.textPrimary)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    team.logoUrl?.let { logo ->
+                        AsyncImage(
+                            model = logo,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                    Column {
+                        Text(team.name, color = MaterialTheme.nuvio.colors.textPrimary)
+                        team.record?.let { Text(it, color = MaterialTheme.nuvio.colors.textMuted) }
+                    }
+                }
                 Text(team.score, color = MaterialTheme.nuvio.colors.textPrimary, fontWeight = FontWeight.Bold)
             }
         }
+        val context = listOfNotNull(event.broadcast, event.venue).joinToString(" â€¢ ")
+        if (context.isNotBlank()) Text(context, color = MaterialTheme.nuvio.colors.textMuted)
     }
 }
 
@@ -249,17 +275,38 @@ private fun SectionTitle(text: String) {
 }
 
 private suspend fun loadNativeScores(): List<NativeScoreEvent> = coroutineScope {
-    ScoreFeeds.map { (sport, path, league) ->
-        async {
-            runCatching {
-                val raw = httpGetText("https://site.api.espn.com/apis/site/v2/sports/$path/scoreboard?limit=50")
-                parseScoreEvents(raw, sport, league)
-            }.getOrDefault(emptyList())
+    val now = GMTDate().timestamp
+    if (scoreCache.isNotEmpty() && now - scoreCacheTimeMs < SCORE_CACHE_TTL_MS) return@coroutineScope scoreCache
+    val dates = listOf(espnDate(now - TWELVE_HOURS_MS), espnDate(now + TWELVE_HOURS_MS)).distinct()
+    val loaded = ScoreFeeds.flatMap { (sport, path, league) ->
+        dates.map { date ->
+            async {
+                runCatching {
+                    val raw = httpGetText(
+                        "https://site.api.espn.com/apis/site/v2/sports/$path/scoreboard?dates=$date&limit=500",
+                    )
+                    parseScoreEvents(raw, sport, league)
+                }.getOrDefault(emptyList())
+            }
         }
     }.awaitAll().flatten().distinctBy(NativeScoreEvent::id).sortedWith(
         compareBy<NativeScoreEvent> { if (it.state == "in") 0 else if (it.state == "pre") 1 else 2 }
             .thenBy(NativeScoreEvent::league),
     )
+    if (loaded.isNotEmpty()) {
+        scoreCache = loaded
+        scoreCacheTimeMs = now
+    }
+    loaded.ifEmpty { scoreCache }
+}
+
+private fun espnDate(epochMs: Long): String {
+    val date = GMTDate(epochMs)
+    return buildString(8) {
+        append(date.year)
+        append((date.month.ordinal + 1).toString().padStart(2, '0'))
+        append(date.dayOfMonth.toString().padStart(2, '0'))
+    }
 }
 
 private fun parseScoreEvents(raw: String, sport: String, fallbackLeague: String): List<NativeScoreEvent> {
@@ -276,6 +323,8 @@ private fun parseScoreEvents(raw: String, sport: String, fallbackLeague: String)
             NativeScoreTeam(
                 name = team.string("displayName") ?: team.string("name") ?: "Team",
                 score = side.string("score").orEmpty(),
+                logoUrl = team.string("logo"),
+                record = side.array("records").firstObject()?.string("summary"),
             )
         }
         NativeScoreEvent(
@@ -286,6 +335,11 @@ private fun parseScoreEvents(raw: String, sport: String, fallbackLeague: String)
             detail = type?.string("shortDetail") ?: type?.string("detail") ?: "",
             state = type?.string("state") ?: "pre",
             teams = teams,
+            venue = competition.objectValue("venue")?.string("fullName"),
+            broadcast = competition.array("broadcasts").firstObject()
+                ?.array("names")
+                ?.firstOrNull()
+                ?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() },
         )
     }
 }
@@ -301,4 +355,6 @@ private val SportsKeywords = listOf(
 
 private const val MAX_VISIBLE_SCORE_EVENTS = 120
 private const val MAX_VISIBLE_SPORT_CHANNELS = 200
+private const val SCORE_CACHE_TTL_MS = 45_000L
+private const val TWELVE_HOURS_MS = 12L * 60L * 60L * 1000L
 

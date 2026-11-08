@@ -2102,6 +2102,7 @@ private fun MainAppContent(
                                                 openLiveTvChannel(channel)
                                             }
                                         },
+                                        onLiveTvSettingsClick = { handleRootTabClick(AppScreenTab.LiveTv) },
                                         onYouTubePlay = { item ->
                                             coroutineScope.launch {
                                                 val videoId = item.videoId
@@ -4031,6 +4032,7 @@ private fun AppTabHost(
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     onLiveTvChannelClick: ((LiveTvChannel) -> Unit)? = null,
+    onLiveTvSettingsClick: () -> Unit = {},
     onYouTubePlay: ((TikTakYouTubeItem) -> Unit)? = null,
     onLibraryPosterClick: ((LibraryItem) -> Unit)? = null,
     onLibraryPosterLongClick: ((LibraryItem, LibrarySection) -> Unit)? = null,
@@ -4152,6 +4154,7 @@ private fun AppTabHost(
                         onCheckForUpdatesClick = onCheckForUpdatesClick,
                         onTestUpdateBannerClick = onTestUpdateBannerClick,
                         onCollectionsClick = onCollectionsSettingsClick,
+                        onLiveTvClick = onLiveTvSettingsClick,
                         onPosterClick = onPosterClick,
                         onContinueWatchingItemClick = onContinueWatchingClick,
                         onFavoritePersonClick = onFavoritePersonClick,

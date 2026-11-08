@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
@@ -17,17 +18,37 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppVersionConfig
+import com.nuvio.app.core.ui.NuvioTvTextField
+import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.debrid.DebridSettingsRepository
+import com.nuvio.app.features.tiktak.TikTakServiceClient
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_about_version_format
 import nuvio.composeapp.generated.resources.compose_settings_page_account
@@ -78,6 +99,9 @@ internal fun LazyListScope.settingsRootContent(
     onCheckForUpdatesClick: (() -> Unit)? = null,
     onTestUpdateBannerClick: (() -> Unit)? = null,
     onDownloadsClick: () -> Unit,
+    onAddonsClick: () -> Unit,
+    onCollectionsClick: () -> Unit,
+    onLiveTvClick: () -> Unit,
     onAccountClick: () -> Unit,
     onSwitchProfileClick: (() -> Unit)? = null,
     showAccountSection: Boolean = true,
@@ -126,6 +150,30 @@ internal fun LazyListScope.settingsRootContent(
                 isTablet = isTablet,
             ) {
                 SettingsGroup(isTablet = isTablet) {
+                    SettingsNavigationRow(
+                        title = "Add-ons",
+                        description = "Catalogs and sources",
+                        icon = Icons.Rounded.Extension,
+                        isTablet = isTablet,
+                        onClick = onAddonsClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = "Collections",
+                        description = "Home rows, metadata and synced lists",
+                        icon = Icons.Rounded.CollectionsBookmark,
+                        isTablet = isTablet,
+                        onClick = onCollectionsClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = "Live TV",
+                        description = "IPTV sources, playlists and guide",
+                        icon = Icons.Rounded.Tv,
+                        isTablet = isTablet,
+                        onClick = onLiveTvClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
                         title = stringResource(Res.string.settings_nuvio_enhanced_title),
                         description = stringResource(Res.string.settings_nuvio_enhanced_description),
@@ -184,9 +232,18 @@ internal fun LazyListScope.settingsRootContent(
                         isTablet = isTablet,
                         onClick = onNotificationsClick,
                     )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = "Downloads",
+                        description = "Offline activity and history",
+                        icon = Icons.Rounded.CloudDownload,
+                        isTablet = isTablet,
+                        onClick = onDownloadsClick,
+                    )
                 }
             }
         }
+        item { FriendAccessSettingsCard(isTablet = isTablet) }
     }
     if (showAboutSection) {
         item {
@@ -293,5 +350,87 @@ internal fun LazyListScope.settingsRootContent(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+@Composable
+private fun FriendAccessSettingsCard(isTablet: Boolean) {
+    var dialogVisible by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    SettingsSection(title = "TikTak TV", isTablet = isTablet) {
+        SettingsGroup(isTablet = isTablet) {
+            SettingsNavigationRow(
+                title = "Friend code",
+                description = "Install a shared TikTak TV setup on this profile",
+                icon = Icons.Rounded.Security,
+                isTablet = isTablet,
+                onClick = { dialogVisible = true },
+            )
+        }
+    }
+
+    if (dialogVisible) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) dialogVisible = false },
+            title = { Text("Redeem friend code") },
+            text = {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Enter the code shared by the account owner. Add-ons and supported playback access will be installed into this profile.")
+                    NuvioTvTextField(
+                        value = code,
+                        onValueChange = { code = it.filter(Char::isDigit).take(12); message = null },
+                        enabled = !busy,
+                        label = { Text("Friend code") },
+                    )
+                    message?.let { Text(it, color = if (it.startsWith("Installed")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy && code.length in 6..12,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            message = null
+                            runCatching {
+                                val response = TikTakServiceClient.post("/friend/redeem", "{\"code\":\"$code\"}")
+                                if (response.status !in 200..299) {
+                                    val error = runCatching {
+                                        Json.parseToJsonElement(response.body).jsonObject["error"]?.jsonPrimitive?.contentOrNull
+                                    }.getOrNull()
+                                    error(error ?: "Friend code was not accepted (HTTP ${response.status}).")
+                                }
+                                val root = Json.parseToJsonElement(response.body).jsonObject
+                                val template = root["template"]?.jsonObject
+                                val addonBases = template?.get("addons")?.jsonArray.orEmpty().mapNotNull { addon ->
+                                    runCatching { addon.jsonObject["base"]?.jsonPrimitive?.contentOrNull }.getOrNull()
+                                }
+                                AddonRepository.initialize()
+                                var installed = 0
+                                addonBases.forEach { base ->
+                                    if (AddonRepository.addAddon(base.orEmpty()).let { it is com.nuvio.app.features.addons.AddAddonResult.Success }) installed++
+                                }
+                                root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setTorboxApiKey)
+                                root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setRealDebridApiKey)
+                                installed
+                            }.onSuccess { installed ->
+                                message = "Installed shared setup ($installed add-ons)."
+                                code = ""
+                            }.onFailure { error ->
+                                message = error.message ?: "Friend setup could not be installed."
+                            }
+                            busy = false
+                        }
+                    },
+                ) { Text(if (busy) "Installing…" else "Install") }
+            },
+            dismissButton = { TextButton(enabled = !busy, onClick = { dialogVisible = false }) { Text("Close") } },
+        )
     }
 }

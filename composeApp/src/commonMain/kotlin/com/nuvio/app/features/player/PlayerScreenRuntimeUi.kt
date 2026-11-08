@@ -7,9 +7,24 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.focusable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -104,10 +119,61 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
         }
     }
     val gestureCallbacks = rememberSurfaceGestureCallbacks()
+    val isTvMode = LocalTvMode.current
+    val tvFocusRequester = remember { FocusRequester() }
+    var tvSurfaceHasDirectFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isTvMode) {
+        if (isTvMode) runCatching { tvFocusRequester.requestFocus() }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .then(
+                if (isTvMode) {
+                    Modifier
+                        .focusRequester(tvFocusRequester)
+                        .onFocusChanged { tvSurfaceHasDirectFocus = it.isFocused }
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.key) {
+                                Key.DirectionLeft -> {
+                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                        seekBy(-10_000L)
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionRight -> {
+                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                        seekBy(10_000L)
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                        togglePlayback()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                Key.DirectionUp, Key.DirectionDown -> {
+                                    if (!controlsVisible) {
+                                        controlsVisible = true
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                else -> false
+                            }
+                        }
+                        .focusable()
+                } else {
+                    Modifier
+                },
+            )
             .onSizeChanged { layoutSize = it }
             .playerSurfaceTapGestures(
                 layoutSize = layoutSize,

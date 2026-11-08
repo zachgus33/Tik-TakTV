@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -120,6 +121,7 @@ fun LiveTvScreen(
     var xtreamUsername by rememberSaveable { mutableStateOf(uiState.xtreamSettings.username) }
     var xtreamPassword by rememberSaveable { mutableStateOf(uiState.xtreamSettings.password) }
     var fileImportError by rememberSaveable { mutableStateOf<String?>(null) }
+    var visibleChannelLimit by rememberSaveable { mutableStateOf(INITIAL_VISIBLE_CHANNEL_LIMIT) }
 
     LaunchedEffect(uiState.sourceUrl) {
         if (sourceUrl.isBlank()) sourceUrl = uiState.sourceUrl
@@ -135,21 +137,6 @@ fun LiveTvScreen(
         if (xtreamUsername.isBlank()) xtreamUsername = uiState.xtreamSettings.username
         if (xtreamPassword.isBlank()) xtreamPassword = uiState.xtreamSettings.password
     }
-    LaunchedEffect(Unit) {
-        if (uiState.channels.isEmpty() && !uiState.isLoading) {
-            when {
-                uiState.sourceType == LiveTvSourceType.Xtream && uiState.xtreamSettings.isConfigured ->
-                    LiveTvRepository.loadXtream(uiState.xtreamSettings)
-                uiState.sourceType == LiveTvSourceType.Stalker && uiState.stalkerSettings.isConfigured ->
-                    LiveTvRepository.loadStalker(uiState.stalkerSettings)
-                LiveTvStorage.loadLocalPlaylistData().orEmpty().isNotBlank() ->
-                    LiveTvRepository.loadStoredLocalPlaylist()
-                uiState.sourceUrl.isNotBlank() ->
-                    LiveTvRepository.load(uiState.sourceUrl)
-            }
-        }
-    }
-
     val groups = remember(uiState.channels) {
         uiState.channels
             .filterNot { isLikelyCategoryHeading(it.name) }
@@ -179,6 +166,12 @@ fun LiveTvScreen(
                 (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
                 (query.isBlank() || channel.name.contains(query, ignoreCase = true))
         }
+    }
+    val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
+        visibleChannels.take(visibleChannelLimit)
+    }
+    LaunchedEffect(query, selectedGroup, favoritesOnly) {
+        visibleChannelLimit = INITIAL_VISIBLE_CHANNEL_LIMIT
     }
     val loadSource: () -> Unit = {
         scope.launch {
@@ -460,16 +453,26 @@ fun LiveTvScreen(
             }
 
             items(
-                count = visibleChannels.size,
-                key = { index -> visibleChannels[index].id },
+                count = renderedChannels.size,
+                key = { index -> renderedChannels[index].id },
             ) { index ->
                 LiveTvChannelRow(
-                    channel = visibleChannels[index],
-                    programme = visibleChannels[index].tvgId?.let(uiState.currentProgrammes::get),
-                    isFavorite = visibleChannels[index].streamUrl in uiState.favoriteUrls,
-                    onFavoriteClick = { LiveTvRepository.toggleFavorite(visibleChannels[index]) },
-                    onClick = { playChannel(visibleChannels[index]) },
+                    channel = renderedChannels[index],
+                    programme = renderedChannels[index].tvgId?.let(uiState.currentProgrammes::get),
+                    isFavorite = renderedChannels[index].streamUrl in uiState.favoriteUrls,
+                    onFavoriteClick = { LiveTvRepository.toggleFavorite(renderedChannels[index]) },
+                    onClick = { playChannel(renderedChannels[index]) },
                 )
+            }
+            if (renderedChannels.size < visibleChannels.size) {
+                item {
+                    Button(onClick = {
+                        visibleChannelLimit = (visibleChannelLimit + VISIBLE_CHANNEL_PAGE_SIZE)
+                            .coerceAtMost(visibleChannels.size)
+                    }) {
+                        Text("Show more channels (${renderedChannels.size} of ${visibleChannels.size})")
+                    }
+                }
             }
         } else if (!uiState.isLoading && !editingSource) {
             item {
@@ -478,6 +481,9 @@ fun LiveTvScreen(
         }
     }
 }
+
+private const val INITIAL_VISIBLE_CHANNEL_LIMIT = 300
+private const val VISIBLE_CHANNEL_PAGE_SIZE = 300
 
 @Composable
 private fun LiveTvRecentChannelCard(

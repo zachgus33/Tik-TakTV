@@ -37,8 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -48,6 +50,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.text.font.FontWeight
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -234,8 +238,19 @@ fun NuvioPosterCard(
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
                 .onFocusChanged { hasTvFocus = it.hasFocus }
+                .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+                .graphicsLayer {
+                    val focusScale = if (isTvMode && hasTvFocus) 1.08f else 1f
+                    scaleX = focusScale
+                    scaleY = focusScale
+                }
+                .shadow(
+                    elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+                    shape = cardShape,
+                    clip = false,
+                )
                 .border(
-                    width = if (isTvMode && hasTvFocus) 4.dp else 0.dp,
+                    width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
                     color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
                     shape = cardShape,
                 )
@@ -301,8 +316,10 @@ fun NuvioPosterCard(
         if (shouldShowTitleBelow) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = tokens.colors.textPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (isTvMode && hasTvFocus) FontWeight.ExtraBold else FontWeight.Normal,
+                ),
+                color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else tokens.colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

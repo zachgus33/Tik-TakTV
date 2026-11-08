@@ -131,4 +131,10 @@ actual object LiveTvStorage {
         saveScopedString(recentChannelGroupKey, channel?.group)
         saveScopedString(recentChannelTvgIdKey, channel?.tvgId)
     }
+
+    // The native TV build uses a disk-backed cache. Keep iOS behavior unchanged until
+    // its cache is moved to an application-support file rather than user defaults.
+    actual suspend fun loadCachedChannels(): List<LiveTvChannel> = emptyList()
+
+    actual suspend fun saveCachedChannels(channels: List<LiveTvChannel>) = Unit
 }

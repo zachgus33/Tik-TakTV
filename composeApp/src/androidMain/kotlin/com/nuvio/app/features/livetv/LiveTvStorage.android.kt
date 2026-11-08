@@ -2,6 +2,11 @@ package com.nuvio.app.features.livetv
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 
 actual object LiveTvStorage {
     private const val preferencesName = "nuvio_live_tv"
@@ -23,6 +28,8 @@ actual object LiveTvStorage {
     private const val recentChannelTvgIdKey = "recent_channel_tvg_id"
 
     private var preferences: SharedPreferences? = null
+    private var appContext: Context? = null
+    private val cacheJson = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
     private fun resolvedProfileId(): Int = resolveLiveTvStorageProfileId()
 
@@ -47,7 +54,39 @@ actual object LiveTvStorage {
     }
 
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+    }
+
+    private fun cacheFile(): File? = appContext?.let { context ->
+        File(context.filesDir, "live-tv-channels-${resolvedProfileId()}.jsonl")
+    }
+
+    actual suspend fun loadCachedChannels(): List<LiveTvChannel> = withContext(Dispatchers.IO) {
+        val file = cacheFile()?.takeIf(File::isFile) ?: return@withContext emptyList()
+        file.useLines { lines ->
+            lines.mapNotNull { line ->
+                runCatching { cacheJson.decodeFromString<LiveTvChannel>(line) }.getOrNull()
+            }.toList()
+        }
+    }
+
+    actual suspend fun saveCachedChannels(channels: List<LiveTvChannel>) = withContext(Dispatchers.IO) {
+        val target = cacheFile() ?: return@withContext
+        if (channels.isEmpty()) {
+            target.delete()
+            return@withContext
+        }
+        val temporary = File(target.parentFile, "${target.name}.tmp")
+        temporary.bufferedWriter().use { writer ->
+            channels.forEach { channel ->
+                writer.appendLine(cacheJson.encodeToString(channel))
+            }
+        }
+        if (!temporary.renameTo(target)) {
+            temporary.copyTo(target, overwrite = true)
+            temporary.delete()
+        }
     }
 
     actual fun loadSourceType(): LiveTvSourceType =

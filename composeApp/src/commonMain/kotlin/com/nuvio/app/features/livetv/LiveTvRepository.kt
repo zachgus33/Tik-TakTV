@@ -29,14 +29,38 @@ object LiveTvRepository {
     fun ensureLoaded() {
         if (initialized) return
         initialized = true
+        val sourceType = LiveTvStorage.loadSourceType()
+        val sourceUrl = LiveTvStorage.loadSourceUrl().orEmpty()
+        val stalkerSettings = LiveTvStorage.loadStalkerSettings()
+        val xtreamSettings = LiveTvStorage.loadXtreamSettings()
         mutableUiState.value = mutableUiState.value.copy(
-            sourceType = LiveTvStorage.loadSourceType(),
-            sourceUrl = LiveTvStorage.loadSourceUrl().orEmpty(),
-            stalkerSettings = LiveTvStorage.loadStalkerSettings(),
-            xtreamSettings = LiveTvStorage.loadXtreamSettings(),
+            sourceType = sourceType,
+            sourceUrl = sourceUrl,
+            stalkerSettings = stalkerSettings,
+            xtreamSettings = xtreamSettings,
             favoriteUrls = LiveTvStorage.loadFavoriteUrls(),
             recentChannel = LiveTvStorage.loadRecentChannel(),
+            isLoading = sourceUrl.isNotBlank() || stalkerSettings.isConfigured || xtreamSettings.isConfigured,
         )
+        epgScope.launch {
+            val cachedChannels = runCatching { LiveTvStorage.loadCachedChannels() }.getOrDefault(emptyList())
+            if (cachedChannels.isNotEmpty()) {
+                mutableUiState.value = mutableUiState.value.copy(
+                    channels = cachedChannels,
+                    isLoading = false,
+                    isLoaded = true,
+                    errorMessage = null,
+                )
+                return@launch
+            }
+            mutableUiState.value = mutableUiState.value.copy(isLoading = false)
+            when {
+                sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured -> loadXtream(xtreamSettings)
+                sourceType == LiveTvSourceType.Stalker && stalkerSettings.isConfigured -> loadStalker(stalkerSettings)
+                LiveTvStorage.loadLocalPlaylistData().orEmpty().isNotBlank() -> loadStoredLocalPlaylist()
+                sourceUrl.isNotBlank() -> load(sourceUrl)
+            }
+        }
     }
 
     fun onProfileChanged() {
@@ -108,6 +132,7 @@ object LiveTvRepository {
                 isEpgLoading = playlist.epgUrls.isNotEmpty(),
                 isLoaded = true,
             )
+            cacheChannels(channels)
             loadEpgInBackground(normalizedUrl, playlist.epgUrls)
             channels
         }.onFailure { error ->
@@ -154,6 +179,7 @@ object LiveTvRepository {
                 recentChannel = mutableUiState.value.recentChannel,
                 isLoaded = true,
             )
+            cacheChannels(channels)
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(
@@ -214,6 +240,7 @@ object LiveTvRepository {
                 recentChannel = mutableUiState.value.recentChannel,
                 isLoaded = true,
             )
+            cacheChannels(channels)
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(
@@ -263,6 +290,7 @@ object LiveTvRepository {
                 recentChannel = mutableUiState.value.recentChannel,
                 isLoaded = true,
             )
+            cacheChannels(channels)
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(
@@ -285,6 +313,7 @@ object LiveTvRepository {
         LiveTvStorage.saveLocalPlaylistData("")
         LiveTvStorage.saveSourceType(LiveTvSourceType.M3u)
         LiveTvRepositoryStalker.clearSession()
+        epgScope.launch { LiveTvStorage.saveCachedChannels(emptyList()) }
         mutableUiState.value = LiveTvUiState(
             sourceType = LiveTvSourceType.M3u,
             stalkerSettings = LiveTvStorage.loadStalkerSettings(),
@@ -292,6 +321,12 @@ object LiveTvRepository {
             favoriteUrls = mutableUiState.value.favoriteUrls,
             recentChannel = mutableUiState.value.recentChannel,
         )
+    }
+
+    private fun cacheChannels(channels: List<LiveTvChannel>) {
+        epgScope.launch {
+            runCatching { LiveTvStorage.saveCachedChannels(channels) }
+        }
     }
 
     fun toggleFavorite(channel: LiveTvChannel) {
@@ -361,6 +396,8 @@ internal expect object LiveTvStorage {
     fun saveFavoriteUrls(urls: Set<String>)
     fun loadRecentChannel(): LiveTvRecentChannel?
     fun saveRecentChannel(channel: LiveTvRecentChannel?)
+    suspend fun loadCachedChannels(): List<LiveTvChannel>
+    suspend fun saveCachedChannels(channels: List<LiveTvChannel>)
 }
 
 private data class StalkerSession(

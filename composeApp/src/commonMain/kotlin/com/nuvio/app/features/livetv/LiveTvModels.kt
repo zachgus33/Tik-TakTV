@@ -3,7 +3,9 @@ package com.nuvio.app.features.livetv
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class LiveTvChannel(
     val id: String,
     val name: String,
