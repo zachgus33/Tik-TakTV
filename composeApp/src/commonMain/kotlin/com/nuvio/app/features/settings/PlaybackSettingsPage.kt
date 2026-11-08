@@ -3412,15 +3412,14 @@ private fun StreamAutoPlayRegexDialog(
                         else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                     ),
                 ) {
-                    BasicTextField(
+                    com.nuvio.app.core.ui.NuvioTvTextField(
                         value = regex,
                         onValueChange = {
                             regex = it
                             regexError = null
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
@@ -3428,16 +3427,12 @@ private fun StreamAutoPlayRegexDialog(
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurface,
                         ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        decorationBox = { innerTextField ->
-                            if (regex.isBlank()) {
-                                Text(
-                                    text = stringResource(Res.string.settings_playback_regex_placeholder),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                )
-                            }
-                            innerTextField()
+                        placeholder = {
+                            Text(
+                                text = stringResource(Res.string.settings_playback_regex_placeholder),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            )
                         },
                     )
                 }
@@ -3518,16 +3513,14 @@ private fun AnimeSkipClientIdDialog(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 ) {
-                    BasicTextField(
+                    com.nuvio.app.core.ui.NuvioTvTextField(
                         value = value,
                         onValueChange = { value = it },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .fillMaxWidth(),
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface,
                         ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         singleLine = true,
                     )
                 }

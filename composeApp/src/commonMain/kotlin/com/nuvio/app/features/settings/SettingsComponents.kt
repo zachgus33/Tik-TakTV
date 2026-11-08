@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -604,7 +606,7 @@ internal fun HomescreenCatalogRow(
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = item.customTitle,
                     onValueChange = onTitleChange,
                     modifier = Modifier.fillMaxWidth(),

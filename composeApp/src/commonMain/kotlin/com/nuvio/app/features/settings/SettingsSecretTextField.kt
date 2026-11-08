@@ -7,7 +7,6 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.nuvio.app.core.ui.NuvioTvTextField
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.settings_hide_secret
 import nuvio.composeapp.generated.resources.settings_show_secret
@@ -34,7 +34,7 @@ internal fun SettingsSecretTextField(
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
 
-    OutlinedTextField(
+    NuvioTvTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,

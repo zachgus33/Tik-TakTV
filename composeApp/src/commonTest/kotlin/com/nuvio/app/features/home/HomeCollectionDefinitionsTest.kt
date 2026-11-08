@@ -4,6 +4,7 @@ import com.nuvio.app.features.collection.Collection
 import com.nuvio.app.features.collection.CollectionFolder
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class HomeCollectionDefinitionsTest {
     @Test
@@ -20,5 +21,19 @@ class HomeCollectionDefinitionsTest {
 
         assertEquals(listOf("duplicate", "other"), result.map(Collection::id))
         assertEquals("First", result.first().title)
+    }
+
+    @Test
+    fun `legacy TikTak showOnHome remains pinned on native TV`() {
+        val legacy = Collection(
+            id = "legacy",
+            title = "Network",
+            showOnHome = true,
+            folders = listOf(CollectionFolder(id = "networks", title = "Networks")),
+        )
+
+        val definition = buildCollectionDefinitions(listOf(legacy)).single()
+
+        assertTrue(definition.isPinnedToTop)
     }
 }

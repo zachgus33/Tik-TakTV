@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -113,7 +115,7 @@ private fun TelegramAccountCard(
                         isError = uiState.errorMessage != null,
                     )
                 } else {
-                    OutlinedTextField(
+                    NuvioTvTextField(
                         value = input,
                         onValueChange = { input = it },
                         modifier = Modifier.fillMaxWidth(),

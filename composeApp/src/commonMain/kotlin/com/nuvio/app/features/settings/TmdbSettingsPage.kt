@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -331,7 +333,7 @@ private fun TmdbLanguageRow(
             )
         }
 
-        OutlinedTextField(
+        NuvioTvTextField(
             value = draft,
             onValueChange = {
                 draft = it

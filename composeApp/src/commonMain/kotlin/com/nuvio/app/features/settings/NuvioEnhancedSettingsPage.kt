@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -1167,7 +1169,7 @@ private fun BackupPayloadDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(stringResource(Res.string.nuvio_enhanced_backup_ready_desc))
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = payload,
                     onValueChange = {},
                     readOnly = true,
@@ -1209,7 +1211,7 @@ private fun ImportBackupDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(stringResource(Res.string.nuvio_enhanced_import_desc))
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = payload,
                     onValueChange = onPayloadChange,
                     modifier = Modifier

@@ -234,10 +234,16 @@ data class Collection(
     val title: String,
     val backdropImageUrl: String? = null,
     val pinToTop: Boolean = false,
+    // TikTak Web used showOnHome before the shared pinToTop field existed.
+    // Keep reading it so older signed-in collections do not disappear on TV.
+    val showOnHome: Boolean? = null,
     val viewMode: String = "TABBED_GRID",
     val showAllTab: Boolean = true,
     val folders: List<CollectionFolder> = emptyList(),
 ) {
+    val isPinnedToHome: Boolean
+        get() = pinToTop || showOnHome == true
+
     val folderViewMode: FolderViewMode
         get() = FolderViewMode.fromString(viewMode)
 }

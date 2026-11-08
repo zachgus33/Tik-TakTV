@@ -1,5 +1,6 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -1195,7 +1196,7 @@ private fun SettingsSearchField(
     onQueryChange: (String) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    OutlinedTextField(
+    NuvioTvTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),

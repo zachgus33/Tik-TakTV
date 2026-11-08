@@ -93,7 +93,7 @@ internal fun TikTakTvNavigationRail(
         add(TikTakTvNavigationEntry(AppScreenTab.YouTube, "YouTube", Res.drawable.sidebar_search))
         add(TikTakTvNavigationEntry(AppScreenTab.Sports, "Sports", Res.drawable.sidebar_live_tv))
         add(TikTakTvNavigationEntry(AppScreenTab.Library, stringResource(Res.string.compose_nav_library), Res.drawable.sidebar_library))
-        add(TikTakTvNavigationEntry(AppScreenTab.Settings, stringResource(Res.string.compose_nav_profile), Res.drawable.sidebar_settings))
+        add(TikTakTvNavigationEntry(AppScreenTab.Settings, "Settings", Res.drawable.sidebar_settings))
     }
 
     Column(

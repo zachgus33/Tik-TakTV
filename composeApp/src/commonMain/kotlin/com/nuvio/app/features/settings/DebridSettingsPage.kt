@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -707,7 +709,7 @@ private fun DebridTemplateDialog(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            NuvioTvTextField(
                 value = draft,
                 onValueChange = { draft = it },
                 modifier = Modifier
@@ -1165,7 +1167,7 @@ private fun DebridTextListDialog(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            NuvioTvTextField(
                 value = value,
                 onValueChange = { value = it },
                 modifier = Modifier
@@ -1776,7 +1778,7 @@ private fun DebridApiKeyDialog(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
+            NuvioTvTextField(
                 value = draft,
                 onValueChange = {
                     draft = it

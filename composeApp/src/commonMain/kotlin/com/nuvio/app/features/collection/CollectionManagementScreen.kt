@@ -1,5 +1,7 @@
 package com.nuvio.app.features.collection
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -284,7 +286,7 @@ private fun CollectionListItem(
             Column(modifier = Modifier.weight(1f)) {
                 val summary = buildString {
                     append(stringResource(Res.string.collections_folder_count, collection.folders.size))
-                    if (collection.pinToTop) {
+                    if (collection.isPinnedToHome) {
                         append(" · ")
                         append(stringResource(Res.string.collections_pinned))
                     }
@@ -387,7 +389,7 @@ private fun ImportDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = importText,
                     onValueChange = onTextChange,
                     modifier = Modifier

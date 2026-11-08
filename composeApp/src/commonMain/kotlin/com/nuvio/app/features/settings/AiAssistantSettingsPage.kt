@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -192,7 +194,7 @@ private fun ProviderCredentials(
             modifier = Modifier.fillMaxWidth(),
             label = stringResource(Res.string.ai_settings_api_key),
         )
-        OutlinedTextField(
+        NuvioTvTextField(
             value = modelDraft,
             onValueChange = { modelDraft = it },
             modifier = Modifier.fillMaxWidth(),

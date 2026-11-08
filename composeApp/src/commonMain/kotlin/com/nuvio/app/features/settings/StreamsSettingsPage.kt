@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -257,7 +259,7 @@ private fun BadgeUrlManagerDialog(
                 style = MaterialTheme.typography.bodyMedium,
                 color = tokens.colors.textSecondary,
             )
-            OutlinedTextField(
+            NuvioTvTextField(
                 value = draftUrl,
                 onValueChange = {
                     draftUrl = it

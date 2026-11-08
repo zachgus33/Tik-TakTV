@@ -773,6 +773,6 @@ internal fun buildCollectionDefinitions(collections: List<Collection>): List<Col
             collectionId = collection.id,
             title = collection.title,
             subtitle = runBlocking { getString(Res.string.collections_folder_count, collection.folders.size) },
-            isPinnedToTop = collection.pinToTop,
+            isPinnedToTop = collection.isPinnedToHome,
         )
     }

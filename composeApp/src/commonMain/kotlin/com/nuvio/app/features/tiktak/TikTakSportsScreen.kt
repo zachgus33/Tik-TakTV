@@ -102,12 +102,19 @@ fun TikTakSportsScreen(
             channel.group.substringBefore('|').substringBefore(':').trim().takeIf { it.length in 2..28 }
         }.distinct().sorted()
     }
-    val visibleLiveEvents = liveEvents.filter { (channel, title) ->
-        val searchable = "${title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
-        (sportFilter == "all" || searchable.contains(sportFilter)) &&
-            (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
+    val visibleLiveEvents = remember(liveEvents, sportFilter, countryFilter) {
+        liveEvents.asSequence().filter { (channel, title) ->
+            val searchable = "${title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
+            (sportFilter == "all" || searchable.contains(sportFilter)) &&
+                (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
+        }.take(MAX_VISIBLE_SPORT_CHANNELS).toList()
     }
-    val visibleScores = scores.filter { sportFilter == "all" || it.sport == sportFilter }
+    val visibleScores = remember(scores, sportFilter) {
+        scores.asSequence()
+            .filter { sportFilter == "all" || it.sport == sportFilter }
+            .take(MAX_VISIBLE_SCORE_EVENTS)
+            .toList()
+    }
 
     fun refreshScores() {
         if (loading) return
@@ -245,7 +252,7 @@ private suspend fun loadNativeScores(): List<NativeScoreEvent> = coroutineScope 
     ScoreFeeds.map { (sport, path, league) ->
         async {
             runCatching {
-                val raw = httpGetText("https://site.api.espn.com/apis/site/v2/sports/$path/scoreboard?limit=250")
+                val raw = httpGetText("https://site.api.espn.com/apis/site/v2/sports/$path/scoreboard?limit=50")
                 parseScoreEvents(raw, sport, league)
             }.getOrDefault(emptyList())
         }
@@ -291,4 +298,7 @@ private fun JsonObject.string(key: String): String? = runCatching { get(key)?.js
 private val SportsKeywords = listOf(
     "football", "basketball", "baseball", "hockey", "soccer", "tennis", "golf", "ufc", "mma", "boxing", "racing", "formula 1", "grand prix", "nfl", "nba", "nhl", "mlb", "match", " vs ",
 )
+
+private const val MAX_VISIBLE_SCORE_EVENTS = 120
+private const val MAX_VISIBLE_SPORT_CHANNELS = 200
 

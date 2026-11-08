@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
+import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.core.ui.nuvio
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -84,7 +84,14 @@ fun TikTakYouTubeScreen(
             val payload = YouTubeJson.decodeFromString<YouTubeAccountResponse>(response.body)
             if (response.status !in 200..299) error(payload.error ?: "YouTube account could not be loaded.")
             if (kind == "music") payload.musicFeed else payload.videoFeed.ifEmpty { payload.activity }
-        }.onSuccess { accountItems = it }
+        }.onSuccess { items ->
+            // Account feeds can repeat the same upload across subscriptions and
+            // activity. Duplicate LazyRow keys crash Compose on low-memory TV
+            // devices, and unbounded artwork decoding can freeze Fire TV.
+            accountItems = items
+                .distinctBy(TikTakYouTubeItem::stableKey)
+                .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+        }
             .onFailure { error = it.message }
     }
 
@@ -101,7 +108,11 @@ fun TikTakYouTubeScreen(
                 val payload = YouTubeJson.decodeFromString<YouTubeSearchResponse>(response.body)
                 if (response.status !in 200..299) error(payload.error ?: "YouTube search failed.")
                 payload.results
-            }.onSuccess { results = it }
+            }.onSuccess { items ->
+                results = items
+                    .distinctBy(TikTakYouTubeItem::stableKey)
+                    .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+            }
                 .onFailure { error = it.message }
             loading = false
         }
@@ -146,7 +157,7 @@ fun TikTakYouTubeScreen(
         }
         item {
             Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = query,
                     onValueChange = { query = it },
                     label = { Text("Search ${if (kind == "music") "music" else "videos"}") },
@@ -188,7 +199,7 @@ private fun YouTubeRow(
             fontWeight = FontWeight.Bold,
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(items, key = { "${it.videoId}:${it.playlistId}:${it.title}" }) { item ->
+            items(items, key = TikTakYouTubeItem::stableKey) { item ->
                 NuvioPosterCard(
                     title = item.title,
                     imageUrl = item.thumbnail,
@@ -200,3 +211,10 @@ private fun YouTubeRow(
         }
     }
 }
+
+private fun TikTakYouTubeItem.stableKey(): String =
+    videoId?.takeIf(String::isNotBlank)?.let { "video:$it" }
+        ?: playlistId?.takeIf(String::isNotBlank)?.let { "playlist:$it" }
+        ?: "title:${title.trim().lowercase()}:${channel.orEmpty().trim().lowercase()}"
+
+private const val MAX_VISIBLE_YOUTUBE_ITEMS = 72

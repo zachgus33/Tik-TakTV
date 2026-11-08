@@ -21,6 +21,15 @@ class CollectionSourceSerializationTest {
     }
 
     @Test
+    fun legacyWebShowOnHomeDecodesAsPinnedCollection() {
+        val collection = json.decodeFromString<Collection>(
+            """{"id":"network","title":"Network","showOnHome":true,"folders":[]}""",
+        )
+
+        assertTrue(collection.isPinnedToHome)
+    }
+
+    @Test
     fun traktSourceRoundTripsWithPublicListShape() {
         val collection = Collection(
             id = "collection-1",

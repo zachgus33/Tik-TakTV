@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.NuvioTvTextField
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -780,7 +782,7 @@ private fun CustomThemeColorPicker(
                         onColorSelected(updated.toColor())
                     },
                 )
-                OutlinedTextField(
+                NuvioTvTextField(
                     value = hexValue,
                     onValueChange = { input ->
                         val normalized = input.take(7).uppercase()

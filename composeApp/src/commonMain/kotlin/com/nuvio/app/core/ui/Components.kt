@@ -354,7 +354,7 @@ fun NuvioInputField(
     trailingContent: (@Composable (() -> Unit))? = null,
 ) {
     val tokens = MaterialTheme.nuvio
-    OutlinedTextField(
+    NuvioTvTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
