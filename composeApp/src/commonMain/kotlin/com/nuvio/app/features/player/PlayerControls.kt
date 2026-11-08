@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
@@ -129,6 +130,7 @@ internal fun PlayerControlsShell(
     primaryActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
+    val lowerControlsFocusRequester = remember { FocusRequester() }
     val showQuietDeviceStatusOverlay = showDeviceStatusOverlay &&
         !showPlaybackControls &&
         !showParentalGuide &&
@@ -231,6 +233,7 @@ internal fun PlayerControlsShell(
                     onSeekForward = onSeekForward,
                     onTogglePlayback = onTogglePlayback,
                     primaryActionFocusRequester = primaryActionFocusRequester,
+                    lowerActionFocusRequester = lowerControlsFocusRequester,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(bottom = metrics.centerLift),
@@ -255,6 +258,8 @@ internal fun PlayerControlsShell(
                     onChannelsClick = onChannelsClick,
                     onSourcesClick = onSourcesClick,
                     onEpisodesClick = onEpisodesClick,
+                    primaryActionFocusRequester = lowerControlsFocusRequester,
+                    upperActionFocusRequester = primaryActionFocusRequester,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -683,6 +688,7 @@ private fun CenterControls(
     onSeekForward: () -> Unit,
     onTogglePlayback: () -> Unit,
     primaryActionFocusRequester: FocusRequester? = null,
+    lowerActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -701,11 +707,21 @@ private fun CenterControls(
             isBuffering = snapshot.isLoading,
             metrics = metrics,
             onClick = onTogglePlayback,
-            modifier = if (primaryActionFocusRequester != null) {
-                Modifier.focusRequester(primaryActionFocusRequester)
-            } else {
-                Modifier
-            },
+            modifier = Modifier
+                .then(
+                    if (primaryActionFocusRequester != null) {
+                        Modifier.focusRequester(primaryActionFocusRequester)
+                    } else {
+                        Modifier
+                    },
+                )
+                .then(
+                    if (lowerActionFocusRequester != null) {
+                        Modifier.focusProperties { down = lowerActionFocusRequester }
+                    } else {
+                        Modifier
+                    },
+                ),
         )
         SideControlButton(
             icon = Icons.Rounded.Forward10,
@@ -798,6 +814,8 @@ private fun ProgressControls(
     onChannelsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
+    primaryActionFocusRequester: FocusRequester? = null,
+    upperActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val seekableDurationMs = playbackSnapshot.durationMs.takeIf { it > 0L }
@@ -863,6 +881,21 @@ private fun ProgressControls(
                         label = stringResource(resizeMode.labelRes),
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
+                        modifier = Modifier
+                            .then(
+                                if (primaryActionFocusRequester != null) {
+                                    Modifier.focusRequester(primaryActionFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .then(
+                                if (upperActionFocusRequester != null) {
+                                    Modifier.focusProperties { up = upperActionFocusRequester }
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     )
                     PlayerActionPillButton(
                         label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
@@ -1086,9 +1119,10 @@ private fun PlayerActionPillButton(
     onClick: () -> Unit,
     icon: ImageVector? = null,
     painter: Painter? = null,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .tvPlayerFocus(RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
