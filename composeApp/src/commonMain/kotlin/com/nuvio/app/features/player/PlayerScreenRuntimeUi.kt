@@ -121,10 +121,18 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val gestureCallbacks = rememberSurfaceGestureCallbacks()
     val isTvMode = LocalTvMode.current
     val tvFocusRequester = remember { FocusRequester() }
+    val tvControlsFocusRequester = remember { FocusRequester() }
     var tvSurfaceHasDirectFocus by remember { mutableStateOf(false) }
+    var tvControlsFocusRequest by remember { mutableStateOf(0) }
 
     LaunchedEffect(isTvMode) {
         if (isTvMode) runCatching { tvFocusRequester.requestFocus() }
+    }
+
+    LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest) {
+        if (isTvMode && controlsVisible && tvControlsFocusRequest > 0) {
+            runCatching { tvControlsFocusRequester.requestFocus() }
+        }
     }
 
     Box(
@@ -159,8 +167,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     }
                                 }
                                 Key.DirectionUp, Key.DirectionDown -> {
-                                    if (!controlsVisible) {
+                                    if (tvSurfaceHasDirectFocus) {
                                         controlsVisible = true
+                                        tvControlsFocusRequest += 1
                                         true
                                     } else {
                                         false
@@ -273,7 +282,11 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             )
         }
 
-        RenderPlayerControls(displayedPositionMs = displayedPositionMs, isEpisode = isEpisode)
+        RenderPlayerControls(
+            displayedPositionMs = displayedPositionMs,
+            isEpisode = isEpisode,
+            primaryActionFocusRequester = if (isTvMode) tvControlsFocusRequester else null,
+        )
         RenderPlaybackOverlays(
             runtime = runtime,
             displayedPositionMs = displayedPositionMs,
@@ -307,7 +320,11 @@ private fun PlayerScreenRuntime.currentInitialPositionRequestKey(): String? {
 }
 
 @Composable
-private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, isEpisode: Boolean) {
+private fun PlayerScreenRuntime.RenderPlayerControls(
+    displayedPositionMs: Long,
+    isEpisode: Boolean,
+    primaryActionFocusRequester: FocusRequester?,
+) {
     val showQuietDeviceStatusOverlay = nuvioEnhancedSettingsUiState.playerStatusOverlayEnabled &&
         !controlsVisible &&
         !showParentalGuide &&
@@ -438,6 +455,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 scheduleProgressSyncAfterSeek()
             },
             horizontalSafePadding = horizontalSafePadding,
+            primaryActionFocusRequester = primaryActionFocusRequester,
             modifier = Modifier.fillMaxSize(),
         )
     }

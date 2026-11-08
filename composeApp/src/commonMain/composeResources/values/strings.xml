@@ -461,7 +461,7 @@
     <string name="live_tv_no_favorites">Favorite channels will appear here.</string>
     <string name="live_tv_player_channels">Channels</string>
     <string name="live_tv_empty_title">Add your channel list</string>
-    <string name="live_tv_empty_description">Enter an M3U URL to bring your live channels into Nuvio.</string>
+    <string name="live_tv_empty_description">Enter an M3U URL to bring your live channels into TikTak TV.</string>
     <string name="compose_player_audio_tracks">Audio Tracks</string>
     <string name="compose_player_audio">Audio</string>
     <string name="compose_player_auto_sync">Auto Sync</string>

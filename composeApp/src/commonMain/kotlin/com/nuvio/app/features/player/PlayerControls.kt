@@ -61,6 +61,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -124,6 +126,7 @@ internal fun PlayerControlsShell(
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
+    primaryActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val showQuietDeviceStatusOverlay = showDeviceStatusOverlay &&
@@ -227,6 +230,7 @@ internal fun PlayerControlsShell(
                     onSeekBack = onSeekBack,
                     onSeekForward = onSeekForward,
                     onTogglePlayback = onTogglePlayback,
+                    primaryActionFocusRequester = primaryActionFocusRequester,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(bottom = metrics.centerLift),
@@ -678,6 +682,7 @@ private fun CenterControls(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onTogglePlayback: () -> Unit,
+    primaryActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -696,6 +701,11 @@ private fun CenterControls(
             isBuffering = snapshot.isLoading,
             metrics = metrics,
             onClick = onTogglePlayback,
+            modifier = if (primaryActionFocusRequester != null) {
+                Modifier.focusRequester(primaryActionFocusRequester)
+            } else {
+                Modifier
+            },
         )
         SideControlButton(
             icon = Icons.Rounded.Forward10,
@@ -736,13 +746,14 @@ private fun PlayPauseControlButton(
     isBuffering: Boolean,
     metrics: PlayerLayoutMetrics,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val playPausePainter = appIconPainter(
         if (isPlaying) AppIconResource.PlayerPause else AppIconResource.PlayerPlay,
     )
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .tvPlayerFocus(CircleShape)
             .clip(CircleShape)
             .clickable(onClick = onClick)
