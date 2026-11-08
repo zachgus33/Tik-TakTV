@@ -313,10 +313,6 @@ object SyncManager {
 
         runCatching { ProfileRepository.pullProfiles() }
             .onFailure { log.e(it) { "Foreground profiles pull failed" } }
-        runCatching { ProfileSettingsSync.pull(profileId) }
-            .onFailure { log.e(it) { "Foreground profile settings pull failed" } }
-        runCatching { TikTakWebLiveTvSync.pull(profileId) }
-            .onFailure { log.e(it) { "Foreground TikTak Web Live TV restore failed" } }
 
         runOrderedProfileSync(
             profileId = profileId,
