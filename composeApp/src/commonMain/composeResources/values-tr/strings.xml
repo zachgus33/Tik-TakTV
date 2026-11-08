@@ -745,7 +745,7 @@
     <string name="settings_homescreen_catalog_layout">Poster yönü</string>
     <string name="settings_homescreen_catalog_layout_portrait">Dikey</string>
     <string name="settings_homescreen_catalog_layout_landscape">Yatay</string>
-    <string name="settings_homescreen_enhanced_catalog_hint">Katalog görünüm kontrolleri artık Nuvio Enhanced ayarlarında.</string>
+    <string name="settings_homescreen_enhanced_catalog_hint">Katalog görünüm kontrolleri artık TikTak TV ayarlarında.</string>
     <string name="layout_catalog_type">Katalog Türünü Göster</string>
     <string name="layout_catalog_type_sub">Katalog adının yanında tür sonekini göster (Film/Dizi).</string>
     <string name="settings_homescreen_summary">%1$d / %2$d katalog görünür • %3$d öne çıkan kaynak seçili</string>
@@ -2375,8 +2375,8 @@
     <string name="settings_meta_random_episode_button">Rastgele Bölüm Düğmesi</string>
     <string name="settings_meta_random_episode_button_description">Dizi detay sayfalarında bir rastgele bölüm düğmesi göster. Oynatma, rastgele seçilmiş yayınlanmış bir bölümden başlar.</string>
     <string name="settings_nuvio_enhanced_category">Enhanced</string>
-    <string name="settings_nuvio_enhanced_section">Nuvio Enhanced</string>
-    <string name="settings_nuvio_enhanced_title">Nuvio Enhanced</string>
+    <string name="settings_nuvio_enhanced_section">TikTak TV</string>
+    <string name="settings_nuvio_enhanced_title">TikTak TV</string>
     <string name="settings_nuvio_enhanced_description">Fork'a özel premium kontroller, ana sayfa zekası, backup ve import.</string>
     <string name="settings_new_feature_badge">Yeni</string>
     <string name="home_smart_resume_signal_continue_now">Şimdi devam et</string>
@@ -2475,7 +2475,7 @@
     <string name="nuvio_enhanced_filter_movies">Filmler</string>
     <string name="nuvio_enhanced_highlight_title">Yeni Enhanced ayarlarını vurgula</string>
     <string name="nuvio_enhanced_highlight_desc">Yeni fork'a özel seçenekler, kullanılana veya görüldü işaretlenene kadar hafif bir çerçeve alır.</string>
-    <string name="nuvio_enhanced_footer_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_footer_title">TikTak TV</string>
     <string name="nuvio_enhanced_footer_desc">Güncellemeler, anketler ve özellik istekleri için GitHub'ı takip et veya Discord'a katıl.</string>
     <string name="nuvio_enhanced_footer_github">GitHub</string>
     <string name="nuvio_enhanced_footer_releases">Sürümler</string>
@@ -2497,9 +2497,9 @@
     <string name="nuvio_enhanced_copy_last_crash_title">Son crash raporunu kopyala</string>
     <string name="nuvio_enhanced_copy_last_crash_desc">Geliştiriciyle paylaşmak için en son yerel crash raporunu panoya kopyalar.</string>
     <string name="nuvio_enhanced_copy_last_crash_empty_desc">Bu cihazda henüz kaydedilmiş yerel crash raporu yok.</string>
-    <string name="nuvio_enhanced_feedback_title">Nuvio Enhanced geri bildirimi</string>
-    <string name="nuvio_enhanced_feedback_desc">Hata, fikir veya kullanıcı geri bildirimlerini Nuvio Enhanced geliştiricisine gönder.</string>
-    <string name="nuvio_enhanced_intro_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_feedback_title">TikTak TV geri bildirimi</string>
+    <string name="nuvio_enhanced_feedback_desc">Hata, fikir veya kullanıcı geri bildirimlerini TikTak TV geliştiricisine gönder.</string>
+    <string name="nuvio_enhanced_intro_title">TikTak TV</string>
     <string name="nuvio_enhanced_intro_desc">Kullanıcıların resmi ayarlarla Nuvio eklemelerini net şekilde ayırabilmesi için fork'a özel özellikler burada toplanır.</string>
     <string name="nuvio_enhanced_mark_all_seen">Tüm Enhanced özelliklerini görüldü işaretle</string>
     <string name="nuvio_enhanced_backup_ready_title">Backup hazır</string>

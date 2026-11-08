@@ -2329,7 +2329,7 @@
     <string name="nuvio_enhanced_copy_last_crash_desc">Скопируйте последний локальный отчет о сбое, чтобы отправить его разработчику.</string>
     <string name="nuvio_enhanced_copy_last_crash_empty_desc">На этом устройстве пока нет сохраненного локального отчета о сбое.</string>
     <string name="nuvio_enhanced_feedback_title">Nuvio Расширенная обратная связь</string>
-    <string name="nuvio_enhanced_feedback_desc">Отправляйте ошибки, идеи или отзывы пользователей непосредственно разработчику Nuvio Enhanced.</string>
+    <string name="nuvio_enhanced_feedback_desc">Отправляйте ошибки, идеи или отзывы пользователей непосредственно разработчику TikTak TV.</string>
     <string name="nuvio_enhanced_intro_desc">Здесь представлены функции только для форка, поэтому пользователи могут четко отделять официальные настройки от дополнений Nuvio.</string>
     <string name="nuvio_enhanced_mark_all_seen">Отметить все расширенные функции как просмотренные</string>
     <string name="nuvio_enhanced_backup_ready_title">Резервное копирование готово</string>

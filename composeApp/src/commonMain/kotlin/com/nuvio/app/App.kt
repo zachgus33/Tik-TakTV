@@ -299,8 +299,6 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
-private const val NuvioDiscordInviteUrl = "https://discord.gg/at8xffxuRU"
-
 @Serializable
 object TabsRoute
 
@@ -984,7 +982,6 @@ private fun MainAppContent(
     var offlineLaunchRouteHandled by rememberSaveable { mutableStateOf(false) }
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
     var lastNetworkToastCondition by rememberSaveable { mutableStateOf(NetworkCondition.Unknown.name) }
-    var discordWelcomeDismissedThisSession by rememberSaveable { mutableStateOf(false) }
 
     fun handleRootTabClick(tab: AppScreenTab) {
         if (tab == AppScreenTab.LiveTv && !liveTvEnabled) {
@@ -1020,20 +1017,6 @@ private fun MainAppContent(
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
         }
-    }
-
-    fun dismissDiscordWelcomeForNow() {
-        discordWelcomeDismissedThisSession = true
-    }
-
-    fun hideDiscordWelcomePermanently() {
-        discordWelcomeDismissedThisSession = true
-        NuvioEnhancedSettingsRepository.markDiscordWelcomeSeen()
-    }
-
-    fun openDiscordWelcome() {
-        hideDiscordWelcomePermanently()
-        uriHandler.openUri(NuvioDiscordInviteUrl)
     }
 
     LaunchedEffect(liquidGlassNativeTabBarSupported, liquidGlassNativeTabBarEnabled, liveTvEnabled) {
@@ -4007,81 +3990,6 @@ private fun LocalCrashReportDialog(
             }
         },
     )
-}
-
-@Composable
-private fun NuvioDiscordWelcomeDialog(
-    visible: Boolean,
-    onJoinDiscord: () -> Unit,
-    onDismiss: () -> Unit,
-    onDontShowAgain: () -> Unit,
-) {
-    if (!visible) return
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF5865F2)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = appIconPainter(AppIconResource.DiscordMark),
-                    contentDescription = null,
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-        },
-        title = {
-            Text(stringResource(Res.string.nuvio_discord_welcome_title))
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = stringResource(Res.string.nuvio_discord_welcome_description),
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onJoinDiscord) {
-                Text(stringResource(Res.string.nuvio_discord_welcome_join))
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDontShowAgain) {
-                    Text(stringResource(Res.string.nuvio_discord_welcome_dont_show_again))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(Res.string.nuvio_discord_welcome_not_now))
-                }
-            }
-        },
-    )
-}
-
-@Composable
-private fun rememberGuardedPopBackStack(
-    navController: NavHostController,
-    backStackEntry: NavBackStackEntry,
-    beforePop: () -> Unit = {},
-): () -> Unit {
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    var popHandled by remember(backStackEntry) { mutableStateOf(false) }
-
-    return remember(navController, backStackEntry, currentBackStackEntry, popHandled, beforePop) {
-        {
-            if (!popHandled && currentBackStackEntry == backStackEntry) {
-                popHandled = true
-                beforePop()
-                navController.popBackStack()
-            }
-        }
-    }
 }
 
 @Composable

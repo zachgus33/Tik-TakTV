@@ -1996,8 +1996,8 @@
     <string name="settings_playback_android_memory_safe_buffer">Búfer de ExoPlayer seguro para memoria</string>
     <string name="settings_playback_android_memory_safe_buffer_description">Reduce el uso de memoria del búfer de ExoPlayer en Android para dispositivos con cierres durante la reproducción o presión de memoria. Puede volver a almacenar en búfer antes en redes inestables.</string>
     <string name="settings_nuvio_enhanced_category">Enhanced</string>
-    <string name="settings_nuvio_enhanced_section">Nuvio Enhanced</string>
-    <string name="settings_nuvio_enhanced_title">Nuvio Enhanced</string>
+    <string name="settings_nuvio_enhanced_section">TikTak TV</string>
+    <string name="settings_nuvio_enhanced_title">TikTak TV</string>
     <string name="settings_nuvio_enhanced_description">Controles premium exclusivos de esta versión, inteligencia para la pantalla de inicio, copias de seguridad e importación.</string>
     <string name="nuvio_enhanced_section_nuvio_experience">Experiencia Nuvio</string>
     <string name="nuvio_enhanced_section_premium_labs">Laboratorios Premium</string>
@@ -2085,7 +2085,7 @@
     <string name="nuvio_enhanced_filter_movies">Películas</string>
     <string name="nuvio_enhanced_highlight_title">Resaltar ajustes nuevos de Enhanced</string>
     <string name="nuvio_enhanced_highlight_desc">Las opciones nuevas exclusivas de esta versión reciben un borde sutil hasta que las uses o las marques como vistas.</string>
-    <string name="nuvio_enhanced_footer_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_footer_title">TikTak TV</string>
     <string name="nuvio_enhanced_footer_desc">Sigue los lanzamientos en GitHub o únete a Discord para novedades, encuestas y solicitudes de funciones.</string>
     <string name="nuvio_enhanced_footer_github">GitHub</string>
     <string name="nuvio_enhanced_footer_releases">Lanzamientos</string>
@@ -2102,9 +2102,9 @@
     <string name="nuvio_enhanced_copy_last_crash_title">Copiar último informe de crash</string>
     <string name="nuvio_enhanced_copy_last_crash_desc">Copia el último informe local de crash para compartirlo con el desarrollador.</string>
     <string name="nuvio_enhanced_copy_last_crash_empty_desc">Aún no hay ningún informe local de crash guardado en este dispositivo.</string>
-    <string name="nuvio_enhanced_feedback_title">Comentarios de Nuvio Enhanced</string>
-    <string name="nuvio_enhanced_feedback_desc">Envía errores, ideas o comentarios de usuarios directamente al mantenedor de Nuvio Enhanced.</string>
-    <string name="nuvio_enhanced_intro_title">Nuvio Enhanced</string>
+    <string name="nuvio_enhanced_feedback_title">Comentarios de TikTak TV</string>
+    <string name="nuvio_enhanced_feedback_desc">Envía errores, ideas o comentarios de usuarios directamente al mantenedor de TikTak TV.</string>
+    <string name="nuvio_enhanced_intro_title">TikTak TV</string>
     <string name="nuvio_enhanced_intro_desc">Las funciones exclusivas de esta versión viven aquí para separar claramente los ajustes oficiales de los añadidos de Nuvio.</string>
     <string name="nuvio_enhanced_mark_all_seen">Marcar todas las funciones Enhanced como vistas</string>
     <string name="nuvio_enhanced_backup_ready_title">Copia lista</string>
