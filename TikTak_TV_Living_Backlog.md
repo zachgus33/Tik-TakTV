@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 3.4  
+**Backlog version:** 3.7  
 **Created:** November 5, 2026  
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.  
 **Owner:** TikTak TV developer.  
