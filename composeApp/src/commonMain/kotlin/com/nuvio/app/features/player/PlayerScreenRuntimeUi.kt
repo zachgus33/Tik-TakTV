@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -123,7 +122,6 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val isTvMode = LocalTvMode.current
     val tvFocusRequester = remember { FocusRequester() }
     val tvControlsFocusRequester = remember { FocusRequester() }
-    var tvSurfaceHasDirectFocus by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
 
     LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest) {
@@ -143,24 +141,23 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 if (isTvMode) {
                     Modifier
                         .focusRequester(tvFocusRequester)
-                        .onFocusChanged { tvSurfaceHasDirectFocus = it.isFocused }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
                                 Key.DirectionLeft -> {
-                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                    if (!controlsVisible) {
                                         seekBy(-10_000L)
                                         true
                                     } else false
                                 }
                                 Key.DirectionRight -> {
-                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                    if (!controlsVisible) {
                                         seekBy(10_000L)
                                         true
                                     } else false
                                 }
                                 Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                                    if (!controlsVisible || tvSurfaceHasDirectFocus) {
+                                    if (!controlsVisible) {
                                         togglePlayback()
                                         true
                                     } else {
@@ -168,7 +165,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     }
                                 }
                                 Key.DirectionUp, Key.DirectionDown -> {
-                                    if (tvSurfaceHasDirectFocus) {
+                                    if (!controlsVisible) {
                                         controlsVisible = true
                                         tvControlsFocusRequest += 1
                                         true
