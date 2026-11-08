@@ -2,11 +2,15 @@ package com.tiktaktv.nativepreview
 
 import android.os.Build
 import android.os.Bundle
+import android.content.Context
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.nuvio.app.App
@@ -16,6 +20,7 @@ import com.nuvio.app.TikTakTvShellPreview
 import com.nuvio.app.setNativeTvShellPreviewContent
 import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioTheme
+import com.nuvio.app.core.ui.TikTakTvFocusIndication
 
 /**
  * Android TV host for the native Compose application.
@@ -49,7 +54,10 @@ open class NativeTvActivity : MainActivity() {
 
     @Composable
     override fun AppContent() {
-        CompositionLocalProvider(LocalTvMode provides true) {
+        CompositionLocalProvider(
+            LocalTvMode provides true,
+            LocalIndication provides TikTakTvFocusIndication,
+        ) {
             if (showShellPreview) {
                 NuvioTheme(darkTheme = true) {
                     TikTakTvShellPreview()
@@ -58,6 +66,22 @@ open class NativeTvActivity : MainActivity() {
                 App()
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val isNavigationKey = event.keyCode == KeyEvent.KEYCODE_DPAD_UP ||
+            event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+            event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+            event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ||
+            event.keyCode == KeyEvent.KEYCODE_TAB
+        if (event.action == KeyEvent.ACTION_DOWN && isNavigationKey) {
+            // A D-pad move only moves focus. It must never grant a text field
+            // permission to cover the TV with the software keyboard. Select on
+            // the focused field still enters editing through Compose normally.
+            dismissSoftwareKeyboard()
+            window.decorView.postDelayed(::dismissSoftwareKeyboard, 40L)
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -82,6 +106,11 @@ open class NativeTvActivity : MainActivity() {
                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
+    }
+
+    private fun dismissSoftwareKeyboard() {
+        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        inputMethodManager.hideSoftInputFromWindow(window.decorView.windowToken, 0)
     }
 
     private companion object {

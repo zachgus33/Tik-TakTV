@@ -787,6 +787,7 @@ private fun MainAppContent(
     onSwitchProfile: () -> Unit = {},
     onEditProfile: () -> Unit = {},
 ) {
+        val isNativeTv = LocalTvMode.current
         val navController = rememberNavController()
         val appUpdaterController = rememberAppUpdaterController()
         remember {
@@ -829,6 +830,15 @@ private fun MainAppContent(
         val liveTvEnabled = nuvioEnhancedSettings.liveTvEnabled
         val liquidGlassNativeTabBarSupported = remember { isLiquidGlassNativeTabBarSupported() }
         var showExitConfirmation by rememberSaveable { mutableStateOf(false) }
+
+        LaunchedEffect(isNativeTv) {
+            if (isNativeTv) {
+                // Authentication is a separate focus tree. Explicitly seed the
+                // app shell when a guest or signed-in profile enters it.
+                withFrameNanos { }
+                tvRailFocusRequestKey++
+            }
+        }
         var selectedPosterActionTarget by remember { mutableStateOf<PosterActionTarget?>(null) }
         var selectedPosterAnchor by remember { mutableStateOf<PosterZoomAnchor?>(null) }
         var selectedDownloadActionTarget by remember { mutableStateOf<LibraryDownloadActionTarget?>(null) }
@@ -1922,7 +1932,6 @@ private fun MainAppContent(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                 composable<TabsRoute> {
-                    val isNativeTv = LocalTvMode.current
                     PlatformBackHandler(
                         enabled = true,
                         onBack = {
