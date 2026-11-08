@@ -38,8 +38,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
+import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.livetv.LiveTvRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -54,14 +56,14 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import io.ktor.util.date.GMTDate
 
-private data class NativeScoreTeam(
+data class NativeScoreTeam(
     val name: String,
     val score: String,
     val logoUrl: String? = null,
     val record: String? = null,
 )
 
-private data class NativeScoreEvent(
+data class NativeScoreEvent(
     val id: String,
     val sport: String,
     val league: String,
@@ -194,7 +196,29 @@ fun TikTakSportsScreen(
         error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
         if (visibleScores.isNotEmpty()) {
             item { SectionTitle("Live and recent scores") }
-            items(visibleScores, key = { "score:${it.id}" }) { event -> ScoreCard(event) }
+            items(visibleScores, key = { "score:${it.id}" }) { event ->
+                ScoreCard(
+                    event = event,
+                    onClick = {
+                        val channel = findScoreChannel(
+                            event = event,
+                            channels = liveState.channels,
+                            currentProgrammes = liveState.currentProgrammes,
+                        )
+                        if (channel != null) {
+                            onChannelClick(channel)
+                        } else {
+                            NuvioToastController.show(
+                                if (liveState.channels.isEmpty()) {
+                                    "Live TV is still syncing. Try this score again when your channels are ready."
+                                } else {
+                                    "No live channel carrying ${event.name} was found in your IPTV guide."
+                                },
+                            )
+                        }
+                    },
+                )
+            }
         }
         item { SectionTitle("Live and upcoming on your channels") }
         if (visibleLiveEvents.isEmpty()) {
@@ -226,8 +250,8 @@ fun TikTakSportsScreen(
 }
 
 @Composable
-private fun ScoreCard(event: NativeScoreEvent) {
-    FocusCard(onClick = {}) {
+private fun ScoreCard(event: NativeScoreEvent, onClick: () -> Unit) {
+    FocusCard(onClick = onClick) {
         Text("${event.league} • ${event.detail}", color = MaterialTheme.nuvio.colors.accent, fontWeight = FontWeight.Bold)
         Text(event.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.nuvio.colors.textPrimary)
         event.teams.forEach { team ->
@@ -252,6 +276,59 @@ private fun ScoreCard(event: NativeScoreEvent) {
         if (context.isNotBlank()) Text(context, color = MaterialTheme.nuvio.colors.textMuted)
     }
 }
+
+fun findScoreChannel(
+    event: NativeScoreEvent,
+    channels: List<LiveTvChannel>,
+    currentProgrammes: Map<String, LiveTvProgramme>,
+): LiveTvChannel? {
+    if (channels.isEmpty()) return null
+    val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
+    val teamTokenSets = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
+    val broadcast = normalizeSportsText(event.broadcast.orEmpty())
+
+    return channels.asSequence()
+        .mapNotNull { channel ->
+            val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
+            val programmeText = normalizeSportsText(programme?.title.orEmpty())
+            val channelText = normalizeSportsText("${channel.name} ${channel.group}")
+            val programmeTokens = normalizedSportsTokens(programmeText)
+            val matchingTeams = teamTokenSets.count { team ->
+                val required = if (team.size <= 1) 1 else 2
+                team.count(programmeTokens::contains) >= required
+            }
+            val programmeOverlap = eventTokens.count(programmeTokens::contains)
+            val broadcastMatch = broadcast.isNotBlank() &&
+                (" $channelText ".contains(" $broadcast ") || " $broadcast ".contains(" $channelText "))
+
+            // A currently listed game is the strongest signal. A live score may
+            // fall back to its named broadcaster when guide titles are generic.
+            if (matchingTeams == 0 && programmeOverlap < 2 && !(event.state == "in" && broadcastMatch)) {
+                return@mapNotNull null
+            }
+            val score = matchingTeams * 100 + programmeOverlap * 8 +
+                (if (broadcastMatch) 35 else 0) +
+                (if (programme != null) 10 else 0)
+            channel to score
+        }
+        .maxByOrNull { it.second }
+        ?.first
+}
+
+private fun normalizeSportsText(value: String): String = value
+    .lowercase()
+    .replace(Regex("[^a-z0-9]+"), " ")
+    .trim()
+
+private fun normalizedSportsTokens(value: String): Set<String> = normalizeSportsText(value)
+    .split(' ')
+    .asSequence()
+    .filter { it.length >= 3 && it !in SportsMatchStopWords }
+    .toSet()
+
+private val SportsMatchStopWords = setOf(
+    "the", "and", "for", "game", "live", "college", "football", "basketball", "baseball", "hockey", "soccer",
+)
 
 @Composable
 private fun FocusCard(onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {

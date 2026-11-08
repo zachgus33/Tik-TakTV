@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -131,7 +132,7 @@ fun <T> NuvioShelfSection(
         if (rowCount <= 1) {
             LazyRow(
                 state = rowState,
-                modifier = rowModifier,
+                modifier = rowModifier.focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {
@@ -170,7 +171,7 @@ fun <T> NuvioShelfSection(
             }
             LazyRow(
                 state = rowState,
-                modifier = rowModifier,
+                modifier = rowModifier.focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {
@@ -180,7 +181,10 @@ fun <T> NuvioShelfSection(
                         key = { column -> column.joinToString(separator = "_") { it.lazyKey.toString() } },
                         contentType = { "poster-column" },
                     ) { column ->
-                        Column(verticalArrangement = Arrangement.spacedBy(itemSpacing)) {
+                        Column(
+                            modifier = Modifier.focusGroup(),
+                            verticalArrangement = Arrangement.spacedBy(itemSpacing),
+                        ) {
                             column.forEach { keyedEntry ->
                                 itemContent(keyedEntry.value)
                             }
@@ -191,7 +195,10 @@ fun <T> NuvioShelfSection(
                         items = columns,
                         contentType = { "poster-column" },
                     ) { column ->
-                        Column(verticalArrangement = Arrangement.spacedBy(itemSpacing)) {
+                        Column(
+                            modifier = Modifier.focusGroup(),
+                            verticalArrangement = Arrangement.spacedBy(itemSpacing),
+                        ) {
                             column.forEach { entry ->
                                 itemContent(entry)
                             }

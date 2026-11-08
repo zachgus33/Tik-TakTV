@@ -4,6 +4,7 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.isIos
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -975,6 +976,7 @@ private fun TabletSettingsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusGroup()
                     .padding(top = topOffset),
             ) {
                 Text(
@@ -1067,6 +1069,7 @@ private fun TabletSettingsScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusGroup()
                     .nestedScroll(rootSearchRevealConnection),
                 contentPadding = PaddingValues(
                     start = 40.dp,

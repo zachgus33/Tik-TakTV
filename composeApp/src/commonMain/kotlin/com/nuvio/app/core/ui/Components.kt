@@ -9,6 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -442,6 +447,15 @@ fun NuvioStatusModal(
 ) {
     if (!isVisible) return
     val tokens = MaterialTheme.nuvio
+    val dismissFocusRequester = remember { FocusRequester() }
+    val confirmFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isVisible, isBusy, dismissText) {
+        if (isVisible && !isBusy) {
+            if (dismissText != null && onDismiss != null) dismissFocusRequester.requestFocus()
+            else confirmFocusRequester.requestFocus()
+        }
+    }
 
     BasicAlertDialog(
         onDismissRequest = {
@@ -481,22 +495,30 @@ fun NuvioStatusModal(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     if (!isBusy && dismissText != null && onDismiss != null) {
-                        Button(
+                        NuvioStatusModalButton(
+                            modifier = Modifier
+                                .focusRequester(dismissFocusRequester)
+                                .focusProperties { right = confirmFocusRequester },
                             onClick = onDismiss,
-                            shape = tokens.shapes.button,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = tokens.colors.surfaceCard,
-                                contentColor = tokens.colors.textPrimary,
-                            ),
+                            primary = false,
                         ) {
                             Text(dismissText)
                         }
                         Spacer(modifier = Modifier.width(NuvioTokens.Space.s10))
                     }
-                    Button(
+                    NuvioStatusModalButton(
+                        modifier = Modifier
+                            .focusRequester(confirmFocusRequester)
+                            .focusProperties {
+                                left = if (dismissText != null && onDismiss != null) {
+                                    dismissFocusRequester
+                                } else {
+                                    FocusRequester.Default
+                                }
+                            },
                         onClick = onConfirm,
                         enabled = !isBusy,
-                        shape = tokens.shapes.button,
+                        primary = true,
                     ) {
                         Text(confirmText)
                     }
@@ -504,6 +526,39 @@ fun NuvioStatusModal(
             }
         }
     }
+}
+
+@Composable
+private fun NuvioStatusModalButton(
+    onClick: () -> Unit,
+    primary: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val tokens = MaterialTheme.nuvio
+    var focused by remember { mutableStateOf(false) }
+    Button(
+        modifier = modifier
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (focused) 4.dp else 1.dp,
+                color = if (focused) Color(0xFFFF4F9A) else Color.Transparent,
+                shape = tokens.shapes.button,
+            ),
+        onClick = onClick,
+        enabled = enabled,
+        shape = tokens.shapes.button,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = when {
+                focused -> Color(0xFF5A1F3C)
+                primary -> tokens.colors.accent
+                else -> tokens.colors.surfaceCard
+            },
+            contentColor = tokens.colors.textPrimary,
+        ),
+        content = content,
+    )
 }
 
 @Composable
