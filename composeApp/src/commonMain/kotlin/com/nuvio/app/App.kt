@@ -468,11 +468,14 @@ private enum class ProfileEditReturnTarget {
 @Composable
 @Preview
 fun App() {
+    val isNativeTv = LocalTvMode.current
     setSingletonImageLoaderFactory { context ->
         ImageLoader.Builder(context)
-            .crossfade(true)
+            .crossfade(!isNativeTv)
             .diskCachePolicy(CachePolicy.ENABLED)
-            .memoryCachePolicy(CachePolicy.ENABLED)
+            // Fire TV sticks commonly limit apps to a 192 MB heap. Retaining decoded
+            // hero and poster bitmaps in Coil's memory cache caused repeated ANRs.
+            .memoryCachePolicy(if (isNativeTv) CachePolicy.DISABLED else CachePolicy.ENABLED)
             .components {
                 add(SvgDecoder.Factory())
                 add(
@@ -481,7 +484,7 @@ fun App() {
                     ),
                 )
             }
-            .configurePlatformImageLoader()
+            .configurePlatformImageLoader(animationsEnabled = !isNativeTv)
             .build()
     }
     val selectedTheme by remember {

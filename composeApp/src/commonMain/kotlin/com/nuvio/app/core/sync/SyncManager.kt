@@ -25,7 +25,6 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -93,20 +92,12 @@ internal suspend fun runOrderedProfileSync(
 
     runStep(ProfileSyncStep.ProfileSettings, operations.pullProfileSettings)
 
-    coroutineScope {
-        launch {
-            runStep(ProfileSyncStep.Library, operations.pullLibrary)
-        }
-        launch {
-            runStep(ProfileSyncStep.ActiveWatchSource, operations.refreshActiveWatchSource)
-        }
-        launch {
-            runStep(ProfileSyncStep.Collections, operations.pullCollections)
-        }
-        launch {
-            runStep(ProfileSyncStep.HomeCatalogSettings, operations.pullHomeCatalogSettings)
-        }
-    }
+    // Older Fire TV devices expose a 192 MB app heap. Keep these large account
+    // payloads out of memory at the same time so ART does not enter blocking GC.
+    runStep(ProfileSyncStep.Library, operations.pullLibrary)
+    runStep(ProfileSyncStep.ActiveWatchSource, operations.refreshActiveWatchSource)
+    runStep(ProfileSyncStep.Collections, operations.pullCollections)
+    runStep(ProfileSyncStep.HomeCatalogSettings, operations.pullHomeCatalogSettings)
     return ProfileSyncResult(
         failedSteps = synchronized(failureLock) { failedSteps.toSet() },
     )
@@ -197,6 +188,10 @@ internal class ProfileSyncRequestGate {
         }
         job?.cancel()
     }
+
+    fun hasActiveRequest(profileId: Int): Boolean = synchronized(lock) {
+        activeProfileId == profileId && activeJob?.isCompleted == false
+    }
 }
 
 object SyncManager {
@@ -268,6 +263,9 @@ object SyncManager {
         if (!force && hasRecentFullPull(profileId)) {
             return
         }
+        if (fullSyncRequestGate.hasActiveRequest(profileId)) {
+            return
+        }
         lateinit var requestJob: Job
         var previousJob: Job? = null
         synchronized(pullStateLock) {
@@ -320,35 +318,14 @@ object SyncManager {
         runCatching { TikTakWebLiveTvSync.pull(profileId) }
             .onFailure { log.e(it) { "Foreground TikTak Web Live TV restore failed" } }
 
-        coroutineScope {
-            launch {
-                runCatching { AddonRepository.pullFromServer(profileId) }
-                    .onFailure { log.e(it) { "Foreground addons pull failed" } }
-            }
-            if (AppFeaturePolicy.pluginsEnabled) {
-                launch {
-                    runCatching { PluginRepository.pullFromServer(profileId) }
-                        .onFailure { log.e(it) { "Foreground plugins pull failed" } }
-                }
-            }
-            launch {
-                runCatching { LibraryRepository.pullFromServer(profileId) }
-                    .onFailure { log.e(it) { "Foreground library pull failed" } }
-            }
-            launch {
-                runCatching {
-                    WatchProgressSourceCoordinator.refreshActiveSource(profileId = profileId, force = true)
-                }.onFailure { log.e(it) { "Foreground active watch source pull failed" } }
-            }
-            launch {
-                runCatching { CollectionSyncService.pullFromServer(profileId) }
-                    .onFailure { log.e(it) { "Foreground collections pull failed" } }
-            }
-            launch {
-                runCatching { HomeCatalogSettingsSyncService.pullFromServer(profileId) }
-                    .onFailure { log.e(it) { "Foreground home catalog settings pull failed" } }
-            }
-        }
+        runOrderedProfileSync(
+            profileId = profileId,
+            pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
+            operations = profileSyncOperations,
+            onFailure = { step, error ->
+                log.e(error) { "Foreground profile pull failed profile=$profileId step=$step" }
+            },
+        )
 
         log.i { "Foreground sync completed profile=$profileId" }
     }
@@ -361,6 +338,14 @@ object SyncManager {
         val authState = AuthRepository.state.value
         if (authState !is AuthState.Authenticated || authState.isAnonymous) return
         if (ProfileRepository.activeProfileId != profileId) return
+
+        synchronized(pullStateLock) {
+            if (foregroundPullProfileId == profileId) {
+                foregroundPullJob?.cancel()
+                foregroundPullJob = null
+                foregroundPullProfileId = null
+            }
+        }
 
         val result = fullSyncRequestGate.launch(
             scope = accountScopeSnapshot(),

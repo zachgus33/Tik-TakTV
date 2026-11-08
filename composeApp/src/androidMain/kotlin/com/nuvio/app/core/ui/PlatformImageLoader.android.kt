@@ -5,11 +5,17 @@ import coil3.ImageLoader
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 
-internal actual fun ImageLoader.Builder.configurePlatformImageLoader(): ImageLoader.Builder =
-    components {
-        if (Build.VERSION.SDK_INT >= 28) {
-            add(AnimatedImageDecoder.Factory())
-        } else {
-            add(GifDecoder.Factory())
+internal actual fun ImageLoader.Builder.configurePlatformImageLoader(
+    animationsEnabled: Boolean,
+): ImageLoader.Builder =
+    if (animationsEnabled) {
+        components {
+            if (Build.VERSION.SDK_INT >= 28) {
+                add(AnimatedImageDecoder.Factory())
+            } else {
+                add(GifDecoder.Factory())
+            }
         }
+    } else {
+        this
     }
