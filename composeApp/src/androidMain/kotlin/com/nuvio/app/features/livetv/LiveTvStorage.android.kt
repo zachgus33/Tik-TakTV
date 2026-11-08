@@ -67,7 +67,7 @@ actual object LiveTvStorage {
         file.useLines { lines ->
             lines.mapNotNull { line ->
                 runCatching { cacheJson.decodeFromString<LiveTvChannel>(line) }.getOrNull()
-            }.toList()
+            }.take(LiveTvInMemoryChannelLimit).toList()
         }
     }
 
@@ -79,7 +79,7 @@ actual object LiveTvStorage {
         }
         val temporary = File(target.parentFile, "${target.name}.tmp")
         temporary.bufferedWriter().use { writer ->
-            channels.forEach { channel ->
+            channels.take(LiveTvInMemoryChannelLimit).forEach { channel ->
                 writer.appendLine(cacheJson.encodeToString(channel))
             }
         }

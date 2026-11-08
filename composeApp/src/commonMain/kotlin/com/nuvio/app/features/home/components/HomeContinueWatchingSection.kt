@@ -36,10 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,9 +50,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.DisintegratingContainer
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.NuvioTokens
@@ -75,6 +80,29 @@ private val ContinueWatchingNewSeasonBadgeColor = Color(0xFFB45309)
 private val ContinueWatchingSmartSignalShape = RoundedCornerShape(999.dp)
 private const val ContinueWatchingLandscapeCardScale = 1.2f
 internal val HomeContinueWatchingSectionBottomPadding = 12.dp
+
+@Composable
+private fun Modifier.continueWatchingTvFocus(shape: RoundedCornerShape): Modifier {
+    val isTvMode = LocalTvMode.current
+    var hasTvFocus by remember { mutableStateOf(false) }
+    return onFocusChanged { hasTvFocus = it.hasFocus }
+        .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+        .graphicsLayer {
+            val focusScale = if (isTvMode && hasTvFocus) 1.06f else 1f
+            scaleX = focusScale
+            scaleY = focusScale
+        }
+        .shadow(
+            elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+            shape = shape,
+            clip = false,
+        )
+        .border(
+            width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
+            color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
+            shape = shape,
+        )
+}
 
 internal fun continueWatchingLandscapeCardWidth(basePosterWidthDp: Int): Dp =
     (landscapePosterWidth(basePosterWidthDp).value * ContinueWatchingLandscapeCardScale).dp
@@ -713,11 +741,13 @@ private fun ContinueWatchingCard(
         else -> backgroundColor.copy(alpha = 0.80f)
     }
 
+    val cardShape = RoundedCornerShape(cardMetrics.cornerRadius)
     Box(
         modifier = Modifier
             .width(cardMetrics.width)
             .aspectRatio(PosterLandscapeAspectRatio)
-            .clip(RoundedCornerShape(cardMetrics.cornerRadius))
+            .continueWatchingTvFocus(cardShape)
+            .clip(cardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
@@ -892,16 +922,18 @@ private fun ContinueWatchingWideCard(
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
 ) {
+    val cardShape = RoundedCornerShape(layout.cardRadius)
     Row(
         modifier = Modifier
             .width(layout.wideCardWidth)
             .height(layout.wideCardHeight)
-            .clip(RoundedCornerShape(layout.cardRadius))
+            .continueWatchingTvFocus(cardShape)
+            .clip(cardShape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
             .border(
                 width = 1.5.dp,
                 color = Color.White.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(layout.cardRadius),
+                shape = cardShape,
             )
             .combinedClickable(
                 enabled = onClick != null || onLongClick != null,
@@ -1030,11 +1062,13 @@ private fun ContinueWatchingPosterCard(
         modifier = Modifier.width(layout.posterCardWidth),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        val cardShape = RoundedCornerShape(layout.cardRadius)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(layout.posterCardHeight)
-                .clip(RoundedCornerShape(layout.cardRadius))
+                .continueWatchingTvFocus(cardShape)
+                .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
         ) {

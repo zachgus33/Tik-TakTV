@@ -19,6 +19,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+internal const val LiveTvInMemoryChannelLimit = 10_000
+
 object LiveTvRepository {
     private val mutableUiState = MutableStateFlow(LiveTvUiState())
     val uiState = mutableUiState.asStateFlow()
@@ -444,7 +446,7 @@ private object LiveTvRepositoryXtream {
         categories: Map<String, String>,
     ): List<LiveTvChannel> {
         val data = request(settings, action = "get_live_streams").jsonArrayOrEmpty()
-        return data.mapIndexedNotNull { index, element ->
+        return data.asSequence().mapIndexedNotNull { index, element ->
             val obj = element as? JsonObject ?: return@mapIndexedNotNull null
             val name = obj.stringValue("name") ?: return@mapIndexedNotNull null
             val streamId = obj.stringValue("stream_id") ?: obj.stringValue("id") ?: return@mapIndexedNotNull null
@@ -467,6 +469,8 @@ private object LiveTvRepositoryXtream {
                 headers = M3U_STREAM_REQUEST_HEADERS,
             )
         }.distinctBy { it.streamUrl }
+            .take(LiveTvInMemoryChannelLimit)
+            .toList()
     }
 
     private suspend fun request(settings: LiveTvXtreamSettings, action: String): JsonElement {
@@ -525,8 +529,7 @@ private object LiveTvRepositoryStalker {
         genres: Map<String, String>,
     ): List<LiveTvChannel> {
         val channels = mutableListOf<LiveTvChannel>()
-        repeat(20) { pageIndex ->
-            val page = pageIndex + 1
+        pageLoop@ for (page in 1..20) {
             val data = request(
                 settings = session.settings,
                 token = session.token,
@@ -534,18 +537,18 @@ private object LiveTvRepositoryStalker {
                 action = "get_ordered_list",
                 extraParameters = mapOf("p" to page.toString()),
             ).stalkerJs().arrayValue("data")
-            if (data.isEmpty()) return@repeat
-            data.forEachIndexed { index, element ->
-                val obj = element as? JsonObject ?: return@forEachIndexed
+            if (data.isEmpty()) break
+            for ((index, element) in data.withIndex()) {
+                val obj = element as? JsonObject ?: continue
                 val name = obj.stringValue("name")
                     ?: obj.stringValue("title")
-                    ?: return@forEachIndexed
+                    ?: continue
                 val command = obj.stringValue("cmd")
                     ?: obj.stringValue("mc_cmd")
                     ?: obj.stringValue("url")
-                    ?: return@forEachIndexed
+                    ?: continue
                 val streamUrl = command.toStalkerPlayableUrl()
-                if (streamUrl.isBlank()) return@forEachIndexed
+                if (streamUrl.isBlank()) continue
                 val genreId = obj.stringValue("tv_genre_id") ?: obj.stringValue("genre_id")
                 channels += LiveTvChannel(
                     id = obj.stringValue("id") ?: "stalker-${page}-$index-${streamUrl.hashCode()}",
@@ -557,9 +560,11 @@ private object LiveTvRepositoryStalker {
                     headers = playbackHeaders(session),
                     stalkerCommand = command,
                 )
+                if (channels.size >= LiveTvInMemoryChannelLimit) break@pageLoop
             }
         }
         return channels.distinctBy { it.id.ifBlank { it.streamUrl } }
+            .take(LiveTvInMemoryChannelLimit)
     }
 
     suspend fun createLink(session: StalkerSession, command: String): String? {
@@ -697,11 +702,13 @@ internal data class ParsedM3uPlaylist(
 
 internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist {
     val channels = mutableListOf<LiveTvChannel>()
+    val channelUrls = mutableSetOf<String>()
     val epgUrls = linkedSetOf<String>()
     var metadata: ParsedM3uMetadata? = null
     var pendingHeaders = emptyMap<String, String>()
 
-    content.lineSequence().forEach { rawLine ->
+    for (rawLine in content.lineSequence()) {
+        if (channels.size >= LiveTvInMemoryChannelLimit) break
         val line = rawLine.trim().removePrefix("\uFEFF")
         when {
             line.startsWith("#EXTM3U", ignoreCase = true) -> {
@@ -737,7 +744,7 @@ internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist {
                     logoUrl = null,
                     group = "",
                 )
-                channels += LiveTvChannel(
+                val channel = LiveTvChannel(
                     id = "${parsedUrl.url}#${channels.size}",
                     name = current.name.ifBlank { "Kanal ${channels.size + 1}" },
                     streamUrl = parsedUrl.url,
@@ -747,6 +754,9 @@ internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist {
                     headers = defaultM3uStreamHeaders(parsedUrl.url) + pendingHeaders + parsedUrl.headers,
                     streamType = parsedUrl.url.inferM3uStreamType(),
                 )
+                if (channelUrls.add(channel.streamUrl) && !isLikelyCategoryHeading(channel.name)) {
+                    channels += channel
+                }
                 metadata = null
                 pendingHeaders = emptyMap()
             }
@@ -754,9 +764,7 @@ internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist {
     }
 
     return ParsedM3uPlaylist(
-        channels = channels
-            .distinctBy { it.streamUrl }
-            .filterNot { isLikelyCategoryHeading(it.name) },
+        channels = channels,
         epgUrls = epgUrls.toList(),
     )
 }

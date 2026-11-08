@@ -89,4 +89,21 @@ class LiveTvPlaylistParserTest {
         assertEquals(1, channels.size)
         assertEquals("TRT 1 HD", channels.first().name)
     }
+
+    @Test
+    fun capsVeryLargePlaylistsForLowMemoryTvDevices() {
+        val playlist = buildString {
+            appendLine("#EXTM3U")
+            repeat(LiveTvInMemoryChannelLimit + 25) { index ->
+                appendLine("#EXTINF:-1,Channel $index")
+                appendLine("https://stream.test/$index.m3u8")
+            }
+        }
+
+        val channels = parseM3uPlaylist(playlist)
+
+        assertEquals(LiveTvInMemoryChannelLimit, channels.size)
+        assertEquals("Channel 0", channels.first().name)
+        assertEquals("Channel ${LiveTvInMemoryChannelLimit - 1}", channels.last().name)
+    }
 }
