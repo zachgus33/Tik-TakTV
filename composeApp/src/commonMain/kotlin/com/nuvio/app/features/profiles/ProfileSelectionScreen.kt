@@ -46,6 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -79,6 +82,8 @@ fun ProfileSelectionScreen(
     var pinDialogProfile by remember { mutableStateOf<NuvioProfile?>(null) }
     var isEditMode by remember { mutableStateOf(false) }
     val copy = remember(selectedAppLanguage) { profileSelectionCopy(selectedAppLanguage) }
+    val initialFocusRequester = remember { FocusRequester() }
+    val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
 
     val titleAlpha = remember { Animatable(0f) }
     val titleOffset = remember { Animatable(20f) }
@@ -87,6 +92,13 @@ fun ProfileSelectionScreen(
     LaunchedEffect(Unit) {
         AvatarRepository.fetchAvatars()
         AvatarRepository.refreshAvatars()
+    }
+
+    LaunchedEffect(isNativeTv, profileState.profiles.size) {
+        if (isNativeTv) {
+            delay(700)
+            initialFocusRequester.requestFocus()
+        }
     }
 
     LaunchedEffect(authState) {
@@ -207,6 +219,7 @@ fun ProfileSelectionScreen(
                             if (currentIndex < profiles.size) {
                                 val profile = profiles[currentIndex]
                                 ProfileAvatarCard(
+                                    modifier = if (currentIndex == 0) Modifier.focusRequester(initialFocusRequester) else Modifier,
                                     profile = profile,
                                     isEditMode = isEditMode,
                                     animDelay = currentIndex * 80,
@@ -223,6 +236,7 @@ fun ProfileSelectionScreen(
                                 )
                             } else {
                                 AddProfileCard(
+                                    modifier = if (currentIndex == 0) Modifier.focusRequester(initialFocusRequester) else Modifier,
                                     animDelay = currentIndex * 80,
                                     copy = copy,
                                     onClick = onAddProfile,
@@ -249,6 +263,7 @@ fun ProfileSelectionScreen(
                                     if (currentIndex < profiles.size) {
                                         val profile = profiles[currentIndex]
                                         ProfileAvatarCard(
+                                            modifier = if (currentIndex == 0) Modifier.focusRequester(initialFocusRequester) else Modifier,
                                             profile = profile,
                                             isEditMode = isEditMode,
                                             animDelay = currentIndex * 80,
@@ -265,6 +280,7 @@ fun ProfileSelectionScreen(
                                         )
                                     } else {
                                         AddProfileCard(
+                                            modifier = if (currentIndex == 0) Modifier.focusRequester(initialFocusRequester) else Modifier,
                                             animDelay = currentIndex * 80,
                                             copy = copy,
                                             onClick = onAddProfile,
@@ -329,6 +345,7 @@ fun ProfileSelectionScreen(
 
 @Composable
 private fun ProfileAvatarCard(
+    modifier: Modifier = Modifier,
     profile: NuvioProfile,
     isEditMode: Boolean,
     animDelay: Int,
@@ -360,10 +377,12 @@ private fun ProfileAvatarCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.95f else 1f
+    val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .width(150.dp)
             .graphicsLayer {
                 alpha = animAlpha.value
@@ -372,6 +391,12 @@ private fun ProfileAvatarCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (isNativeTv && focused) 4.dp else 0.dp,
+                color = if (isNativeTv && focused) Color(0xFFFF4F9A) else Color.Transparent,
+                shape = RoundedCornerShape(20.dp),
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
@@ -492,6 +517,7 @@ private fun ProfileAvatarCard(
 
 @Composable
 private fun AddProfileCard(
+    modifier: Modifier = Modifier,
     animDelay: Int,
     copy: ProfileSelectionCopy,
     onClick: () -> Unit,
@@ -510,10 +536,12 @@ private fun AddProfileCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.95f else 1f
+    val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
+    var focused by remember { mutableStateOf(false) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .width(150.dp)
             .graphicsLayer {
                 alpha = animAlpha.value
@@ -522,6 +550,12 @@ private fun AddProfileCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .onFocusChanged { focused = it.hasFocus }
+            .border(
+                width = if (isNativeTv && focused) 4.dp else 0.dp,
+                color = if (isNativeTv && focused) Color(0xFFFF4F9A) else Color.Transparent,
+                shape = RoundedCornerShape(20.dp),
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
