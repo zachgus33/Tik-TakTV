@@ -166,16 +166,16 @@ jobs:
             adb shell input keyevent 20
             adb shell input keyevent 23
             sleep 20
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-home-focus.png
-            adb shell input keyevent 22
-            sleep 2
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-content-focus.png
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-profile-focus.png
+            adb shell uiautomator dump /sdcard/native-tv-guest-profile.xml
+            adb pull /sdcard/native-tv-guest-profile.xml native-tv-guest-profile.xml
+            grep -q "Add Profile" native-tv-guest-profile.xml
             adb shell input keyevent 4
-            sleep 2
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-back-to-rail.png
-            adb shell input keyevent 4
-            sleep 2
-            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-exit-dialog.png
+            sleep 4
+            adb exec-out screencap -p > nativeTvApp/build/native-tv-guest-back-to-auth.png
+            adb shell uiautomator dump /sdcard/native-tv-guest-back.xml
+            adb pull /sdcard/native-tv-guest-back.xml native-tv-guest-back.xml
+            grep -q "Continue Without Account" native-tv-guest-back.xml
             adb shell uiautomator dump /sdcard/native-tv-auth.xml || true
             adb pull /sdcard/native-tv-auth.xml native-tv-auth.xml || true
             adb logcat -d > native-tv-logcat.txt
@@ -192,6 +192,7 @@ jobs:
             native-tv-shell-*-logcat.txt
             native-tv-logcat.txt
             native-tv-auth.xml
+            native-tv-guest-*.xml
           if-no-files-found: warn
           retention-days: 14
 

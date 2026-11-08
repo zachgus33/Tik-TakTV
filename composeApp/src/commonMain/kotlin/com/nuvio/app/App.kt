@@ -541,6 +541,7 @@ fun App() {
         var pendingMainInitialTabName by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingMainSettingsPageName by rememberSaveable { mutableStateOf<String?>(null) }
         val appGateFocusManager = LocalFocusManager.current
+        val appGateScope = rememberCoroutineScope()
         val isNativeTvGate = LocalTvMode.current
 
         LaunchedEffect(isNativeTvGate, gateScreen) {
@@ -716,7 +717,18 @@ fun App() {
                 }
                 AppGateScreen.ProfileSelection.name -> {
                     PlatformBackHandler(enabled = gateScreen == AppGateScreen.ProfileSelection.name) {
-                        if (!autoSkipProfileSelection) {
+                        val authenticated = authState as? AuthState.Authenticated
+                        if (
+                            autoSkipProfileSelection &&
+                            profileState.profiles.isEmpty() &&
+                            authenticated?.isAnonymous == true
+                        ) {
+                            appGateScope.launch {
+                                AuthRepository.signOut()
+                                autoSkipProfileSelection = false
+                                gateScreen = AppGateScreen.Auth.name
+                            }
+                        } else if (!autoSkipProfileSelection) {
                             gateScreen = AppGateScreen.Main.name
                         }
                     }
