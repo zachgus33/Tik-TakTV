@@ -88,6 +88,7 @@ dependencies {
     implementation(project(":composeApp"))
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.compose.foundation)
     implementation(libs.compose.runtime)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.compose.uiTooling)
