@@ -197,16 +197,17 @@ fun TikTakSportsScreen(
         if (visibleScores.isNotEmpty()) {
             item { SectionTitle("Live and recent scores") }
             items(visibleScores, key = { "score:${it.id}" }) { event ->
+                val matchedChannel = findScoreChannel(
+                    event = event,
+                    channels = liveState.channels,
+                    currentProgrammes = liveState.currentProgrammes,
+                )
                 ScoreCard(
                     event = event,
+                    matchedChannelName = matchedChannel?.name,
                     onClick = {
-                        val channel = findScoreChannel(
-                            event = event,
-                            channels = liveState.channels,
-                            currentProgrammes = liveState.currentProgrammes,
-                        )
-                        if (channel != null) {
-                            onChannelClick(channel)
+                        if (matchedChannel != null) {
+                            onChannelClick(matchedChannel)
                         } else {
                             NuvioToastController.show(
                                 if (liveState.channels.isEmpty()) {
@@ -250,7 +251,11 @@ fun TikTakSportsScreen(
 }
 
 @Composable
-private fun ScoreCard(event: NativeScoreEvent, onClick: () -> Unit) {
+private fun ScoreCard(
+    event: NativeScoreEvent,
+    matchedChannelName: String?,
+    onClick: () -> Unit,
+) {
     FocusCard(onClick = onClick) {
         Text("${event.league} • ${event.detail}", color = MaterialTheme.nuvio.colors.accent, fontWeight = FontWeight.Bold)
         Text(event.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.nuvio.colors.textPrimary)
@@ -272,8 +277,14 @@ private fun ScoreCard(event: NativeScoreEvent, onClick: () -> Unit) {
                 Text(team.score, color = MaterialTheme.nuvio.colors.textPrimary, fontWeight = FontWeight.Bold)
             }
         }
-        val context = listOfNotNull(event.broadcast, event.venue).joinToString(" â€¢ ")
+        val context = listOfNotNull(event.broadcast, event.venue).joinToString(" • ")
         if (context.isNotBlank()) Text(context, color = MaterialTheme.nuvio.colors.textMuted)
+        Text(
+            text = matchedChannelName?.let { "Press OK to watch on $it" }
+                ?: "Press OK to look for this game in your Live TV guide",
+            color = if (matchedChannelName != null) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.textMuted,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -285,7 +296,7 @@ fun findScoreChannel(
     if (channels.isEmpty()) return null
     val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
     val teamTokenSets = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
-    val broadcast = normalizeSportsText(event.broadcast.orEmpty())
+    val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
 
     return channels.asSequence()
         .mapNotNull { channel ->
@@ -298,16 +309,18 @@ fun findScoreChannel(
                 team.count(programmeTokens::contains) >= required
             }
             val programmeOverlap = eventTokens.count(programmeTokens::contains)
-            val broadcastMatch = broadcast.isNotBlank() &&
-                (" $channelText ".contains(" $broadcast ") || " $broadcast ".contains(" $channelText "))
+            val channelTokens = normalizedSportsTokens(channelText)
+            val broadcastOverlap = broadcastTokens.count(channelTokens::contains)
+            val broadcastMatch = broadcastTokens.isNotEmpty() && broadcastOverlap == broadcastTokens.size
 
-            // A currently listed game is the strongest signal. A live score may
-            // fall back to its named broadcaster when guide titles are generic.
-            if (matchingTeams == 0 && programmeOverlap < 2 && !(event.state == "in" && broadcastMatch)) {
+            // A guide title carrying the teams is the strongest signal. If an
+            // IPTV guide is generic or missing, the score feed's named network
+            // is still a deterministic route to the user's matching channel.
+            if (matchingTeams == 0 && programmeOverlap < 2 && !broadcastMatch) {
                 return@mapNotNull null
             }
             val score = matchingTeams * 100 + programmeOverlap * 8 +
-                (if (broadcastMatch) 35 else 0) +
+                (if (broadcastMatch) 35 + broadcastOverlap * 5 else 0) +
                 (if (programme != null) 10 else 0)
             channel to score
         }
@@ -326,8 +339,16 @@ private fun normalizedSportsTokens(value: String): Set<String> = normalizeSports
     .filter { it.length >= 3 && it !in SportsMatchStopWords }
     .toSet()
 
+private fun normalizedBroadcastTokens(value: String): Set<String> = normalizedSportsTokens(value)
+    .filterNot { it in BroadcastMatchStopWords }
+    .toSet()
+
 private val SportsMatchStopWords = setOf(
     "the", "and", "for", "game", "live", "college", "football", "basketball", "baseball", "hockey", "soccer",
+)
+
+private val BroadcastMatchStopWords = setOf(
+    "network", "channel", "sports", "plus", "hd", "uhd", "east", "west", "national",
 )
 
 @Composable

@@ -6,7 +6,6 @@ import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TikTakSportsChannelMatchingTest {
@@ -41,8 +40,8 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
-    fun completedEventDoesNotOpenUnrelatedBroadcaster() {
-        assertNull(findScoreChannel(event("post", "ESPN"), listOf(espn), emptyMap()))
+    fun scoreCanUseNamedBroadcasterWhenGuideDataIsMissing() {
+        assertEquals(espn, findScoreChannel(event("post", "ESPN Network HD"), listOf(espn), emptyMap()))
     }
 
     private fun event(state: String, broadcast: String) = NativeScoreEvent(

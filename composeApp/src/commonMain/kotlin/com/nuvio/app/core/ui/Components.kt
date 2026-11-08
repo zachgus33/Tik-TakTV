@@ -54,6 +54,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -540,6 +542,12 @@ private fun NuvioStatusModalButton(
     var focused by remember { mutableStateOf(false) }
     Button(
         modifier = modifier
+            .scale(if (focused) 1.08f else 1f)
+            .shadow(
+                elevation = if (focused) 18.dp else 0.dp,
+                shape = tokens.shapes.button,
+                clip = false,
+            )
             .onFocusChanged { focused = it.hasFocus }
             .border(
                 width = if (focused) 4.dp else 1.dp,
@@ -551,11 +559,11 @@ private fun NuvioStatusModalButton(
         shape = tokens.shapes.button,
         colors = ButtonDefaults.buttonColors(
             containerColor = when {
-                focused -> Color(0xFF5A1F3C)
+                focused -> Color(0xFFFF4F9A)
                 primary -> tokens.colors.accent
                 else -> tokens.colors.surfaceCard
             },
-            contentColor = tokens.colors.textPrimary,
+            contentColor = if (focused) Color.White else tokens.colors.textPrimary,
         ),
         content = content,
     )

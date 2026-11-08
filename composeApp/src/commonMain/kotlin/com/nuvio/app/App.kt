@@ -2067,7 +2067,7 @@ private fun MainAppContent(
                                             .fillMaxSize()
                                             .padding(
                                                 start = if (isNativeTv) {
-                                                    TikTakTvNavigationRailWidth + 12.dp
+                                                    TikTakTvNavigationRailWidth + 24.dp
                                                 } else {
                                                     0.dp
                                                 },

@@ -39,11 +39,18 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
@@ -948,6 +955,7 @@ private fun TabletSettingsScreen(
     onContinueWatchingItemClick: ((ContinueWatchingItem) -> Unit)? = null,
     onFavoritePersonClick: ((FavoritePerson) -> Unit)? = null,
 ) {
+    val focusManager = LocalFocusManager.current
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -977,6 +985,20 @@ private fun TabletSettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .focusGroup()
+                    .onKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        when (event.key) {
+                            Key.DirectionDown -> {
+                                focusManager.moveFocus(FocusDirection.Next)
+                                true
+                            }
+                            Key.DirectionUp -> {
+                                focusManager.moveFocus(FocusDirection.Previous)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
                     .padding(top = topOffset),
             ) {
                 Text(
@@ -1070,6 +1092,20 @@ private fun TabletSettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .focusGroup()
+                    .onKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        when (event.key) {
+                            Key.DirectionDown -> {
+                                focusManager.moveFocus(FocusDirection.Next)
+                                true
+                            }
+                            Key.DirectionUp -> {
+                                focusManager.moveFocus(FocusDirection.Previous)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
                     .nestedScroll(rootSearchRevealConnection),
                 contentPadding = PaddingValues(
                     start = 40.dp,
