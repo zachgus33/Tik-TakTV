@@ -299,6 +299,7 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
 private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
     LaunchedEffect(
         controlsVisible,
+        controlsInteractionEpoch,
         isScrubbingTimeline,
         playbackSnapshot.isPlaying,
         playbackSnapshot.isLoading,

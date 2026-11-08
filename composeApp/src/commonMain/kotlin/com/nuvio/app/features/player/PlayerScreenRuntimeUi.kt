@@ -146,6 +146,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         .onFocusChanged { tvSurfaceIsFocused = it.isFocused }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            if (controlsVisible) controlsInteractionEpoch += 1
                             when (event.key) {
                                 Key.DirectionLeft -> {
                                     if (!controlsVisible) {

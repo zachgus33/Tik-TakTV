@@ -709,21 +709,8 @@ private fun CenterControls(
             isBuffering = snapshot.isLoading,
             metrics = metrics,
             onClick = onTogglePlayback,
-            modifier = Modifier
-                .then(
-                    if (primaryActionFocusRequester != null) {
-                        Modifier.focusRequester(primaryActionFocusRequester)
-                    } else {
-                        Modifier
-                    },
-                )
-                .then(
-                    if (lowerActionFocusRequester != null) {
-                        Modifier.focusProperties { down = lowerActionFocusRequester }
-                    } else {
-                        Modifier
-                    },
-                ),
+            focusRequester = primaryActionFocusRequester,
+            lowerActionFocusRequester = lowerActionFocusRequester,
         )
         SideControlButton(
             icon = Icons.Rounded.Forward10,
@@ -764,6 +751,8 @@ private fun PlayPauseControlButton(
     isBuffering: Boolean,
     metrics: PlayerLayoutMetrics,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    lowerActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val playPausePainter = appIconPainter(
@@ -773,6 +762,20 @@ private fun PlayPauseControlButton(
     Box(
         modifier = modifier
             .tvPlayerFocus(CircleShape)
+            .then(
+                if (focusRequester != null) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                },
+            )
+            .then(
+                if (lowerActionFocusRequester != null) {
+                    Modifier.focusProperties { down = lowerActionFocusRequester }
+                } else {
+                    Modifier
+                },
+            )
             .clip(CircleShape)
             .clickable(onClick = onClick)
             .padding(metrics.playButtonPadding),
@@ -883,21 +886,8 @@ private fun ProgressControls(
                         label = stringResource(resizeMode.labelRes),
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
-                        modifier = Modifier
-                            .then(
-                                if (primaryActionFocusRequester != null) {
-                                    Modifier.focusRequester(primaryActionFocusRequester)
-                                } else {
-                                    Modifier
-                                },
-                            )
-                            .then(
-                                if (upperActionFocusRequester != null) {
-                                    Modifier.focusProperties { up = upperActionFocusRequester }
-                                } else {
-                                    Modifier
-                                },
-                            ),
+                        focusRequester = primaryActionFocusRequester,
+                        upperActionFocusRequester = upperActionFocusRequester,
                     )
                     PlayerActionPillButton(
                         label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
@@ -1121,11 +1111,27 @@ private fun PlayerActionPillButton(
     onClick: () -> Unit,
     icon: ImageVector? = null,
     painter: Painter? = null,
+    focusRequester: FocusRequester? = null,
+    upperActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .tvPlayerFocus(RoundedCornerShape(22.dp))
+            .then(
+                if (focusRequester != null) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                },
+            )
+            .then(
+                if (upperActionFocusRequester != null) {
+                    Modifier.focusProperties { up = upperActionFocusRequester }
+                } else {
+                    Modifier
+                },
+            )
             .clip(RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
