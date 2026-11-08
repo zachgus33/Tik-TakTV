@@ -32,7 +32,7 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v5
       - name: Test, lint, and build native TV preview
-        run: ./gradlew :nativeTvApp:testDebugUnitTest :nativeTvApp:lintDebug :nativeTvApp:assembleDebug -Pnuvio.android.distribution=playstore --stacktrace
+        run: ./gradlew :nativeTvApp:testDebugUnitTest :nativeTvApp:lintDebug :nativeTvApp:assembleDebug -Pnuvio.android.distribution=full --stacktrace
       - name: Upload side-by-side preview APK
         uses: actions/upload-artifact@v7
         with:
@@ -223,7 +223,7 @@ jobs:
           printf '%s' "${TIKTAK_TV_KEYSTORE_BASE64}" | base64 --decode > "${TIKTAK_TV_KEYSTORE_FILE}"
           echo "TIKTAK_TV_KEYSTORE_FILE=${TIKTAK_TV_KEYSTORE_FILE}" >> "${GITHUB_ENV}"
       - name: Build signed native preview
-        run: ./gradlew :nativeTvApp:assembleRelease -Pnuvio.android.distribution=playstore --stacktrace
+        run: ./gradlew :nativeTvApp:assembleRelease -Pnuvio.android.distribution=full --stacktrace
       - name: Verify and prepare updater metadata
         run: |
           apk="nativeTvApp/build/outputs/apk/release/nativeTvApp-release.apk"

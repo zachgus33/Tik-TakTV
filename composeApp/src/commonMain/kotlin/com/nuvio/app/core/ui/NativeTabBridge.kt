@@ -8,6 +8,8 @@ internal enum class NativeNavigationTab {
     Home,
     Search,
     LiveTv,
+    YouTube,
+    Sports,
     Library,
     Settings,
     ;

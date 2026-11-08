@@ -238,6 +238,10 @@ import com.nuvio.app.features.settings.PluginsSettingsScreen
 import com.nuvio.app.features.settings.AccountSettingsScreen
 import com.nuvio.app.features.settings.SupportersContributorsSettingsScreen
 import com.nuvio.app.features.settings.LicensesAttributionsSettingsScreen
+import com.nuvio.app.features.tiktak.TikTakSportsScreen
+import com.nuvio.app.features.tiktak.TikTakYouTubeItem
+import com.nuvio.app.features.tiktak.TikTakYouTubeScreen
+import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.settings.NuvioEnhancedSettingsRepository
 import com.nuvio.app.features.settings.NavBarStyle
 import com.nuvio.app.features.settings.SettingsPage
@@ -411,6 +415,8 @@ enum class AppScreenTab {
     Home,
     Search,
     LiveTv,
+    YouTube,
+    Sports,
     Library,
     Settings,
 }
@@ -419,6 +425,8 @@ private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (th
     AppScreenTab.Home -> NativeNavigationTab.Home
     AppScreenTab.Search -> NativeNavigationTab.Search
     AppScreenTab.LiveTv -> NativeNavigationTab.LiveTv
+    AppScreenTab.YouTube -> NativeNavigationTab.YouTube
+    AppScreenTab.Sports -> NativeNavigationTab.Sports
     AppScreenTab.Library -> NativeNavigationTab.Library
     AppScreenTab.Settings -> NativeNavigationTab.Settings
 }
@@ -427,6 +435,8 @@ private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Home -> AppScreenTab.Home
     NativeNavigationTab.Search -> AppScreenTab.Search
     NativeNavigationTab.LiveTv -> AppScreenTab.LiveTv
+    NativeNavigationTab.YouTube -> AppScreenTab.YouTube
+    NativeNavigationTab.Sports -> AppScreenTab.Sports
     NativeNavigationTab.Library -> AppScreenTab.Library
     NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
@@ -1005,6 +1015,8 @@ private fun MainAppContent(
                 searchScrollToTopRequests.tryEmit(Unit)
             }
             AppScreenTab.LiveTv -> Unit
+            AppScreenTab.YouTube -> Unit
+            AppScreenTab.Sports -> Unit
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
         }
@@ -2102,6 +2114,39 @@ private fun MainAppContent(
                                         onLiveTvChannelClick = { channel ->
                                             coroutineScope.launch {
                                                 openLiveTvChannel(channel)
+                                            }
+                                        },
+                                        onYouTubePlay = { item ->
+                                            coroutineScope.launch {
+                                                val videoId = item.videoId
+                                                if (videoId.isNullOrBlank()) {
+                                                    NuvioToastController.show("Choose a video from this playlist to play it.")
+                                                    return@launch
+                                                }
+                                                val source = TrailerPlaybackResolver.resolveFromYouTubeUrl(
+                                                    "https://www.youtube.com/watch?v=$videoId",
+                                                )
+                                                if (source == null) {
+                                                    NuvioToastController.show("This YouTube item could not be played.")
+                                                    return@launch
+                                                }
+                                                launchPlayer(
+                                                    PlayerLaunch(
+                                                        profileId = activePlaybackProfileId,
+                                                        title = item.title,
+                                                        sourceUrl = source.videoUrl,
+                                                        sourceAudioUrl = source.audioUrl,
+                                                        poster = item.thumbnail,
+                                                        streamTitle = item.title,
+                                                        streamSubtitle = item.channel,
+                                                        providerName = "YouTube",
+                                                        providerAddonId = "tiktak:youtube",
+                                                        contentType = "youtube",
+                                                        videoId = videoId,
+                                                        parentMetaId = "youtube:$videoId",
+                                                        parentMetaType = "youtube",
+                                                    ),
+                                                )
                                             }
                                         },
                                         onLibraryPosterClick = { item ->
@@ -4055,6 +4100,7 @@ private fun AppTabHost(
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     onLiveTvChannelClick: ((LiveTvChannel) -> Unit)? = null,
+    onYouTubePlay: ((TikTakYouTubeItem) -> Unit)? = null,
     onLibraryPosterClick: ((LibraryItem) -> Unit)? = null,
     onLibraryPosterLongClick: ((LibraryItem, LibrarySection) -> Unit)? = null,
     onLibrarySectionViewAllClick: ((LibrarySection) -> Unit)? = null,
@@ -4118,6 +4164,20 @@ private fun AppTabHost(
 
                 AppScreenTab.LiveTv -> {
                     LiveTvScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onChannelClick = { channel -> onLiveTvChannelClick?.invoke(channel) },
+                    )
+                }
+
+                AppScreenTab.YouTube -> {
+                    TikTakYouTubeScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onPlay = { item -> onYouTubePlay?.invoke(item) },
+                    )
+                }
+
+                AppScreenTab.Sports -> {
+                    TikTakSportsScreen(
                         modifier = Modifier.fillMaxSize(),
                         onChannelClick = { channel -> onLiveTvChannelClick?.invoke(channel) },
                     )
