@@ -16,8 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -122,6 +122,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val isTvMode = LocalTvMode.current
     val tvFocusRequester = remember { FocusRequester() }
     val tvControlsFocusRequester = remember { FocusRequester() }
+    val tvLowerControlsFocusRequester = remember { FocusRequester() }
+    var tvSurfaceIsFocused by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
 
     LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest) {
@@ -141,6 +143,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 if (isTvMode) {
                     Modifier
                         .focusRequester(tvFocusRequester)
+                        .onFocusChanged { tvSurfaceIsFocused = it.isFocused }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
@@ -169,6 +172,15 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                         controlsVisible = true
                                         tvControlsFocusRequest += 1
                                         true
+                                    } else if (tvSurfaceIsFocused) {
+                                        runCatching {
+                                            if (event.key == Key.DirectionDown) {
+                                                tvLowerControlsFocusRequester.requestFocus()
+                                            } else {
+                                                tvControlsFocusRequester.requestFocus()
+                                            }
+                                        }
+                                        true
                                     } else {
                                         false
                                     }
@@ -176,7 +188,6 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                 else -> false
                             }
                         }
-                        .focusProperties { canFocus = !controlsVisible }
                         .focusable()
                 } else {
                     Modifier
@@ -285,6 +296,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             displayedPositionMs = displayedPositionMs,
             isEpisode = isEpisode,
             primaryActionFocusRequester = if (isTvMode) tvControlsFocusRequester else null,
+            lowerActionFocusRequester = if (isTvMode) tvLowerControlsFocusRequester else null,
         )
         RenderPlaybackOverlays(
             runtime = runtime,
@@ -323,6 +335,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
     displayedPositionMs: Long,
     isEpisode: Boolean,
     primaryActionFocusRequester: FocusRequester?,
+    lowerActionFocusRequester: FocusRequester?,
 ) {
     val showQuietDeviceStatusOverlay = nuvioEnhancedSettingsUiState.playerStatusOverlayEnabled &&
         !controlsVisible &&
@@ -455,6 +468,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
             },
             horizontalSafePadding = horizontalSafePadding,
             primaryActionFocusRequester = primaryActionFocusRequester,
+            lowerActionFocusRequester = lowerActionFocusRequester,
             modifier = Modifier.fillMaxSize(),
         )
     }

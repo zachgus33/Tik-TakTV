@@ -128,9 +128,11 @@ internal fun PlayerControlsShell(
     onScrubFinished: (Long) -> Unit,
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     primaryActionFocusRequester: FocusRequester? = null,
+    lowerActionFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
-    val lowerControlsFocusRequester = remember { FocusRequester() }
+    val internalLowerControlsFocusRequester = remember { FocusRequester() }
+    val lowerControlsFocusRequester = lowerActionFocusRequester ?: internalLowerControlsFocusRequester
     val showQuietDeviceStatusOverlay = showDeviceStatusOverlay &&
         !showPlaybackControls &&
         !showParentalGuide &&
