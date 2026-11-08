@@ -3993,6 +3993,26 @@ private fun LocalCrashReportDialog(
 }
 
 @Composable
+private fun rememberGuardedPopBackStack(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
+    beforePop: () -> Unit = {},
+): () -> Unit {
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    var popHandled by remember(backStackEntry) { mutableStateOf(false) }
+
+    return remember(navController, backStackEntry, currentBackStackEntry, popHandled, beforePop) {
+        {
+            if (!popHandled && currentBackStackEntry == backStackEntry) {
+                popHandled = true
+                beforePop()
+                navController.popBackStack()
+            }
+        }
+    }
+}
+
+@Composable
 private fun AppTabHost(
     selectedTab: AppScreenTab,
     modifier: Modifier = Modifier,
