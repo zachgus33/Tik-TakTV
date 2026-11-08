@@ -85,3 +85,9 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# Supabase JWT verification has optional Kotlin cryptography decoder types.
+# TikTak TV uses the authenticated session token without local asymmetric JWT decoding.
+-dontwarn dev.whyoleg.cryptography.materials.key.KeyDecoder
+-dontwarn dev.whyoleg.cryptography.materials.key.KeyFormat
+
