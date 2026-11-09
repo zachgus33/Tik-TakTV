@@ -49,6 +49,7 @@ private suspend fun deduplicatedHttpGetText(
                         fetchAddonResponseText(
                             url = url,
                             forceRefresh = forceRefresh,
+                            maxResponseBodyBytes = CATALOG_RESPONSE_MAX_BYTES,
                         ),
                     )
                 } catch (error: Throwable) {
@@ -222,3 +223,8 @@ private fun String.encodeCatalogExtra(): String =
     }
 
 private val HEX = "0123456789ABCDEF"
+
+// A catalog preview only consumes at most 100 items (18 on Home). Providers that
+// ignore pagination can otherwise return tens of megabytes and exhaust a TV heap
+// before parsing can apply maxItems.
+private const val CATALOG_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
