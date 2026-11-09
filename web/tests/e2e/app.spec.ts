@@ -111,7 +111,7 @@ async function connect(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.07.3"));
+      localStorage.setItem("tiktak:whats-new-seen", "2026.11.09.1"));
   });
   await mockSources(page);
 });
@@ -375,6 +375,10 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByText("Skip SponsorBlock segments")).toBeVisible();
   await page.getByText("Choose what to skip").click();
   await expect(page.getByLabel("Sponsors")).toBeChecked();
+  await page.getByLabel("Self-promotion").scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("Self-promotion")).toBeInViewport();
+  await page.getByLabel("Interaction reminders").scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("Interaction reminders")).toBeInViewport();
   await page.getByLabel("Introductions").uncheck();
   await expect(page.getByLabel("Introductions")).not.toBeChecked();
 
@@ -1848,7 +1852,7 @@ test("channels without guide data stay out of the live guide", async ({
   await expect(page.locator(".tv-guide-row")).toHaveCount(0);
 });
 
-test("guide-linked channels remain playable when a provider schedule service is down", async ({
+test("guide-tagged channels stay hidden when no schedule data can be loaded", async ({
   page,
 }) => {
   await page.route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
@@ -1881,13 +1885,8 @@ test("guide-linked channels remain playable when a provider schedule service is 
   );
   await connect(page);
   await page.goto("/#live");
-  await expect(
-    page.getByText(/schedule service is unavailable/i),
-  ).toBeVisible();
-  await expect(
-    page.locator(".tv-guide-channel").filter({ hasText: "Guide Tagged News" }),
-  ).toBeVisible();
-  await expect(page.getByText("No programme information")).toBeVisible();
+  await expect(page.locator(".tv-guide-row")).toHaveCount(0);
+  await expect(page.getByText("Guide Tagged News")).toBeHidden();
 });
 
 test("custom XMLTV URL supplies guide data for an imported M3U playlist", async ({

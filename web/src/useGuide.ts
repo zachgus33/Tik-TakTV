@@ -363,7 +363,7 @@ export function useGuide(
     unavailable:
       valid.fallback &&
       Object.keys(valid.channels).length === 0 &&
-      new Set(valid.failed).size >= 3,
+      new Set(valid.failed).size >= Math.min(3, ids.length),
     probed:
       Object.keys(valid.xml).length +
       Object.keys(valid.channels).length +
