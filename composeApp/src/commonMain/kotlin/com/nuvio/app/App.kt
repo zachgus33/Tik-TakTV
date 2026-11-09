@@ -482,7 +482,7 @@ fun App() {
             .components {
                 add(SvgDecoder.Factory())
                 if (isNativeTv) {
-                    add(NativeTvOriginalSizeInterceptor())
+                    add(NativeTvArtworkSizeInterceptor())
                 }
                 add(
                     coil3.network.ktor3.KtorNetworkFetcherFactory(
@@ -825,19 +825,14 @@ fun App() {
 }
 
 /**
- * Older Fire OS builds occasionally fail to pass Compose's measured constraints to Coil,
- * leaving a request at [Size.ORIGINAL]. A single 6000x4000 poster then consumes roughly
- * 96 MB and can exhaust the TV heap. Keep normal measured requests untouched and only
- * bound the unsafe original-size fallback.
+ * Older Fire OS builds can report unsafe image constraints to Coil even when Compose has
+ * measured a card. A single 4883x4883 image then consumes roughly 95 MB and can exhaust
+ * the TV heap. Native TV never needs an artwork decode larger than its 720p render target,
+ * so give every request a safe decode envelope while Compose still controls its final crop.
  */
-private class NativeTvOriginalSizeInterceptor : Interceptor {
+private class NativeTvArtworkSizeInterceptor : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
-        val safeChain = if (chain.size == Size.ORIGINAL) {
-            chain.withSize(Size(width = 1280, height = 720))
-        } else {
-            chain
-        }
-        return safeChain.proceed()
+        return chain.withSize(Size(width = 1280, height = 720)).proceed()
     }
 }
 
