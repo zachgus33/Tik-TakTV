@@ -456,6 +456,9 @@ object HomeRepository {
             manifestUrl = manifestUrl,
             type = type,
             catalogId = catalogId,
+            // Some providers interpret an omitted skip as "return everything" even
+            // though their manifest advertises pagination. Make the first page explicit.
+            skip = 0.takeIf { supportsPagination },
             maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
         )
         val items = page.items

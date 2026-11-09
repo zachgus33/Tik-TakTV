@@ -187,7 +187,7 @@ internal fun buildCatalogUrl(
     val extraParts = buildList {
         if (!search.isNullOrBlank()) add("search=${search.encodeCatalogExtra()}")
         if (!genre.isNullOrBlank()) add("genre=${genre.encodeCatalogExtra()}")
-        if (skip != null && skip > 0) add("skip=$skip")
+        if (skip != null && skip >= 0) add("skip=$skip")
     }
 
     return buildAddonResourceUrl(
