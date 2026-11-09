@@ -4,6 +4,7 @@ import {
   classifySport,
   isInactiveSportsSlot,
   prioritizeLiveScoreEvents,
+  standaloneScoreEvents,
 } from "../src/SportsHub";
 import type { ScoreEvent } from "../src/sports-scores";
 import type { Item, Programme } from "../src/types";
@@ -209,5 +210,43 @@ describe("sports guide", () => {
     expect(result.liveScores.map((event) => event.id)).toEqual(["game"]);
     expect(result.remaining.map((event) => event.id)).toEqual(["generic"]);
     expect(result.scoreByEvent.get("game")?.teams[0].score).toBe("99");
+  });
+
+  it("shows current scores even when the guide has no matching channel", () => {
+    const now = Date.now();
+    const score = (
+      id: string,
+      sport: ScoreEvent["sport"],
+      start: number,
+      state: ScoreEvent["state"],
+    ): ScoreEvent => ({
+      id,
+      sport,
+      league: sport,
+      leagueName: sport,
+      name: id,
+      shortName: id,
+      start,
+      state,
+      detail: "Scheduled",
+      broadcasts: [],
+      teams: [],
+    });
+    const scores = [
+      score("upcoming", "basketball", now + 60_000, "pre"),
+      score("live", "basketball", now - 60_000, "in"),
+      score("matched", "basketball", now, "in"),
+      score("hockey", "hockey", now, "in"),
+      score("old", "basketball", now - 13 * 60 * 60_000, "post"),
+    ];
+
+    expect(
+      standaloneScoreEvents(
+        scores,
+        new Set(["matched"]),
+        now,
+        "basketball",
+      ).map((event) => event.id),
+    ).toEqual(["live", "upcoming"]);
   });
 });

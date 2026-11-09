@@ -11,6 +11,7 @@ export const releases = [
     date: "November 7, 2026",
     title: "Better YouTube playback controls and recovery",
     changes: [
+      "Sports now shows current scores and schedules even when no matching IPTV guide channel is available; Watch actions remain limited to real guide-linked channels.",
       "Live TV and Sports now show guide-linked channels progressively while large XMLTV feeds are still downloading, and default to United States channels when available.",
       "Expanded SponsorBlock categories now stay reachable in a scrollable YouTube player section instead of being clipped by the playback pane.",
       "YouTube videos and music can now autoplay the next current result or recommendation, with an on/off control in both the player and Playback settings.",

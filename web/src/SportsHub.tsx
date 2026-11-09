@@ -271,6 +271,35 @@ export function prioritizeLiveScoreEvents(
   };
 }
 
+export function standaloneScoreEvents(
+  scores: ScoreEvent[],
+  matchedScoreIds: Set<string>,
+  now: number,
+  sport: SportKind | "all" = "all",
+  maximum = 48,
+) {
+  const windowStart = now - 12 * 60 * 60_000;
+  const windowEnd = now + 48 * 60 * 60_000;
+  const statePriority: Record<ScoreEvent["state"], number> = {
+    in: 0,
+    pre: 1,
+    post: 2,
+  };
+  return scores
+    .filter(
+      (score) =>
+        !matchedScoreIds.has(score.id) &&
+        score.start >= windowStart &&
+        score.start < windowEnd &&
+        (sport === "all" || score.sport === sport),
+    )
+    .sort(
+      (a, b) =>
+        statePriority[a.state] - statePriority[b.state] || a.start - b.start,
+    )
+    .slice(0, maximum);
+}
+
 function SportsHub({
   channels,
   getPrograms,
@@ -424,6 +453,14 @@ function SportsHub({
     () => prioritizeLiveScoreEvents(visible, scores, now),
     [now, scores, visible],
   );
+  const standaloneScores = useMemo(() => {
+    if (mine) return [];
+    const matchedScoreIds = new Set(
+      [...scoreByEvent.values()].map((score) => score.id),
+    );
+    return standaloneScoreEvents(scores, matchedScoreIds, now, sport);
+  }, [mine, now, scoreByEvent, scores, sport]);
+  const eventCount = visible.length + standaloneScores.length;
   const displayed = remaining.slice(0, limit);
   const live = displayed.filter(
     (event) => event.start <= now && event.end > now,
@@ -442,7 +479,7 @@ function SportsHub({
           className={!mine ? "active" : ""}
           onClick={() => setMine(false)}
         >
-          <Trophy size={17} /> All events · {visible.length}
+          <Trophy size={17} /> All events · {eventCount}
         </button>
         <div className="sports-kinds" aria-label="Filter by sport">
           <button
@@ -465,13 +502,13 @@ function SportsHub({
           ))}
         </div>
       </div>
-      {scanning ? (
+      {scanning && !standaloneScores.length ? (
         <div className="sports-empty" role="status">
           <Trophy size={38} />
           <h2>Finding games in your guide…</h2>
           <p>You can keep using TikTak TV while Sports checks your channels.</p>
         </div>
-      ) : !visible.length ? (
+      ) : !visible.length && !standaloneScores.length ? (
         <div className="sports-empty">
           <Trophy size={38} />
           <h2>
@@ -487,6 +524,14 @@ function SportsHub({
         </div>
       ) : (
         <>
+          {!!standaloneScores.length && (
+            <ScoreboardSection scores={standaloneScores} />
+          )}
+          {scanning && (
+            <p className="sports-scan-note" role="status">
+              Checking your TV guide for channels that carry these games…
+            </p>
+          )}
           {!!liveScores.length && (
             <EventSection
               title="Live scores"
@@ -534,6 +579,45 @@ function SportsHub({
           )}
         </>
       )}
+    </section>
+  );
+}
+
+function ScoreboardSection({ scores }: { scores: ScoreEvent[] }) {
+  return (
+    <section className="sports-event-section" aria-label="Scores and schedules">
+      <div className="sports-section-title">
+        <span className="live-dot" /> <h2>Scores &amp; schedules</h2>
+        <span>{scores.length} events</span>
+      </div>
+      <div className="sports-event-grid">
+        {scores.map((score) => {
+          const kind = SPORTS.find((item) => item.id === score.sport);
+          return (
+            <article className="sports-event" key={`score-${score.id}`}>
+              <div className="sports-event-meta">
+                <span>
+                  {kind?.icon || "🏅"} {kind?.label || "Sports"}
+                </span>
+                <time>
+                  {score.state === "in"
+                    ? "LIVE NOW"
+                    : new Date(score.start).toLocaleString([], {
+                        weekday: "short",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                </time>
+              </div>
+              <h3>{score.shortName || score.name}</h3>
+              <ScoreCard score={score} />
+              <p>
+                Score and schedule only · no matching channel in your guide.
+              </p>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

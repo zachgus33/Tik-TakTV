@@ -193,6 +193,7 @@ The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/
 
 - **Scrollable, focus-visible TV settings** keep every sidebar destination reachable and give navigation rows and switches a high-contrast remote cursor.
 - **Guide-only Live TV and Sports** hide channels with no schedule data, default to United States when available, and retain a country selector.
+- **Sports scores and schedules remain visible** when the current IPTV guide has no matching channel; playback buttons still appear only for real guide-linked channels.
 - **A compact TV title screen** keeps Play and the detail sections within reach, gives Play deterministic initial focus, and leaves cast and actor information easier to reach.
 - **Faster web Live TV and Sports guides** parse only the relevant channel subset and publish matches progressively instead of waiting for a complete provider XMLTV download.
 - **Reachable SponsorBlock categories** expand as a scrollable section in the YouTube player instead of being clipped behind its playback pane.
