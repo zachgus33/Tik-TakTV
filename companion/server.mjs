@@ -998,7 +998,7 @@ export function createService({ token, origins, authorizeAccount }) {
       .digest("base64url");
     return `${payload}.${signature}`;
   }
-  function decodeFriendGrant(value, userId) {
+  function decodeFriendGrant(value, userId, allowExpired = false) {
     if (!friendKey || typeof value !== "string") return false;
     try {
       const [payload, signature] = value.split(".");
@@ -1010,13 +1010,15 @@ export function createService({ token, origins, authorizeAccount }) {
       )
         return false;
       const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-      return data.sub === userId && Number(data.exp) > Date.now() ? data : null;
+      return data.sub === userId && (allowExpired || Number(data.exp) > Date.now())
+        ? data
+        : null;
     } catch {
       return null;
     }
   }
-  async function vaultForGrant(grant, userId) {
-    const data = decodeFriendGrant(grant, userId);
+  async function vaultForGrant(grant, userId, allowExpired = false) {
+    const data = decodeFriendGrant(grant, userId, allowExpired);
     if (!data) return null;
     if (data.vault) {
       const database = await readFriendVaults();
@@ -1029,6 +1031,25 @@ export function createService({ token, origins, authorizeAccount }) {
     return vault && Number(vault.updated) === Number(data.version)
       ? { vault, vaultId: "" }
       : null;
+  }
+  async function restoreFriendAddonBase(value, userId) {
+    try {
+      const parsed = new URL(String(value));
+      if (parsed.hostname !== "friend.tiktaktv.invalid") return null;
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const grant = parts[0];
+      const index = Number(parts[1]);
+      // Recovery is allowed after the 30-day playback grant expires because
+      // the signed grant still identifies the same authenticated user and
+      // exact vault version. Playback/debrid paths remain expiry-bound.
+      const access = await vaultForGrant(grant, userId, true);
+      const addon = access?.vault?.template?.addons?.[index];
+      return Number.isInteger(index) && index >= 0 && typeof addon?.base === "string"
+        ? addon.base
+        : null;
+    } catch {
+      return null;
+    }
   }
   function codeMatchesVault(code, vault) {
     if (!vault?.codeSalt || !vault?.codeHash) return false;
@@ -2245,6 +2266,20 @@ export function createService({ token, origins, authorizeAccount }) {
           published: !!owned || (!!vault && userId === friendOwner),
         });
       }
+      if (route.pathname === "/friend/restore-addons") {
+        if (userId === "service")
+          return send(403, { error: "Sign in to repair shared add-ons." });
+        const urls = Array.isArray(body.urls) ? body.urls.slice(0, 100) : [];
+        const addons = (
+          await Promise.all(
+            urls.map(async (url) => ({
+              url: String(url),
+              base: await restoreFriendAddonBase(url, userId),
+            })),
+          )
+        ).filter((item) => item.base);
+        return send(200, { addons });
+      }
       if (route.pathname === "/friend/setup") {
         if (userId === "service")
           return send(403, { error: "Sign in before creating a friend code." });
@@ -2396,13 +2431,10 @@ export function createService({ token, origins, authorizeAccount }) {
         friendAttempts.delete(attemptKey);
         const grant = friendGrant(userId, vault.updated, vaultId);
         return send(200, {
-          template: {
-            ...vault.template,
-            addons: vault.template.addons.map((addon, index) => ({
-              ...addon,
-              base: `https://friend.tiktaktv.invalid/${grant}/${index}`,
-            })),
-          },
+          // A friend code is an explicit full-setup share. Preserve each
+          // original add-on base exactly so Nuvio and every compatible client
+          // receive a portable manifest URL instead of a TikTak-only proxy.
+          template: vault.template,
           torboxKey: vault.torboxKey ? `friend:${grant}` : "",
           realDebridKey: vault.realDebridKey ? `friend-rd:${grant}` : "",
         });

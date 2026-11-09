@@ -41,9 +41,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.debrid.DebridSettingsRepository
+import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.SyncCatalogItem
+import com.nuvio.app.features.home.SyncHomeCatalogPayload
 import com.nuvio.app.features.tiktak.TikTakServiceClient
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -416,11 +421,23 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                 addonBases.forEach { base ->
                                     if (AddonRepository.addAddon(base.orEmpty()).let { it is com.nuvio.app.features.addons.AddAddonResult.Success }) installed++
                                 }
+                                val collections = template?.get("collections")?.jsonArray
+                                if (collections != null) {
+                                    CollectionRepository.importFromJson(collections.toString()).getOrThrow()
+                                }
+                                val homeCatalogs = template?.get("homeCatalogs")?.jsonArray
+                                if (homeCatalogs != null) {
+                                    val items = Json { ignoreUnknownKeys = true }
+                                        .decodeFromString<List<SyncCatalogItem>>(homeCatalogs.toString())
+                                    HomeCatalogSettingsRepository.applyFromRemote(
+                                        SyncHomeCatalogPayload(items = items),
+                                    )
+                                }
                                 root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setTorboxApiKey)
                                 root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setRealDebridApiKey)
-                                installed
-                            }.onSuccess { installed ->
-                                message = "Installed shared setup ($installed add-ons)."
+                                "Installed shared setup ($installed add-ons, ${collections?.size ?: 0} collections)."
+                            }.onSuccess { summary ->
+                                message = summary
                                 code = ""
                             }.onFailure { error ->
                                 message = error.message ?: "Friend setup could not be installed."

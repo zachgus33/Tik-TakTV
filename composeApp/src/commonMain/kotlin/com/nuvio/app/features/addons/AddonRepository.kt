@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.tiktak.TikTakServiceClient
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
@@ -116,13 +117,48 @@ object AddonRepository {
         currentProfileId = resolveEffectiveProfileId(profileId)
         log.i { "pullFromServer() — profileId=$profileId, initialized=$initialized, pulledFromServer=$pulledFromServer" }
         runCatching {
-            val rows = SupabaseProvider.client.postgrest
+            var rows = SupabaseProvider.client.postgrest
                 .from("addons")
                 .select {
                     filter { eq("profile_id", currentProfileId) }
                     order("sort_order", Order.ASCENDING)
                 }
                 .decodeList<AddonRow>()
+
+            val friendUrls = rows.map(AddonRow::url).filter(::isFriendAddonUrl)
+            if (friendUrls.isNotEmpty()) {
+                val restoredByUrl = runCatching {
+                    TikTakServiceClient.restoreFriendAddonBases(friendUrls)
+                }.getOrDefault(emptyMap())
+                val repairedRows = rows.map { row ->
+                    restoredByUrl[row.url]
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { row.copy(url = ensureManifestSuffix(it)) }
+                        ?: row
+                }
+                if (repairedRows != rows) {
+                    val params = buildJsonObject {
+                        put("p_profile_id", currentProfileId)
+                        put(
+                            "p_addons",
+                            json.encodeToJsonElement(
+                                repairedRows.mapIndexed { index, row ->
+                                    AddonPushItem(
+                                        url = row.url,
+                                        name = row.name.orEmpty(),
+                                        enabled = row.enabled,
+                                        sortOrder = index,
+                                    )
+                                },
+                            ),
+                        )
+                        putSyncOriginClientId()
+                    }
+                    SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+                    rows = repairedRows
+                    log.i { "pullFromServer() - restored ${restoredByUrl.size} portable friend add-on URLs" }
+                }
+            }
 
             val rowsByUrl = linkedMapOf<String, AddonRow>()
             rows.forEach { row ->
@@ -530,6 +566,9 @@ private fun ensureManifestSuffix(url: String): String {
     val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
     return if (query.isEmpty()) withSuffix else "$withSuffix?$query"
 }
+
+private fun isFriendAddonUrl(url: String): Boolean =
+    url.substringAfter("://", "").substringBefore('/').equals("friend.tiktaktv.invalid", ignoreCase = true)
 
 private fun normalizeManifestUrl(rawUrl: String): String {
     val trimmed = rawUrl.trim()

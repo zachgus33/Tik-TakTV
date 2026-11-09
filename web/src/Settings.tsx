@@ -309,8 +309,9 @@ export default function Settings(props: Props) {
               <p>
                 Enter a private code to install its add-ons, catalog order,
                 collections, filters, playback preferences, and protected debrid
-                access. Keys and credential-bearing add-on URLs stay encrypted
-                on the TikTak TV service.
+                access. Original add-on manifest addresses are preserved exactly
+                so the shared profile remains compatible with TikTak TV, Nuvio,
+                and other Stremio-compatible clients.
               </p>
               <form
                 className="inline-form"
@@ -365,8 +366,9 @@ export default function Settings(props: Props) {
                 <p className="hint">
                   Choose a private code to share your current add-ons, catalogs,
                   collections, settings, and your own TorBox or Real-Debrid
-                  access. Personal library items, watch history, profiles, and
-                  IPTV credentials are excluded. Publishing a new code
+                  access. Anyone with the code receives the original add-on
+                  manifest addresses. Personal library items, watch history,
+                  profiles, and IPTV credentials are excluded. Publishing a new code
                   immediately replaces your previous one.
                 </p>
                 <form

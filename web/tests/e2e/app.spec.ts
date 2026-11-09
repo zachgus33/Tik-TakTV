@@ -3009,6 +3009,7 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
     torbox: JSON.parse(localStorage.getItem("nuvio:torbox-key") ?? '""'),
   }));
   expect(stored.addons[0].manifest.name).toBe("Owner catalog");
+  expect(stored.addons[0].base).toBe("https://v3-cinemeta.strem.io");
   expect(stored.catalogs[0].custom_title).toBe("Owner picks");
   expect(stored.torbox).toBe("friend:signed-grant");
 });

@@ -171,14 +171,18 @@ if (email && password) {
         )
       )
         continue;
-      const shared = new URL(addon.base);
-      const response = await fetch(
-        `${record.url}/friend/addon${shared.pathname}/stream/movie/${contentId}.json`,
-        {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          signal: timeout(),
+      const response = await fetch(`${record.url}/request`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          url: `${String(addon.base).replace(/\/$/, "")}/stream/movie/${contentId}.json`,
+          method: "GET",
+        }),
+        signal: timeout(),
+      });
       if (!response.ok) continue;
       const result = await response.json();
       discovered += Array.isArray(result.streams) ? result.streams.length : 0;

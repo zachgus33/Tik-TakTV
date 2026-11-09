@@ -1,4 +1,8 @@
-import { getService, type PlaybackService } from "./connection";
+import {
+  getService,
+  restoreFriendAddonUrls,
+  type PlaybackService,
+} from "./connection";
 import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
@@ -40,6 +44,14 @@ export type Avatar = {
   storage_path: string;
   bg_color?: string | null;
 };
+
+function addonManifestUrl(base: string) {
+  const [path, query] = base.trim().split("?", 2);
+  const manifestPath = path.replace(/\/$/, "").endsWith("/manifest.json")
+    ? path.replace(/\/$/, "")
+    : `${path.replace(/\/$/, "")}/manifest.json`;
+  return query ? `${manifestPath}?${query}` : manifestPath;
+}
 export type Setup = {
   playbackService?: PlaybackService | null;
   tmdbKey?: string;
@@ -261,7 +273,38 @@ export async function loadSetup(
       "nuvio:playback-service",
       JSON.stringify(web.playbackService),
     );
-  const urls = (addonRows.data ?? [])
+  let nativeRows = addonRows.data ?? [];
+  const friendUrls = nativeRows
+    .map((row) => String(row.url))
+    .filter((url) => {
+      try {
+        return new URL(url).hostname === "friend.tiktaktv.invalid";
+      } catch {
+        return false;
+      }
+    });
+  if (friendUrls.length && getService()) {
+    const restored = await restoreFriendAddonUrls(friendUrls).catch(() => null);
+    const restoredByUrl = new Map(
+      restored?.addons.map((item) => [item.url, item.base]) ?? [],
+    );
+    const repairedRows = nativeRows.map((row) => {
+      const base = restoredByUrl.get(String(row.url));
+      return base ? { ...row, url: addonManifestUrl(base) } : row;
+    });
+    if (repairedRows.some((row, index) => row.url !== nativeRows[index]?.url)) {
+      await rpc("sync_push_addons", {
+        p_profile_id: addonId,
+        p_addons: repairedRows.map((row, index) => ({
+          ...row,
+          sort_order: index,
+        })),
+        p_origin_client_id: origin,
+      });
+      nativeRows = repairedRows;
+    }
+  }
+  const urls = nativeRows
     .filter((a) => !isRemovedPenguPlay(a.url))
     .map((a) => String(a.url));
   const installed = await installMany(urls);
@@ -284,7 +327,6 @@ export async function loadSetup(
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
       ]
     : [];
-  const nativeRows = addonRows.data ?? [];
   const cleanedRows = nativeRows.filter(
     (row) =>
       !isRemovedPenguPlay(row.url) &&

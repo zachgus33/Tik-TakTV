@@ -338,7 +338,11 @@ export async function prepareDownload(
 
 async function friendRequest<T>(
   path:
-    "/friend/status" | "/friend/setup" | "/friend/redeem" | "/friend/revoke",
+    | "/friend/status"
+    | "/friend/setup"
+    | "/friend/redeem"
+    | "/friend/revoke"
+    | "/friend/restore-addons",
   body: Record<string, unknown> = {},
 ) {
   if (path === "/friend/redeem") {
@@ -384,10 +388,17 @@ export const publishFriendSetup = (
   }>("/friend/setup", { code, torboxKey, realDebridKey, template });
 
 export const redeemFriendSetup = <T>(code: string) =>
-  // The service returns short-lived grants; raw owner credentials never enter the browser.
+  // Add-on bases are returned unchanged for compatibility with Nuvio and other
+  // Stremio clients. Debrid credentials remain short-lived service grants.
   friendRequest<{ template: T; torboxKey: string; realDebridKey: string }>(
     "/friend/redeem",
     { code },
+  );
+
+export const restoreFriendAddonUrls = (urls: string[]) =>
+  friendRequest<{ addons: { url: string; base: string }[] }>(
+    "/friend/restore-addons",
+    { urls },
   );
 
 export const revokeFriendSetup = () =>

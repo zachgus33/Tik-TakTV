@@ -367,17 +367,32 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     const shared = await redeemed.json();
     assert.match(shared.torboxKey, /^friend:/);
     assert.match(shared.realDebridKey, /^friend-rd:/);
-    assert.match(
+    assert.equal(
       shared.template.addons[0].base,
-      /^https:\/\/friend\.tiktaktv\.invalid\//,
+      "https://addon.example/configured-secret",
     );
     assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
-    assert.ok(!JSON.stringify(shared).includes("configured-secret"));
     assert.ok(
       !(await readFile(join(directory, "users.json"), "utf8")).includes(
         "owner-one-torbox",
       ),
     );
+
+    const guestGrant = shared.torboxKey.slice("friend:".length);
+    const repaired = await request("guest", "/friend/restore-addons", {
+      urls: [
+        `https://friend.tiktaktv.invalid/${guestGrant}/0/manifest.json`,
+      ],
+    });
+    assert.equal(repaired.status, 200);
+    assert.deepEqual(await repaired.json(), {
+      addons: [
+        {
+          url: `https://friend.tiktaktv.invalid/${guestGrant}/0/manifest.json`,
+          base: "https://addon.example/configured-secret",
+        },
+      ],
+    });
 
     assert.equal((await request("owner-one", "/friend/revoke")).status, 200);
     assert.equal(
