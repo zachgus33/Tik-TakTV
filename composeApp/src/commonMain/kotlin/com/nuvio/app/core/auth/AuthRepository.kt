@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,6 +77,17 @@ object AuthRepository {
                         _state.value = AuthState.Unauthenticated
                     }
                 }
+            }
+        }
+
+        // Some Fire OS builds leave Supabase's restored-session flow in
+        // Initializing indefinitely. Cached profiles remain usable, and a
+        // later authenticated status can still reconnect normally.
+        scope.launch {
+            delay(5_000)
+            if (_state.value is AuthState.Loading) {
+                log.w { "Stored session did not finish initializing; continuing with cached/offline access" }
+                _state.value = AuthState.Unauthenticated
             }
         }
     }
