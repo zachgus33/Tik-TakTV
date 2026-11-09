@@ -61,6 +61,16 @@ object LiveTvRepository {
                 if (sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured) {
                     mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
                     loadEpgInBackground(sourceUrl, listOf(xtreamSettings.xmlTvEndpoint()))
+                } else if (sourceType == LiveTvSourceType.M3u && LiveTvStorage.hasStoredLocalPlaylist()) {
+                    // The channel cache intentionally avoids reparsing a large playlist on
+                    // every launch, but the XMLTV URLs live in the M3U header. Recover just
+                    // that metadata so a fast channel restore does not leave an empty guide.
+                    val savedPlaylist = runCatching { LiveTvStorage.loadStoredLocalPlaylist() }.getOrNull()
+                    val epgUrls = savedPlaylist?.epgUrls.orEmpty()
+                    if (epgUrls.isNotEmpty()) {
+                        mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+                        loadEpgInBackground(sourceUrl, epgUrls)
+                    }
                 }
                 return@launch
             }
@@ -188,9 +198,11 @@ object LiveTvRepository {
                 channels = channels,
                 favoriteUrls = mutableUiState.value.favoriteUrls,
                 recentChannel = mutableUiState.value.recentChannel,
+                isEpgLoading = playlist.epgUrls.isNotEmpty(),
                 isLoaded = true,
             )
             cacheChannels(channels)
+            loadEpgInBackground(displayName, playlist.epgUrls)
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(

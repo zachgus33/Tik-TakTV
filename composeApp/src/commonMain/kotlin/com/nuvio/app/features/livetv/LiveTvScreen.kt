@@ -366,7 +366,7 @@ fun LiveTvScreen(
             )
         }
 
-        if (editingSource || uiState.sourceUrl.isBlank()) {
+        if (editingSource || uiState.channels.isEmpty()) {
             item {
                 LiveTvSourceCard(
                     sourceUrl = sourceUrl,
