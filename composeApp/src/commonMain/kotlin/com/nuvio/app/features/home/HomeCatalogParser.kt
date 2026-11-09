@@ -26,7 +26,8 @@ internal object HomeCatalogParser {
         payload: String,
         maxItems: Int? = null,
     ): ParsedCatalogResponse {
-        val root = json.parseToJsonElement(payload).jsonObject
+        val bounded = payload.boundMetasForParsing(maxItems)
+        val root = json.parseToJsonElement(bounded.payload).jsonObject
         val metas = root.array("metas")
         val parsedItems = buildList {
             val seenKeys = mutableSetOf<String>()
@@ -65,7 +66,90 @@ internal object HomeCatalogParser {
         }
         return ParsedCatalogResponse(
             items = parsedItems,
-            rawItemCount = metas.size,
+            rawItemCount = bounded.rawItemCount ?: metas.size,
+        )
+    }
+
+    /**
+     * Catalog add-ons can return several megabytes of metadata even when a screen only needs one
+     * short row. Building a JsonElement tree for that entire response creates a much larger peak
+     * allocation on TV devices. Scan the top-level metas array first and decode only a small prefix.
+     * We retain extra entries so duplicate/invalid metas do not prevent the caller reaching its cap.
+     */
+    private fun String.boundMetasForParsing(maxItems: Int?): BoundedCatalogPayload {
+        if (maxItems == null || maxItems <= 0) return BoundedCatalogPayload(this, null)
+
+        val keyIndex = indexOf("\"metas\"")
+        if (keyIndex < 0) return BoundedCatalogPayload(this, null)
+        val colonIndex = indexOf(':', startIndex = keyIndex + 7)
+        val arrayStart = if (colonIndex >= 0) indexOf('[', startIndex = colonIndex + 1) else -1
+        if (arrayStart < 0) return BoundedCatalogPayload(this, null)
+
+        val retainedItemLimit = (maxItems * CATALOG_PARSE_DUPLICATE_ALLOWANCE)
+            .coerceAtLeast(maxItems)
+            .coerceAtMost(CATALOG_PARSE_ITEM_LIMIT)
+        var inString = false
+        var escaped = false
+        var nestedDepth = 0
+        var itemStart = arrayStart + 1
+        var retainedEnd = -1
+        var rawItemCount = 0
+        var arrayEnd = -1
+        var index = arrayStart + 1
+
+        while (index < length) {
+            val character = this[index]
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    character == '\\' -> escaped = true
+                    character == '"' -> inString = false
+                }
+                index += 1
+                continue
+            }
+
+            when (character) {
+                '"' -> inString = true
+                '{', '[' -> nestedDepth += 1
+                '}' -> if (nestedDepth > 0) nestedDepth -= 1
+                ']' -> {
+                    if (nestedDepth > 0) {
+                        nestedDepth -= 1
+                    } else {
+                        if (substring(itemStart, index).isNotBlank()) {
+                            rawItemCount += 1
+                            if (rawItemCount == retainedItemLimit && retainedEnd < 0) {
+                                retainedEnd = index
+                            }
+                        }
+                        arrayEnd = index
+                        break
+                    }
+                }
+                ',' -> if (nestedDepth == 0) {
+                    if (substring(itemStart, index).isNotBlank()) {
+                        rawItemCount += 1
+                        if (rawItemCount == retainedItemLimit && retainedEnd < 0) {
+                            retainedEnd = index
+                        }
+                    }
+                    itemStart = index + 1
+                }
+            }
+            index += 1
+        }
+
+        if (arrayEnd < 0) return BoundedCatalogPayload(this, null)
+        val prefixEnd = if (retainedEnd >= 0) retainedEnd else arrayEnd
+        val boundedPayload = buildString(prefixEnd - arrayStart + 12) {
+            append("{\"metas\":[")
+            append(this@boundMetasForParsing, arrayStart + 1, prefixEnd)
+            append("]}")
+        }
+        return BoundedCatalogPayload(
+            payload = boundedPayload,
+            rawItemCount = rawItemCount,
         )
     }
 
@@ -81,6 +165,14 @@ internal object HomeCatalogParser {
             "landscape" -> PosterShape.Landscape
             else -> PosterShape.Poster
         }
+
+    private data class BoundedCatalogPayload(
+        val payload: String,
+        val rawItemCount: Int?,
+    )
+
+    private const val CATALOG_PARSE_DUPLICATE_ALLOWANCE = 3
+    private const val CATALOG_PARSE_ITEM_LIMIT = 300
 }
 
 data class ParsedCatalogResponse(

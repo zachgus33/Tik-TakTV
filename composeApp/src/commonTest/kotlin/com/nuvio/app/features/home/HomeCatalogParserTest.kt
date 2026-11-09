@@ -51,6 +51,30 @@ class HomeCatalogParserTest {
     }
 
     @Test
+    fun `bounded parsing handles nested arrays strings and counts the full catalog`() {
+        val result = HomeCatalogParser.parseCatalogResponse(
+            payload = """
+                {
+                  "metas": [
+                    { "id": "tt1", "type": "movie", "name": "One, [extended]", "genres": ["Drama", "Comedy"] },
+                    { "id": "tt2", "type": "movie", "name": "Two with \"quotes\"", "description": "escaped \\ bracket ]" },
+                    { "id": "tt3", "type": "series", "name": "Three", "genres": ["Sci-Fi"] },
+                    { "id": "tt4", "type": "movie", "name": "Four" },
+                    { "id": "tt5", "type": "movie", "name": "Five" },
+                    { "id": "tt6", "type": "movie", "name": "Six" },
+                    { "id": "tt7", "type": "movie", "name": "Seven" }
+                  ]
+                }
+            """.trimIndent(),
+            maxItems = 2,
+        )
+
+        assertEquals(7, result.rawItemCount)
+        assertEquals(listOf("tt1", "tt2"), result.items.map { it.id })
+        assertEquals(listOf("Drama", "Comedy"), result.items.first().genres)
+    }
+
+    @Test
     fun `parse catalog response keeps raw released date for unreleased filtering`() {
         val result = HomeCatalogParser.parseCatalogResponse(
             payload = """
