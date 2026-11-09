@@ -78,6 +78,40 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
             }
     }.distinctBy(HomeCatalogDefinition::key)
 
+/**
+ * Keeps the television Home useful when a configured catalog service is offline or has not yet
+ * synced to the device. These are metadata-only Cinemeta shelves; a working user catalog still
+ * takes priority once enough configured shelves have content.
+ */
+fun buildNativeTvFallbackCatalogDefinitions(): List<HomeCatalogDefinition> = listOf(
+    nativeTvFallbackDefinition(type = "movie", catalogId = "top", title = "Trending Movies"),
+    nativeTvFallbackDefinition(type = "series", catalogId = "top", title = "Trending Series"),
+    nativeTvFallbackDefinition(type = "movie", catalogId = "imdbRating", title = "Popular Movies"),
+    nativeTvFallbackDefinition(type = "series", catalogId = "imdbRating", title = "Popular Series"),
+)
+
+fun HomeCatalogDefinition.isNativeTvFallback(): Boolean =
+    key.startsWith(NATIVE_TV_FALLBACK_KEY_PREFIX)
+
+private fun nativeTvFallbackDefinition(
+    type: String,
+    catalogId: String,
+    title: String,
+): HomeCatalogDefinition = HomeCatalogDefinition(
+    key = "$NATIVE_TV_FALLBACK_KEY_PREFIX$type:$catalogId",
+    defaultTitle = title,
+    catalogName = title,
+    addonName = "TikTak TV",
+    manifestUrl = NATIVE_TV_FALLBACK_MANIFEST_URL,
+    type = type,
+    catalogId = catalogId,
+    supportsPagination = true,
+    descriptorSignature = "native-tv-fallback-v1:$type:$catalogId",
+)
+
+private const val NATIVE_TV_FALLBACK_KEY_PREFIX = "tiktak-native-fallback:"
+private const val NATIVE_TV_FALLBACK_MANIFEST_URL = "https://v3-cinemeta.strem.io/manifest.json"
+
 private fun buildHomeCatalogDescriptorSignature(
     addon: ManagedAddon,
     manifest: AddonManifest,

@@ -82,7 +82,12 @@ object HomeRepository {
             emptyList()
         }
         val activeAddons = addons.enabledAddons()
-        val requests = buildHomeCatalogDefinitions(activeAddons)
+        val configuredRequests = buildHomeCatalogDefinitions(activeAddons)
+        val requests = if (includeCloudSections) {
+            configuredRequests
+        } else {
+            configuredRequests + buildNativeTvFallbackCatalogDefinitions()
+        }
         currentDefinitions = requests
         val requestCacheKeys = requests.mapTo(mutableSetOf(), HomeCatalogDefinition::cacheKey)
         cachedSections = cachedSections.filterKeys(requestCacheKeys::contains)
@@ -304,7 +309,18 @@ object HomeRepository {
         fun HomeCatalogSection.withReleaseFilter(): HomeCatalogSection =
             if (todayIsoDate == null) this else filterReleasedItems(todayIsoDate)
 
-        val sections = currentDefinitions
+        val configuredRenderableCount = currentDefinitions.count { definition ->
+            !definition.isNativeTvFallback() && cachedSections[definition.cacheKey]?.items?.isNotEmpty() == true
+        }
+        val visibleDefinitions = if (
+            configuredRenderableCount >= MIN_CONFIGURED_HOME_SECTIONS_BEFORE_HIDING_FALLBACK
+        ) {
+            currentDefinitions.filterNot(HomeCatalogDefinition::isNativeTvFallback)
+        } else {
+            currentDefinitions
+        }
+
+        val sections = visibleDefinitions
             .sortedBy { definition -> preferences[definition.key]?.order ?: Int.MAX_VALUE }
             .mapNotNull { definition ->
                 val preference = preferences[definition.key]
@@ -320,7 +336,7 @@ object HomeRepository {
 
         val catalogHeroItems = if (snapshot.heroEnabled) {
             val heroRandom = Random((requestKey?.hashCode() ?: 0).absoluteValue + 1)
-            (currentDefinitions
+            (visibleDefinitions
                 .filter { definition -> preferences[definition.key]?.heroSourceEnabled != false }
                 .mapNotNull { definition -> cachedSections[definition.cacheKey] }
                 .map { section -> section.withReleaseFilter() }
@@ -713,6 +729,7 @@ private const val HOME_CLOUDSTREAM_SECTION_PREVIEW_LIMIT = 8
 private const val HOME_CLOUDSTREAM_PROVIDER_TIMEOUT_MS = 5_000L
 private const val HOME_CLOUDSTREAM_TOTAL_PREVIEW_TIMEOUT_MS = 15_000L
 private const val HOME_CATALOG_REQUEST_TIMEOUT_MS = 12_000L
+private const val MIN_CONFIGURED_HOME_SECTIONS_BEFORE_HIDING_FALLBACK = 3
 private const val HOME_COLLECTION_HERO_SOURCE_TIMEOUT_MS = 10_000L
 private const val HOME_HERO_LOCALIZED_ARTWORK_BATCH_SIZE = 3
 private const val HOME_HERO_INITIAL_LOCALIZED_ARTWORK_TIMEOUT_MS = 1_500L
