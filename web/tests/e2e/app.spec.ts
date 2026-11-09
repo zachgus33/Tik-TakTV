@@ -3265,12 +3265,22 @@ test("country filter combines with Xtream channel categories", async ({
   await page.route(
     "https://vpn.trx-pro-iptvstore.cc/player_api.php**",
     (route) => {
-      const action = new URL(route.request().url()).searchParams.get("action");
+      const requestUrl = new URL(route.request().url());
+      const action = requestUrl.searchParams.get("action");
       return route.fulfill({
         json: !action
           ? { user_info: { auth: 1, status: "Active" } }
           : action === "get_short_epg"
-            ? { epg_listings: [] }
+            ? {
+                epg_listings: [
+                  {
+                    id: `guide-${requestUrl.searchParams.get("stream_id")}`,
+                    title: btoa("Current programme"),
+                    start_timestamp: Math.floor(Date.now() / 1000) - 60,
+                    stop_timestamp: Math.floor(Date.now() / 1000) + 1800,
+                  },
+                ],
+              }
             : action.endsWith("_categories")
               ? [
                   { category_id: "us", category_name: "US| NEWS NETWORK" },

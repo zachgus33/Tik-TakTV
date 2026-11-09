@@ -2462,6 +2462,15 @@ export default function App() {
     const present = new Set(items.map(regionOf));
     return liveRegions.filter(([code]) => present.has(code));
   }, [items, regionOf]);
+  useEffect(() => {
+    if (
+      page === "live" &&
+      items.length > 0 &&
+      region &&
+      !availableRegions.some(([code]) => code === region)
+    )
+      setRegion("");
+  }, [availableRegions, items.length, page, region]);
   const filtered = useMemo(
     () =>
       (page === "library" ? library : items).filter(
@@ -2471,7 +2480,7 @@ export default function App() {
             i.name
               .toLocaleLowerCase()
               .includes(deferredQuery.toLocaleLowerCase())) &&
-          (!region || regionOf(i) === region) &&
+          (page !== "live" || !region || regionOf(i) === region) &&
           (!favoritesOnly || saved(i)),
       ),
     [
