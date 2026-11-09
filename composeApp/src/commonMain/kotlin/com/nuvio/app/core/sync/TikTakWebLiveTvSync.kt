@@ -40,6 +40,14 @@ internal object TikTakWebLiveTvSync {
             primary?.objectValue("provider"),
         ).firstOrNull(::isValidProvider)
 
+        // A custom XMLTV URL belongs to the profile even when Live TV comes
+        // from an imported M3U file instead of an Xtream provider.
+        listOfNotNull(
+            own?.stringValue("epgUrl"),
+            primary?.stringValue("epgUrl"),
+        ).firstOrNull(::isSafeHttpUrl)
+            ?.let(LiveTvRepository::loadExternalEpgWhenReady)
+
         if (provider == null) return own != null
 
         val settings = LiveTvXtreamSettings(
@@ -53,9 +61,6 @@ internal object TikTakWebLiveTvSync {
             return false
         }
 
-        own?.stringValue("epgUrl")
-            ?.takeIf(::isSafeHttpUrl)
-            ?.let(LiveTvRepository::loadExternalEpg)
         return true
     }
 

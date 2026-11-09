@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -377,9 +378,21 @@ object LiveTvRepository {
             !normalizedUrl.startsWith("https://", ignoreCase = true)
         ) return
         val sourceUrl = mutableUiState.value.sourceUrl
-        if (sourceUrl.isBlank()) return
+        if (sourceUrl.isBlank() && mutableUiState.value.channels.isEmpty()) return
         mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
         loadEpgInBackground(sourceUrl, listOf(normalizedUrl))
+    }
+
+    fun loadExternalEpgWhenReady(epgUrl: String) {
+        ensureLoaded()
+        epgScope.launch {
+            uiState.first { state ->
+                state.channels.isNotEmpty() || state.errorMessage != null || state.isLoaded
+            }
+            if (mutableUiState.value.channels.isNotEmpty()) {
+                loadExternalEpg(epgUrl)
+            }
+        }
     }
 
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {

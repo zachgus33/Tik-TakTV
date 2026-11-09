@@ -133,6 +133,9 @@ fun LiveTvScreen(
     LaunchedEffect(uiState.sourceUrl) {
         if (sourceUrl.isBlank()) sourceUrl = uiState.sourceUrl
     }
+    LaunchedEffect(uiState.channels) {
+        if (uiState.channels.isNotEmpty()) editingSource = false
+    }
     LaunchedEffect(uiState.stalkerSettings) {
         if (stalkerPortalUrl.isBlank()) stalkerPortalUrl = uiState.stalkerSettings.portalUrl
         if (stalkerMacAddress.isBlank()) stalkerMacAddress = uiState.stalkerSettings.macAddress
