@@ -52,12 +52,16 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun LiveTvFilterRow(
+    countries: List<LiveTvCountry>,
+    selectedCountry: String,
     groups: List<String>,
     selectedGroup: String,
     favoritesOnly: Boolean,
     allLabel: String,
     favoritesLabel: String,
     categoryLabel: String,
+    countryLabel: String,
+    onCountrySelected: (String) -> Unit,
     onAllSelected: () -> Unit,
     onFavoritesSelected: () -> Unit,
     onGroupSelected: (String) -> Unit,
@@ -68,6 +72,14 @@ internal fun LiveTvFilterRow(
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (countries.isNotEmpty()) {
+            LiveTvCountryDropdownChip(
+                countries = countries,
+                selectedCountry = selectedCountry,
+                countryLabel = countryLabel,
+                onCountrySelected = onCountrySelected,
+            )
+        }
         LiveTvFilterChip(
             label = allLabel,
             selected = selectedGroup.isBlank() && !favoritesOnly,
@@ -88,6 +100,117 @@ internal fun LiveTvFilterRow(
                 onFavoritesSelected = onFavoritesSelected,
                 onGroupSelected = onGroupSelected,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LiveTvCountryDropdownChip(
+    countries: List<LiveTvCountry>,
+    selectedCountry: String,
+    countryLabel: String,
+    onCountrySelected: (String) -> Unit,
+) {
+    val tokens = MaterialTheme.nuvio
+    var isSheetVisible by remember { mutableStateOf(false) }
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
+    val selected = countries.firstOrNull { it.code == selectedCountry }
+    val dismiss = {
+        coroutineScope.launch {
+            dismissNuvioBottomSheet(sheetState = sheetState) { isSheetVisible = false }
+        }
+        Unit
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(tokens.shapes.chip)
+            .background(if (selected != null) tokens.colors.overlaySelected else tokens.colors.surface)
+            .border(
+                width = if (selected != null) 0.dp else NuvioTokens.Border.thin,
+                color = if (selected != null) Color.Transparent else tokens.colors.borderSubtle,
+                shape = tokens.shapes.chip,
+            )
+            .clickable { isSheetVisible = true }
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = selected?.let { "${it.code} · ${it.name}" } ?: countryLabel,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected != null) tokens.colors.accent else tokens.colors.textSecondary,
+            fontWeight = if (selected != null) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            imageVector = Icons.Rounded.KeyboardArrowDown,
+            contentDescription = null,
+            modifier = Modifier.size(NuvioTokens.Icon.sm + NuvioTokens.Space.s2),
+            tint = if (selected != null) tokens.colors.accent else tokens.colors.textMuted,
+        )
+    }
+
+    if (isSheetVisible) {
+        NuvioModalBottomSheet(
+            onDismissRequest = dismiss,
+            sheetState = sheetState,
+            modifier = Modifier.widthIn(max = tokens.components.playerPanelMaxWidth),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(bottom = tokens.spacing.screenHorizontal),
+            ) {
+                Text(
+                    text = "Country or region",
+                    modifier = Modifier.padding(
+                        horizontal = tokens.spacing.screenHorizontal,
+                        vertical = NuvioTokens.Space.s14,
+                    ),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = tokens.colors.textPrimary,
+                )
+                NuvioBottomSheetDivider()
+                NuvioBottomSheetActionRow(
+                    title = countryLabel,
+                    onClick = {
+                        onCountrySelected("")
+                        dismiss()
+                    },
+                    icon = Icons.Rounded.Tv,
+                )
+                NuvioBottomSheetDivider()
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = tokens.breakpoints.largePhone),
+                ) {
+                    items(
+                        count = countries.size,
+                        key = { index -> countries[index].code },
+                    ) { index ->
+                        val country = countries[index]
+                        NuvioBottomSheetActionRow(
+                            title = "${country.code} · ${country.name}",
+                            onClick = {
+                                onCountrySelected(country.code)
+                                dismiss()
+                            },
+                            trailingContent = {
+                                if (country.code == selectedCountry) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = tokens.colors.accent,
+                                        modifier = Modifier.size(tokens.icons.md),
+                                    )
+                                }
+                            },
+                        )
+                        if (index < countries.lastIndex) NuvioBottomSheetDivider()
+                    }
+                }
+            }
         }
     }
 }

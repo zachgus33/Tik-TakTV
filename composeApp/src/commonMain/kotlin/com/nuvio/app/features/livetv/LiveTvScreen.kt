@@ -116,6 +116,7 @@ fun LiveTvScreen(
     var sourceUrl by rememberSaveable { mutableStateOf(uiState.sourceUrl) }
     var query by rememberSaveable { mutableStateOf("") }
     var selectedGroup by rememberSaveable { mutableStateOf("") }
+    var selectedCountry by rememberSaveable { mutableStateOf<String?>(null) }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var editingSource by rememberSaveable { mutableStateOf(uiState.sourceUrl.isBlank()) }
     var showingAdvancedSettings by rememberSaveable { mutableStateOf(false) }
@@ -153,11 +154,17 @@ fun LiveTvScreen(
         uiState.favoriteUrls,
         query,
         selectedGroup,
+        selectedCountry,
         favoritesOnly,
     ) {
         value = withContext(Dispatchers.Default) {
             val realChannels = uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }
             LiveTvDerivedChannels(
+                countries = realChannels.asSequence()
+                    .mapNotNull(::liveTvCountryFor)
+                    .distinctBy(LiveTvCountry::code)
+                    .sortedWith(compareBy<LiveTvCountry>({ it.code != "US" }, { it.name }))
+                    .toList(),
                 groups = realChannels.asSequence()
                     .map(LiveTvChannel::group)
                     .filter(String::isNotBlank)
@@ -165,6 +172,7 @@ fun LiveTvScreen(
                     .sorted()
                     .toList(),
                 visible = realChannels.filter { channel ->
+                    (selectedCountry.isNullOrBlank() || liveTvCountryFor(channel)?.code == selectedCountry) &&
                     (selectedGroup.isBlank() || channel.group == selectedGroup) &&
                         (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
                         (query.isBlank() || channel.name.contains(query, ignoreCase = true))
@@ -172,6 +180,14 @@ fun LiveTvScreen(
             )
         }
     }
+    LaunchedEffect(derivedChannels.countries) {
+        if (selectedCountry == null) {
+            selectedCountry = derivedChannels.countries.firstOrNull { it.code == "US" }?.code.orEmpty()
+        } else if (selectedCountry!!.isNotBlank() && derivedChannels.countries.none { it.code == selectedCountry }) {
+            selectedCountry = ""
+        }
+    }
+    val countries = derivedChannels.countries
     val groups = derivedChannels.groups
     val recentChannel = remember(uiState.recentChannel, uiState.channels) {
         uiState.recentChannel?.let { recent ->
@@ -192,7 +208,7 @@ fun LiveTvScreen(
     val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
         visibleChannels.take(visibleChannelLimit)
     }
-    LaunchedEffect(query, selectedGroup, favoritesOnly) {
+    LaunchedEffect(query, selectedGroup, selectedCountry, favoritesOnly) {
         visibleChannelLimit = INITIAL_VISIBLE_CHANNEL_LIMIT
     }
     val loadSource: () -> Unit = {
@@ -438,12 +454,16 @@ fun LiveTvScreen(
 
             item {
                 LiveTvFilterRow(
+                    countries = countries,
+                    selectedCountry = selectedCountry.orEmpty(),
                     groups = groups,
                     selectedGroup = selectedGroup,
                     favoritesOnly = favoritesOnly,
                     allLabel = stringResource(Res.string.live_tv_all_channels),
                     favoritesLabel = stringResource(Res.string.live_tv_favorites),
                     categoryLabel = stringResource(Res.string.live_tv_choose_category),
+                    countryLabel = "All countries",
+                    onCountrySelected = { selectedCountry = it },
                     onAllSelected = {
                         favoritesOnly = false
                         selectedGroup = ""
@@ -536,9 +556,36 @@ fun LiveTvScreen(
 }
 
 private data class LiveTvDerivedChannels(
+    val countries: List<LiveTvCountry> = emptyList(),
     val groups: List<String> = emptyList(),
     val visible: List<LiveTvChannel> = emptyList(),
 )
+
+internal data class LiveTvCountry(val code: String, val name: String)
+
+private val liveTvCountries = listOf(
+    Triple("US", "United States", Regex("^(?:US\\s*[|: -]|UNITED STATES\\b|USA\\b)", RegexOption.IGNORE_CASE)),
+    Triple("CA", "Canada", Regex("^(?:CA\\s*[|: -]|CANADA\\b)", RegexOption.IGNORE_CASE)),
+    Triple("GB", "United Kingdom", Regex("^(?:UK|GB)\\s*[|: -]|^UNITED KINGDOM\\b", RegexOption.IGNORE_CASE)),
+    Triple("IE", "Ireland", Regex("^(?:IE|IR)\\s*[|: -]|^IRELAND\\b", RegexOption.IGNORE_CASE)),
+    Triple("FR", "France", Regex("^FR\\s*[|: -]|^FRANCE\\b", RegexOption.IGNORE_CASE)),
+    Triple("ES", "Spain", Regex("^ES\\s*[|: -]|^(?:SPAIN|ESPAÑA)\\b", RegexOption.IGNORE_CASE)),
+    Triple("DE", "Germany", Regex("^DE\\s*[|: -]|^GERMANY\\b", RegexOption.IGNORE_CASE)),
+    Triple("IT", "Italy", Regex("^IT\\s*[|: -]|^ITALY\\b", RegexOption.IGNORE_CASE)),
+    Triple("PT", "Portugal", Regex("^PT\\s*[|: -]|^PORTUGAL\\b", RegexOption.IGNORE_CASE)),
+    Triple("NL", "Netherlands", Regex("^NL\\s*[|: -]|^NETHERLANDS?\\b", RegexOption.IGNORE_CASE)),
+    Triple("AU", "Australia", Regex("^AU\\s*[|: -]|^AUSTRALIA\\b", RegexOption.IGNORE_CASE)),
+    Triple("NZ", "New Zealand", Regex("^NZ\\s*[|: -]|^NEW ZEALAND\\b", RegexOption.IGNORE_CASE)),
+    Triple("BR", "Brazil", Regex("^BR\\s*[|: -]|^BRAZIL\\b", RegexOption.IGNORE_CASE)),
+    Triple("IN", "India", Regex("^(?:IN\\s*[|: -]|INDIA\\b|ASIA\\s*\\|.*INDIA)", RegexOption.IGNORE_CASE)),
+)
+
+internal fun liveTvCountryFor(channel: LiveTvChannel): LiveTvCountry? {
+    val candidate = channel.group.ifBlank { channel.name }.trim()
+    return liveTvCountries.firstNotNullOfOrNull { (code, name, pattern) ->
+        LiveTvCountry(code, name).takeIf { pattern.containsMatchIn(candidate) }
+    }
+}
 
 private const val INITIAL_VISIBLE_CHANNEL_LIMIT = 80
 private const val VISIBLE_CHANNEL_PAGE_SIZE = 80

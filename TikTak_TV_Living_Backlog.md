@@ -1,6 +1,6 @@
 # TikTak TV — Living Development Backlog
 
-**Backlog version:** 3.8  
+**Backlog version:** 5.10
 **Created:** November 5, 2026  
 **Source:** User's ChatGPT conversation, screenshots of Reddit feedback, and related TikTak TV discussions.  
 **Owner:** TikTak TV developer.  
@@ -524,3 +524,5 @@ TikTak TV is a customized Nuvio-based entertainment application with a website (
 - **2026-11-08 - v5.8:** Exact signed 0.3.17 installed in place on the physical Fire Stick with all three profiles, Continue Watching, and the saved 4,948-channel playlist preserved. Home immediately showed denser shelves and the new proportional guide rendered, but the real M3U rows had no programme data because native sync returned before applying a custom web-profile XMLTV URL when no Xtream provider existed. Preview 0.3.18 queues that XMLTV feed independently until cached/local channels are ready and collapses the source editor once a migrated playlist has restored. Signed publication and repeat physical verification remain required; YouTube/music smoothness still requires direct playback testing.
 
 - **2026-11-08 - v5.9:** Physical 0.3.18 verification found that the two-hour native guide layout rendered and the saved 4,948-channel playlist restored, but CBS and other rows still showed no programme data. The remaining cause was the fast cached-channel path returning before reparsing the saved M3U header for its XMLTV URLs; importing a local playlist also never started its embedded guide. Preview 0.3.19 restores those guide URLs without sacrificing cached startup, starts XMLTV loading on import, and keeps the M3U setup editor collapsed whenever channels already exist. The Fire TV log remained free of fatal exceptions, ANRs, and out-of-memory failures during the verification.
+
+- **2026-11-09 - v5.10:** Owner reported that native Home only rendered Continue Watching and the Network collection, focus remained too subtle across many remote-selectable controls, and Live TV opened as a large mixed-country list. The missing Home shelves were traced to shared TikTak cloud rows having no local add-on preference entry; native Home now preserves and renders those rows in their supplied order. Preview 0.3.20 applies a stronger app-wide pink wash plus pink-and-white focus ring, derives country choices from IPTV channel groups, places United States first, defaults to US when present, and keeps an explicit All countries choice. Country inference has regression coverage, native debug assembly passed locally, and signed CI publication plus exact-artifact Fire TV verification remain required.

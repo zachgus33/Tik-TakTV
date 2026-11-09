@@ -772,8 +772,24 @@ fun HomeScreen(
     val sectionsMap = remember(homeUiState.sections) {
         homeUiState.sections.associateBy(HomeCatalogSection::key)
     }
-    val enabledHomeItems = remember(homeSettingsUiState.items) {
-        homeSettingsUiState.items.filter { it.enabled }
+    val enabledHomeItems = remember(homeSettingsUiState.items, homeUiState.sections) {
+        val configuredItems = homeSettingsUiState.items.filter { it.enabled }
+        val configuredKeys = homeSettingsUiState.items.mapTo(mutableSetOf()) { it.key }
+        val unconfiguredSections = homeUiState.sections
+            .filterNot { section -> section.key in configuredKeys }
+            .mapIndexed { index, section ->
+                // Shared TikTak web rows arrive as cloud sections and do not have a
+                // local add-on preference entry. Keep them in the server-provided
+                // order after the user's configured rows instead of silently
+                // dropping every row except local collections on native TV.
+                HomeCatalogSettingsItem(
+                    key = section.key,
+                    defaultTitle = section.title,
+                    addonName = "TikTak TV",
+                    order = configuredItems.size + index,
+                )
+            }
+        configuredItems + unconfiguredSections
     }
     val visibleSeriesPosterTargets = remember(enabledHomeItems, sectionsMap) {
         enabledHomeItems

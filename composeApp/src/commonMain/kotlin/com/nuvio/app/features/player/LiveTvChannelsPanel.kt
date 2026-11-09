@@ -160,12 +160,16 @@ internal fun LiveTvChannelsPanel(
 
                     if (channels.isNotEmpty()) {
                         LiveTvFilterRow(
+                            countries = emptyList(),
+                            selectedCountry = "",
                             groups = groups,
                             selectedGroup = selectedGroup,
                             favoritesOnly = favoritesOnly,
                             allLabel = stringResource(Res.string.live_tv_all_channels),
                             favoritesLabel = stringResource(Res.string.live_tv_favorites),
                             categoryLabel = stringResource(Res.string.live_tv_choose_category),
+                            countryLabel = "All countries",
+                            onCountrySelected = {},
                             onAllSelected = {
                                 favoritesOnly = false
                                 selectedGroup = ""
