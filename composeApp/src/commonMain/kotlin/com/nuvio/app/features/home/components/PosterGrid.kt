@@ -2,6 +2,7 @@ package com.nuvio.app.features.home.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,19 +17,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -125,6 +134,9 @@ private fun PosterGridTile(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
+    val isTvMode = LocalTvMode.current
+    var hasTvFocus by remember { mutableStateOf(false) }
+    val cardShape = RoundedCornerShape(cornerRadiusDp.dp)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -133,7 +145,24 @@ private fun PosterGridTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(item.posterShape.posterGridAspectRatio())
-                .clip(RoundedCornerShape(cornerRadiusDp.dp))
+                .onFocusChanged { hasTvFocus = it.hasFocus }
+                .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+                .graphicsLayer {
+                    val focusScale = if (isTvMode && hasTvFocus) 1.08f else 1f
+                    scaleX = focusScale
+                    scaleY = focusScale
+                }
+                .shadow(
+                    elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+                    shape = cardShape,
+                    clip = false,
+                )
+                .border(
+                    width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
+                    color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
+                    shape = cardShape,
+                )
+                .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surface)
                 .nuvioCardDepth(
                     shape = RoundedCornerShape(cornerRadiusDp.dp),
@@ -144,6 +173,7 @@ private fun PosterGridTile(
                     onLongClick = onLongClick,
                     zoomImageUrl = item.poster,
                     zoomCornerRadius = cornerRadiusDp.dp,
+                    focusEffectsEnabled = false,
                 ),
         ) {
             if (item.poster != null) {
@@ -160,7 +190,7 @@ private fun PosterGridTile(
             Text(
                 text = item.name,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onBackground,
+                color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
