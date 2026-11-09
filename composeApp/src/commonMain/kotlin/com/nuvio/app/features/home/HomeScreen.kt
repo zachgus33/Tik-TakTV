@@ -128,6 +128,7 @@ fun HomeScreen(
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
 ) {
+    val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
         CloudStreamRepository.initialize()
@@ -193,7 +194,11 @@ fun HomeScreen(
             NetworkCondition.Online -> {
                 if (observedOfflineState) {
                     observedOfflineState = false
-                    HomeRepository.refresh(addonsUiState.addons.enabledAddons(), force = true)
+                    HomeRepository.refresh(
+                        addonsUiState.addons.enabledAddons(),
+                        force = true,
+                        includeCloudSections = !isNativeTv,
+                    )
                 }
             }
 
@@ -547,15 +552,19 @@ fun HomeScreen(
             .sorted()
     }
 
-    val catalogRefreshKey = remember(enabledAddons, cloudStreamUiState.registryRevision) {
+    val catalogRefreshKey = remember(enabledAddons, cloudStreamUiState.registryRevision, isNativeTv) {
         buildHomeCatalogRefreshSignature(enabledAddons) +
-            "cloudstream:${cloudStreamUiState.registryRevision}:${cloudStreamUiState.plugins.count { it.isRunnable }}"
+            if (isNativeTv) {
+                "cloudstream:tv-deferred"
+            } else {
+                "cloudstream:${cloudStreamUiState.registryRevision}:${cloudStreamUiState.plugins.count { it.isRunnable }}"
+            }
     }
 
     LaunchedEffect(catalogRefreshKey) {
         if (catalogRefreshKey.isEmpty()) return@LaunchedEffect
         HomeCatalogSettingsRepository.syncCatalogs(enabledAddons)
-        HomeRepository.refresh(enabledAddons)
+        HomeRepository.refresh(enabledAddons, includeCloudSections = !isNativeTv)
     }
 
     LaunchedEffect(
@@ -912,7 +921,11 @@ fun HomeScreen(
                     onRefresh = {
                         coroutineScope.launch {
                             manualRefreshRequested = true
-                            HomeRepository.refresh(addonsUiState.addons.enabledAddons(), force = true)
+                            HomeRepository.refresh(
+                                addonsUiState.addons.enabledAddons(),
+                                force = true,
+                                includeCloudSections = !isNativeTv,
+                            )
                         }
                     },
                 ),
@@ -1038,7 +1051,11 @@ fun HomeScreen(
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                     onRetry = {
                                         NetworkStatusRepository.requestRefresh(force = true)
-                                        HomeRepository.refresh(addonsUiState.addons.enabledAddons(), force = true)
+                                        HomeRepository.refresh(
+                                            addonsUiState.addons.enabledAddons(),
+                                            force = true,
+                                            includeCloudSections = !isNativeTv,
+                                        )
                                     },
                                 )
                             } else {

@@ -65,10 +65,22 @@ object HomeRepository {
     private var lastErrorMessage: String? = null
     private val loadingMoreSectionKeys = mutableSetOf<String>()
 
-    fun refresh(addons: List<ManagedAddon>, force: Boolean = false) {
+    fun refresh(
+        addons: List<ManagedAddon>,
+        force: Boolean = false,
+        includeCloudSections: Boolean = true,
+    ) {
         CloudStreamRepository.initialize()
         val cloudState = CloudStreamRepository.uiState.value
-        val cloudPlugins = cloudState.plugins.filter(CloudStreamPluginItem::isRunnable)
+        // Some CloudStream providers return an enormous, unpaged main-page payload. Parsing
+        // those previews can exhaust the 192 MB heap on Fire TV before normal catalog rows
+        // render. Native TV keeps CloudStream available in its dedicated browsing paths, but
+        // does not eagerly scan those providers just to decorate Home.
+        val cloudPlugins = if (includeCloudSections) {
+            cloudState.plugins.filter(CloudStreamPluginItem::isRunnable)
+        } else {
+            emptyList()
+        }
         val activeAddons = addons.enabledAddons()
         val requests = buildHomeCatalogDefinitions(activeAddons)
         currentDefinitions = requests
@@ -77,6 +89,8 @@ object HomeRepository {
         val requestKey = buildString {
             append(requests.joinToString(separator = "|", transform = HomeCatalogDefinition::cacheKey))
             append("|cloudstream=")
+            append(includeCloudSections)
+            append(':')
             append(cloudState.registryRevision)
             append(':')
             append(cloudPlugins.joinToString(separator = ",") { it.metadata.id.value })
