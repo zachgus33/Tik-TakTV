@@ -344,7 +344,7 @@ fun LiveTvScreen(
                                             LiveTvRepository.loadXtream(uiState.xtreamSettings)
                                         uiState.sourceType == LiveTvSourceType.Stalker ->
                                             LiveTvRepository.loadStalker(uiState.stalkerSettings)
-                                        LiveTvStorage.loadLocalPlaylistData().orEmpty().isNotBlank() ->
+                                        LiveTvStorage.hasStoredLocalPlaylist() ->
                                             LiveTvRepository.loadStoredLocalPlaylist()
                                         else ->
                                             LiveTvRepository.load(uiState.sourceUrl)

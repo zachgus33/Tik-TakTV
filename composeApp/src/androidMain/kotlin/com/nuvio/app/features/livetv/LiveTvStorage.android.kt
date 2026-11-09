@@ -2,11 +2,16 @@ package com.nuvio.app.features.livetv
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Xml
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.xml.sax.Attributes
+import org.xml.sax.helpers.DefaultHandler
 import java.io.File
+import java.io.Writer
+import javax.xml.parsers.SAXParserFactory
 
 actual object LiveTvStorage {
     private const val preferencesName = "nuvio_live_tv"
@@ -55,12 +60,16 @@ actual object LiveTvStorage {
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
+        migrateLegacyLocalPlaylists(context.applicationContext)
         preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
     }
 
     private fun cacheFile(): File? = appContext?.let { context ->
         File(context.filesDir, "live-tv-channels-${resolvedProfileId()}.jsonl")
     }
+
+    private fun localPlaylistFile(profileId: Int = resolvedProfileId()): File? =
+        appContext?.let { context -> File(context.filesDir, "live-tv-local-playlist-$profileId.m3u") }
 
     actual suspend fun loadCachedChannels(): List<LiveTvChannel> = withContext(Dispatchers.IO) {
         val file = cacheFile()?.takeIf(File::isFile) ?: return@withContext emptyList()
@@ -111,13 +120,114 @@ actual object LiveTvStorage {
         }?.apply()
     }
 
-    actual fun loadLocalPlaylistData(): String? =
-        preferences?.getScopedString(localPlaylistDataKey)
+    actual fun loadLocalPlaylistData(): String? = null
 
     actual fun saveLocalPlaylistData(data: String) {
-        preferences?.edit()?.apply {
-            putScopedString(localPlaylistDataKey, data)
-        }?.apply()
+        val target = localPlaylistFile() ?: return
+        if (data.isBlank()) {
+            target.delete()
+        } else {
+            target.writeText(data)
+        }
+    }
+
+    actual fun hasStoredLocalPlaylist(): Boolean =
+        localPlaylistFile()?.let { it.isFile && it.length() > 0L } == true
+
+    actual suspend fun loadStoredLocalPlaylist(): ParsedM3uPlaylist? = withContext(Dispatchers.IO) {
+        val file = localPlaylistFile()?.takeIf { it.isFile && it.length() > 0L }
+            ?: return@withContext null
+        file.bufferedReader().useLines(::parseM3uPlaylistLines)
+    }
+
+    /**
+     * Older builds kept an entire M3U in SharedPreferences. Large providers can
+     * exceed 40 MB, which forces Android to allocate a second UTF-16 copy and
+     * exhausts the Fire TV heap. Move those values to streaming files before
+     * SharedPreferences is opened, while preserving every other preference.
+     */
+    private fun migrateLegacyLocalPlaylists(context: Context) {
+        val source = File(context.applicationInfo.dataDir, "shared_prefs/$preferencesName.xml")
+        if (!source.isFile || source.length() == 0L) return
+        val containsLegacyPlaylist = source.bufferedReader().useLines { lines ->
+            lines.any { it.contains("name=\"$localPlaylistDataKey") }
+        }
+        if (!containsLegacyPlaylist) return
+
+        val replacement = File(source.parentFile, "${source.name}.playlist-migration")
+        val createdPlaylists = mutableListOf<File>()
+        runCatching {
+            replacement.outputStream().buffered().use { output ->
+                val serializer = Xml.newSerializer().apply {
+                    setOutput(output, Charsets.UTF_8.name())
+                    startDocument(Charsets.UTF_8.name(), true)
+                }
+                var playlistWriter: Writer? = null
+                var skippedElementDepth = 0
+                val handler = object : DefaultHandler() {
+                    override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes) {
+                        val elementName = qName?.takeIf(String::isNotBlank) ?: localName.orEmpty()
+                        if (skippedElementDepth > 0) {
+                            skippedElementDepth++
+                            return
+                        }
+                        val key = attributes.getValue("name")
+                        if (elementName == "string" && key != null &&
+                            (key == localPlaylistDataKey || key.startsWith("${localPlaylistDataKey}_"))
+                        ) {
+                            val profileId = key.substringAfter("${localPlaylistDataKey}_", "1").toIntOrNull() ?: 1
+                            val playlist = File(context.filesDir, "live-tv-local-playlist-$profileId.m3u")
+                            val temporary = File(playlist.parentFile, "${playlist.name}.tmp")
+                            createdPlaylists += temporary
+                            playlistWriter = temporary.bufferedWriter()
+                            skippedElementDepth = 1
+                            return
+                        }
+                        serializer.startTag(uri.orEmpty(), elementName)
+                        for (index in 0 until attributes.length) {
+                            val attributeName = attributes.getQName(index).takeIf(String::isNotBlank)
+                                ?: attributes.getLocalName(index)
+                            serializer.attribute(attributes.getURI(index).orEmpty(), attributeName, attributes.getValue(index))
+                        }
+                    }
+
+                    override fun characters(ch: CharArray, start: Int, length: Int) {
+                        if (skippedElementDepth > 0) playlistWriter?.write(ch, start, length)
+                        else serializer.text(ch, start, length)
+                    }
+
+                    override fun endElement(uri: String?, localName: String?, qName: String?) {
+                        val elementName = qName?.takeIf(String::isNotBlank) ?: localName.orEmpty()
+                        if (skippedElementDepth > 0) {
+                            skippedElementDepth--
+                            if (skippedElementDepth == 0) {
+                                playlistWriter?.close()
+                                playlistWriter = null
+                            }
+                            return
+                        }
+                        serializer.endTag(uri.orEmpty(), elementName)
+                    }
+                }
+                SAXParserFactory.newInstance().newSAXParser().parse(source, handler)
+                serializer.endDocument()
+                serializer.flush()
+            }
+            createdPlaylists.forEach { temporary ->
+                val target = File(temporary.parentFile, temporary.name.removeSuffix(".tmp"))
+                if (!temporary.renameTo(target)) {
+                    temporary.copyTo(target, overwrite = true)
+                    temporary.delete()
+                }
+            }
+            if (!replacement.renameTo(source)) {
+                replacement.copyTo(source, overwrite = true)
+                replacement.delete()
+            }
+        }.onFailure {
+            replacement.delete()
+            createdPlaylists.forEach(File::delete)
+        }
     }
 
     actual fun loadStalkerSettings(): LiveTvStalkerSettings =

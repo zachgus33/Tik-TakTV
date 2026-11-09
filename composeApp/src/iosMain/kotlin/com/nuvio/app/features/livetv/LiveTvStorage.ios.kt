@@ -69,6 +69,14 @@ actual object LiveTvStorage {
         saveScopedString(localPlaylistDataKey, data)
     }
 
+    actual fun hasStoredLocalPlaylist(): Boolean =
+        loadScopedString(localPlaylistDataKey).orEmpty().isNotBlank()
+
+    actual suspend fun loadStoredLocalPlaylist(): ParsedM3uPlaylist? =
+        loadScopedString(localPlaylistDataKey)
+            ?.takeIf(String::isNotBlank)
+            ?.let(::parseM3uPlaylistData)
+
     actual fun loadStalkerSettings(): LiveTvStalkerSettings {
         return LiveTvStalkerSettings(
             portalUrl = loadScopedString(stalkerPortalUrlKey).orEmpty(),

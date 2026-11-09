@@ -67,7 +67,7 @@ object LiveTvRepository {
             when {
                 sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured -> loadXtream(xtreamSettings)
                 sourceType == LiveTvSourceType.Stalker && stalkerSettings.isConfigured -> loadStalker(stalkerSettings)
-                LiveTvStorage.loadLocalPlaylistData().orEmpty().isNotBlank() -> loadStoredLocalPlaylist()
+                LiveTvStorage.hasStoredLocalPlaylist() -> loadStoredLocalPlaylist()
                 sourceUrl.isNotBlank() -> load(sourceUrl)
             }
         }
@@ -201,14 +201,23 @@ object LiveTvRepository {
     }
 
     suspend fun loadStoredLocalPlaylist(): Result<List<LiveTvChannel>> {
-        val playlistData = LiveTvStorage.loadLocalPlaylistData().orEmpty()
-        if (playlistData.isBlank()) {
+        val playlist = LiveTvStorage.loadStoredLocalPlaylist()
+        if (playlist == null || playlist.channels.isEmpty()) {
             return Result.failure(IllegalStateException("Kayıtlı M3U dosyası bulunamadı."))
         }
-        return loadLocalPlaylist(
-            fileName = LiveTvStorage.loadSourceUrl().orEmpty().ifBlank { "Local M3U playlist" },
-            playlistData = playlistData,
-        )
+        return runCatching {
+            val channels = playlist.channels
+            mutableUiState.value = mutableUiState.value.copy(
+                channels = channels,
+                isLoading = false,
+                isLoaded = true,
+                isEpgLoading = playlist.epgUrls.isNotEmpty(),
+                errorMessage = null,
+            )
+            cacheChannels(channels)
+            loadEpgInBackground(mutableUiState.value.sourceUrl, playlist.epgUrls)
+            channels
+        }
     }
 
     suspend fun loadStalker(settings: LiveTvStalkerSettings): Result<List<LiveTvChannel>> {
@@ -405,6 +414,8 @@ internal expect object LiveTvStorage {
     fun saveSourceUrl(url: String)
     fun loadLocalPlaylistData(): String?
     fun saveLocalPlaylistData(data: String)
+    fun hasStoredLocalPlaylist(): Boolean
+    suspend fun loadStoredLocalPlaylist(): ParsedM3uPlaylist?
     fun loadStalkerSettings(): LiveTvStalkerSettings
     fun saveStalkerSettings(settings: LiveTvStalkerSettings)
     fun loadXtreamSettings(): LiveTvXtreamSettings
@@ -713,19 +724,22 @@ private inline fun <K, V> Iterable<JsonElement>.associateNotNull(transform: (Jso
 internal fun parseM3uPlaylist(content: String): List<LiveTvChannel> =
     parseM3uPlaylistData(content).channels
 
-internal data class ParsedM3uPlaylist(
+data class ParsedM3uPlaylist(
     val channels: List<LiveTvChannel>,
     val epgUrls: List<String>,
 )
 
-internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist {
+internal fun parseM3uPlaylistData(content: String): ParsedM3uPlaylist =
+    parseM3uPlaylistLines(content.lineSequence())
+
+internal fun parseM3uPlaylistLines(lines: Sequence<String>): ParsedM3uPlaylist {
     val channels = mutableListOf<LiveTvChannel>()
     val channelUrls = mutableSetOf<String>()
     val epgUrls = linkedSetOf<String>()
     var metadata: ParsedM3uMetadata? = null
     var pendingHeaders = emptyMap<String, String>()
 
-    for (rawLine in content.lineSequence()) {
+    for (rawLine in lines) {
         if (channels.size >= LiveTvInMemoryChannelLimit) break
         val line = rawLine.trim().removePrefix("\uFEFF")
         when {
