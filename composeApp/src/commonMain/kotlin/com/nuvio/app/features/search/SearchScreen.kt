@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioInputField
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.core.ui.NuvioScreenHeader
@@ -215,8 +216,9 @@ fun SearchScreen(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize(),
     ) {
-        val discoverColumns = remember(maxWidth) {
-            posterGridColumnCountForWidth(maxWidth)
+        val isTvMode = LocalTvMode.current
+        val discoverColumns = remember(maxWidth, isTvMode) {
+            posterGridColumnCountForWidth(maxWidth, isTvMode)
         }
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)

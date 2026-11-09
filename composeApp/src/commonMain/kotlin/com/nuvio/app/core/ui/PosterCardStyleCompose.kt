@@ -8,5 +8,13 @@ import androidx.compose.runtime.collectAsState
 internal fun rememberPosterCardStyleUiState(): PosterCardStyleUiState {
     PosterCardStyleRepository.ensureLoaded()
     val uiState by PosterCardStyleRepository.uiState.collectAsState()
-    return uiState
+    if (!LocalTvMode.current) return uiState
+
+    // TV layouts use density-independent pixels, so phone-sized poster
+    // preferences become physically oversized on a 1080p television.
+    val tvWidth = uiState.widthDp.coerceAtMost(108)
+    return uiState.copy(
+        widthDp = tvWidth,
+        heightDp = (tvWidth * 3) / 2,
+    )
 }

@@ -15,6 +15,9 @@ internal const val TRAILER_REQUEST_TIMEOUT_MS = 20_000L
 
 private const val EXTRACTOR_TIMEOUT_MS = 30_000L
 private const val PREFERRED_SEPARATE_CLIENT = "visionos"
+private const val TV_SAFE_PROGRESSIVE_HEIGHT = 720
+private const val TV_SAFE_ADAPTIVE_HEIGHT = 1080
+private const val TV_SAFE_MAX_FPS = 30
 
 private val VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
 private val API_KEY_REGEX = Regex("\"INNERTUBE_API_KEY\":\"([^\"]+)\"")
@@ -44,6 +47,7 @@ internal data class StreamCandidate(
     val height: Int,
     val fps: Int,
     val ext: String,
+    val mimeType: String,
     // Only meaningful for audio candidates: false means this format is an
     // alternate-language dub track, not the video's original/default audio.
     // Always true for video/progressive candidates, so it never affects them.
@@ -209,6 +213,7 @@ class InAppYouTubeExtractor {
                         height = height,
                         fps = fps,
                         ext = if (mimeType.contains("webm")) "webm" else "mp4",
+                        mimeType = mimeType,
                     )
                 }
 
@@ -238,6 +243,7 @@ class InAppYouTubeExtractor {
                             height = height,
                             fps = fps,
                             ext = if (mimeType.contains("webm")) "webm" else "mp4",
+                            mimeType = mimeType,
                         )
                     } else if (hasAudio) {
                         val bitrate = format.numberValue("bitrate")
@@ -260,6 +266,7 @@ class InAppYouTubeExtractor {
                             height = 0,
                             fps = 0,
                             ext = if (mimeType.contains("webm")) "webm" else "m4a",
+                            mimeType = mimeType,
                             isDefaultAudioTrack = isDefaultAudioTrack,
                         )
                     }
@@ -293,9 +300,41 @@ class InAppYouTubeExtractor {
             }
         }
 
-        val bestProgressive = sortCandidates(progressive).firstOrNull()
-        val bestVideo = pickBestForClient(adaptiveVideo, PREFERRED_SEPARATE_CLIENT)
-        val bestAudio = pickBestForClient(adaptiveAudio, PREFERRED_SEPARATE_CLIENT)
+        // A highest-score-only choice commonly selects a 1440p/4K WebM stream,
+        // which older Fire TV hardware cannot decode smoothly. Prefer muxed
+        // H.264-friendly MP4 at 720p, then a 1080p-or-lower MP4 adaptive pair.
+        // The muxed choice also keeps music audio on the same connection.
+        val tvSafeProgressive = progressive.filter {
+            it.ext == "mp4" && it.mimeType.contains("avc1", ignoreCase = true) &&
+                it.height in 1..TV_SAFE_PROGRESSIVE_HEIGHT && it.fps <= TV_SAFE_MAX_FPS
+        }
+        val tvSafeVideo = adaptiveVideo.filter {
+            it.ext == "mp4" && it.mimeType.contains("avc1", ignoreCase = true) &&
+                it.height in 1..TV_SAFE_ADAPTIVE_HEIGHT && it.fps <= TV_SAFE_MAX_FPS
+        }
+        val tvSafeAudio = adaptiveAudio.filter {
+            it.ext == "m4a" && it.mimeType.contains("mp4a", ignoreCase = true)
+        }
+
+        val bestProgressive = sortCandidates(
+            tvSafeProgressive.ifEmpty {
+                progressive.filter {
+                    it.ext == "mp4" && it.height in 1..TV_SAFE_PROGRESSIVE_HEIGHT && it.fps <= TV_SAFE_MAX_FPS
+                }
+            },
+        ).firstOrNull()
+        val bestVideo = pickBestForClient(
+            tvSafeVideo.ifEmpty {
+                adaptiveVideo.filter {
+                    it.ext == "mp4" && it.height in 1..TV_SAFE_ADAPTIVE_HEIGHT && it.fps <= TV_SAFE_MAX_FPS
+                }
+            },
+            PREFERRED_SEPARATE_CLIENT,
+        )
+        val bestAudio = pickBestForClient(
+            tvSafeAudio.ifEmpty { adaptiveAudio },
+            PREFERRED_SEPARATE_CLIENT,
+        )
 
         return TrailerExtractionPlatform.buildPlaybackSource(
             bestManifest = bestManifest,
@@ -387,6 +426,7 @@ class InAppYouTubeExtractor {
                 height = height,
                 bandwidth = bandwidth,
             )
+            if (candidate.height > TV_SAFE_ADAPTIVE_HEIGHT) continue
 
             if (
                 bestVariant == null ||

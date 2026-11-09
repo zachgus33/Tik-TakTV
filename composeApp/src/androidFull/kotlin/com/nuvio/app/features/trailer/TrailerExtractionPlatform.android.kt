@@ -81,28 +81,25 @@ internal object TrailerExtractionPlatform {
         bestVideo: StreamCandidate?,
         bestAudio: StreamCandidate?,
     ): TrailerPlaybackSource? = withContext(Dispatchers.IO) {
-        val bestCombinedIsManifest = bestManifest != null &&
-            (bestProgressive == null || bestManifest.height > bestProgressive.height)
-
-        val combinedUrl = if (bestCombinedIsManifest) {
-            bestManifest.selectedVariantUrl
-        } else {
-            bestProgressive?.url
+        // Prefer one muxed MP4 connection on Android TV. Two independent
+        // adaptive GoogleVideo connections are much more prone to buffering,
+        // A/V drift, and total audio failure on memory-constrained Fire TVs.
+        val progressiveUrl = bestProgressive?.url?.let { resolveReachableUrlOrNull(it) }
+        if (!progressiveUrl.isNullOrBlank()) {
+            return@withContext TrailerPlaybackSource(videoUrl = progressiveUrl, audioUrl = null)
         }
-
         val separatedVideoUrl = bestVideo?.url?.let { resolveReachableUrlOrNull(it) }
-        val combinedCandidateUrl = combinedUrl?.let { resolveReachableUrlOrNull(it) }
-        val videoUrl = separatedVideoUrl ?: combinedCandidateUrl ?: return@withContext null
-        val audioUrl = if (!separatedVideoUrl.isNullOrBlank()) {
-            bestAudio?.url?.let { resolveReachableUrlOrNull(it) }
-        } else {
-            null
+        val separatedAudioUrl = bestAudio?.url?.let { resolveReachableUrlOrNull(it) }
+        if (!separatedVideoUrl.isNullOrBlank() && !separatedAudioUrl.isNullOrBlank()) {
+            return@withContext TrailerPlaybackSource(
+                videoUrl = separatedVideoUrl,
+                audioUrl = separatedAudioUrl,
+            )
         }
 
-        TrailerPlaybackSource(
-            videoUrl = videoUrl,
-            audioUrl = audioUrl,
-        )
+        val manifestUrl = bestManifest?.selectedVariantUrl?.let { resolveReachableUrlOrNull(it) }
+            ?: return@withContext null
+        TrailerPlaybackSource(videoUrl = manifestUrl, audioUrl = null)
     }
 
     private suspend fun resolveReachableUrlOrNull(url: String): String? {

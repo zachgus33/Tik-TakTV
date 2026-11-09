@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddLink
 import androidx.compose.material.icons.rounded.Close
@@ -475,6 +476,24 @@ fun LiveTvScreen(
                 }
             }
 
+            if (guideMode) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    ) {
+                        Spacer(modifier = Modifier.width(302.dp))
+                        listOf("Now", "+30 min", "+1 hr", "+1 hr 30").forEach { label ->
+                            Text(
+                                text = label,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.nuvio.colors.textMuted,
+                            )
+                        }
+                    }
+                }
+            }
+
             items(
                 count = renderedChannels.size,
                 key = { index -> renderedChannels[index].id },
@@ -489,6 +508,7 @@ fun LiveTvScreen(
                     } else {
                         emptyList()
                     },
+                    showGuide = guideMode,
                     isFavorite = renderedChannels[index].streamUrl in uiState.favoriteUrls,
                     onFavoriteClick = { LiveTvRepository.toggleFavorite(renderedChannels[index]) },
                     onClick = { playChannel(renderedChannels[index]) },
@@ -1018,6 +1038,7 @@ private fun LiveTvChannelRow(
     channel: LiveTvChannel,
     programme: LiveTvProgramme?,
     schedule: List<LiveTvProgramme>,
+    showGuide: Boolean,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onClick: () -> Unit,
@@ -1065,7 +1086,7 @@ private fun LiveTvChannelRow(
                 }
             }
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = if (showGuide) Modifier.width(210.dp) else Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
@@ -1100,55 +1121,117 @@ private fun LiveTvChannelRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (schedule.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        schedule.take(3).forEach { entry ->
-                            Surface(
-                                color = if (entry == programme) tokens.colors.overlaySelected else tokens.colors.surfaceCard,
-                                shape = RoundedCornerShape(8.dp),
-                            ) {
-                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                    Text(
-                                        text = entry.timeLabel,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = tokens.colors.accent,
-                                    )
-                                    Text(
-                                        text = entry.title,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = tokens.colors.textPrimary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    }
+            }
+            if (showGuide) {
+                LiveTvTwoHourProgrammeRow(
+                    schedule = schedule,
+                    currentProgramme = programme,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (!showGuide) {
+                IconButton(onClick = onFavoriteClick) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = stringResource(Res.string.live_tv_favorite),
+                        tint = if (isFavorite) tokens.colors.warning else tokens.colors.textMuted,
+                    )
                 }
-            }
-            IconButton(onClick = onFavoriteClick) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = stringResource(Res.string.live_tv_favorite),
-                    tint = if (isFavorite) tokens.colors.warning else tokens.colors.textMuted,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(tokens.shapes.avatar)
-                    .background(tokens.colors.overlaySelected),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = null,
-                    tint = tokens.colors.accent,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(tokens.shapes.avatar)
+                        .background(tokens.colors.overlaySelected),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = tokens.colors.accent,
+                    )
+                }
             }
         }
     }
 }
+
+private data class LiveTvGuideSegment(
+    val programme: LiveTvProgramme?,
+    val startEpochMs: Long,
+    val stopEpochMs: Long,
+)
+
+@Composable
+private fun LiveTvTwoHourProgrammeRow(
+    schedule: List<LiveTvProgramme>,
+    currentProgramme: LiveTvProgramme?,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = MaterialTheme.nuvio
+    val guideStart = remember { LiveTvClock.nowEpochMs() }
+    val guideEnd = guideStart + TWO_HOUR_GUIDE_MS
+    val segments = remember(schedule, guideStart) {
+        buildList {
+            var cursor = guideStart
+            schedule.asSequence()
+                .filter { it.stopEpochMs > guideStart && it.startEpochMs < guideEnd }
+                .sortedBy(LiveTvProgramme::startEpochMs)
+                .forEach { entry ->
+                    val entryStart = entry.startEpochMs.coerceIn(guideStart, guideEnd)
+                    val entryEnd = entry.stopEpochMs.coerceIn(guideStart, guideEnd)
+                    if (entryStart > cursor) add(LiveTvGuideSegment(null, cursor, entryStart))
+                    if (entryEnd > cursor) {
+                        add(LiveTvGuideSegment(entry, maxOf(cursor, entryStart), entryEnd))
+                        cursor = entryEnd
+                    }
+                }
+            if (cursor < guideEnd) add(LiveTvGuideSegment(null, cursor, guideEnd))
+        }
+    }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(62.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            segments.forEach { segment ->
+                val duration = (segment.stopEpochMs - segment.startEpochMs).coerceAtLeast(1L).toFloat()
+                val entry = segment.programme
+                Surface(
+                    modifier = Modifier.weight(duration).fillMaxSize(),
+                    color = if (entry == currentProgramme) tokens.colors.overlaySelected else tokens.colors.surfaceCard,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, tokens.colors.borderSubtle),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = entry?.title ?: "No guide data",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (entry == currentProgramme) tokens.colors.accent else tokens.colors.textPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (entry != null) {
+                            Text(
+                                text = entry.timeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tokens.colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val TWO_HOUR_GUIDE_MS = 2L * 60L * 60L * 1_000L
 
 @Composable
 private fun LiveTvEmptyState(onAddSource: () -> Unit) {

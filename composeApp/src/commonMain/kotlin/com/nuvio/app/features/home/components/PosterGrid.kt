@@ -47,8 +47,10 @@ import com.nuvio.app.features.settings.NuvioEnhancedSettingsRepository
 import com.nuvio.app.features.watching.application.WatchingState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-internal fun posterGridColumnCountForWidth(screenWidth: Dp): Int =
+internal fun posterGridColumnCountForWidth(screenWidth: Dp, isTvMode: Boolean = false): Int =
     when {
+        isTvMode && screenWidth >= 640.dp -> 6
+        isTvMode -> 5
         screenWidth >= 1400.dp -> 7
         screenWidth >= 1200.dp -> 6
         screenWidth >= 1000.dp -> 5
