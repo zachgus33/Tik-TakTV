@@ -182,7 +182,9 @@ fun LiveTvScreen(
     }
     LaunchedEffect(derivedChannels.countries) {
         if (selectedCountry == null) {
-            selectedCountry = derivedChannels.countries.firstOrNull { it.code == "US" }?.code.orEmpty()
+            if (derivedChannels.countries.isNotEmpty()) {
+                selectedCountry = derivedChannels.countries.firstOrNull { it.code == "US" }?.code.orEmpty()
+            }
         } else if (selectedCountry!!.isNotBlank() && derivedChannels.countries.none { it.code == selectedCountry }) {
             selectedCountry = ""
         }
