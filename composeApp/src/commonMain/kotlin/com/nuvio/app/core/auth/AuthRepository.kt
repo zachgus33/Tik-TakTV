@@ -83,7 +83,11 @@ object AuthRepository {
         // Some Fire OS builds leave Supabase's restored-session flow in
         // Initializing indefinitely. Cached profiles remain usable, and a
         // later authenticated status can still reconnect normally.
-        scope.launch {
+        // Keep this watchdog on the UI dispatcher. A few Fire OS builds can
+        // block the Default worker that is collecting Supabase's restored
+        // session, which previously prevented the watchdog itself from ever
+        // running and left the activity on a black screen.
+        scope.launch(Dispatchers.Main) {
             delay(5_000)
             if (_state.value is AuthState.Loading) {
                 log.w { "Stored session did not finish initializing; continuing with cached/offline access" }

@@ -625,7 +625,8 @@ fun App() {
             val allowCachedProfileAccess =
                 hasCachedProfileAccess &&
                     (
-                        networkStatusUiState.condition != NetworkCondition.Online ||
+                        isNativeTvGate ||
+                            networkStatusUiState.condition != NetworkCondition.Online ||
                             gateScreen != AppGateScreen.Auth.name
                     )
 
