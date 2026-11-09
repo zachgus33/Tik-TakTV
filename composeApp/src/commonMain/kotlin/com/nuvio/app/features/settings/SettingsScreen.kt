@@ -26,6 +26,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +56,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
@@ -126,6 +132,7 @@ private fun SettingsPage.isEnabledByPolicy(): Boolean =
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    tvMode: Boolean = false,
     rootActionRequests: Flow<Unit> = emptyFlow(),
     requestedPageName: String? = null,
     onRequestedPageConsumed: () -> Unit = {},
@@ -300,6 +307,7 @@ fun SettingsScreen(
 
         if (maxWidth >= 768.dp) {
             TabletSettingsScreen(
+                isTvMode = tvMode,
                 page = page,
                 scrollToTopRequests = scrollToTopRequests,
                 onPageChange = { currentPage = it.name },
@@ -883,6 +891,7 @@ private fun rememberSettingsRootSearchRevealConnection(
 
 @Composable
 private fun TabletSettingsScreen(
+    isTvMode: Boolean,
     page: SettingsPage,
     scrollToTopRequests: Flow<Unit>,
     onPageChange: (SettingsPage) -> Unit,
@@ -956,6 +965,7 @@ private fun TabletSettingsScreen(
     onFavoritePersonClick: ((FavoritePerson) -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    val uriHandler = LocalUriHandler.current
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -1014,18 +1024,44 @@ private fun TabletSettingsScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Spacer(modifier = Modifier.height(10.dp))
-                SettingsCategory.entries.forEach { category ->
-                    SettingsSidebarItem(
-                        label = stringResource(category.labelRes),
-                        icon = category.icon,
-                        selected = category == activeCategory,
-                        onClick = {
-                            selectedCategory = category.name
-                            if (page != SettingsPage.Root) {
-                                onPageChange(SettingsPage.Root)
-                            }
-                        },
-                    )
+                if (isTvMode) {
+                    SettingsSidebarItem("Add-ons", Icons.Rounded.Settings, page == SettingsPage.Addons, onAddonsClick)
+                    SettingsSidebarItem("Collections", Icons.Rounded.Info, false, onCollectionsClick)
+                    SettingsSidebarItem("Live TV", Icons.Rounded.Info, false, onLiveTvClick)
+                    SettingsSidebarItem("Playback", Icons.Rounded.Settings, page == SettingsPage.Playback) {
+                        openInlinePage(SettingsPage.Playback)
+                    }
+                    SettingsSidebarItem("General", Icons.Rounded.Settings, page == SettingsPage.Root && activeCategory == SettingsCategory.General) {
+                        selectedCategory = SettingsCategory.General.name
+                        onPageChange(SettingsPage.Root)
+                    }
+                    SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
+                        openInlinePage(SettingsPage.Advanced)
+                    }
+                    SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick)
+                    SettingsSidebarItem("Feedback", Icons.Rounded.Info, false) {
+                        uriHandler.openUri("https://github.com/zachgus33/Tik-TakTV/issues/new/choose")
+                    }
+                    SettingsSidebarItem("What's new", Icons.Rounded.Info, false) {
+                        onCheckForUpdatesClick?.invoke()
+                    }
+                    SettingsSidebarItem("Privacy & status", Icons.Rounded.AccountCircle, page == SettingsPage.Account) {
+                        openInlinePage(SettingsPage.Account)
+                    }
+                } else {
+                    SettingsCategory.entries.forEach { category ->
+                        SettingsSidebarItem(
+                            label = stringResource(category.labelRes),
+                            icon = category.icon,
+                            selected = category == activeCategory,
+                            onClick = {
+                                selectedCategory = category.name
+                                if (page != SettingsPage.Root) {
+                                    onPageChange(SettingsPage.Root)
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }

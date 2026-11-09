@@ -41,8 +41,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -173,6 +177,7 @@ internal fun SettingsSidebarItem(
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    var isFocused by remember { mutableStateOf(false) }
     val primary = tokens.colors.accent
     val background = if (selected) primary.copy(alpha = tokens.opacity.hover) else Color.Transparent
     val iconChip = if (selected) primary.copy(alpha = tokens.opacity.selected) else Color.Transparent
@@ -183,6 +188,12 @@ internal fun SettingsSidebarItem(
             .fillMaxWidth()
             .padding(horizontal = tokens.spacing.listGap, vertical = NuvioTokens.Space.s2)
             .background(background, RoundedCornerShape(NuvioTokens.Space.s10))
+            .border(
+                width = if (isFocused) 4.dp else 0.dp,
+                color = if (isFocused) Color(0xFFFF4F9A) else Color.Transparent,
+                shape = RoundedCornerShape(NuvioTokens.Space.s10),
+            )
+            .onFocusChanged { isFocused = it.hasFocus }
             .clickable(onClick = onClick)
             .padding(horizontal = tokens.spacing.screenHorizontal, vertical = tokens.spacing.listGap),
         verticalAlignment = Alignment.CenterVertically,

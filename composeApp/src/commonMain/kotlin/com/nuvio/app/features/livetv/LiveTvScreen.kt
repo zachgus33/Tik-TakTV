@@ -38,10 +38,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +63,8 @@ import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.settings.NuvioEnhancedBackupFileBridge
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.live_tv_add_source
 import nuvio.composeapp.generated.resources.live_tv_all_channels
@@ -122,6 +127,7 @@ fun LiveTvScreen(
     var xtreamPassword by rememberSaveable { mutableStateOf(uiState.xtreamSettings.password) }
     var fileImportError by rememberSaveable { mutableStateOf<String?>(null) }
     var visibleChannelLimit by rememberSaveable { mutableStateOf(INITIAL_VISIBLE_CHANNEL_LIMIT) }
+    var guideMode by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(uiState.sourceUrl) {
         if (sourceUrl.isBlank()) sourceUrl = uiState.sourceUrl
@@ -137,14 +143,32 @@ fun LiveTvScreen(
         if (xtreamUsername.isBlank()) xtreamUsername = uiState.xtreamSettings.username
         if (xtreamPassword.isBlank()) xtreamPassword = uiState.xtreamSettings.password
     }
-    val groups = remember(uiState.channels) {
-        uiState.channels
-            .filterNot { isLikelyCategoryHeading(it.name) }
-            .map { it.group }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
+    val derivedChannels by produceState(
+        initialValue = LiveTvDerivedChannels(),
+        uiState.channels,
+        uiState.favoriteUrls,
+        query,
+        selectedGroup,
+        favoritesOnly,
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val realChannels = uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }
+            LiveTvDerivedChannels(
+                groups = realChannels.asSequence()
+                    .map(LiveTvChannel::group)
+                    .filter(String::isNotBlank)
+                    .distinct()
+                    .sorted()
+                    .toList(),
+                visible = realChannels.filter { channel ->
+                    (selectedGroup.isBlank() || channel.group == selectedGroup) &&
+                        (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
+                        (query.isBlank() || channel.name.contains(query, ignoreCase = true))
+                },
+            )
+        }
     }
+    val groups = derivedChannels.groups
     val recentChannel = remember(uiState.recentChannel, uiState.channels) {
         uiState.recentChannel?.let { recent ->
             val currentMatch = uiState.channels.firstOrNull { it.streamUrl == recent.streamUrl }
@@ -160,13 +184,7 @@ fun LiveTvScreen(
             }
         }
     }
-    val visibleChannels = remember(uiState.channels, uiState.favoriteUrls, query, selectedGroup, favoritesOnly) {
-        uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }.filter { channel ->
-            (selectedGroup.isBlank() || channel.group == selectedGroup) &&
-                (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
-                (query.isBlank() || channel.name.contains(query, ignoreCase = true))
-        }
-    }
+    val visibleChannels = derivedChannels.visible
     val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
         visibleChannels.take(visibleChannelLimit)
     }
@@ -443,7 +461,12 @@ fun LiveTvScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    NuvioSectionLabel(text = stringResource(Res.string.live_tv_channels))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        NuvioSectionLabel(text = if (guideMode) "Live TV guide" else stringResource(Res.string.live_tv_channels))
+                        OutlinedButton(onClick = { guideMode = !guideMode }) {
+                            Text(if (guideMode) "Channel list" else "Guide")
+                        }
+                    }
                     Text(
                         text = stringResource(Res.string.live_tv_channel_count, visibleChannels.size),
                         style = MaterialTheme.typography.labelMedium,
@@ -459,6 +482,13 @@ fun LiveTvScreen(
                 LiveTvChannelRow(
                     channel = renderedChannels[index],
                     programme = renderedChannels[index].tvgId?.let(uiState.currentProgrammes::get),
+                    schedule = if (guideMode) {
+                        renderedChannels[index].tvgId?.let(uiState.programmeSchedules::get)
+                            ?: uiState.programmeSchedules[renderedChannels[index].id]
+                            ?: emptyList()
+                    } else {
+                        emptyList()
+                    },
                     isFavorite = renderedChannels[index].streamUrl in uiState.favoriteUrls,
                     onFavoriteClick = { LiveTvRepository.toggleFavorite(renderedChannels[index]) },
                     onClick = { playChannel(renderedChannels[index]) },
@@ -482,8 +512,13 @@ fun LiveTvScreen(
     }
 }
 
-private const val INITIAL_VISIBLE_CHANNEL_LIMIT = 300
-private const val VISIBLE_CHANNEL_PAGE_SIZE = 300
+private data class LiveTvDerivedChannels(
+    val groups: List<String> = emptyList(),
+    val visible: List<LiveTvChannel> = emptyList(),
+)
+
+private const val INITIAL_VISIBLE_CHANNEL_LIMIT = 80
+private const val VISIBLE_CHANNEL_PAGE_SIZE = 80
 
 @Composable
 private fun LiveTvRecentChannelCard(
@@ -982,16 +1017,22 @@ private fun SourceTypePillRow(
 private fun LiveTvChannelRow(
     channel: LiveTvChannel,
     programme: LiveTvProgramme?,
+    schedule: List<LiveTvProgramme>,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    var isFocused by remember { mutableStateOf(false) }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().onFocusChanged { isFocused = it.hasFocus },
         onClick = onClick,
         color = tokens.colors.surface,
         shape = tokens.shapes.compactCard,
+        border = BorderStroke(
+            if (isFocused) 4.dp else 1.dp,
+            if (isFocused) Color(0xFFFF4F9A) else tokens.colors.borderSubtle,
+        ),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -1058,6 +1099,31 @@ private fun LiveTvChannelRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+                if (schedule.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        schedule.take(3).forEach { entry ->
+                            Surface(
+                                color = if (entry == programme) tokens.colors.overlaySelected else tokens.colors.surfaceCard,
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                    Text(
+                                        text = entry.timeLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = tokens.colors.accent,
+                                    )
+                                    Text(
+                                        text = entry.title,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = tokens.colors.textPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             IconButton(onClick = onFavoriteClick) {

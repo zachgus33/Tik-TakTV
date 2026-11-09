@@ -480,7 +480,26 @@ internal fun Modifier.posterCardClickable(
 ): Modifier {
     if (onClick == null && onLongClick == null) return this
     val bounds = remember { mutableStateOf<Rect?>(null) }
+    var isFocused by remember { mutableStateOf(false) }
+    val focusShape = RoundedCornerShape(zoomCornerRadius)
     return this
+        .zIndex(if (isFocused) 5f else 0f)
+        .graphicsLayer {
+            val scale = if (isFocused) 1.06f else 1f
+            scaleX = scale
+            scaleY = scale
+        }
+        .shadow(
+            elevation = if (isFocused) 18.dp else 0.dp,
+            shape = focusShape,
+            clip = false,
+        )
+        .border(
+            width = if (isFocused) 4.dp else 0.dp,
+            color = if (isFocused) Color(0xFFFF4F9A) else Color.Transparent,
+            shape = focusShape,
+        )
+        .onFocusChanged { isFocused = it.hasFocus }
         .onGloballyPositioned { coordinates -> bounds.value = coordinates.unclippedBoundsInRoot() }
         .combinedClickable(
             onClick = { onClick?.invoke() },

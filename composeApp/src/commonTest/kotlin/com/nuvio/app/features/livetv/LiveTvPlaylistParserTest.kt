@@ -5,6 +5,23 @@ import kotlin.test.assertEquals
 
 class LiveTvPlaylistParserTest {
     @Test
+    fun buildsCurrentAndUpcomingGuideSchedule() {
+        val now = LiveTvClock.parseXmlTvTimestamp("20261108193000 +0000")!!
+        val schedules = parseXmlTvProgrammeSchedules(
+            """
+            <tv>
+              <programme start="20261108190000 +0000" stop="20261108200000 +0000" channel="cbs"><title>Evening News</title></programme>
+              <programme start="20261108200000 +0000" stop="20261108210000 +0000" channel="cbs"><title>College Football</title></programme>
+              <programme start="20261108210000 +0000" stop="20261108220000 +0000" channel="cbs"><title>Local News</title></programme>
+            </tv>
+            """.trimIndent(),
+            nowEpochMs = now,
+        )
+
+        assertEquals(listOf("Evening News", "College Football", "Local News"), schedules.getValue("cbs").map { it.title })
+    }
+
+    @Test
     fun parsesChannelMetadataAndHeaders() {
         val playlist = parseM3uPlaylistData(
             """

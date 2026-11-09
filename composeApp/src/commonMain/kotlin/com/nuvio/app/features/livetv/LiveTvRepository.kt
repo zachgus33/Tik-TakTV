@@ -19,7 +19,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-internal const val LiveTvInMemoryChannelLimit = 10_000
+// Fire TV devices have a small app heap. Keeping ten thousand channel/logo
+// records live caused input-dispatch ANRs while Compose indexed the guide.
+internal const val LiveTvInMemoryChannelLimit = 5_000
 
 object LiveTvRepository {
     private val mutableUiState = MutableStateFlow(LiveTvUiState())
@@ -45,7 +47,9 @@ object LiveTvRepository {
             isLoading = sourceUrl.isNotBlank() || stalkerSettings.isConfigured || xtreamSettings.isConfigured,
         )
         epgScope.launch {
-            val cachedChannels = runCatching { LiveTvStorage.loadCachedChannels() }.getOrDefault(emptyList())
+            val cachedChannels = runCatching { LiveTvStorage.loadCachedChannels() }
+                .getOrDefault(emptyList())
+                .take(LiveTvInMemoryChannelLimit)
             if (cachedChannels.isNotEmpty()) {
                 mutableUiState.value = mutableUiState.value.copy(
                     channels = cachedChannels,
@@ -53,6 +57,10 @@ object LiveTvRepository {
                     isLoaded = true,
                     errorMessage = null,
                 )
+                if (sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured) {
+                    mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+                    loadEpgInBackground(sourceUrl, listOf(xtreamSettings.xmlTvEndpoint()))
+                }
                 return@launch
             }
             mutableUiState.value = mutableUiState.value.copy(isLoading = false)
@@ -293,6 +301,8 @@ object LiveTvRepository {
                 isLoaded = true,
             )
             cacheChannels(channels)
+            mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+            loadEpgInBackground(normalizedSettings.serverUrl, listOf(normalizedSettings.xmlTvEndpoint()))
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(
@@ -327,7 +337,7 @@ object LiveTvRepository {
 
     private fun cacheChannels(channels: List<LiveTvChannel>) {
         epgScope.launch {
-            runCatching { LiveTvStorage.saveCachedChannels(channels) }
+            runCatching { LiveTvStorage.saveCachedChannels(channels.take(LiveTvInMemoryChannelLimit)) }
         }
     }
 
@@ -366,16 +376,21 @@ object LiveTvRepository {
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {
         if (epgUrls.isEmpty()) return
         epgScope.launch {
-            val programmes = epgUrls
+            val schedules = epgUrls
                 .mapNotNull { epgUrl ->
                     runCatching {
-                        parseCurrentXmlTvProgrammes(httpGetText(epgUrl))
+                        parseXmlTvProgrammeSchedules(httpGetText(epgUrl))
                     }.getOrNull()
                 }
-                .fold(emptyMap<String, LiveTvProgramme>()) { merged, entries -> merged + entries }
+                .fold(emptyMap<String, List<LiveTvProgramme>>()) { merged, entries -> merged + entries }
+            val now = LiveTvClock.nowEpochMs()
+            val programmes = schedules.mapNotNull { (channel, entries) ->
+                entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
+            }.toMap()
             if (mutableUiState.value.sourceUrl == sourceUrl) {
                 mutableUiState.value = mutableUiState.value.copy(
                     currentProgrammes = programmes,
+                    programmeSchedules = schedules,
                     isEpgLoading = false,
                 )
             }
@@ -656,6 +671,9 @@ private fun LiveTvXtreamSettings.liveStreamUrl(streamId: String, extension: Stri
         append(extension.trim().trimStart('.').ifBlank { "ts" })
     }
 
+private fun LiveTvXtreamSettings.xmlTvEndpoint(): String =
+    "${serverUrl.trim().trimEnd('/')}/xmltv.php?username=${username.encodeURLParameter()}&password=${password.encodeURLParameter()}"
+
 private fun LiveTvStalkerSettings.portalEndpoint(): String {
     val normalized = portalUrl.trim().trimEnd('/')
     return when {
@@ -920,6 +938,36 @@ internal fun parseCurrentXmlTvProgrammes(
         )
     }
     return programmes
+}
+
+internal fun parseXmlTvProgrammeSchedules(
+    content: String,
+    nowEpochMs: Long = LiveTvClock.nowEpochMs(),
+): Map<String, List<LiveTvProgramme>> {
+    val endEpochMs = nowEpochMs + 3 * 60 * 60 * 1000L
+    val programmes = mutableMapOf<String, MutableList<LiveTvProgramme>>()
+    xmlTvProgrammeRegex.findAll(content).forEach { match ->
+        val attributes = xmlAttributeRegex.findAll(match.groupValues[1])
+            .associate { attribute -> attribute.groupValues[1].lowercase() to attribute.groupValues[2] }
+        val channelId = attributes["channel"]?.trim()?.takeIf(String::isNotBlank) ?: return@forEach
+        val rawStart = attributes["start"].orEmpty()
+        val rawStop = attributes["stop"].orEmpty()
+        val startEpochMs = LiveTvClock.parseXmlTvTimestamp(rawStart) ?: return@forEach
+        val stopEpochMs = LiveTvClock.parseXmlTvTimestamp(rawStop) ?: return@forEach
+        if (stopEpochMs <= nowEpochMs || startEpochMs >= endEpochMs) return@forEach
+        val title = xmlTvTitleRegex.find(match.groupValues[2])?.groupValues?.get(1)
+            ?.decodeXmlEntities()?.trim()?.takeIf(String::isNotBlank) ?: return@forEach
+        val entries = programmes.getOrPut(channelId) { mutableListOf() }
+        if (entries.size < 6) {
+            entries += LiveTvProgramme(
+                title = title,
+                startEpochMs = startEpochMs,
+                stopEpochMs = stopEpochMs,
+                timeLabel = "${rawStart.xmlTvTimePart()} - ${rawStop.xmlTvTimePart()}",
+            )
+        }
+    }
+    return programmes.mapValues { (_, entries) -> entries.sortedBy(LiveTvProgramme::startEpochMs) }
 }
 
 private fun String.xmlTvTimePart(): String {

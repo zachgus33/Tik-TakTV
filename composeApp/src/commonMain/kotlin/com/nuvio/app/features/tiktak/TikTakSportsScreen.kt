@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -52,6 +53,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -108,39 +111,37 @@ fun TikTakSportsScreen(
     var sportFilter by remember { mutableStateOf("all") }
     var countryFilter by remember { mutableStateOf("All countries") }
 
-    val liveEvents = remember(liveState.channels, liveState.currentProgrammes) {
-        liveState.channels.mapNotNull { channel ->
-            val programme = liveState.currentProgrammes[channel.tvgId]
-                ?: liveState.currentProgrammes[channel.id]
-            val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
-            if (SportsKeywords.any(searchable::contains)) channel to programme?.title else null
+    // Indexing thousands of IPTV channels and matching every score used to run
+    // during composition. On Fire TV that blocked input dispatch long enough to
+    // trigger an ANR. Build the complete sports view once on a worker thread.
+    val derived by produceState(
+        initialValue = SportsDerivedState(),
+        liveState.channels,
+        liveState.currentProgrammes,
+        scores,
+        sportFilter,
+        countryFilter,
+    ) {
+        value = withContext(Dispatchers.Default) {
+            deriveSportsState(
+                channels = liveState.channels,
+                programmes = liveState.currentProgrammes,
+                scores = scores,
+                sportFilter = sportFilter,
+                countryFilter = countryFilter,
+            )
         }
     }
-    val countries = remember(liveEvents) {
-        listOf("All countries") + liveEvents.mapNotNull { (channel, _) ->
-            channel.group.substringBefore('|').substringBefore(':').trim().takeIf { it.length in 2..28 }
-        }.distinct().sorted()
-    }
-    val visibleLiveEvents = remember(liveEvents, sportFilter, countryFilter) {
-        liveEvents.asSequence().filter { (channel, title) ->
-            val searchable = "${title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
-            (sportFilter == "all" || searchable.contains(sportFilter)) &&
-                (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
-        }.take(MAX_VISIBLE_SPORT_CHANNELS).toList()
-    }
-    val visibleScores = remember(scores, sportFilter) {
-        scores.asSequence()
-            .filter { sportFilter == "all" || it.sport == sportFilter }
-            .take(MAX_VISIBLE_SCORE_EVENTS)
-            .toList()
-    }
+    val countries = derived.countries
+    val visibleLiveEvents = derived.liveEvents
+    val visibleScores = derived.scores
 
     fun refreshScores() {
         if (loading) return
         scope.launch {
             loading = true
             error = null
-            runCatching { loadNativeScores() }
+            runCatching { withContext(Dispatchers.Default) { loadNativeScores() } }
                 .onSuccess { scores = it }
                 .onFailure { error = it.message ?: "Scores could not be loaded." }
             loading = false
@@ -202,11 +203,7 @@ fun TikTakSportsScreen(
         if (visibleScores.isNotEmpty()) {
             item { SectionTitle("Live and recent scores") }
             items(visibleScores, key = { "score:${it.id}" }) { event ->
-                val matchedChannel = findScoreChannel(
-                    event = event,
-                    channels = liveState.channels,
-                    currentProgrammes = liveState.currentProgrammes,
-                )
+                val matchedChannel = derived.matchedChannels[event.id]
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
@@ -253,6 +250,45 @@ fun TikTakSportsScreen(
             }
         }
     }
+}
+
+private data class SportsDerivedState(
+    val countries: List<String> = listOf("All countries"),
+    val liveEvents: List<Pair<LiveTvChannel, String?>> = emptyList(),
+    val scores: List<NativeScoreEvent> = emptyList(),
+    val matchedChannels: Map<String, LiveTvChannel> = emptyMap(),
+)
+
+private fun deriveSportsState(
+    channels: List<LiveTvChannel>,
+    programmes: Map<String, LiveTvProgramme>,
+    scores: List<NativeScoreEvent>,
+    sportFilter: String,
+    countryFilter: String,
+): SportsDerivedState {
+    val liveEvents = channels.mapNotNull { channel ->
+        val programme = channel.tvgId?.let(programmes::get) ?: programmes[channel.id]
+        val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
+        if (SportsKeywords.any(searchable::contains)) channel to programme?.title else null
+    }
+    val visibleScores = scores.asSequence()
+        .filter { sportFilter == "all" || it.sport == sportFilter }
+        .take(MAX_VISIBLE_SCORE_EVENTS)
+        .toList()
+    return SportsDerivedState(
+        countries = listOf("All countries") + liveEvents.mapNotNull { (channel, _) ->
+            channel.group.substringBefore('|').substringBefore(':').trim().takeIf { it.length in 2..28 }
+        }.distinct().sorted(),
+        liveEvents = liveEvents.asSequence().filter { (channel, title) ->
+            val searchable = "${title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
+            (sportFilter == "all" || searchable.contains(sportFilter)) &&
+                (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
+        }.take(MAX_VISIBLE_SPORT_CHANNELS).toList(),
+        scores = visibleScores,
+        matchedChannels = visibleScores.mapNotNull { event ->
+            findScoreChannel(event, channels, programmes)?.let { event.id to it }
+        }.toMap(),
+    )
 }
 
 @Composable

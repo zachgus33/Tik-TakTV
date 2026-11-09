@@ -1312,6 +1312,10 @@ private fun MainAppContent(
         continueWatchingPreferencesUiState.showResumePromptOnLaunch,
     ) {
         if (!initialHomeReady || profileSwitchLoading) return@LaunchedEffect
+        if (isNativeTv) {
+            resumePromptItem = null
+            return@LaunchedEffect
+        }
         if (resumePromptItem != null) return@LaunchedEffect
         if (continueWatchingPreferencesUiState.showResumePromptOnLaunch) {
             resumePromptItem = ResumePromptRepository.consumeResumePrompt()
@@ -2063,6 +2067,7 @@ private fun MainAppContent(
                                     LocalNuvioNavBarScrollState provides navBarScrollState,
                                 ) {
                                     AppTabHost(
+                                        isNativeTv = isNativeTv,
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(
@@ -3907,7 +3912,7 @@ private fun MainAppContent(
             }
 
             NuvioFloatingPrompt(
-                visible = resumePromptItem != null,
+                visible = !isNativeTv && resumePromptItem != null,
                 imageUrl = resumePromptItem?.poster ?: resumePromptItem?.imageUrl,
                 title = resumePromptItem?.title.orEmpty(),
                 subtitle = resumePromptItem?.let { localizedContinueWatchingSubtitle(it) }.orEmpty(),
@@ -4025,6 +4030,7 @@ private fun rememberGuardedPopBackStack(
 @Composable
 private fun AppTabHost(
     selectedTab: AppScreenTab,
+    isNativeTv: Boolean = false,
     modifier: Modifier = Modifier,
     searchFocusRequestCount: Int = 0,
     rootActionsEnabled: Boolean = true,
@@ -4141,6 +4147,7 @@ private fun AppTabHost(
                 AppScreenTab.Settings -> {
                     SettingsScreen(
                         modifier = Modifier.fillMaxSize(),
+                        tvMode = isNativeTv,
                         rootActionRequests = settingsRootActionRequests,
                         requestedPageName = requestedSettingsPageName,
                         onRequestedPageConsumed = onRequestedSettingsPageConsumed,
