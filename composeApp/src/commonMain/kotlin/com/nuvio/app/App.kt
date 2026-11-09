@@ -101,10 +101,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import coil3.ImageLoader
+import coil3.intercept.Interceptor
+import coil3.request.ImageResult
 import coil3.compose.AsyncImage
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.CachePolicy
 import coil3.request.crossfade
+import coil3.size.Size
 import coil3.svg.SvgDecoder
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.auth.AuthRepository
@@ -478,6 +481,9 @@ fun App() {
             .memoryCachePolicy(if (isNativeTv) CachePolicy.DISABLED else CachePolicy.ENABLED)
             .components {
                 add(SvgDecoder.Factory())
+                if (isNativeTv) {
+                    add(NativeTvOriginalSizeInterceptor())
+                }
                 add(
                     coil3.network.ktor3.KtorNetworkFetcherFactory(
                         cacheStrategy = { coil3.network.cachecontrol.CacheControlCacheStrategy() },
@@ -815,6 +821,23 @@ fun App() {
                 CrashDiagnostics.dismiss(report.id)
             },
         )
+    }
+}
+
+/**
+ * Older Fire OS builds occasionally fail to pass Compose's measured constraints to Coil,
+ * leaving a request at [Size.ORIGINAL]. A single 6000x4000 poster then consumes roughly
+ * 96 MB and can exhaust the TV heap. Keep normal measured requests untouched and only
+ * bound the unsafe original-size fallback.
+ */
+private class NativeTvOriginalSizeInterceptor : Interceptor {
+    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+        val safeChain = if (chain.size == Size.ORIGINAL) {
+            chain.withSize(Size(width = 1280, height = 720))
+        } else {
+            chain
+        }
+        return safeChain.proceed()
     }
 }
 
