@@ -46,6 +46,22 @@ export function useGuide(
   const [refresh, setRefresh] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const ids = useMemo(
+    () => [
+      ...new Map(
+        [...(active ? [active] : []), ...visible]
+          .filter(
+            (i) => i.source === "xtream" && i.provider === provider?.scope,
+          )
+          .map((i) => [i.id, i]),
+      ).values(),
+    ],
+    [active, visible, provider?.scope],
+  );
+  const signature = useMemo(
+    () => ids.map((i) => `${i.id}:${i.epgId ?? ""}`).join("|"),
+    [ids],
+  );
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000);
     const reload = setInterval(() => setRefresh((n) => n + 1), 15 * 60_000);
@@ -87,10 +103,23 @@ export function useGuide(
         aliases?: Record<string, string>;
         artwork?: Record<string, string>;
         error?: string;
+        partial?: boolean;
       }>,
     ) => {
       if (e.data.ready) {
         acknowledge?.();
+        return;
+      }
+      if (e.data.partial) {
+        acknowledge?.();
+        if (!stopped) {
+          setState((s) => s.scope === scope ? {
+            ...s,
+            xml: e.data.programmes ?? s.xml,
+            aliases: e.data.aliases ?? s.aliases,
+            artwork: e.data.artwork ?? s.artwork,
+          } : s);
+        }
         return;
       }
       controller.abort();
@@ -125,7 +154,7 @@ export function useGuide(
       unavailable();
       worker.terminate();
     };
-    async function send(message: { start?: boolean; chunk?: string }) {
+    async function send(message: { start?: boolean; chunk?: string; targetIds?: string[]; targetNames?: string[] }) {
       await new Promise<void>((resolve) => {
         acknowledge = resolve;
         worker.postMessage(message);
@@ -164,7 +193,11 @@ export function useGuide(
         reader = response.body.getReader();
         const decoder = new TextDecoder();
         let bytes = 0;
-        await send({ start: true });
+        await send({
+          start: true,
+          targetIds: ids.flatMap((item) => [item.id, item.epgId ?? ""]).filter(Boolean),
+          targetNames: ids.map((item) => item.name),
+        });
         while (!controller.signal.aborted) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -201,29 +234,8 @@ export function useGuide(
       worker.terminate();
     };
   }, [guideUrl, provider, revision, refresh, scope]);
-  const ids = useMemo(
-    () => [
-      ...new Map(
-        [...(active ? [active] : []), ...visible]
-          .filter(
-            (i) => i.source === "xtream" && i.provider === provider?.scope,
-          )
-          .map((i) => [i.id, i]),
-      ).values(),
-    ],
-    [active, visible, provider?.scope],
-  );
-  const signature = useMemo(
-    () => ids.map((i) => `${i.id}:${i.epgId ?? ""}`).join("|"),
-    [ids],
-  );
   useEffect(() => {
-    if (
-      !provider ||
-      stateRef.current.scope !== provider.scope ||
-      stateRef.current.loading ||
-      !stateRef.current.fallback
-    )
+    if (!provider || stateRef.current.scope !== scope)
       return;
     const c = new AbortController();
     const queue = ids.filter(
@@ -234,8 +246,6 @@ export function useGuide(
     );
     let pending: Record<string, Programme[]> = {};
     let pendingFailed: string[] = [];
-    let consecutiveFailures = 0;
-    let scheduleUnavailable = false;
     let flushTimer: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
       flushTimer = undefined;
@@ -249,7 +259,7 @@ export function useGuide(
       pending = {};
       pendingFailed = [];
       setState((s) =>
-        s.scope === provider.scope
+        s.scope === scope
           ? {
               ...s,
               channels: { ...s.channels, ...channels },
@@ -262,23 +272,17 @@ export function useGuide(
       if (!flushTimer) flushTimer = setTimeout(flush, 750);
     };
     async function consume() {
-      while (queue.length && !c.signal.aborted && !scheduleUnavailable) {
+      while (queue.length && !c.signal.aborted) {
         const item = queue.shift()!;
         try {
           const list = await epg(provider!, item.id, c.signal);
           if (!c.signal.aborted) {
-            consecutiveFailures = 0;
             pending[item.id] = list;
             scheduleFlush();
           }
         } catch {
           if (!c.signal.aborted) {
             pendingFailed.push(item.id);
-            consecutiveFailures += 1;
-            if (consecutiveFailures >= 3) {
-              scheduleUnavailable = true;
-              queue.length = 0;
-            }
             scheduleFlush();
           }
         }
@@ -286,7 +290,7 @@ export function useGuide(
       flush();
       if (!c.signal.aborted) {
         const current = stateRef.current;
-        void writeLiveCache(`guide:${provider!.scope}`, {
+        void writeLiveCache(`guide:${scope}`, {
           xml: current.xml,
           channels: current.channels,
           aliases: current.aliases,
@@ -294,8 +298,9 @@ export function useGuide(
         });
       }
     }
-    // This path runs only when the complete XMLTV feed failed. Batch state
-    // updates so a large provider cannot lock the browser between requests.
+    // Probe visible channels immediately while the full XMLTV feed streams in.
+    // Batched state updates keep large providers responsive and allow guide and
+    // Sports rows to appear before the complete feed has downloaded.
     void Promise.all(Array.from({ length: 3 }, consume));
     return () => {
       c.abort();
@@ -303,6 +308,7 @@ export function useGuide(
     };
   }, [
     provider,
+    scope,
     signature,
     revision,
     refresh,

@@ -13,7 +13,9 @@ export function xmltvTime(value: string): number {
     : 0;
   return Date.UTC(+y, +m - 1, +d, +h, +min, +(s ?? 0)) - offset * 60_000;
 }
-export function createGuideParser(now = Date.now()) {
+export type GuideTargets = { ids?: string[]; names?: string[] };
+
+export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) {
   const programmes: Record<string, Programme[]> = Object.create(null);
   const aliases: Record<string, string> = Object.create(null);
   const artwork: Record<string, string> = Object.create(null);
@@ -24,6 +26,10 @@ export function createGuideParser(now = Date.now()) {
   let count = 0;
   let channelId = "";
   let channelName = "";
+  const targetIds = new Set((targets.ids ?? []).filter(Boolean));
+  const targetNames = new Set((targets.names ?? []).map(normalizeGuideTarget).filter(Boolean));
+  const includedChannelIds = new Set<string>();
+  const targeted = targetIds.size > 0 || targetNames.size > 0;
   parser.on("opentag", (tag) => {
     if (tag.name === "channel") {
       channelId = String(tag.attributes.id ?? "");
@@ -39,6 +45,7 @@ export function createGuideParser(now = Date.now()) {
       const end = xmltvTime(String(tag.attributes.stop ?? ""));
       current =
         channel &&
+        (!targeted || targetIds.has(channel) || includedChannelIds.has(channel)) &&
         end > now &&
         start < now + 24 * 3600_000 &&
         end > start &&
@@ -80,8 +87,14 @@ export function createGuideParser(now = Date.now()) {
       text = "";
     }
     if (tag.name === "channel" && channelId) {
-      aliases[channelId] = channelId;
-      if (channelName) aliases[channelName] = channelId;
+      const included = !targeted || targetIds.has(channelId) || targetNames.has(normalizeGuideTarget(channelName));
+      if (included) {
+        includedChannelIds.add(channelId);
+        aliases[channelId] = channelId;
+        if (channelName) aliases[channelName] = channelId;
+      } else {
+        delete artwork[channelId];
+      }
       channelId = "";
       channelName = "";
     }
@@ -111,5 +124,16 @@ export function createGuideParser(now = Date.now()) {
     artwork() {
       return artwork;
     },
+    snapshot() {
+      return { programmes, aliases, artwork };
+    },
   };
+}
+
+function normalizeGuideTarget(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replace(/^\s*[a-z]{2,3}\s*[|:\-]\s*/i, "")
+    .replace(/\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\b/gi, "")
+    .replace(/[^a-z0-9]+/g, "");
 }

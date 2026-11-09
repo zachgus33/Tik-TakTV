@@ -335,6 +335,13 @@ describe("automatic Xtream XMLTV guide", () => {
       parser.finish();
     }).toThrow();
   });
+  it("keeps only requested guide channels for progressive large-feed parsing", () => {
+    const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
+      ids: ["wanted"],
+    });
+    parser.write('<tv><channel id="wanted"><display-name>Wanted</display-name></channel><channel id="other"><display-name>Other</display-name></channel><programme channel="wanted" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Wanted show</title></programme><programme channel="other" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Other show</title></programme></tv>');
+    expect(Object.keys(parser.finish())).toEqual(["wanted"]);
+  });
 });
 describe("home catalog management", () => {
   const addons = [

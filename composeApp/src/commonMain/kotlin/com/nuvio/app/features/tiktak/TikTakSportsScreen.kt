@@ -49,6 +49,7 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.livetv.LiveTvRepository
+import com.nuvio.app.features.livetv.channelHasGuideData
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -118,6 +119,7 @@ fun TikTakSportsScreen(
         initialValue = SportsDerivedState(),
         liveState.channels,
         liveState.currentProgrammes,
+        liveState.programmeSchedules,
         scores,
         sportFilter,
         countryFilter,
@@ -126,6 +128,7 @@ fun TikTakSportsScreen(
             deriveSportsState(
                 channels = liveState.channels,
                 programmes = liveState.currentProgrammes,
+                schedules = liveState.programmeSchedules,
                 scores = scores,
                 sportFilter = sportFilter,
                 countryFilter = countryFilter,
@@ -262,11 +265,13 @@ private data class SportsDerivedState(
 private fun deriveSportsState(
     channels: List<LiveTvChannel>,
     programmes: Map<String, LiveTvProgramme>,
+    schedules: Map<String, List<LiveTvProgramme>>,
     scores: List<NativeScoreEvent>,
     sportFilter: String,
     countryFilter: String,
 ): SportsDerivedState {
-    val liveEvents = channels.mapNotNull { channel ->
+    val guidedChannels = channels.filter { channelHasGuideData(it, programmes, schedules) }
+    val liveEvents = guidedChannels.mapNotNull { channel ->
         val programme = channel.tvgId?.let(programmes::get) ?: programmes[channel.id]
         val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
         if (SportsKeywords.any(searchable::contains)) channel to programme?.title else null
@@ -286,7 +291,7 @@ private fun deriveSportsState(
         }.take(MAX_VISIBLE_SPORT_CHANNELS).toList(),
         scores = visibleScores,
         matchedChannels = visibleScores.mapNotNull { event ->
-            findScoreChannel(event, channels, programmes)?.let { event.id to it }
+            findScoreChannel(event, guidedChannels, programmes)?.let { event.id to it }
         }.toMap(),
     )
 }

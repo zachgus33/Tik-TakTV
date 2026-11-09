@@ -991,7 +991,7 @@ private fun TabletSettingsScreen(
                 .fillMaxSize(),
             color = MaterialTheme.colorScheme.surface,
         ) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .focusGroup()
@@ -1008,48 +1008,50 @@ private fun TabletSettingsScreen(
                             }
                             else -> false
                         }
-                    }
-                    .padding(top = topOffset),
+                    },
+                contentPadding = PaddingValues(top = topOffset, bottom = 48.dp),
             ) {
-                Text(
-                    text = stringResource(Res.string.compose_settings_page_root),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 20.dp),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Spacer(modifier = Modifier.height(10.dp))
+                item {
+                    Text(
+                        text = stringResource(Res.string.compose_settings_page_root),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 20.dp),
+                        style = MaterialTheme.typography.displayLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
                 if (isTvMode) {
-                    SettingsSidebarItem("Add-ons", Icons.Rounded.Settings, page == SettingsPage.Addons, onAddonsClick)
-                    SettingsSidebarItem("Collections", Icons.Rounded.Info, false, onCollectionsClick)
-                    SettingsSidebarItem("Live TV", Icons.Rounded.Info, false, onLiveTvClick)
-                    SettingsSidebarItem("Playback", Icons.Rounded.Settings, page == SettingsPage.Playback) {
+                    item { SettingsSidebarItem("Add-ons", Icons.Rounded.Settings, page == SettingsPage.Addons, onAddonsClick) }
+                    item { SettingsSidebarItem("Collections", Icons.Rounded.Info, false, onCollectionsClick) }
+                    item { SettingsSidebarItem("Live TV", Icons.Rounded.Info, false, onLiveTvClick) }
+                    item { SettingsSidebarItem("Playback", Icons.Rounded.Settings, page == SettingsPage.Playback) {
                         openInlinePage(SettingsPage.Playback)
-                    }
-                    SettingsSidebarItem("General", Icons.Rounded.Settings, page == SettingsPage.Root && activeCategory == SettingsCategory.General) {
+                    } }
+                    item { SettingsSidebarItem("General", Icons.Rounded.Settings, page == SettingsPage.Root && activeCategory == SettingsCategory.General) {
                         selectedCategory = SettingsCategory.General.name
                         onPageChange(SettingsPage.Root)
-                    }
-                    SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
+                    } }
+                    item { SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
-                    }
-                    SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick)
-                    SettingsSidebarItem("Feedback", Icons.Rounded.Info, false) {
+                    } }
+                    item { SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick) }
+                    item { SettingsSidebarItem("Feedback", Icons.Rounded.Info, false) {
                         uriHandler.openUri("https://github.com/zachgus33/Tik-TakTV/issues/new/choose")
-                    }
-                    SettingsSidebarItem("What's new", Icons.Rounded.Info, false) {
+                    } }
+                    item { SettingsSidebarItem("What's new", Icons.Rounded.Info, false) {
                         onCheckForUpdatesClick?.invoke()
-                    }
-                    SettingsSidebarItem("Privacy & status", Icons.Rounded.AccountCircle, page == SettingsPage.Account) {
+                    } }
+                    item { SettingsSidebarItem("Privacy & status", Icons.Rounded.AccountCircle, page == SettingsPage.Account) {
                         openInlinePage(SettingsPage.Account)
-                    }
+                    } }
                 } else {
-                    SettingsCategory.entries.forEach { category ->
+                    items(SettingsCategory.entries.size) { index ->
+                        val category = SettingsCategory.entries[index]
                         SettingsSidebarItem(
                             label = stringResource(category.labelRes),
                             icon = category.icon,

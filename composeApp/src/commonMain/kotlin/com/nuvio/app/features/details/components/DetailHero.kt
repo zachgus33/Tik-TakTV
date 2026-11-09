@@ -81,7 +81,8 @@ fun DetailHero(
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth(),
     ) {
-        val heroHeight = detailHeroHeight(maxWidth, isTablet)
+        val isTvMode = com.nuvio.app.core.ui.LocalTvMode.current
+        val heroHeight = if (isTvMode) 300.dp else detailHeroHeight(maxWidth, isTablet)
         val trailerAlpha by animateFloatAsState(
             targetValue = if (heroTrailerReady) 1f else 0f,
             animationSpec = tween(durationMillis = 300),
@@ -209,7 +210,7 @@ fun DetailHero(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isTablet) 360.dp else 320.dp)
+                        .height(if (isTvMode) 250.dp else if (isTablet) 360.dp else 320.dp)
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
@@ -240,7 +241,7 @@ fun DetailHero(
                             modifier = Modifier
                                 .fillMaxWidth(if (isTablet) 0.56f else 0.6f)
                                 .widthIn(max = contentMaxWidth)
-                                .height(if (isTablet) 72.dp else 80.dp),
+                                .height(if (isTvMode) 58.dp else if (isTablet) 72.dp else 80.dp),
                             alignment = Alignment.Center,
                             contentScale = ContentScale.Fit,
                             onError = { logoLoadError = true },

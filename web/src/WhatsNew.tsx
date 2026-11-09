@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.07.3";
+export const latestRelease = "2026.11.09.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -11,6 +11,8 @@ export const releases = [
     date: "November 7, 2026",
     title: "Better YouTube playback controls and recovery",
     changes: [
+      "Live TV and Sports now show guide-linked channels progressively while large XMLTV feeds are still downloading, and default to United States channels when available.",
+      "Expanded SponsorBlock categories now stay reachable in a scrollable YouTube player section instead of being clipped by the playback pane.",
       "YouTube videos and music can now autoplay the next current result or recommendation, with an on/off control in both the player and Playback settings.",
       "SponsorBlock now has category controls in both the YouTube player and Playback settings, with choices shared immediately across the current browser or TV.",
       "YouTube Music search now filters uploads that prohibit embedded playback, and the player automatically tries the next available track when an older recommendation becomes unavailable.",

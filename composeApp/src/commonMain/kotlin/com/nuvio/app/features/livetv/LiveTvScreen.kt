@@ -152,13 +152,21 @@ fun LiveTvScreen(
         initialValue = LiveTvDerivedChannels(),
         uiState.channels,
         uiState.favoriteUrls,
+        uiState.currentProgrammes,
+        uiState.programmeSchedules,
         query,
         selectedGroup,
         selectedCountry,
         favoritesOnly,
     ) {
         value = withContext(Dispatchers.Default) {
-            val realChannels = uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }
+            val realChannels = uiState.channels.filter { channel ->
+                !isLikelyCategoryHeading(channel.name) && channelHasGuideData(
+                    channel,
+                    uiState.currentProgrammes,
+                    uiState.programmeSchedules,
+                )
+            }
             LiveTvDerivedChannels(
                 countries = realChannels.asSequence()
                     .mapNotNull(::liveTvCountryFor)
@@ -191,10 +199,10 @@ fun LiveTvScreen(
     }
     val countries = derivedChannels.countries
     val groups = derivedChannels.groups
-    val recentChannel = remember(uiState.recentChannel, uiState.channels) {
+    val recentChannel = remember(uiState.recentChannel, uiState.channels, uiState.currentProgrammes, uiState.programmeSchedules) {
         uiState.recentChannel?.let { recent ->
             val currentMatch = uiState.channels.firstOrNull { it.streamUrl == recent.streamUrl }
-            if (currentMatch != null) {
+            if (currentMatch != null && channelHasGuideData(currentMatch, uiState.currentProgrammes, uiState.programmeSchedules)) {
                 recent.copy(
                     name = currentMatch.name,
                     logoUrl = currentMatch.logoUrl ?: recent.logoUrl,
@@ -202,7 +210,7 @@ fun LiveTvScreen(
                     tvgId = currentMatch.tvgId ?: recent.tvgId,
                 )
             } else {
-                recent
+                null
             }
         }
     }
@@ -501,6 +509,24 @@ fun LiveTvScreen(
                 }
             }
 
+            if (uiState.isEpgLoading && visibleChannels.isEmpty()) {
+                item {
+                    Text(
+                        text = "Loading guide data for your channels…",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.nuvio.colors.textMuted,
+                    )
+                }
+            } else if (!uiState.isEpgLoading && visibleChannels.isEmpty()) {
+                item {
+                    Text(
+                        text = "No channels with guide data match these filters.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.nuvio.colors.textMuted,
+                    )
+                }
+            }
+
             if (guideMode) {
                 item {
                     Row(
@@ -525,7 +551,8 @@ fun LiveTvScreen(
             ) { index ->
                 LiveTvChannelRow(
                     channel = renderedChannels[index],
-                    programme = renderedChannels[index].tvgId?.let(uiState.currentProgrammes::get),
+                    programme = renderedChannels[index].tvgId?.let(uiState.currentProgrammes::get)
+                        ?: uiState.currentProgrammes[renderedChannels[index].id],
                     schedule = if (guideMode) {
                         renderedChannels[index].tvgId?.let(uiState.programmeSchedules::get)
                             ?: uiState.programmeSchedules[renderedChannels[index].id]
@@ -562,6 +589,15 @@ private data class LiveTvDerivedChannels(
     val groups: List<String> = emptyList(),
     val visible: List<LiveTvChannel> = emptyList(),
 )
+
+fun channelHasGuideData(
+    channel: LiveTvChannel,
+    currentProgrammes: Map<String, LiveTvProgramme>,
+    schedules: Map<String, List<LiveTvProgramme>>,
+): Boolean {
+    val keys = listOfNotNull(channel.tvgId?.takeIf(String::isNotBlank), channel.id)
+    return keys.any { key -> currentProgrammes[key] != null || !schedules[key].isNullOrEmpty() }
+}
 
 internal data class LiveTvCountry(val code: String, val name: String)
 

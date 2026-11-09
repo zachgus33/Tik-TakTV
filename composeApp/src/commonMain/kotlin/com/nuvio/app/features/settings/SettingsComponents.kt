@@ -263,6 +263,7 @@ internal fun SettingsNavigationRow(
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    var isFocused by remember { mutableStateOf(false) }
     val iconSize = if (isTablet) 42.dp else 36.dp
     val verticalPadding = if (isTablet) 16.dp else 14.dp
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
@@ -271,6 +272,9 @@ internal fun SettingsNavigationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
+            .border(if (isFocused) 4.dp else 0.dp, if (isFocused) Color.White else Color.Transparent, highlightShape)
+            .onFocusChanged { isFocused = it.hasFocus }
             .then(
                 if (highlighted) {
                     Modifier
@@ -350,6 +354,7 @@ internal fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    var isFocused by remember { mutableStateOf(false) }
     val verticalPadding = if (isTablet) 16.dp else 14.dp
     val horizontalPadding = if (isTablet) 20.dp else 16.dp
     val highlightShape = RoundedCornerShape(if (isTablet) NuvioTokens.Radius.lg else NuvioTokens.Radius.md)
@@ -357,6 +362,9 @@ internal fun SettingsSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
+            .border(if (isFocused) 4.dp else 0.dp, if (isFocused) Color.White else Color.Transparent, highlightShape)
+            .onFocusChanged { isFocused = it.hasFocus }
             .then(
                 if (highlighted) {
                     Modifier

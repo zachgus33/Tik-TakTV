@@ -223,7 +223,7 @@ function liveRegion(name: string) {
 
 function localLiveRegion() {
   const locale = navigator.language.split("-")[1]?.toUpperCase() ?? "";
-  return liveRegions.some(([code]) => code === locale) ? locale : "";
+  return liveRegions.some(([code]) => code === locale) ? locale : "US";
 }
 
 type LandingPreview = "home" | "live" | "youtube" | "sports";
@@ -1936,7 +1936,7 @@ export default function App() {
   const [source, setSource] = useState("catalogs");
   const [selectedCatalog, setSelectedCatalog] = useState("");
   const [category, setCategory] = useState("");
-  const [region, setRegion] = useState("");
+  const [region, setRegion] = useState(localLiveRegion);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
@@ -2517,16 +2517,7 @@ export default function App() {
     () => filtered.filter(guideState.hasUpcoming),
     [filtered, guideState.hasUpcoming],
   );
-  const guideFallbackReady =
-    !guideState.loading &&
-    guideState.fallback &&
-    (guideState.unavailable ||
-      guideState.probed >= Math.min(tvInterface ? 60 : 120, filtered.length));
-  const guideDisplayChannels = guideChannels.length
-    ? guideChannels
-    : guideFallbackReady
-      ? filtered
-      : [];
+  const guideDisplayChannels = guideChannels;
   const featuredGuide = useMemo(() => {
     if (
       selectedGuide &&
@@ -2546,13 +2537,8 @@ export default function App() {
     return null;
   }, [guideDisplayChannels, guideState.get, guideState.now, selectedGuide]);
   const guidedRecentChannels = useMemo(
-    () =>
-      recentChannels.filter(
-        (channel) =>
-          guideState.hasUpcoming(channel) ||
-          (guideFallbackReady && !!channel.epgId?.trim()),
-      ),
-    [guideFallbackReady, guideState.hasUpcoming, recentChannels],
+    () => recentChannels.filter(guideState.hasUpcoming),
+    [guideState.hasUpcoming, recentChannels],
   );
   useEffect(() => {
     setGuideLimit(initialGuideLimit);
@@ -2562,8 +2548,6 @@ export default function App() {
     const probeCeiling = Math.min(filtered.length, tvInterface ? 120 : 240);
     if (
       page !== "live" ||
-      guideState.loading ||
-      !guideState.fallback ||
       guideChannels.length >= guideLimit ||
       guideProbeLimit >= probeCeiling ||
       guideState.probed < guideProbeLimit
@@ -3460,8 +3444,8 @@ export default function App() {
                             : "Loading your Xtream guide automatically..."
                           : guideChannels.length
                             ? `Guide ready - ${guideState.count.toLocaleString()} channel guides`
-                            : guideFallbackReady
-                              ? `Your provider marks ${filtered.length.toLocaleString()} channels for guide data, but its schedule service is unavailable. You can still open those channels.`
+                            : guideState.fallback && guideState.unavailable
+                              ? "No channels with usable guide data are available from this provider right now."
                               : "Checking channels for program guide data..."}
                       </p>
                       {!loading && guideDisplayChannels.length > 0 && (
