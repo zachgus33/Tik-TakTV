@@ -439,49 +439,51 @@ object LiveTvRepository {
 
     /**
      * Xtream XMLTV documents can be tens of megabytes and exhaust the small
-     * Fire TV heap before a single row is shown. Fetch the provider's bounded
-     * short guide in small concurrent batches and publish each batch so the
-     * two-hour guide fills progressively.
+     * Fire TV heap. Stream the provider guide first and retain only programme
+     * rows for configured channels, publishing matches progressively. The
+     * slower per-channel endpoint is only a bounded fallback.
      */
     private fun loadXtreamEpgInBackground(sourceUrl: String, settings: LiveTvXtreamSettings) {
         epgScope.launch {
             val channels = mutableUiState.value.channels
                 .sortedWith(compareBy<LiveTvChannel>({ !it.looksLikeUnitedStatesChannel() }, { it.name }))
-                .take(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
-            for (batch in channels.chunked(XTREAM_SHORT_EPG_BATCH_SIZE)) {
-                val entries = coroutineScope {
-                    batch.map { channel ->
-                        async {
-                            runCatching {
-                                LiveTvRepositoryXtream.getShortEpg(settings, channel)
-                            }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { channel to it }
-                        }
-                    }.awaitAll()
-                }
-                entries.filterNotNull().forEach { (channel, programmes) ->
-                    val key = channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id
-                    schedules[key] = programmes
-                }
-                if (mutableUiState.value.sourceUrl != sourceUrl) return@launch
-                publishGuideSchedules(schedules)
-            }
-            if (schedules.isEmpty()) {
-                val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
-                var matchedChannels = 0
-                runCatching {
-                    streamTargetedXmlTvProgrammeSchedules(
-                        url = settings.xmlTvEndpoint(),
-                        targetChannelIds = targetIds,
-                    ) { channelId, entries ->
-                        schedules[channelId] = entries
-                        matchedChannels += 1
-                        if (matchedChannels == 1 || matchedChannels % XTREAM_XMLTV_PUBLISH_BATCH_SIZE == 0) {
-                            publishGuideSchedules(schedules)
-                        }
+            val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
+            val matchedChannelIds = mutableSetOf<String>()
+            runCatching {
+                streamTargetedXmlTvProgrammeSchedules(
+                    url = settings.xmlTvEndpoint(),
+                    targetChannelIds = targetIds,
+                ) { channelId, entries ->
+                    schedules[channelId] = entries
+                    if (matchedChannelIds.add(channelId) &&
+                        (matchedChannelIds.size == 1 || matchedChannelIds.size % XTREAM_XMLTV_PUBLISH_BATCH_SIZE == 0)
+                    ) {
+                        publishGuideSchedules(schedules)
                     }
                 }
-                if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
+            }
+            if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
+
+            if (schedules.isEmpty()) {
+                val fallbackChannels = channels.take(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
+                for (batch in fallbackChannels.chunked(XTREAM_SHORT_EPG_BATCH_SIZE)) {
+                    val entries = coroutineScope {
+                        batch.map { channel ->
+                            async {
+                                runCatching {
+                                    LiveTvRepositoryXtream.getShortEpg(settings, channel)
+                                }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { channel to it }
+                            }
+                        }.awaitAll()
+                    }
+                    entries.filterNotNull().forEach { (channel, programmes) ->
+                        val key = channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id
+                        schedules[key] = programmes
+                    }
+                    if (mutableUiState.value.sourceUrl != sourceUrl) return@launch
+                    if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
+                }
             }
             if (mutableUiState.value.sourceUrl == sourceUrl) {
                 publishGuideSchedules(schedules, loading = false)
@@ -674,7 +676,7 @@ private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
         value.contains(" UNITED STATES")
 }
 
-private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 240
+private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 60
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
 private const val XTREAM_XMLTV_PUBLISH_BATCH_SIZE = 12
 

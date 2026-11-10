@@ -51,24 +51,22 @@ class LiveTvPlaylistParserTest {
     }
 
     @Test
-    fun keepsChannelsVisibleUntilGuideMatchesAreAvailable() {
+    fun onlyReturnsChannelsWithGuideData() {
         val channels = listOf(
             LiveTvChannel("one", "CBS", "https://stream.test/one", tvgId = "cbs"),
             LiveTvChannel("two", "NBC", "https://stream.test/two", tvgId = "nbc"),
         )
 
-        val withoutGuide = selectGuideBackedChannelsOrAll(channels, emptyMap(), emptyMap())
-        assertEquals(channels, withoutGuide.channels)
-        assertEquals(true, withoutGuide.usingFallback)
+        val withoutGuide = selectGuideBackedChannels(channels, emptyMap(), emptyMap())
+        assertEquals(emptyList(), withoutGuide)
 
         val programme = LiveTvProgramme("News", 1L, 2L, "")
-        val withGuide = selectGuideBackedChannelsOrAll(
+        val withGuide = selectGuideBackedChannels(
             channels,
             currentProgrammes = mapOf("cbs" to programme),
             schedules = emptyMap(),
         )
-        assertEquals(listOf("CBS"), withGuide.channels.map(LiveTvChannel::name))
-        assertEquals(false, withGuide.usingFallback)
+        assertEquals(listOf("CBS"), withGuide.map(LiveTvChannel::name))
     }
 
     @Test

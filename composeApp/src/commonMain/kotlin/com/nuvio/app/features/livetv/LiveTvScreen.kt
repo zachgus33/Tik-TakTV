@@ -161,15 +161,13 @@ fun LiveTvScreen(
     ) {
         value = withContext(Dispatchers.Default) {
             val eligibleChannels = uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }
-            // A failed or still-running EPG request must never make a valid
-            // provider look disconnected. Prefer guide-backed channels, but
-            // keep the channel list usable until guide matches are available.
-            val selection = selectGuideBackedChannelsOrAll(
+            // The guide is the source of truth for this screen. Do not expose
+            // raw playlist rows that have no programme data.
+            val realChannels = selectGuideBackedChannels(
                 eligibleChannels,
                 uiState.currentProgrammes,
                 uiState.programmeSchedules,
             )
-            val realChannels = selection.channels
             LiveTvDerivedChannels(
                 countries = realChannels.asSequence()
                     .mapNotNull(::liveTvCountryFor)
@@ -188,7 +186,6 @@ fun LiveTvScreen(
                         (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
                         (query.isBlank() || channel.name.contains(query, ignoreCase = true))
                 },
-                usingGuideFallback = selection.usingFallback,
             )
         }
     }
@@ -204,10 +201,9 @@ fun LiveTvScreen(
     val countries = derivedChannels.countries
     val groups = derivedChannels.groups
     val recentChannel = remember(uiState.recentChannel, uiState.channels, uiState.currentProgrammes, uiState.programmeSchedules) {
-        val hasAnyGuideData = uiState.currentProgrammes.isNotEmpty() || uiState.programmeSchedules.isNotEmpty()
         uiState.recentChannel?.let { recent ->
             val currentMatch = uiState.channels.firstOrNull { it.streamUrl == recent.streamUrl }
-            if (currentMatch != null && (!hasAnyGuideData || channelHasGuideData(currentMatch, uiState.currentProgrammes, uiState.programmeSchedules))) {
+            if (currentMatch != null && channelHasGuideData(currentMatch, uiState.currentProgrammes, uiState.programmeSchedules)) {
                 recent.copy(
                     name = currentMatch.name,
                     logoUrl = currentMatch.logoUrl ?: recent.logoUrl,
@@ -514,22 +510,14 @@ fun LiveTvScreen(
                 }
             }
 
-            if (derivedChannels.usingGuideFallback) {
+            if (visibleChannels.isEmpty()) {
                 item {
                     Text(
                         text = if (uiState.isEpgLoading) {
-                            "Channels are ready. Guide data is loading in the background…"
+                            "Loading guide data. Channels will appear when programme information is ready…"
                         } else {
-                            "Guide data is unavailable right now. Showing your channels so Live TV stays usable."
+                            "No channels with guide data match these filters."
                         },
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.nuvio.colors.textMuted,
-                    )
-                }
-            } else if (visibleChannels.isEmpty()) {
-                item {
-                    Text(
-                        text = "No channels with guide data match these filters.",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.nuvio.colors.textMuted,
                     )
@@ -597,7 +585,6 @@ private data class LiveTvDerivedChannels(
     val countries: List<LiveTvCountry> = emptyList(),
     val groups: List<String> = emptyList(),
     val visible: List<LiveTvChannel> = emptyList(),
-    val usingGuideFallback: Boolean = false,
 )
 
 fun channelHasGuideData(
@@ -609,22 +596,11 @@ fun channelHasGuideData(
     return keys.any { key -> currentProgrammes[key] != null || !schedules[key].isNullOrEmpty() }
 }
 
-internal data class GuideChannelSelection(
-    val channels: List<LiveTvChannel>,
-    val usingFallback: Boolean,
-)
-
-internal fun selectGuideBackedChannelsOrAll(
+internal fun selectGuideBackedChannels(
     channels: List<LiveTvChannel>,
     currentProgrammes: Map<String, LiveTvProgramme>,
     schedules: Map<String, List<LiveTvProgramme>>,
-): GuideChannelSelection {
-    val guided = channels.filter { channelHasGuideData(it, currentProgrammes, schedules) }
-    return GuideChannelSelection(
-        channels = guided.ifEmpty { channels },
-        usingFallback = guided.isEmpty() && channels.isNotEmpty(),
-    )
-}
+): List<LiveTvChannel> = channels.filter { channelHasGuideData(it, currentProgrammes, schedules) }
 
 internal data class LiveTvCountry(val code: String, val name: String)
 

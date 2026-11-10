@@ -46,6 +46,14 @@ data class TikTakYouTubeItem(
     val title: String = "YouTube",
     val channel: String? = null,
     val thumbnail: String? = null,
+    val itemCount: Int? = null,
+)
+
+@Serializable
+private data class TikTakYouTubeSubscription(
+    val id: String,
+    val title: String,
+    val thumbnail: String? = null,
 )
 
 @Serializable
@@ -60,6 +68,8 @@ private data class YouTubeAccountResponse(
     val videoFeed: List<TikTakYouTubeItem> = emptyList(),
     val musicFeed: List<TikTakYouTubeItem> = emptyList(),
     val activity: List<TikTakYouTubeItem> = emptyList(),
+    val playlists: List<TikTakYouTubeItem> = emptyList(),
+    val subscriptions: List<TikTakYouTubeSubscription> = emptyList(),
     val error: String? = null,
 )
 
@@ -74,6 +84,8 @@ fun TikTakYouTubeScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("video") }
     var accountItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
+    var playlistItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
+    var subscriptions by remember { mutableStateOf<List<TikTakYouTubeSubscription>>(emptyList()) }
     var results by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -83,14 +95,19 @@ fun TikTakYouTubeScreen(
             val response = TikTakServiceClient.post("/youtube/account", "{\"summary\":false}")
             val payload = YouTubeJson.decodeFromString<YouTubeAccountResponse>(response.body)
             if (response.status !in 200..299) error(payload.error ?: "YouTube account could not be loaded.")
-            if (kind == "music") payload.musicFeed else payload.videoFeed.ifEmpty { payload.activity }
-        }.onSuccess { items ->
+            payload
+        }.onSuccess { payload ->
             // Account feeds can repeat the same upload across subscriptions and
             // activity. Duplicate LazyRow keys crash Compose on low-memory TV
             // devices, and unbounded artwork decoding can freeze Fire TV.
-            accountItems = items
+            accountItems = (if (kind == "music") payload.musicFeed else payload.videoFeed.ifEmpty { payload.activity })
                 .distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+            playlistItems = payload.playlists
+                .filter { item -> item.kind == null || item.kind == kind }
+                .distinctBy(TikTakYouTubeItem::stableKey)
+                .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+            subscriptions = if (kind == "video") payload.subscriptions.take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
         }
             .onFailure { error = it.message }
     }
@@ -118,8 +135,31 @@ fun TikTakYouTubeScreen(
         }
     }
 
+    fun loadSubscription(subscription: TikTakYouTubeSubscription) {
+        if (loading) return
+        scope.launch {
+            loading = true
+            error = null
+            runCatching {
+                val body = YouTubeJson.encodeToString(
+                    mapOf("channelId" to subscription.id, "kind" to "video"),
+                )
+                val response = TikTakServiceClient.post("/youtube/search", body)
+                val payload = YouTubeJson.decodeFromString<YouTubeSearchResponse>(response.body)
+                if (response.status !in 200..299) error(payload.error ?: "Subscription could not be loaded.")
+                payload.results
+            }.onSuccess { items ->
+                results = items.distinctBy(TikTakYouTubeItem::stableKey).take(MAX_VISIBLE_YOUTUBE_ITEMS)
+                query = subscription.title
+            }.onFailure { error = it.message }
+            loading = false
+        }
+    }
+
     LaunchedEffect(kind) {
         accountItems = emptyList()
+        playlistItems = emptyList()
+        subscriptions = emptyList()
         loadAccount()
     }
 
@@ -180,7 +220,39 @@ fun TikTakYouTubeScreen(
             item { YouTubeRow("Search results", results, onPlay) }
         }
         if (accountItems.isNotEmpty()) {
-            item { YouTubeRow("For you", accountItems, onPlay) }
+            item { YouTubeRow(if (kind == "music") "Your music" else "Videos for you", accountItems, onPlay) }
+        }
+        if (playlistItems.isNotEmpty()) {
+            item { YouTubeRow(if (kind == "music") "Saved music & playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }
+        }
+        if (subscriptions.isNotEmpty()) {
+            item { YouTubeSubscriptionRow(subscriptions, ::loadSubscription) }
+        }
+    }
+}
+
+@Composable
+private fun YouTubeSubscriptionRow(
+    subscriptions: List<TikTakYouTubeSubscription>,
+    onClick: (TikTakYouTubeSubscription) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "Subscriptions",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.nuvio.colors.textPrimary,
+            fontWeight = FontWeight.Bold,
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(subscriptions, key = TikTakYouTubeSubscription::id) { subscription ->
+                NuvioPosterCard(
+                    title = subscription.title,
+                    imageUrl = subscription.thumbnail,
+                    shape = NuvioPosterShape.Landscape,
+                    detailLine = "Subscription",
+                    onClick = { onClick(subscription) },
+                )
+            }
         }
     }
 }

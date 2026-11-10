@@ -1823,7 +1823,20 @@ export function createService({ token, origins, authorizeAccount }) {
             feedCandidates.map((item) => [item.videoId, item]),
           ).values(),
         ].slice(0, 48);
-        const playlistItems = (playlists?.items ?? []).slice(0, 30);
+        const watchLaterId = String(
+          channel.items?.[0]?.contentDetails?.relatedPlaylists?.watchLater ?? "",
+        );
+        const watchLaterPlaylist = /^[A-Za-z0-9_-]{10,64}$/.test(watchLaterId)
+          ? [{
+              id: watchLaterId,
+              snippet: { title: "Watch Later", thumbnails: {} },
+              contentDetails: {},
+            }]
+          : [];
+        const playlistItems = [
+          ...watchLaterPlaylist,
+          ...(playlists?.items ?? []),
+        ].slice(0, 31);
         const playlistLeads = await Promise.all(
           playlistItems.map((item) =>
             youtubeApi(userId, "playlistItems", {
@@ -1861,6 +1874,8 @@ export function createService({ token, origins, authorizeAccount }) {
               thumbnail:
                 item?.snippet?.thumbnails?.medium?.url ??
                 item?.snippet?.thumbnails?.default?.url ??
+                first?.snippet?.thumbnails?.medium?.url ??
+                first?.snippet?.thumbnails?.default?.url ??
                 "",
               itemCount: Number(item?.contentDetails?.itemCount ?? 0),
             },
