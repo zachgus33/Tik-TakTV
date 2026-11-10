@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -308,7 +310,7 @@ private fun EpisodeSheetActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(68.dp)
-            .clickable(onClick = onClick)
+            .tikTakTvFocus().clickable(onClick = onClick)
             .padding(horizontal = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,

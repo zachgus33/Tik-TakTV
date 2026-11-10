@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -227,7 +229,7 @@ fun DetailMetaInfo(
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { expanded = !expanded },
+                        modifier = Modifier.tikTakTvFocus().clickable { expanded = !expanded },
                     )
                 }
             }

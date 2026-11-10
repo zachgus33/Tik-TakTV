@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import com.nuvio.app.core.ui.NuvioTvTextField
 
 import androidx.compose.foundation.background
@@ -292,7 +294,7 @@ private fun ChatBubble(message: AiChatMessage) {
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { uriHandler.openUri(source.url) },
+                                .tikTakTvFocus().clickable { uriHandler.openUri(source.url) },
                         )
                     }
                 }

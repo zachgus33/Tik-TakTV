@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -177,7 +179,7 @@ private fun DetailFloatingHeaderAction(
     Box(
         modifier = Modifier
             .size(40.dp)
-            .clickable(enabled = enabled, onClick = onClick),
+            .tikTakTvFocus().clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

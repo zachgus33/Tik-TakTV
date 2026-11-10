@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -118,7 +120,7 @@ fun CommentDetailSheet(
                                 if (canGoBack) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             )
-                            .then(if (canGoBack) Modifier.clickable(onClick = onPrevious) else Modifier),
+                            .then(if (canGoBack) Modifier.tikTakTvFocus().clickable(onClick = onPrevious) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -144,7 +146,7 @@ fun CommentDetailSheet(
                                 if (canGoForward) MaterialTheme.colorScheme.surfaceVariant
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             )
-                            .then(if (canGoForward) Modifier.clickable(onClick = onNext) else Modifier),
+                            .then(if (canGoForward) Modifier.tikTakTvFocus().clickable(onClick = onNext) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -185,7 +187,7 @@ fun CommentDetailSheet(
                     },
                     modifier = Modifier.then(
                         if (isSpoilerHidden) {
-                            Modifier.clickable { isSpoilerRevealed.value = true }
+                            Modifier.tikTakTvFocus().clickable { isSpoilerRevealed.value = true }
                         } else {
                             Modifier
                         },

@@ -6,6 +6,9 @@ import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -19,6 +22,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 // Fire TV devices have a small app heap. Keeping ten thousand channel/logo
 // records live caused input-dispatch ANRs while Compose indexed the guide.
@@ -60,7 +65,7 @@ object LiveTvRepository {
                 )
                 if (sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured) {
                     mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
-                    loadEpgInBackground(sourceUrl, listOf(xtreamSettings.xmlTvEndpoint()))
+                    loadXtreamEpgInBackground(sourceUrl, xtreamSettings)
                 } else if (sourceType == LiveTvSourceType.M3u && LiveTvStorage.hasStoredLocalPlaylist()) {
                     // The channel cache intentionally avoids reparsing a large playlist on
                     // every launch, but the XMLTV URLs live in the M3U header. Recover just
@@ -324,7 +329,7 @@ object LiveTvRepository {
             )
             cacheChannels(channels)
             mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
-            loadEpgInBackground(normalizedSettings.serverUrl, listOf(normalizedSettings.xmlTvEndpoint()))
+            loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(
@@ -430,6 +435,56 @@ object LiveTvRepository {
             }
         }
     }
+
+    /**
+     * Xtream XMLTV documents can be tens of megabytes and exhaust the small
+     * Fire TV heap before a single row is shown. Fetch the provider's bounded
+     * short guide in small concurrent batches and publish each batch so the
+     * two-hour guide fills progressively.
+     */
+    private fun loadXtreamEpgInBackground(sourceUrl: String, settings: LiveTvXtreamSettings) {
+        epgScope.launch {
+            val channels = mutableUiState.value.channels
+                .sortedWith(compareBy<LiveTvChannel>({ !it.looksLikeUnitedStatesChannel() }, { it.name }))
+                .take(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
+            val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
+            for (batch in channels.chunked(XTREAM_SHORT_EPG_BATCH_SIZE)) {
+                val entries = coroutineScope {
+                    batch.map { channel ->
+                        async {
+                            runCatching {
+                                LiveTvRepositoryXtream.getShortEpg(settings, channel)
+                            }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { channel to it }
+                        }
+                    }.awaitAll()
+                }
+                entries.filterNotNull().forEach { (channel, programmes) ->
+                    val key = channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id
+                    schedules[key] = programmes
+                }
+                if (mutableUiState.value.sourceUrl != sourceUrl) return@launch
+                publishGuideSchedules(schedules)
+            }
+            if (mutableUiState.value.sourceUrl == sourceUrl) {
+                publishGuideSchedules(schedules, loading = false)
+            }
+        }
+    }
+
+    private fun publishGuideSchedules(
+        schedules: Map<String, List<LiveTvProgramme>>,
+        loading: Boolean = true,
+    ) {
+        val now = LiveTvClock.nowEpochMs()
+        val programmes = schedules.mapNotNull { (channel, entries) ->
+            entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
+        }.toMap()
+        mutableUiState.value = mutableUiState.value.copy(
+            currentProgrammes = programmes,
+            programmeSchedules = schedules.toMap(),
+            isEpgLoading = loading,
+        )
+    }
 }
 
 internal expect object LiveTvStorage {
@@ -524,11 +579,29 @@ private object LiveTvRepositoryXtream {
             .toList()
     }
 
-    private suspend fun request(settings: LiveTvXtreamSettings, action: String): JsonElement {
+    suspend fun getShortEpg(
+        settings: LiveTvXtreamSettings,
+        channel: LiveTvChannel,
+    ): List<LiveTvProgramme> {
+        val streamId = channel.xtreamStreamId() ?: return emptyList()
+        val root = request(
+            settings = settings,
+            action = "get_short_epg",
+            extraParameters = mapOf("stream_id" to streamId, "limit" to "8"),
+        ) as? JsonObject ?: return emptyList()
+        return parseXtreamShortEpg(root, LiveTvClock.nowEpochMs())
+    }
+
+    private suspend fun request(
+        settings: LiveTvXtreamSettings,
+        action: String,
+        extraParameters: Map<String, String> = emptyMap(),
+    ): JsonElement {
         val parameters = buildMap {
             put("username", settings.username)
             put("password", settings.password)
             put("action", action)
+            putAll(extraParameters)
         }
         val url = settings.playerApiEndpoint() + parameters.entries.joinToString(
             separator = "&",
@@ -539,6 +612,52 @@ private object LiveTvRepositoryXtream {
         return stalkerJson.parseToJsonElement(httpGetTextWithHeaders(url, M3U_PLAYLIST_REQUEST_HEADERS))
     }
 }
+
+internal fun parseXtreamShortEpg(
+    root: JsonObject,
+    nowEpochMs: Long,
+): List<LiveTvProgramme> {
+    val windowEnd = nowEpochMs + 3 * 60 * 60 * 1000L
+    return root.arrayValue("epg_listings").mapNotNull { element ->
+        val item = element as? JsonObject ?: return@mapNotNull null
+        val start = item.stringValue("start_timestamp")?.toLongOrNull()?.times(1000L)
+            ?: return@mapNotNull null
+        val stop = (item.stringValue("stop_timestamp") ?: item.stringValue("end_timestamp"))
+            ?.toLongOrNull()?.times(1000L) ?: return@mapNotNull null
+        if (stop <= nowEpochMs || start >= windowEnd) return@mapNotNull null
+        val title = item.stringValue("title")?.decodeXtreamGuideText()?.takeIf(String::isNotBlank)
+            ?: return@mapNotNull null
+        LiveTvProgramme(
+            title = title,
+            startEpochMs = start,
+            stopEpochMs = stop,
+            timeLabel = "",
+        )
+    }.sortedBy(LiveTvProgramme::startEpochMs).take(8)
+}
+
+@OptIn(ExperimentalEncodingApi::class)
+private fun String.decodeXtreamGuideText(): String {
+    val original = trim()
+    if (original.isBlank()) return original
+    return runCatching {
+        Base64.decode(original).decodeToString()
+    }.getOrNull()
+        ?.takeIf { decoded -> decoded.isNotBlank() && decoded.none { it == '\uFFFD' || (it.code < 32 && it !in "\n\r\t") } }
+        ?: original
+}
+
+private fun LiveTvChannel.xtreamStreamId(): String? =
+    Regex("""^xtream-([^-]+)-""").find(id)?.groupValues?.getOrNull(1)
+
+private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
+    val value = "$group $name".trim().uppercase()
+    return value.startsWith("US ") || value.startsWith("US|") || value.startsWith("USA ") ||
+        value.contains(" UNITED STATES")
+}
+
+private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 240
+private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
 
 private object LiveTvRepositoryStalker {
     private var cachedSession: StalkerSession? = null

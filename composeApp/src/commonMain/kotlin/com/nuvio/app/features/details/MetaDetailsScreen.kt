@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -2230,7 +2232,7 @@ private fun TabbedSectionGroup(
                         },
                         maxLines = 1,
                         modifier = Modifier
-                            .clickable(
+                            .tikTakTvFocus().clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             ) { selectedIndex = index },

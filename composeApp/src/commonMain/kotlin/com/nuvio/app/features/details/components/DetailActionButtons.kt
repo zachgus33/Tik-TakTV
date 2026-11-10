@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -124,7 +126,7 @@ fun DetailActionButtons(
                     modifier = Modifier
                         .focusRequester(playFocusRequester)
                         .fillMaxWidth()
-                        .combinedClickable(
+                        .tikTakTvFocus().combinedClickable(
                             onClick = {
                                 onPlayClick()
                             },
@@ -233,7 +235,7 @@ fun DetailActionButtons(
                     Box(
                         modifier = Modifier
                             .size(iconButtonSize)
-                            .clickable(role = Role.Button) {
+                            .tikTakTvFocus().clickable(role = Role.Button) {
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 actionsExpanded = !actionsExpanded
                             },
@@ -278,7 +280,7 @@ private fun DetailCompactAction(
         Box(
             modifier = Modifier
                 .size(size)
-                .combinedClickable(
+                .tikTakTvFocus().combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     role = Role.Button,
@@ -331,7 +333,7 @@ private fun DetailIconAction(
         Box(
             modifier = Modifier
                 .size(size)
-                .combinedClickable(
+                .tikTakTvFocus().combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                     role = Role.Button,

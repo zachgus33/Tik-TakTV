@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
@@ -460,7 +462,7 @@ private fun SeasonViewModeToggle(
                 color = Color.White.copy(alpha = if (isPosters) 0.2f else 0.3f),
                 shape = RoundedCornerShape(8.dp),
             )
-            .clickable(onClick = onClick)
+            .tikTakTvFocus().clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -528,7 +530,7 @@ private fun SeasonTextChipScrollRow(
                             Color.Transparent
                         },
                     )
-                    .combinedClickable(
+                    .tikTakTvFocus().combinedClickable(
                         onClick = { onSelect(season) },
                         onLongClick = onLongPress?.let { handler -> { handler(season) } },
                     )
@@ -630,7 +632,7 @@ private fun SeasonPosterButton(
     Column(
         modifier = Modifier
             .width(sizing.seasonPosterWidth)
-            .combinedClickable(
+            .tikTakTvFocus().combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
@@ -1195,7 +1197,7 @@ private fun EpisodeListCard(
                 color = Color.White.copy(alpha = 0.1f),
                 shape = cardShape,
             )
-            .combinedClickable(
+            .tikTakTvFocus().combinedClickable(
                 enabled = onClick != null || onLongPress != null,
                 onClick = { onClick?.invoke() },
                 onLongClick = onLongPress,

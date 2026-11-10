@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -169,7 +171,7 @@ fun DetailHero(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clickable(
+                            .tikTakTvFocus().clickable(
                                 enabled = heroTrailerReady,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,

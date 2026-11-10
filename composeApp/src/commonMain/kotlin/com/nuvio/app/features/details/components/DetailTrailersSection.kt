@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -169,7 +171,7 @@ private fun TrailerCategoryChip(
         tonalElevation = 0.dp,
         modifier = Modifier
             .clip(RoundedCornerShape(sizing.selectorRadius))
-            .clickable(onClick = onClick),
+            .tikTakTvFocus().clickable(onClick = onClick),
     ) {
         Text(
             text = stringResource(Res.string.detail_trailer_category_count, label, count),
@@ -207,7 +209,7 @@ private fun TrailerCard(
                     shape = RoundedCornerShape(cornerRadius),
                     surface = NuvioCardDepthSurface.Trailers,
                 )
-                .clickable(onClick = onClick),
+                .tikTakTvFocus().clickable(onClick = onClick),
         ) {
             AsyncImage(
                 model = "https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg",

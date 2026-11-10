@@ -1,5 +1,7 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -195,7 +197,7 @@ private fun CommentCard(
             modifier = modifier
                 .width(cardWidth)
                 .height(cardHeight)
-                .clickable(onClick = onClick),
+                .tikTakTvFocus().clickable(onClick = onClick),
             shape = RoundedCornerShape(16.dp),
             color = if (isAmoled) Color(0xFF121212) else colorScheme.surfaceVariant.copy(alpha = 0.5f),
             tonalElevation = 1.dp,

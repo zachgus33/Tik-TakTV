@@ -1,5 +1,7 @@
 package com.nuvio.app.features.livetv
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -19,6 +21,54 @@ class LiveTvPlaylistParserTest {
         )
 
         assertEquals(listOf("Evening News", "College Football", "Local News"), schedules.getValue("cbs").map { it.title })
+    }
+
+    @Test
+    fun parsesBoundedXtreamShortGuideWithBase64Titles() {
+        val now = 1_794_169_800_000L
+        val root = Json.parseToJsonElement(
+            """
+            {
+              "epg_listings": [
+                {
+                  "title": "RXZlbmluZyBOZXdz",
+                  "start_timestamp": 1794168000,
+                  "stop_timestamp": 1794171600
+                },
+                {
+                  "title": "Too late",
+                  "start_timestamp": 1794182400,
+                  "stop_timestamp": 1794186000
+                }
+              ]
+            }
+            """.trimIndent(),
+        ).jsonObject
+
+        val schedules = parseXtreamShortEpg(root, now)
+
+        assertEquals(listOf("Evening News"), schedules.map(LiveTvProgramme::title))
+    }
+
+    @Test
+    fun keepsChannelsVisibleUntilGuideMatchesAreAvailable() {
+        val channels = listOf(
+            LiveTvChannel("one", "CBS", "https://stream.test/one", tvgId = "cbs"),
+            LiveTvChannel("two", "NBC", "https://stream.test/two", tvgId = "nbc"),
+        )
+
+        val withoutGuide = selectGuideBackedChannelsOrAll(channels, emptyMap(), emptyMap())
+        assertEquals(channels, withoutGuide.channels)
+        assertEquals(true, withoutGuide.usingFallback)
+
+        val programme = LiveTvProgramme("News", 1L, 2L, "")
+        val withGuide = selectGuideBackedChannelsOrAll(
+            channels,
+            currentProgrammes = mapOf("cbs" to programme),
+            schedules = emptyMap(),
+        )
+        assertEquals(listOf("CBS"), withGuide.channels.map(LiveTvChannel::name))
+        assertEquals(false, withGuide.usingFallback)
     }
 
     @Test

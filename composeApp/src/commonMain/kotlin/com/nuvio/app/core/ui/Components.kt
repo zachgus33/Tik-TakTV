@@ -271,7 +271,8 @@ fun NuvioIconActionButton(
             .background(
                 color = tokens.colors.background.copy(alpha = 0.001f),
                 shape = tokens.shapes.avatar,
-            ),
+            )
+            .tikTakTvFocus(),
         onClick = onClick,
     ) {
         Icon(
@@ -300,6 +301,7 @@ fun NuvioBackButton(
             .size(buttonSize)
             .clip(shape)
             .background(containerColor)
+            .tikTakTvFocus()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -328,7 +330,8 @@ fun NuvioPrimaryButton(
             .fillMaxWidth()
             .height(NuvioTokens.Space.s48 + NuvioTokens.Space.s4)
             .clip(shape)
-            .then(if (animatedBrush != null) Modifier.background(animatedBrush, shape) else Modifier),
+            .then(if (animatedBrush != null) Modifier.background(animatedBrush, shape) else Modifier)
+            .tikTakTvFocus(),
         enabled = enabled,
         shape = shape,
         colors = ButtonDefaults.buttonColors(
