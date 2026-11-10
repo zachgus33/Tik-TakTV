@@ -34,17 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
@@ -444,20 +440,9 @@ private fun FocusCard(onClick: () -> Unit, content: @Composable ColumnScope.() -
             .fillMaxWidth()
             .widthIn(max = 1000.dp)
             .onFocusChanged { focused = it.hasFocus }
-            .onPreviewKeyEvent { event ->
-                if (
-                    focused &&
-                    event.type == KeyEventType.KeyDown &&
-                    event.key in setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
-                ) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
-            }
             .border(if (focused) 4.dp else 1.dp, if (focused) Color(0xFFFF4F9A) else MaterialTheme.nuvio.colors.borderDefault, RoundedCornerShape(16.dp))
             .background(MaterialTheme.nuvio.colors.surface, RoundedCornerShape(16.dp))
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

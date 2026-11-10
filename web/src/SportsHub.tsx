@@ -477,10 +477,22 @@ function SportsHub({
     () =>
       [...standaloneScoreCandidates].sort(
         (a, b) =>
+          ({ in: 0, pre: 1, post: 2 } as const)[a.state] -
+            ({ in: 0, pre: 1, post: 2 } as const)[b.state] ||
           Number(!standaloneGuideMatches.has(a.id)) -
-          Number(!standaloneGuideMatches.has(b.id)),
+            Number(!standaloneGuideMatches.has(b.id)) ||
+          a.start - b.start,
       ),
     [standaloneGuideMatches, standaloneScoreCandidates],
+  );
+  const standaloneLiveScores = standaloneScores.filter(
+    (score) => score.state === "in",
+  );
+  const standaloneUpcomingScores = standaloneScores.filter(
+    (score) => score.state === "pre",
+  );
+  const standaloneResults = standaloneScores.filter(
+    (score) => score.state === "post",
   );
   const eventCount = visible.length + standaloneScores.length;
   const displayed = remaining.slice(0, limit);
@@ -546,14 +558,6 @@ function SportsHub({
         </div>
       ) : (
         <>
-          {!!standaloneScores.length && (
-            <ScoreboardSection
-              scores={standaloneScores}
-              guideMatches={standaloneGuideMatches}
-              onPlay={onPlay}
-              getArtwork={getArtwork}
-            />
-          )}
           {scanning && (
             <p className="sports-scan-note" role="status">
               Checking your TV guide for channels that carry these games…
@@ -569,6 +573,16 @@ function SportsHub({
               onPlay={onPlay}
               getArtwork={getArtwork}
               scoreByEvent={scoreByEvent}
+              priority
+            />
+          )}
+          {!!standaloneLiveScores.length && (
+            <ScoreboardSection
+              title="More live scores"
+              scores={standaloneLiveScores}
+              guideMatches={standaloneGuideMatches}
+              onPlay={onPlay}
+              getArtwork={getArtwork}
               priority
             />
           )}
@@ -596,6 +610,24 @@ function SportsHub({
               scoreByEvent={scoreByEvent}
             />
           )}
+          {!!standaloneUpcomingScores.length && (
+            <ScoreboardSection
+              title="Upcoming schedules"
+              scores={standaloneUpcomingScores}
+              guideMatches={standaloneGuideMatches}
+              onPlay={onPlay}
+              getArtwork={getArtwork}
+            />
+          )}
+          {!!standaloneResults.length && (
+            <ScoreboardSection
+              title="Recent results"
+              scores={standaloneResults}
+              guideMatches={standaloneGuideMatches}
+              onPlay={onPlay}
+              getArtwork={getArtwork}
+            />
+          )}
           {remaining.length > displayed.length && (
             <button
               className="sports-show-more"
@@ -611,20 +643,27 @@ function SportsHub({
 }
 
 function ScoreboardSection({
+  title,
   scores,
   guideMatches,
   onPlay,
   getArtwork,
+  priority = false,
 }: {
+  title: string;
   scores: ScoreEvent[];
   guideMatches: Map<string, SportsEvent>;
   onPlay: (channel: Item) => void;
   getArtwork: (channel: Item) => string | undefined;
+  priority?: boolean;
 }) {
   return (
-    <section className="sports-event-section" aria-label="Scores and schedules">
+    <section
+      className={`sports-event-section${priority ? " sports-score-priority" : ""}`}
+      aria-label={title}
+    >
       <div className="sports-section-title">
-        <span className="live-dot" /> <h2>Scores &amp; schedules</h2>
+        <span className="live-dot" /> <h2>{title}</h2>
         <span>{scores.length} events</span>
       </div>
       <div className="sports-event-grid">

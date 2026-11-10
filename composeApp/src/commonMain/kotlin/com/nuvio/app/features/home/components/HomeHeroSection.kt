@@ -71,7 +71,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -847,8 +846,7 @@ private fun StreamingShowcaseHeroPage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .then(if (isTvMode) Modifier.focusProperties { canFocus = false } else Modifier)
-            .clickable(enabled = onItemClick != null) {
+            .clickable(enabled = onItemClick != null && !isTvMode) {
                 onItemClick?.invoke(item)
             },
     ) {
@@ -972,8 +970,7 @@ private fun StreamingShowcaseHeroPage(
                         .fillMaxWidth(logoWidthFraction)
                         .widthIn(max = logoMaxWidth)
                         .height(logoHeight)
-                        .then(if (isTvMode) Modifier.focusProperties { canFocus = false } else Modifier)
-                        .clickable(enabled = onItemClick != null) {
+                        .clickable(enabled = onItemClick != null && !isTvMode) {
                             onItemClick?.invoke(item)
                         },
                     contentAlignment = Alignment.CenterStart,
