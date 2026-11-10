@@ -133,6 +133,19 @@ private val CLIENTS = listOf(
         ),
         priority = 2,
     ),
+    YouTubeClient(
+        key = "tvhtml5",
+        id = "7",
+        version = "7.20250209.18.00",
+        userAgent = "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+        context = jsonObjectOf(
+            "clientName" to "TVHTML5",
+            "clientVersion" to "7.20250209.18.00",
+            "hl" to "en",
+            "gl" to "US",
+        ),
+        priority = 3,
+    ),
 )
 
 class InAppYouTubeExtractor {

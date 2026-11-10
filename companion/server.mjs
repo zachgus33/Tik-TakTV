@@ -232,6 +232,183 @@ export function youtubeVideoAllowed(item, kind = "video") {
   );
 }
 
+const youtubeVideoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+const youtubePlaybackClients = [
+  {
+    name: "ANDROID",
+    id: "3",
+    version: "20.10.35",
+    userAgent:
+      "com.google.android.youtube/20.10.35 (Linux; U; Android 14; en_US) gzip",
+    context: {
+      clientName: "ANDROID",
+      clientVersion: "20.10.35",
+      androidSdkVersion: 34,
+      osName: "Android",
+      osVersion: "14",
+      hl: "en",
+      gl: "US",
+    },
+  },
+  {
+    name: "IOS",
+    id: "5",
+    version: "20.10.1",
+    userAgent:
+      "com.google.ios.youtube/20.10.1 (iPhone16,2; U; CPU iOS 17_4 like Mac OS X)",
+    context: {
+      clientName: "IOS",
+      clientVersion: "20.10.1",
+      deviceModel: "iPhone16,2",
+      osName: "iPhone",
+      osVersion: "17.4.0.21E219",
+      hl: "en",
+      gl: "US",
+    },
+  },
+  {
+    name: "TVHTML5",
+    id: "7",
+    version: "7.20250209.18.00",
+    userAgent: "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+    context: {
+      clientName: "TVHTML5",
+      clientVersion: "7.20250209.18.00",
+      hl: "en",
+      gl: "US",
+    },
+  },
+];
+
+function youtubeFormatUrl(format) {
+  if (typeof format?.url === "string" && format.url.startsWith("https://"))
+    return format.url;
+  return null;
+}
+
+function youtubeMime(format) {
+  return String(format?.mimeType ?? "")
+    .split(";")[0]
+    .trim();
+}
+
+function youtubePlaybackChoice(responses, kind) {
+  const progressive = [];
+  const audio = [];
+  const manifests = [];
+  for (const response of responses) {
+    const data = response?.streamingData;
+    if (typeof data?.hlsManifestUrl === "string")
+      manifests.push(data.hlsManifestUrl);
+    for (const format of data?.formats ?? []) {
+      const url = youtubeFormatUrl(format);
+      if (!url) continue;
+      progressive.push({
+        url,
+        mimeType: youtubeMime(format),
+        height: Number(format.height ?? 0),
+        bitrate: Number(format.bitrate ?? 0),
+      });
+    }
+    for (const format of data?.adaptiveFormats ?? []) {
+      const url = youtubeFormatUrl(format);
+      const mimeType = youtubeMime(format);
+      if (!url || !mimeType.startsWith("audio/")) continue;
+      audio.push({
+        url,
+        mimeType,
+        bitrate: Number(format.bitrate ?? format.averageBitrate ?? 0),
+        isDefault: format.audioTrack?.audioIsDefault !== false,
+      });
+    }
+  }
+  const bestProgressive = progressive
+    .filter(
+      (format) =>
+        format.mimeType === "video/mp4" &&
+        format.height > 0 &&
+        format.height <= 1080,
+    )
+    .sort(
+      (left, right) =>
+        right.height - left.height || right.bitrate - left.bitrate,
+    )[0];
+  const bestAudio =
+    audio
+      .filter((format) => format.isDefault)
+      .sort((left, right) => right.bitrate - left.bitrate)[0] ??
+    audio.sort((left, right) => right.bitrate - left.bitrate)[0];
+  if (kind === "music" && bestAudio) return { type: "audio", ...bestAudio };
+  if (bestProgressive) return { type: "progressive", ...bestProgressive };
+  if (manifests[0])
+    return {
+      type: "hls",
+      url: manifests[0],
+      mimeType: "application/vnd.apple.mpegurl",
+    };
+  if (bestAudio) return { type: "audio", ...bestAudio };
+  return null;
+}
+
+async function resolveYoutubePlayback(videoId, kind, signal) {
+  const watch = await fetchSafe(
+    `https://www.youtube.com/watch?v=${videoId}&hl=en&bpctr=9999999999`,
+    {
+      signal,
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+      },
+    },
+  );
+  let watchText;
+  try {
+    if (!watch.response.ok) throw new Error("YouTube watch page failed");
+    watchText = await limitedText(watch.response, 4_000_000);
+  } finally {
+    await watch.close();
+  }
+  const apiKey = watchText.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1];
+  const visitorData = watchText.match(/"VISITOR_DATA":"([^"]+)"/)?.[1];
+  if (!apiKey) throw new Error("YouTube player configuration is unavailable");
+  const responses = [];
+  for (const client of youtubePlaybackClients) {
+    const upstream = await fetchSafe(
+      `https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        signal,
+        headers: {
+          "content-type": "application/json",
+          origin: "https://www.youtube.com",
+          "user-agent": client.userAgent,
+          "x-youtube-client-name": client.id,
+          "x-youtube-client-version": client.version,
+          ...(visitorData ? { "x-goog-visitor-id": visitorData } : {}),
+        },
+        body: JSON.stringify({
+          videoId,
+          contentCheckOk: true,
+          racyCheckOk: true,
+          context: { client: client.context },
+          playbackContext: {
+            contentPlaybackContext: { html5Preference: "HTML5_PREF_WANTS" },
+          },
+        }),
+      },
+    );
+    try {
+      if (upstream.response.ok)
+        responses.push(
+          JSON.parse(await limitedText(upstream.response, 2_000_000)),
+        );
+    } finally {
+      await upstream.close();
+    }
+  }
+  return youtubePlaybackChoice(responses, kind);
+}
+
 export function createService({ token, origins, authorizeAccount }) {
   if (!token || token.length < 32)
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
@@ -242,6 +419,7 @@ export function createService({ token, origins, authorizeAccount }) {
   const youtubeFeedRotations = new Map();
   const youtubeSubscriptionOffsets = new Map();
   const sponsorCache = new Map();
+  const youtubePlaybackCache = new Map();
   const parties = new Map();
   const endedParties = new Map();
   const partyCreates = new Map();
@@ -1010,7 +1188,8 @@ export function createService({ token, origins, authorizeAccount }) {
       )
         return false;
       const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-      return data.sub === userId && (allowExpired || Number(data.exp) > Date.now())
+      return data.sub === userId &&
+        (allowExpired || Number(data.exp) > Date.now())
         ? data
         : null;
     } catch {
@@ -1044,7 +1223,9 @@ export function createService({ token, origins, authorizeAccount }) {
       // exact vault version. Playback/debrid paths remain expiry-bound.
       const access = await vaultForGrant(grant, userId, true);
       const addon = access?.vault?.template?.addons?.[index];
-      return Number.isInteger(index) && index >= 0 && typeof addon?.base === "string"
+      return Number.isInteger(index) &&
+        index >= 0 &&
+        typeof addon?.base === "string"
         ? addon.base
         : null;
     } catch {
@@ -1824,14 +2005,17 @@ export function createService({ token, origins, authorizeAccount }) {
           ).values(),
         ].slice(0, 48);
         const watchLaterId = String(
-          channel.items?.[0]?.contentDetails?.relatedPlaylists?.watchLater ?? "",
+          channel.items?.[0]?.contentDetails?.relatedPlaylists?.watchLater ??
+            "",
         );
         const watchLaterPlaylist = /^[A-Za-z0-9_-]{10,64}$/.test(watchLaterId)
-          ? [{
-              id: watchLaterId,
-              snippet: { title: "Watch Later", thumbnails: {} },
-              contentDetails: {},
-            }]
+          ? [
+              {
+                id: watchLaterId,
+                snippet: { title: "Watch Later", thumbnails: {} },
+                contentDetails: {},
+              },
+            ]
           : [];
         const playlistItems = [
           ...watchLaterPlaylist,
@@ -2043,6 +2227,43 @@ export function createService({ token, origins, authorizeAccount }) {
         } finally {
           await upstream.close();
         }
+      }
+      if (route.pathname === "/youtube/playback") {
+        const videoId = String(body.videoId ?? "").trim();
+        const kind = body.kind === "music" ? "music" : "video";
+        if (!youtubeVideoIdPattern.test(videoId))
+          return send(400, { error: "Invalid YouTube video." });
+        const cacheKey = `${kind}:${videoId}`;
+        const cached = youtubePlaybackCache.get(cacheKey);
+        if (cached?.expires > Date.now()) {
+          const id = ticket(cached.playback.url);
+          return send(200, {
+            playback: {
+              ...cached.playback,
+              url: `/media/${id}/stream`,
+            },
+          });
+        }
+        const playback = await resolveYoutubePlayback(
+          videoId,
+          kind,
+          controller.signal,
+        );
+        if (!playback)
+          return send(404, {
+            error:
+              "This upload has no compatible stream. It may be private, paid, age-restricted, deleted, or unavailable in your region.",
+          });
+        youtubePlaybackCache.set(cacheKey, {
+          playback,
+          expires: Date.now() + 5 * 60_000,
+        });
+        while (youtubePlaybackCache.size > 200)
+          youtubePlaybackCache.delete(youtubePlaybackCache.keys().next().value);
+        const id = ticket(playback.url);
+        return send(200, {
+          playback: { ...playback, url: `/media/${id}/stream` },
+        });
       }
       if (route.pathname === "/sponsorblock") {
         const videoId = String(body.videoId ?? "").trim();

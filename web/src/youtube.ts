@@ -1,4 +1,4 @@
-import { serviceRequest } from "./connection";
+import { getService, serviceRequest } from "./connection";
 
 export type YouTubeKind = "video" | "music";
 
@@ -15,6 +15,12 @@ export type SponsorSegment = {
   start: number;
   end: number;
   category: string;
+};
+
+export type YouTubePlayback = {
+  type: "progressive" | "hls" | "audio";
+  url: string;
+  mimeType: string;
 };
 
 export type YouTubeAccount = {
@@ -151,4 +157,30 @@ export async function sponsorSegments(
     segments?: SponsorSegment[];
   };
   return response.ok ? (data.segments ?? []) : [];
+}
+
+export async function resolveYouTubePlayback(
+  videoId: string,
+  kind: YouTubeKind,
+  signal?: AbortSignal,
+): Promise<YouTubePlayback> {
+  const response = await serviceRequest(
+    "/youtube/playback",
+    { videoId, kind },
+    signal,
+  );
+  const data = (await response.json().catch(() => ({}))) as {
+    playback?: YouTubePlayback;
+    error?: string;
+  };
+  if (!response.ok || !data.playback?.url)
+    throw new Error(
+      data.error ?? "A compatible YouTube stream could not be resolved.",
+    );
+  const service = getService();
+  if (!service) throw new Error("TikTak playback service is not connected.");
+  return {
+    ...data.playback,
+    url: new URL(data.playback.url, service.url).href,
+  };
 }

@@ -5783,6 +5783,10 @@ button.primary:hover,
   height: 100%;
   border: 0;
 }
+.youtube-direct-player {
+  display: block;
+  object-fit: contain;
+}
 .youtube-player-info {
   justify-content: space-between;
   flex-wrap: wrap;

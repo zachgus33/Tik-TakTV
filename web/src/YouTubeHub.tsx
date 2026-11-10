@@ -15,6 +15,7 @@ import {
   X,
   Youtube,
 } from "lucide-react";
+import Hls from "hls.js";
 import {
   useCallback,
   useEffect,
@@ -27,6 +28,7 @@ import {
   disconnectYouTube,
   pollYouTubeDeviceSignIn,
   resolveYouTubePlaylist,
+  resolveYouTubePlayback,
   searchYouTube,
   sponsorSegments,
   startYouTubeDeviceSignIn,
@@ -34,6 +36,7 @@ import {
   type SponsorSegment,
   type YouTubeAccount,
   type YouTubeKind,
+  type YouTubePlayback,
   type YouTubeSelection,
 } from "./youtube";
 import SponsorBlockSettings from "./SponsorBlockSettings";
@@ -141,10 +144,14 @@ export default function YouTubeHub() {
     readSponsorBlockPreferences,
   );
   const [embedError, setEmbedError] = useState<number | null>(null);
+  const [directPlayback, setDirectPlayback] = useState<YouTubePlayback | null>(
+    null,
+  );
   const [autoplayPreferences, setAutoplayPreferences] = useState(
     readYouTubeAutoplayPreferences,
   );
   const hostRef = useRef<HTMLDivElement>(null);
+  const directMediaRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
   const tvControlsTimerRef = useRef<number>(0);
   const playingRef = useRef(false);
@@ -261,6 +268,7 @@ export default function YouTubeHub() {
   const select = async (next: YouTubeSelection, recovering = false) => {
     setError("");
     setEmbedError(null);
+    setDirectPlayback(null);
     if (!recovering) failedMusicRef.current.clear();
     try {
       const playable = await resolveYouTubePlaylist({
@@ -343,7 +351,7 @@ export default function YouTubeHub() {
   };
 
   useEffect(() => {
-    if (!selection || !hostRef.current) return;
+    if (!selection || directPlayback || !hostRef.current) return;
     let cancelled = false;
     let player: Player | null = null;
     setReady(false);
@@ -421,6 +429,47 @@ export default function YouTubeHub() {
               const code = Number(event.data || 0);
               setEmbedError(code);
               const currentId = selection.videoId;
+              if (currentId) {
+                setNotice("Switching to TikTak direct playback…");
+                void resolveYouTubePlayback(currentId, selection.kind ?? kind)
+                  .then((playback) => {
+                    setError("");
+                    setEmbedError(null);
+                    setDirectPlayback(playback);
+                    setNotice("Playing through TikTak direct playback");
+                    window.setTimeout(() => setNotice(""), 2400);
+                  })
+                  .catch(() => {
+                    setNotice("");
+                    if (
+                      selection.kind === "music" &&
+                      currentId &&
+                      [100, 101, 150].includes(code)
+                    ) {
+                      failedMusicRef.current.add(currentId);
+                      const next = playbackCandidatesRef.current.find(
+                        (candidate) =>
+                          candidate.videoId &&
+                          !failedMusicRef.current.has(candidate.videoId),
+                      );
+                      if (next) {
+                        setError("");
+                        setNotice(
+                          "That version is unavailable. Trying the next result…",
+                        );
+                        window.setTimeout(() => {
+                          setNotice("");
+                          void selectRef.current(next, true);
+                        }, 500);
+                        return;
+                      }
+                    }
+                    setError(
+                      "This upload cannot play here or through TikTak direct playback. It may be private, paid, age-restricted, deleted, or unavailable in your region.",
+                    );
+                  });
+                return;
+              }
               if (
                 selection.kind === "music" &&
                 currentId &&
@@ -464,7 +513,59 @@ export default function YouTubeHub() {
       playerRef.current = null;
       player?.destroy();
     };
-  }, [selection, tvMode]);
+  }, [directPlayback, kind, selection, tvMode]);
+
+  useEffect(() => {
+    const media = directMediaRef.current;
+    if (!media || !directPlayback || !selection) return;
+    let hls: Hls | null = null;
+    if (
+      directPlayback.type === "hls" &&
+      !media.canPlayType("application/vnd.apple.mpegurl") &&
+      Hls.isSupported()
+    ) {
+      hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      hls.loadSource(directPlayback.url);
+      hls.attachMedia(media);
+    } else {
+      media.src = directPlayback.url;
+    }
+    const adapter: Player = {
+      destroy: () => {},
+      getCurrentTime: () => media.currentTime,
+      getDuration: () => media.duration,
+      getIframe: () => document.createElement("iframe"),
+      getPlayerState: () => (media.paused ? 2 : 1),
+      getVideoData: () => ({
+        video_id: selection.videoId,
+        title: selection.title,
+        author: selection.channel,
+      }),
+      isMuted: () => media.muted,
+      mute: () => {
+        media.muted = true;
+      },
+      pauseVideo: () => media.pause(),
+      playVideo: () => {
+        void media.play();
+      },
+      seekTo: (seconds) => {
+        media.currentTime = seconds;
+      },
+      unMute: () => {
+        media.muted = false;
+      },
+    };
+    playerRef.current = adapter;
+    setReady(true);
+    void media.play();
+    return () => {
+      hls?.destroy();
+      media.removeAttribute("src");
+      media.load();
+      if (playerRef.current === adapter) playerRef.current = null;
+    };
+  }, [directPlayback, selection]);
 
   useEffect(() => {
     if (!tvMode || !selection) return;
@@ -490,8 +591,7 @@ export default function YouTubeHub() {
     if (!ready || !sponsorPreferences.enabled) return;
     const timer = window.setInterval(() => {
       const player = playerRef.current;
-      if (!player || player.getPlayerState() !== window.YT?.PlayerState.PLAYING)
-        return;
+      if (!player || player.getPlayerState() !== 1) return;
       const time = player.getCurrentTime();
       const segment = segmentsRef.current.find(
         (candidate) =>
@@ -763,7 +863,22 @@ export default function YouTubeHub() {
             >
               <X size={28} />
             </button>
-            <div className="youtube-player" ref={hostRef} />
+            {directPlayback ? (
+              <video
+                className="youtube-player youtube-direct-player"
+                ref={directMediaRef}
+                autoPlay
+                playsInline
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+                onError={() =>
+                  setError("TikTak direct playback could not load this stream.")
+                }
+              />
+            ) : (
+              <div className="youtube-player" ref={hostRef} />
+            )}
             <div className="youtube-player-info">
               <div>
                 <strong>{selection.title}</strong>
@@ -833,7 +948,22 @@ export default function YouTubeHub() {
           </dialog>
         ) : (
           <section className="youtube-player-card">
-            <div className="youtube-player" ref={hostRef} />
+            {directPlayback ? (
+              <video
+                className="youtube-player youtube-direct-player"
+                ref={directMediaRef}
+                autoPlay
+                playsInline
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+                onError={() =>
+                  setError("TikTak direct playback could not load this stream.")
+                }
+              />
+            ) : (
+              <div className="youtube-player" ref={hostRef} />
+            )}
             <div className="youtube-player-info">
               <div>
                 <strong>{selection.title}</strong>
