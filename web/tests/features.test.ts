@@ -342,6 +342,13 @@ describe("automatic Xtream XMLTV guide", () => {
     parser.write('<tv><channel id="wanted"><display-name>Wanted</display-name></channel><channel id="other"><display-name>Other</display-name></channel><programme channel="wanted" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Wanted show</title></programme><programme channel="other" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Other show</title></programme></tv>');
     expect(Object.keys(parser.finish())).toEqual(["wanted"]);
   });
+  it("matches provider guide identifiers despite case and quality decoration", () => {
+    const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
+      ids: ["US| ESPN HD"],
+    });
+    parser.write('<tv><channel id="us-espn"><display-name>ESPN</display-name></channel><programme channel="us-espn" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Live Sports</title></programme></tv>');
+    expect(parser.finish()["us-espn"]?.[0]?.title).toBe("Live Sports");
+  });
   it("drains only newly changed guide rows for cheap worker updates", () => {
     const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
       ids: ["one", "two"],

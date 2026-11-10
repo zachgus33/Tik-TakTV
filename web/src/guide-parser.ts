@@ -27,6 +27,9 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
   let channelId = "";
   let channelName = "";
   const targetIds = new Set((targets.ids ?? []).filter(Boolean));
+  const normalizedTargetIds = new Set(
+    (targets.ids ?? []).map(normalizeGuideTarget).filter(Boolean),
+  );
   const targetNames = new Set((targets.names ?? []).map(normalizeGuideTarget).filter(Boolean));
   const includedChannelIds = new Set<string>();
   const dirtyProgrammeIds = new Set<string>();
@@ -51,7 +54,10 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
       const end = xmltvTime(String(tag.attributes.stop ?? ""));
       current =
         channel &&
-        (!targeted || targetIds.has(channel) || includedChannelIds.has(channel)) &&
+        (!targeted ||
+          targetIds.has(channel) ||
+          normalizedTargetIds.has(normalizeGuideTarget(channel)) ||
+          includedChannelIds.has(channel)) &&
         end > now &&
         start < now + 24 * 3600_000 &&
         end > start &&
@@ -93,7 +99,11 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
       text = "";
     }
     if (tag.name === "channel" && channelId) {
-      const included = !targeted || targetIds.has(channelId) || targetNames.has(normalizeGuideTarget(channelName));
+      const included =
+        !targeted ||
+        targetIds.has(channelId) ||
+        normalizedTargetIds.has(normalizeGuideTarget(channelId)) ||
+        targetNames.has(normalizeGuideTarget(channelName));
       if (included) {
         includedChannelIds.add(channelId);
         aliases[channelId] = channelId;

@@ -379,7 +379,11 @@ export function useGuide(
     failed: (id: string) => valid.failed.includes(id),
     loaded: (item: Item) =>
       !!(valid.xml[guideId(item) ?? ""] || valid.channels[item.id]),
-    count: Object.keys(valid.xml).length || Object.keys(valid.channels).length,
+    count:
+      Object.values(valid.xml).filter((programmes) => programmes.length > 0)
+        .length +
+      Object.values(valid.channels).filter((programmes) => programmes.length > 0)
+        .length,
     unavailable:
       valid.fallback &&
       Object.keys(valid.channels).length === 0 &&
