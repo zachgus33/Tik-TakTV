@@ -1,15 +1,21 @@
 package com.nuvio.app.features.livetv
 
-import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpStreamTextWithHeaders
 import io.ktor.http.encodeURLParameter
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -34,6 +40,8 @@ object LiveTvRepository {
     private val mutableUiState = MutableStateFlow(LiveTvUiState())
     val uiState = mutableUiState.asStateFlow()
     private val epgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val epgLoadLock = SynchronizedObject()
+    private var activeEpgLoad: Job? = null
 
     private var initialized = false
 
@@ -95,6 +103,7 @@ object LiveTvRepository {
     }
 
     fun onProfileChanged() {
+        cancelEpgLoad()
         initialized = false
         mutableUiState.value = LiveTvUiState()
         ensureLoaded()
@@ -353,6 +362,7 @@ object LiveTvRepository {
         }
 
     fun disconnect() {
+        cancelEpgLoad()
         LiveTvStorage.saveSourceUrl("")
         LiveTvStorage.saveLocalPlaylistData("")
         LiveTvStorage.saveSourceType(LiveTvSourceType.M3u)
@@ -419,24 +429,37 @@ object LiveTvRepository {
 
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {
         if (epgUrls.isEmpty()) return
-        epgScope.launch {
-            val schedules = epgUrls
-                .mapNotNull { epgUrl ->
-                    runCatching {
-                        parseXmlTvProgrammeSchedules(httpGetText(epgUrl))
-                    }.getOrNull()
+        replaceEpgLoad {
+            val targetChannelIds = mutableUiState.value.channels
+                .asSequence()
+                .flatMap { channel -> sequenceOf(channel.tvgId, channel.id) }
+                .mapNotNull { it?.takeIf(String::isNotBlank) }
+                .toSet()
+            val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
+            val matchedChannelIds = mutableSetOf<String>()
+            val loadContext = currentCoroutineContext()
+            epgUrls.forEach { epgUrl ->
+                runCatching {
+                    streamTargetedXmlTvProgrammeSchedules(
+                        url = epgUrl,
+                        targetChannelIds = targetChannelIds,
+                    ) { channelId, entries ->
+                        loadContext.ensureActive()
+                        schedules[channelId] = entries
+                        if (matchedChannelIds.add(channelId) &&
+                            (matchedChannelIds.size == 1 ||
+                                matchedChannelIds.size % XTREAM_XMLTV_PUBLISH_BATCH_SIZE == 0) &&
+                            mutableUiState.value.sourceUrl == sourceUrl
+                        ) {
+                            publishGuideSchedules(schedules)
+                        }
+                    }
+                }.onFailure { error ->
+                    if (error is CancellationException) throw error
                 }
-                .fold(emptyMap<String, List<LiveTvProgramme>>()) { merged, entries -> merged + entries }
-            val now = LiveTvClock.nowEpochMs()
-            val programmes = schedules.mapNotNull { (channel, entries) ->
-                entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
-            }.toMap()
+            }
             if (mutableUiState.value.sourceUrl == sourceUrl) {
-                mutableUiState.value = mutableUiState.value.copy(
-                    currentProgrammes = programmes,
-                    programmeSchedules = schedules,
-                    isEpgLoading = false,
-                )
+                publishGuideSchedules(schedules, loading = false)
             }
         }
     }
@@ -448,7 +471,7 @@ object LiveTvRepository {
      * slower per-channel endpoint is only a bounded fallback.
      */
     private fun loadXtreamEpgInBackground(sourceUrl: String, settings: LiveTvXtreamSettings) {
-        epgScope.launch {
+        replaceEpgLoad {
             val channels = mutableUiState.value.channels
                 .sortedWith(compareBy<LiveTvChannel>({ !it.looksLikeUnitedStatesChannel() }, { it.name }))
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
@@ -480,11 +503,13 @@ object LiveTvRepository {
             }
             val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
             val matchedChannelIds = mutableSetOf<String>()
+            val loadContext = currentCoroutineContext()
             runCatching {
                 streamTargetedXmlTvProgrammeSchedules(
                     url = settings.xmlTvEndpoint(),
                     targetChannelIds = targetIds,
                 ) { channelId, entries ->
+                    loadContext.ensureActive()
                     schedules[channelId] = entries
                     if (matchedChannelIds.add(channelId) &&
                         (matchedChannelIds.size == 1 || matchedChannelIds.size % XTREAM_XMLTV_PUBLISH_BATCH_SIZE == 0)
@@ -492,6 +517,8 @@ object LiveTvRepository {
                         publishGuideSchedules(schedules)
                     }
                 }
+            }.onFailure { error ->
+                if (error is CancellationException) throw error
             }
             schedules.putAll(fastGuide.await())
             if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
@@ -512,7 +539,7 @@ object LiveTvRepository {
                         val key = channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id
                         schedules[key] = programmes
                     }
-                    if (mutableUiState.value.sourceUrl != sourceUrl) return@launch
+                    if (mutableUiState.value.sourceUrl != sourceUrl) return@replaceEpgLoad
                     if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
                 }
             }
@@ -520,6 +547,30 @@ object LiveTvRepository {
                 publishGuideSchedules(schedules, loading = false)
             }
         }
+    }
+
+    private fun replaceEpgLoad(block: suspend CoroutineScope.() -> Unit) {
+        lateinit var replacement: Job
+        val previous = synchronized(epgLoadLock) {
+            val current = activeEpgLoad
+            replacement = epgScope.launch(start = CoroutineStart.LAZY, block = block)
+            activeEpgLoad = replacement
+            replacement.invokeOnCompletion {
+                synchronized(epgLoadLock) {
+                    if (activeEpgLoad === replacement) activeEpgLoad = null
+                }
+            }
+            current
+        }
+        previous?.cancel()
+        replacement.start()
+    }
+
+    private fun cancelEpgLoad() {
+        val previous = synchronized(epgLoadLock) {
+            activeEpgLoad.also { activeEpgLoad = null }
+        }
+        previous?.cancel()
     }
 
     private fun publishGuideSchedules(
@@ -1236,15 +1287,28 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
             val end = buffer.indexOf("</programme>", ignoreCase = true)
             if (end < 0) break
             val blockEnd = end + "</programme>".length
+            val openTagEnd = buffer.indexOf('>')
+            if (openTagEnd < 0 || openTagEnd >= blockEnd) {
+                buffer.delete(0, blockEnd)
+                continue
+            }
+            // Read only the small opening tag before allocating the complete programme block.
+            // Most provider XMLTV rows do not belong to one of the user's channels; running
+            // the generic attribute regex and copying every unmatched block created millions
+            // of short-lived objects during startup on Fire OS 7.
+            val rawChannelId = findXmlAttribute(
+                tag = buffer.substring(0, openTagEnd + 1),
+                attributeName = "channel",
+            )?.decodeXmlEntities()?.trim()?.takeIf(String::isNotBlank)
+            val channelId = rawChannelId
+                ?.let(::normalizeGuideChannelId)
+                ?.let(canonicalTargetIds::get)
+            if (channelId == null) {
+                buffer.delete(0, blockEnd)
+                continue
+            }
             val block = buffer.substring(0, blockEnd)
             buffer.delete(0, blockEnd)
-
-            val openTagEnd = block.indexOf('>')
-            if (openTagEnd < 0) continue
-            val attributes = xmlAttributeRegex.findAll(block.substring(0, openTagEnd + 1))
-                .associate { match -> match.groupValues[1].lowercase() to match.groupValues[2] }
-            val rawChannelId = attributes["channel"]?.decodeXmlEntities()?.trim()?.takeIf(String::isNotBlank) ?: continue
-            val channelId = canonicalTargetIds[normalizeGuideChannelId(rawChannelId)] ?: continue
             val parsed = parseXmlTvProgrammeSchedules(block, now).values.firstOrNull().orEmpty()
             if (parsed.isEmpty()) continue
             val channelEntries = accumulated.getOrPut(channelId) { mutableListOf() }
@@ -1263,6 +1327,35 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
 }
 
 private const val XMLTV_STREAM_TAIL_CHARS = 32
+
+private fun findXmlAttribute(tag: String, attributeName: String): String? {
+    var searchFrom = 0
+    while (searchFrom < tag.length) {
+        val nameStart = tag.indexOf(attributeName, startIndex = searchFrom, ignoreCase = true)
+        if (nameStart < 0) return null
+        val before = tag.getOrNull(nameStart - 1)
+        val afterName = nameStart + attributeName.length
+        val hasNameBoundary = (before == null || before.isWhitespace() || before == '<') &&
+            (tag.getOrNull(afterName)?.let { it.isWhitespace() || it == '=' } == true)
+        if (!hasNameBoundary) {
+            searchFrom = afterName
+            continue
+        }
+        var cursor = afterName
+        while (tag.getOrNull(cursor)?.isWhitespace() == true) cursor += 1
+        if (tag.getOrNull(cursor) != '=') {
+            searchFrom = afterName
+            continue
+        }
+        cursor += 1
+        while (tag.getOrNull(cursor)?.isWhitespace() == true) cursor += 1
+        val quote = tag.getOrNull(cursor)?.takeIf { it == '"' || it == '\'' } ?: return null
+        val valueStart = cursor + 1
+        val valueEnd = tag.indexOf(quote, startIndex = valueStart)
+        return if (valueEnd >= valueStart) tag.substring(valueStart, valueEnd) else null
+    }
+    return null
+}
 
 private fun normalizeGuideChannelId(value: String): String =
     value.decodeXmlEntities().trim().lowercase()

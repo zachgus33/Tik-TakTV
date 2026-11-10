@@ -40,15 +40,18 @@ internal object TikTakWebLiveTvSync {
             primary?.objectValue("provider"),
         ).firstOrNull(::isValidProvider)
 
-        // A custom XMLTV URL belongs to the profile even when Live TV comes
-        // from an imported M3U file instead of an Xtream provider.
-        listOfNotNull(
-            own?.stringValue("epgUrl"),
-            primary?.stringValue("epgUrl"),
-        ).firstOrNull(::isSafeHttpUrl)
-            ?.let(LiveTvRepository::loadExternalEpgWhenReady)
-
-        if (provider == null) return own != null
+        if (provider == null) {
+            // A standalone XMLTV URL belongs to the profile when Live TV comes from an
+            // imported M3U file. Xtream providers expose their own XMLTV endpoint and must
+            // not also start this legacy loader: doing both retained two large guide parses
+            // and exhausted the 192 MB Fire TV heap during account sync.
+            listOfNotNull(
+                own?.stringValue("epgUrl"),
+                primary?.stringValue("epgUrl"),
+            ).firstOrNull(::isSafeHttpUrl)
+                ?.let(LiveTvRepository::loadExternalEpgWhenReady)
+            return own != null
+        }
 
         val settings = LiveTvXtreamSettings(
             serverUrl = provider.stringValue("server").orEmpty(),

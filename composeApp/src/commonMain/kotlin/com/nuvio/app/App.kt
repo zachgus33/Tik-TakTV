@@ -107,6 +107,7 @@ import coil3.compose.AsyncImage
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.request.CachePolicy
 import coil3.request.crossfade
+import coil3.size.Dimension
 import coil3.size.Size
 import coil3.svg.SvgDecoder
 import com.nuvio.app.core.build.AppFeaturePolicy
@@ -832,13 +833,31 @@ fun App() {
  */
 private class NativeTvArtworkSizeInterceptor : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
-        // A shelf can keep dozens of decoded cards alive at once. Decoding every poster at
-        // 1280x720 consumed about 3.5 MB per card and exhausted Fire TV's 192 MB heap even
-        // with Coil's memory cache disabled. 720x405 is still the full useful resolution for
-        // a card on a 720p Fire TV surface while cutting each decode to roughly one third.
-        return chain.withSize(Size(width = 720, height = 405)).proceed()
+        return chain.withSize(nativeTvArtworkDecodeSize(chain.size)).proceed()
     }
 }
+
+/**
+ * Preserve the measured size for small artwork and only clamp unsafe requests.
+ *
+ * The previous interceptor replaced every request with 720x405. That made an 80x80 channel
+ * logo allocate the same bitmap as a full hero image, so a single guide or poster shelf could
+ * retain tens of megabytes of needlessly oversized bitmaps even with Coil's cache disabled.
+ */
+internal fun nativeTvArtworkDecodeSize(requested: Size): Size {
+    fun Dimension.clamped(max: Int): Int = when (this) {
+        is Dimension.Pixels -> px.coerceIn(1, max)
+        Dimension.Undefined -> max
+    }
+
+    return Size(
+        width = requested.width.clamped(NATIVE_TV_ARTWORK_MAX_WIDTH),
+        height = requested.height.clamped(NATIVE_TV_ARTWORK_MAX_HEIGHT),
+    )
+}
+
+private const val NATIVE_TV_ARTWORK_MAX_WIDTH = 720
+private const val NATIVE_TV_ARTWORK_MAX_HEIGHT = 405
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
