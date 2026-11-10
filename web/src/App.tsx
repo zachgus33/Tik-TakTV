@@ -1979,9 +1979,6 @@ export default function App() {
     channel: Item;
     programme: Programme;
   } | null>(null);
-  const [guideProbeLimit, setGuideProbeLimit] = useState(
-    tvInterface ? 60 : 120,
-  );
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
@@ -2517,7 +2514,10 @@ export default function App() {
   };
   const guideState = useGuide(
     provider,
-    page === "live" ? filtered.slice(0, guideProbeLimit) : [],
+    // Index every guided channel. The old 120/240-channel probe ceiling left
+    // most large IPTV accounts permanently absent from both TV guide and
+    // Sports matching even though the channel list was already available.
+    page === "live" ? filtered : [],
     activeChannel,
     revision,
     epgUrl,
@@ -2551,30 +2551,7 @@ export default function App() {
   );
   useEffect(() => {
     setGuideLimit(initialGuideLimit);
-    setGuideProbeLimit(tvInterface ? 60 : 120);
   }, [region, category, favoritesOnly, deferredQuery]);
-  useEffect(() => {
-    const probeCeiling = Math.min(filtered.length, tvInterface ? 120 : 240);
-    if (
-      page !== "live" ||
-      guideChannels.length >= guideLimit ||
-      guideProbeLimit >= probeCeiling ||
-      guideState.probed < guideProbeLimit
-    )
-      return;
-    setGuideProbeLimit((value) =>
-      Math.min(value + (tvInterface ? 60 : 120), probeCeiling),
-    );
-  }, [
-    filtered.length,
-    guideChannels.length,
-    guideLimit,
-    guideProbeLimit,
-    guideState.fallback,
-    guideState.loading,
-    guideState.probed,
-    page,
-  ]);
   const allCategories = useMemo(
     () => [
       ...categoryList,

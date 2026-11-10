@@ -113,12 +113,25 @@ export function useGuide(
       if (e.data.partial) {
         acknowledge?.();
         if (!stopped) {
-          setState((s) => s.scope === scope ? {
-            ...s,
-            xml: e.data.programmes ?? s.xml,
-            aliases: e.data.aliases ?? s.aliases,
-            artwork: e.data.artwork ?? s.artwork,
-          } : s);
+          setState((s) => {
+            if (s.scope !== scope) return s;
+            const next = {
+              ...s,
+              xml: { ...s.xml, ...(e.data.programmes ?? {}) },
+              aliases: { ...s.aliases, ...(e.data.aliases ?? {}) },
+              artwork: { ...s.artwork, ...(e.data.artwork ?? {}) },
+            };
+            // Keep every progressive guide checkpoint. Reopening Live TV can
+            // render immediately even if the provider's full XML download did
+            // not finish during the previous visit.
+            void writeLiveCache(cacheKey, {
+              xml: next.xml,
+              channels: next.channels,
+              aliases: next.aliases,
+              artwork: next.artwork,
+            });
+            return next;
+          });
         }
         return;
       }
@@ -274,6 +287,13 @@ export function useGuide(
     async function consume() {
       while (queue.length && !c.signal.aborted) {
         const item = queue.shift()!;
+        // The streaming XML guide may have filled this channel while it was
+        // waiting in the fallback queue. Avoid thousands of redundant API
+        // calls on large providers.
+        if (
+          stateRef.current.channels[item.id] ||
+          stateRef.current.xml[item.epgId ?? ""]
+        ) continue;
         try {
           const list = await epg(provider!, item.id, c.signal);
           if (!c.signal.aborted) {
@@ -301,7 +321,7 @@ export function useGuide(
     // Probe visible channels immediately while the full XMLTV feed streams in.
     // Batched state updates keep large providers responsive and allow guide and
     // Sports rows to appear before the complete feed has downloaded.
-    void Promise.all(Array.from({ length: 3 }, consume));
+    void Promise.all(Array.from({ length: 8 }, consume));
     return () => {
       c.abort();
       if (flushTimer) clearTimeout(flushTimer);

@@ -22,8 +22,8 @@ android {
         applicationId = "com.tiktaktv.tv.nativepreview"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 47
-        versionName = "0.3.37-preview"
+        versionCode = 48
+        versionName = "0.3.38-preview"
         buildConfigField(
             "String",
             "UPDATE_METADATA_URL",

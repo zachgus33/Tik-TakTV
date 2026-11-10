@@ -452,6 +452,32 @@ object LiveTvRepository {
             val channels = mutableUiState.value.channels
                 .sortedWith(compareBy<LiveTvChannel>({ !it.looksLikeUnitedStatesChannel() }, { it.name }))
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
+            // Do not make the UI wait for a multi-megabyte XMLTV download.
+            // Xtream's short-EPG endpoint is small, so warm the first US-first
+            // guide rows in parallel while the complete XML guide streams.
+            val fastGuide = async {
+                val warmed = linkedMapOf<String, List<LiveTvProgramme>>()
+                channels.take(XTREAM_FAST_EPG_CHANNEL_LIMIT)
+                    .chunked(XTREAM_SHORT_EPG_BATCH_SIZE)
+                    .forEach { batch ->
+                        val entries = coroutineScope {
+                            batch.map { channel ->
+                                async {
+                                    runCatching { LiveTvRepositoryXtream.getShortEpg(settings, channel) }
+                                        .getOrNull()
+                                        ?.takeIf(List<LiveTvProgramme>::isNotEmpty)
+                                        ?.let { channel to it }
+                                }
+                            }.awaitAll()
+                        }
+                        entries.filterNotNull().forEach { (channel, programmes) ->
+                            warmed[channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id] = programmes
+                        }
+                        if (mutableUiState.value.sourceUrl != sourceUrl) return@async warmed
+                        if (warmed.isNotEmpty()) publishGuideSchedules(warmed)
+                    }
+                warmed
+            }
             val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
             val matchedChannelIds = mutableSetOf<String>()
             runCatching {
@@ -467,6 +493,7 @@ object LiveTvRepository {
                     }
                 }
             }
+            schedules.putAll(fastGuide.await())
             if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
 
             if (schedules.isEmpty()) {
@@ -500,13 +527,14 @@ object LiveTvRepository {
         loading: Boolean = true,
     ) {
         val now = LiveTvClock.nowEpochMs()
-        val programmes = schedules.mapNotNull { (channel, entries) ->
+        val previousState = mutableUiState.value
+        val mergedSchedules = previousState.programmeSchedules + schedules
+        val programmes = mergedSchedules.mapNotNull { (channel, entries) ->
             entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
         }.toMap()
-        val previousState = mutableUiState.value
         mutableUiState.value = previousState.copy(
             currentProgrammes = programmes,
-            programmeSchedules = schedules.toMap(),
+            programmeSchedules = mergedSchedules,
             isEpgLoading = loading,
         )
         // Screens expose only guide-backed rows. Keep the provider channel
@@ -708,6 +736,7 @@ private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
 
 private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 60
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
+private const val XTREAM_FAST_EPG_CHANNEL_LIMIT = 120
 // Publishing a new StateFlow snapshot makes both the guide and Sports rebuild
 // their derived indexes. Fire TV hardware cannot keep up when a large XMLTV
 // document publishes every handful of channels. Publish the first match so the

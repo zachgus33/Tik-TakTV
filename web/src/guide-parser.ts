@@ -29,6 +29,9 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
   const targetIds = new Set((targets.ids ?? []).filter(Boolean));
   const targetNames = new Set((targets.names ?? []).map(normalizeGuideTarget).filter(Boolean));
   const includedChannelIds = new Set<string>();
+  const dirtyProgrammeIds = new Set<string>();
+  const dirtyAliases: Record<string, string> = Object.create(null);
+  const dirtyArtwork: Record<string, string> = Object.create(null);
   const targeted = targetIds.size > 0 || targetNames.size > 0;
   parser.on("opentag", (tag) => {
     if (tag.name === "channel") {
@@ -37,7 +40,10 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
     }
     if (channelId && tag.name === "icon") {
       const source = String(tag.attributes.src ?? "").trim();
-      if (source) artwork[channelId] = source;
+      if (source) {
+        artwork[channelId] = source;
+        dirtyArtwork[channelId] = source;
+      }
     }
     if (tag.name === "programme") {
       const channel = String(tag.attributes.channel ?? "");
@@ -91,7 +97,9 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
       if (included) {
         includedChannelIds.add(channelId);
         aliases[channelId] = channelId;
+        dirtyAliases[channelId] = channelId;
         if (channelName) aliases[channelName] = channelId;
+        if (channelName) dirtyAliases[channelName] = channelId;
       } else {
         delete artwork[channelId];
       }
@@ -103,6 +111,7 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
       const list = programmes[channel] ?? (programmes[channel] = []);
       if (list.length < 40) {
         list.push(programme);
+        dirtyProgrammeIds.add(channel);
         count++;
       }
       current = null;
@@ -124,8 +133,19 @@ export function createGuideParser(now = Date.now(), targets: GuideTargets = {}) 
     artwork() {
       return artwork;
     },
-    snapshot() {
-      return { programmes, aliases, artwork };
+    drain() {
+      const changedProgrammes: Record<string, Programme[]> = Object.create(null);
+      for (const id of dirtyProgrammeIds) changedProgrammes[id] = programmes[id];
+      dirtyProgrammeIds.clear();
+      const changedAliases = { ...dirtyAliases };
+      const changedArtwork = { ...dirtyArtwork };
+      for (const key of Object.keys(dirtyAliases)) delete dirtyAliases[key];
+      for (const key of Object.keys(dirtyArtwork)) delete dirtyArtwork[key];
+      return {
+        programmes: changedProgrammes,
+        aliases: changedAliases,
+        artwork: changedArtwork,
+      };
     },
   };
 }

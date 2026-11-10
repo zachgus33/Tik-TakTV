@@ -1,19 +1,23 @@
 import { createGuideParser } from "./guide-parser";
 let parser: ReturnType<typeof createGuideParser> | undefined;
-let chunkCount = 0;
+let bytesSincePublish = 0;
 self.onmessage = (
   event: MessageEvent<{ start?: boolean; chunk?: string; finish?: boolean; targetIds?: string[]; targetNames?: string[] }>,
 ) => {
   try {
     if (event.data.start) {
       parser = createGuideParser(Date.now(), { ids: event.data.targetIds, names: event.data.targetNames });
-      chunkCount = 0;
+      bytesSincePublish = 0;
     }
     if (event.data.chunk !== undefined) {
       parser?.write(event.data.chunk);
-      chunkCount += 1;
-      if (chunkCount % 12 === 0) {
-        self.postMessage({ ...parser?.snapshot(), partial: true });
+      bytesSincePublish += event.data.chunk.length;
+      // Send deltas rather than cloning the complete parsed guide over and
+      // over. A multi-thousand-channel XMLTV file otherwise gets slower with
+      // every progress update.
+      if (bytesSincePublish >= 2_000_000) {
+        self.postMessage({ ...parser?.drain(), partial: true });
+        bytesSincePublish = 0;
         return;
       }
     }
@@ -25,7 +29,7 @@ self.onmessage = (
         artwork: parser?.artwork() ?? {},
       });
       parser = undefined;
-      chunkCount = 0;
+      bytesSincePublish = 0;
     } else self.postMessage({ ready: true });
   } catch {
     parser = undefined;

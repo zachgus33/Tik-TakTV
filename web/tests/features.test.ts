@@ -342,6 +342,17 @@ describe("automatic Xtream XMLTV guide", () => {
     parser.write('<tv><channel id="wanted"><display-name>Wanted</display-name></channel><channel id="other"><display-name>Other</display-name></channel><programme channel="wanted" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Wanted show</title></programme><programme channel="other" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Other show</title></programme></tv>');
     expect(Object.keys(parser.finish())).toEqual(["wanted"]);
   });
+  it("drains only newly changed guide rows for cheap worker updates", () => {
+    const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
+      ids: ["one", "two"],
+    });
+    parser.write('<tv><channel id="one"><display-name>One</display-name></channel><channel id="two"><display-name>Two</display-name></channel><programme channel="one" start="20261023180000 +0000" stop="20261023190000 +0000"><title>First</title></programme>');
+    expect(Object.keys(parser.drain().programmes)).toEqual(["one"]);
+    expect(Object.keys(parser.drain().programmes)).toEqual([]);
+    parser.write('<programme channel="two" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Second</title></programme></tv>');
+    expect(Object.keys(parser.drain().programmes)).toEqual(["two"]);
+    expect(Object.keys(parser.finish()).sort()).toEqual(["one", "two"]);
+  });
 });
 describe("home catalog management", () => {
   const addons = [
