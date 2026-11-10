@@ -188,6 +188,56 @@ export function matchScore(
   return best?.value;
 }
 
+/** Match a score to generic EPG titles by broadcast, league, teams, and time. */
+export function matchScoreToGuideEvent(
+  score: ScoreEvent,
+  events: SportsEvent[],
+): SportsEvent | undefined {
+  let best: { event: SportsEvent; points: number } | undefined;
+  const broadcasts = score.broadcasts.map(normalize).filter(Boolean);
+  const leagueWords = words(`${score.league} ${score.leagueName}`);
+  for (const event of events) {
+    if (event.sport !== score.sport || event.channels.length === 0) continue;
+    const hours = Math.abs(score.start - event.start) / 3_600_000;
+    if (hours > 8) continue;
+    const eventText = normalize(
+      `${event.title} ${event.description} ${event.channels
+        .map((channel) => `${channel.name} ${channel.category ?? ""}`)
+        .join(" ")}`,
+    );
+    const networkMatch = broadcasts.some((broadcast) =>
+      event.channels.some((channel) => {
+        const channelName = normalize(`${channel.name} ${channel.category ?? ""}`);
+        return (
+          broadcast.length >= 3 &&
+          (channelName.includes(broadcast) || broadcast.includes(channelName))
+        );
+      }),
+    );
+    const teamMatches = score.teams.filter((team) =>
+      [team.name, team.shortName, team.abbreviation]
+        .map(normalize)
+        .filter((name) => name.length >= 3)
+        .some((name) => eventText.includes(name)),
+    ).length;
+    const leagueMatch = leagueWords.some((word) => eventText.includes(word));
+    const timeOverlap =
+      score.start >= event.start - 2 * 3_600_000 &&
+      score.start <= event.end + 2 * 3_600_000;
+    const points =
+      (networkMatch ? 120 : 0) +
+      teamMatches * 50 +
+      (leagueMatch ? 35 : 0) +
+      (timeOverlap ? 18 : 0) -
+      hours;
+    if (
+      (networkMatch || teamMatches > 0 || leagueMatch) &&
+      (!best || points > best.points)
+    ) best = { event, points };
+  }
+  return best?.event;
+}
+
 let cached: { at: number; events: ScoreEvent[] } | undefined;
 let pending: Promise<ScoreEvent[]> | undefined;
 

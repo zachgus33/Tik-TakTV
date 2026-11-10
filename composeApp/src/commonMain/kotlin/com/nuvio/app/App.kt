@@ -832,7 +832,11 @@ fun App() {
  */
 private class NativeTvArtworkSizeInterceptor : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
-        return chain.withSize(Size(width = 1280, height = 720)).proceed()
+        // A shelf can keep dozens of decoded cards alive at once. Decoding every poster at
+        // 1280x720 consumed about 3.5 MB per card and exhausted Fire TV's 192 MB heap even
+        // with Coil's memory cache disabled. 720x405 is still the full useful resolution for
+        // a card on a 720p Fire TV surface while cutting each decode to roughly one third.
+        return chain.withSize(Size(width = 720, height = 405)).proceed()
     }
 }
 

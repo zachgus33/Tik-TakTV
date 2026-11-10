@@ -7,6 +7,7 @@ import {
   standaloneScoreEvents,
 } from "../src/SportsHub";
 import type { ScoreEvent } from "../src/sports-scores";
+import { matchScoreToGuideEvent } from "../src/sports-scores";
 import type { Item, Programme } from "../src/types";
 
 const channel = (id: string, name: string): Item => ({
@@ -248,5 +249,34 @@ describe("sports guide", () => {
         "basketball",
       ).map((event) => event.id),
     ).toEqual(["live", "upcoming"]);
+  });
+
+  it("finds streams when guide titles are generic but league and network match", () => {
+    const now = Date.now();
+    const espn = channel("espn2", "US| ESPN 2 HD");
+    const event = {
+      id: "nba-guide",
+      title: "Live: NBA Basketball",
+      description: "Live game coverage",
+      start: now - 30 * 60_000,
+      end: now + 2 * 60 * 60_000,
+      sport: "basketball" as const,
+      channels: [espn],
+    };
+    const score: ScoreEvent = {
+      id: "ind-dal",
+      sport: "basketball",
+      league: "nba",
+      leagueName: "National Basketball Association",
+      name: "Indiana Pacers at Dallas Mavericks",
+      shortName: "IND @ DAL",
+      start: now,
+      state: "in",
+      detail: "4th",
+      broadcasts: ["ESPN 2"],
+      teams: [],
+    };
+
+    expect(matchScoreToGuideEvent(score, [event])?.channels).toEqual([espn]);
   });
 });

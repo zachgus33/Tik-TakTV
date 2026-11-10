@@ -1,6 +1,7 @@
 package com.nuvio.app.features.home.components
 
 import com.nuvio.app.core.ui.tikTakTvFocus
+import com.nuvio.app.core.ui.LocalTvMode
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -70,6 +71,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -683,6 +685,7 @@ private fun StreamingShowcaseHeroPage(
     onVideoPreviewSoundChange: ((Boolean) -> Unit)?,
     isSaved: Boolean,
 ) {
+    val isTvMode = LocalTvMode.current
     val motionVisibility = if (motionPreviewEnabled) 1f else 0f
     val motionPulse = if (motionPreviewEnabled) cinematicPulse else 0.5f
     val title = detailMeta?.name?.takeIf { it.isNotBlank() } ?: item.name
@@ -844,6 +847,7 @@ private fun StreamingShowcaseHeroPage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .then(if (isTvMode) Modifier.focusProperties { canFocus = false } else Modifier)
             .clickable(enabled = onItemClick != null) {
                 onItemClick?.invoke(item)
             },
@@ -968,6 +972,7 @@ private fun StreamingShowcaseHeroPage(
                         .fillMaxWidth(logoWidthFraction)
                         .widthIn(max = logoMaxWidth)
                         .height(logoHeight)
+                        .then(if (isTvMode) Modifier.focusProperties { canFocus = false } else Modifier)
                         .clickable(enabled = onItemClick != null) {
                             onItemClick?.invoke(item)
                         },

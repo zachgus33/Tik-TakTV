@@ -9,7 +9,12 @@ import {
 import { Heart, Play, Trophy } from "lucide-react";
 import type { Item, Programme } from "./types";
 import ChannelArt from "./ChannelArt";
-import { loadSportsScores, matchScore, type ScoreEvent } from "./sports-scores";
+import {
+  loadSportsScores,
+  matchScore,
+  matchScoreToGuideEvent,
+  type ScoreEvent,
+} from "./sports-scores";
 
 export type SportKind =
   | "football"
@@ -453,13 +458,30 @@ function SportsHub({
     () => prioritizeLiveScoreEvents(visible, scores, now),
     [now, scores, visible],
   );
-  const standaloneScores = useMemo(() => {
+  const standaloneScoreCandidates = useMemo(() => {
     if (mine) return [];
     const matchedScoreIds = new Set(
       [...scoreByEvent.values()].map((score) => score.id),
     );
     return standaloneScoreEvents(scores, matchedScoreIds, now, sport);
   }, [mine, now, scoreByEvent, scores, sport]);
+  const standaloneGuideMatches = useMemo(() => {
+    const matches = new Map<string, SportsEvent>();
+    for (const score of standaloneScoreCandidates) {
+      const event = matchScoreToGuideEvent(score, all);
+      if (event) matches.set(score.id, event);
+    }
+    return matches;
+  }, [all, standaloneScoreCandidates]);
+  const standaloneScores = useMemo(
+    () =>
+      [...standaloneScoreCandidates].sort(
+        (a, b) =>
+          Number(!standaloneGuideMatches.has(a.id)) -
+          Number(!standaloneGuideMatches.has(b.id)),
+      ),
+    [standaloneGuideMatches, standaloneScoreCandidates],
+  );
   const eventCount = visible.length + standaloneScores.length;
   const displayed = remaining.slice(0, limit);
   const live = displayed.filter(
@@ -525,7 +547,12 @@ function SportsHub({
       ) : (
         <>
           {!!standaloneScores.length && (
-            <ScoreboardSection scores={standaloneScores} />
+            <ScoreboardSection
+              scores={standaloneScores}
+              guideMatches={standaloneGuideMatches}
+              onPlay={onPlay}
+              getArtwork={getArtwork}
+            />
           )}
           {scanning && (
             <p className="sports-scan-note" role="status">
@@ -583,7 +610,17 @@ function SportsHub({
   );
 }
 
-function ScoreboardSection({ scores }: { scores: ScoreEvent[] }) {
+function ScoreboardSection({
+  scores,
+  guideMatches,
+  onPlay,
+  getArtwork,
+}: {
+  scores: ScoreEvent[];
+  guideMatches: Map<string, SportsEvent>;
+  onPlay: (channel: Item) => void;
+  getArtwork: (channel: Item) => string | undefined;
+}) {
   return (
     <section className="sports-event-section" aria-label="Scores and schedules">
       <div className="sports-section-title">
@@ -593,6 +630,7 @@ function ScoreboardSection({ scores }: { scores: ScoreEvent[] }) {
       <div className="sports-event-grid">
         {scores.map((score) => {
           const kind = SPORTS.find((item) => item.id === score.sport);
+          const guideMatch = guideMatches.get(score.id);
           return (
             <article className="sports-event" key={`score-${score.id}`}>
               <div className="sports-event-meta">
@@ -611,9 +649,25 @@ function ScoreboardSection({ scores }: { scores: ScoreEvent[] }) {
               </div>
               <h3>{score.shortName || score.name}</h3>
               <ScoreCard score={score} />
-              <p>
-                Score and schedule only · no matching channel in your guide.
-              </p>
+              {guideMatch ? (
+                <div className="sports-channels">
+                  {guideMatch.channels.slice(0, 3).map((channel) => (
+                    <button
+                      key={`score-${score.id}-${channel.id}`}
+                      onClick={() => onPlay(channel)}
+                    >
+                      <ChannelArt
+                        channel={channel}
+                        guideArtwork={getArtwork(channel)}
+                      />
+                      <strong>{channel.name}</strong>
+                      <Play size={16} fill="currentColor" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p>Score and schedule only · no matching channel in your guide.</p>
+              )}
             </article>
           );
         })}

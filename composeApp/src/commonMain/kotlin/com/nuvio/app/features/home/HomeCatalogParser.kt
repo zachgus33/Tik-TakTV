@@ -91,7 +91,7 @@ internal object HomeCatalogParser {
         var inString = false
         var escaped = false
         var nestedDepth = 0
-        var itemStart = arrayStart + 1
+        var itemHasContent = false
         var retainedEnd = -1
         var rawItemCount = 0
         var arrayEnd = -1
@@ -110,14 +110,20 @@ internal object HomeCatalogParser {
             }
 
             when (character) {
-                '"' -> inString = true
-                '{', '[' -> nestedDepth += 1
+                '"' -> {
+                    inString = true
+                    itemHasContent = true
+                }
+                '{', '[' -> {
+                    nestedDepth += 1
+                    itemHasContent = true
+                }
                 '}' -> if (nestedDepth > 0) nestedDepth -= 1
                 ']' -> {
                     if (nestedDepth > 0) {
                         nestedDepth -= 1
                     } else {
-                        if (substring(itemStart, index).isNotBlank()) {
+                        if (itemHasContent) {
                             rawItemCount += 1
                             if (rawItemCount == retainedItemLimit && retainedEnd < 0) {
                                 retainedEnd = index
@@ -128,14 +134,15 @@ internal object HomeCatalogParser {
                     }
                 }
                 ',' -> if (nestedDepth == 0) {
-                    if (substring(itemStart, index).isNotBlank()) {
+                    if (itemHasContent) {
                         rawItemCount += 1
                         if (rawItemCount == retainedItemLimit && retainedEnd < 0) {
                             retainedEnd = index
                         }
                     }
-                    itemStart = index + 1
+                    itemHasContent = false
                 }
+                else -> if (!character.isWhitespace()) itemHasContent = true
             }
             index += 1
         }
