@@ -27,6 +27,13 @@ expect suspend fun httpGetTextWithHeaders(
     headers: Map<String, String>,
 ): String
 
+/** Streams a large text response without retaining the complete body. */
+expect suspend fun httpStreamTextWithHeaders(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+    onChunk: (String) -> Unit,
+)
+
 expect suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String> = emptyMap(),

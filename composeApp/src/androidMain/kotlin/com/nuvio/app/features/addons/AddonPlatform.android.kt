@@ -238,6 +238,31 @@ actual suspend fun httpGetTextWithHeaders(
         headers = mapOf("Accept" to "application/json") + headers,
     )
 
+actual suspend fun httpStreamTextWithHeaders(
+    url: String,
+    headers: Map<String, String>,
+    onChunk: (String) -> Unit,
+): Unit = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url)
+    headers.withoutAcceptEncoding().forEach { (key, value) -> builder.header(key, value) }
+    addonHttpClient().newCall(builder.get().build()).execute().use { response ->
+        if (!response.isSuccessful) {
+            error(runBlocking { getString(Res.string.network_request_failed_http, response.code) })
+        }
+        val body = response.body ?: throw IllegalStateException(
+            runBlocking { getString(Res.string.network_empty_response_body) },
+        )
+        body.charStream().use { reader ->
+            val buffer = CharArray(32 * 1024)
+            while (true) {
+                val count = reader.read(buffer)
+                if (count < 0) break
+                if (count > 0) onChunk(String(buffer, 0, count))
+            }
+        }
+    }
+}
+
 actual suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String>,

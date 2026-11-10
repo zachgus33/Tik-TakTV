@@ -137,6 +137,14 @@ actual suspend fun httpGetTextWithHeaders(
             payload
         }
 
+actual suspend fun httpStreamTextWithHeaders(
+    url: String,
+    headers: Map<String, String>,
+    onChunk: (String) -> Unit,
+) {
+    onChunk(httpGetTextWithHeaders(url, headers))
+}
+
 actual suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String>,

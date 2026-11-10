@@ -2,6 +2,7 @@ package com.nuvio.app.features.livetv
 
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
+import com.nuvio.app.features.addons.httpStreamTextWithHeaders
 import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -465,6 +466,23 @@ object LiveTvRepository {
                 if (mutableUiState.value.sourceUrl != sourceUrl) return@launch
                 publishGuideSchedules(schedules)
             }
+            if (schedules.isEmpty()) {
+                val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
+                var matchedChannels = 0
+                runCatching {
+                    streamTargetedXmlTvProgrammeSchedules(
+                        url = settings.xmlTvEndpoint(),
+                        targetChannelIds = targetIds,
+                    ) { channelId, entries ->
+                        schedules[channelId] = entries
+                        matchedChannels += 1
+                        if (matchedChannels == 1 || matchedChannels % XTREAM_XMLTV_PUBLISH_BATCH_SIZE == 0) {
+                            publishGuideSchedules(schedules)
+                        }
+                    }
+                }
+                if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
+            }
             if (mutableUiState.value.sourceUrl == sourceUrl) {
                 publishGuideSchedules(schedules, loading = false)
             }
@@ -658,6 +676,7 @@ private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
 
 private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 240
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
+private const val XTREAM_XMLTV_PUBLISH_BATCH_SIZE = 12
 
 private object LiveTvRepositoryStalker {
     private var cachedSession: StalkerSession? = null
@@ -1127,6 +1146,57 @@ internal fun parseXmlTvProgrammeSchedules(
     }
     return programmes.mapValues { (_, entries) -> entries.sortedBy(LiveTvProgramme::startEpochMs) }
 }
+
+private suspend fun streamTargetedXmlTvProgrammeSchedules(
+    url: String,
+    targetChannelIds: Set<String>,
+    onSchedule: (String, List<LiveTvProgramme>) -> Unit,
+) {
+    if (targetChannelIds.isEmpty()) return
+    val buffer = StringBuilder()
+    val accumulated = mutableMapOf<String, MutableList<LiveTvProgramme>>()
+    val now = LiveTvClock.nowEpochMs()
+    httpStreamTextWithHeaders(url, M3U_PLAYLIST_REQUEST_HEADERS) { chunk ->
+        buffer.append(chunk)
+        while (true) {
+            val start = buffer.indexOf("<programme", ignoreCase = true)
+            if (start < 0) {
+                if (buffer.length > XMLTV_STREAM_TAIL_CHARS) {
+                    buffer.delete(0, buffer.length - XMLTV_STREAM_TAIL_CHARS)
+                }
+                break
+            }
+            if (start > 0) buffer.delete(0, start)
+            val end = buffer.indexOf("</programme>", ignoreCase = true)
+            if (end < 0) break
+            val blockEnd = end + "</programme>".length
+            val block = buffer.substring(0, blockEnd)
+            buffer.delete(0, blockEnd)
+
+            val openTagEnd = block.indexOf('>')
+            if (openTagEnd < 0) continue
+            val attributes = xmlAttributeRegex.findAll(block.substring(0, openTagEnd + 1))
+                .associate { match -> match.groupValues[1].lowercase() to match.groupValues[2] }
+            val channelId = attributes["channel"]?.trim()?.takeIf(String::isNotBlank) ?: continue
+            if (channelId !in targetChannelIds) continue
+            val parsed = parseXmlTvProgrammeSchedules(block, now)[channelId].orEmpty()
+            if (parsed.isEmpty()) continue
+            val channelEntries = accumulated.getOrPut(channelId) { mutableListOf() }
+            val before = channelEntries.size
+            parsed.forEach { programme ->
+                if (channelEntries.size < 6 && channelEntries.none { it.startEpochMs == programme.startEpochMs }) {
+                    channelEntries += programme
+                }
+            }
+            if (channelEntries.size != before) {
+                channelEntries.sortBy(LiveTvProgramme::startEpochMs)
+                onSchedule(channelId, channelEntries.toList())
+            }
+        }
+    }
+}
+
+private const val XMLTV_STREAM_TAIL_CHARS = 32
 
 private fun String.xmlTvTimePart(): String {
     val digits = takeWhile(Char::isDigit)
