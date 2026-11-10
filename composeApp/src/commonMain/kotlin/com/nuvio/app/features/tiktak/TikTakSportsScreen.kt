@@ -276,10 +276,14 @@ private fun deriveSportsState(
         val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
         if (SportsKeywords.any(searchable::contains)) channel to programme?.title else null
     }
-    val visibleScores = scores.asSequence()
+    val filteredScores = scores.asSequence()
         .filter { sportFilter == "all" || it.sport == sportFilter }
-        .take(MAX_VISIBLE_SCORE_EVENTS)
         .toList()
+    val matchedChannels = filteredScores.mapNotNull { event ->
+        findScoreChannel(event, guidedChannels, programmes)?.let { event.id to it }
+    }.toMap()
+    val visibleScores = prioritizeStreamableScores(filteredScores, matchedChannels)
+        .take(MAX_VISIBLE_SCORE_EVENTS)
     return SportsDerivedState(
         countries = listOf("All countries") + liveEvents.mapNotNull { (channel, _) ->
             channel.group.substringBefore('|').substringBefore(':').trim().takeIf { it.length in 2..28 }
@@ -290,11 +294,21 @@ private fun deriveSportsState(
                 (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
         }.take(MAX_VISIBLE_SPORT_CHANNELS).toList(),
         scores = visibleScores,
-        matchedChannels = visibleScores.mapNotNull { event ->
-            findScoreChannel(event, guidedChannels, programmes)?.let { event.id to it }
-        }.toMap(),
+        matchedChannels = matchedChannels,
     )
 }
+
+/** Keeps the score feed's live/upcoming ordering inside each group while putting
+ * events that can launch a guide-backed stream before informational scores. */
+fun prioritizeStreamableScores(
+    scores: List<NativeScoreEvent>,
+    matchedChannels: Map<String, LiveTvChannel>,
+): List<NativeScoreEvent> = scores.withIndex()
+    .sortedWith(compareBy<IndexedValue<NativeScoreEvent>>(
+        { it.value.id !in matchedChannels },
+        { it.index },
+    ))
+    .map(IndexedValue<NativeScoreEvent>::value)
 
 @Composable
 private fun ScoreCard(

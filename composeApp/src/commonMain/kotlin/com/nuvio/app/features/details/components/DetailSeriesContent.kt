@@ -822,6 +822,7 @@ private fun EpisodeHorizontalCard(
                 surface = NuvioCardDepthSurface.EpisodeCards,
                 fallbackBorderAlpha = 0.12f,
             )
+            .tikTakTvFocus()
             .posterCardClickable(
                 onClick = onClick,
                 onLongClick = onLongPress,

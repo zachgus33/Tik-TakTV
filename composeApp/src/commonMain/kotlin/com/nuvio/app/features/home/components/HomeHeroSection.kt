@@ -1,5 +1,7 @@
 package com.nuvio.app.features.home.components
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
@@ -1506,6 +1508,7 @@ private fun StreamingShowcaseSoundButton(
                 color = Color.White.copy(alpha = if (enabled) 0.20f else 0.11f),
                 shape = shape,
             )
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -1605,6 +1608,7 @@ private fun StreamingShowcaseNetflixButton(
                 },
                 shape = shape,
             )
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = if (compact) 12.dp else 16.dp),
         horizontalArrangement = Arrangement.Center,
@@ -1677,6 +1681,7 @@ private fun StreamingShowcaseButton(
                 },
                 shape = shape,
             )
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         horizontalArrangement = Arrangement.spacedBy(itemSpacing),
@@ -2130,6 +2135,7 @@ private fun PosterHeroRoundActionButton(
                 color = if (primary) Color.Black.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.26f),
                 shape = CircleShape,
             )
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
