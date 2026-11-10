@@ -271,6 +271,7 @@ private fun deriveSportsState(
     countryFilter: String,
 ): SportsDerivedState {
     val guidedChannels = channels.filter { channelHasGuideData(it, programmes, schedules) }
+    val channelSearchIndex = buildSportsChannelSearchIndex(guidedChannels, programmes)
     val liveEvents = guidedChannels.mapNotNull { channel ->
         val programme = channel.tvgId?.let(programmes::get) ?: programmes[channel.id]
         val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
@@ -280,7 +281,7 @@ private fun deriveSportsState(
         .filter { sportFilter == "all" || it.sport == sportFilter }
         .toList()
     val matchedChannels = filteredScores.mapNotNull { event ->
-        findScoreChannel(event, guidedChannels, programmes)?.let { event.id to it }
+        findScoreChannelFromIndex(event, channelSearchIndex)?.let { event.id to it }
     }.toMap()
     val visibleScores = prioritizeStreamableScores(filteredScores, matchedChannels)
         .take(MAX_VISIBLE_SCORE_EVENTS)
@@ -353,23 +354,47 @@ fun findScoreChannel(
     channels: List<LiveTvChannel>,
     currentProgrammes: Map<String, LiveTvProgramme>,
 ): LiveTvChannel? {
-    if (channels.isEmpty()) return null
+    return findScoreChannelFromIndex(event, buildSportsChannelSearchIndex(channels, currentProgrammes))
+}
+
+private data class SportsChannelSearchEntry(
+    val channel: LiveTvChannel,
+    val programmeTokens: Set<String>,
+    val channelTokens: Set<String>,
+    val hasProgramme: Boolean,
+)
+
+private fun buildSportsChannelSearchIndex(
+    channels: List<LiveTvChannel>,
+    currentProgrammes: Map<String, LiveTvProgramme>,
+): List<SportsChannelSearchEntry> = channels.map { channel ->
+    val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
+    SportsChannelSearchEntry(
+        channel = channel,
+        programmeTokens = normalizedSportsTokens(programme?.title.orEmpty()),
+        channelTokens = normalizedSportsTokens("${channel.name} ${channel.group}"),
+        hasProgramme = programme != null,
+    )
+}
+
+private fun findScoreChannelFromIndex(
+    event: NativeScoreEvent,
+    index: List<SportsChannelSearchEntry>,
+): LiveTvChannel? {
+    if (index.isEmpty()) return null
     val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
     val teamTokenSets = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
     val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
 
-    return channels.asSequence()
-        .mapNotNull { channel ->
-            val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
-            val programmeText = normalizeSportsText(programme?.title.orEmpty())
-            val channelText = normalizeSportsText("${channel.name} ${channel.group}")
-            val programmeTokens = normalizedSportsTokens(programmeText)
+    return index.asSequence()
+        .mapNotNull { entry ->
+            val programmeTokens = entry.programmeTokens
             val matchingTeams = teamTokenSets.count { team ->
                 val required = if (team.size <= 1) 1 else 2
                 team.count(programmeTokens::contains) >= required
             }
             val programmeOverlap = eventTokens.count(programmeTokens::contains)
-            val channelTokens = normalizedSportsTokens(channelText)
+            val channelTokens = entry.channelTokens
             val broadcastOverlap = broadcastTokens.count(channelTokens::contains)
             val broadcastMatch = broadcastTokens.isNotEmpty() && broadcastOverlap == broadcastTokens.size
 
@@ -381,8 +406,8 @@ fun findScoreChannel(
             }
             val score = matchingTeams * 100 + programmeOverlap * 8 +
                 (if (broadcastMatch) 35 + broadcastOverlap * 5 else 0) +
-                (if (programme != null) 10 else 0)
-            channel to score
+                (if (entry.hasProgramme) 10 else 0)
+            entry.channel to score
         }
         .maxByOrNull { it.second }
         ?.first

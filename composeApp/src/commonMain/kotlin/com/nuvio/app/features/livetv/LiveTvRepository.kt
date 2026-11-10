@@ -499,11 +499,27 @@ object LiveTvRepository {
         val programmes = schedules.mapNotNull { (channel, entries) ->
             entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
         }.toMap()
-        mutableUiState.value = mutableUiState.value.copy(
+        val previousState = mutableUiState.value
+        val publishedChannels = if (!loading && schedules.isNotEmpty()) {
+            val guideKeys = schedules.keys
+            previousState.channels.filter { channel ->
+                channel.id in guideKeys || channel.tvgId?.let(guideKeys::contains) == true
+            }
+        } else {
+            previousState.channels
+        }
+        mutableUiState.value = previousState.copy(
+            channels = publishedChannels,
             currentProgrammes = programmes,
             programmeSchedules = schedules.toMap(),
             isEpgLoading = loading,
         )
+        // The product intentionally exposes only guide-backed channels. Store
+        // that compact set so subsequent launches skip thousands of unusable
+        // playlist rows and can paint the guide immediately from disk.
+        if (!loading && publishedChannels.isNotEmpty() && publishedChannels.size < previousState.channels.size) {
+            cacheChannels(publishedChannels)
+        }
     }
 }
 
@@ -678,7 +694,11 @@ private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
 
 private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 60
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
-private const val XTREAM_XMLTV_PUBLISH_BATCH_SIZE = 12
+// Publishing a new StateFlow snapshot makes both the guide and Sports rebuild
+// their derived indexes. Fire TV hardware cannot keep up when a large XMLTV
+// document publishes every handful of channels. Publish the first match so the
+// guide appears immediately, then update in coarse batches and once at EOF.
+private const val XTREAM_XMLTV_PUBLISH_BATCH_SIZE = 250
 
 private object LiveTvRepositoryStalker {
     private var cachedSession: StalkerSession? = null

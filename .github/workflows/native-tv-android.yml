@@ -242,6 +242,11 @@ jobs:
           {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/native-preview-latest/tiktak-tv-native-preview.apk","sha256":"${sha256}"}
           JSON
           printf '%s  %s\n' "${sha256}" tiktak-tv-native-preview.apk > tiktak-tv-native-preview.apk.sha256
+          cp tiktak-tv-native-preview.apk tiktak-tv-android-tv.apk
+          printf '%s  %s\n' "${sha256}" tiktak-tv-android-tv.apk > tiktak-tv-android-tv.apk.sha256
+          cat > tiktak-tv-android-tv.json <<JSON
+          {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk","sha256":"${sha256}"}
+          JSON
       - name: Publish stable native-preview update assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -259,6 +264,21 @@ jobs:
             tiktak-tv-native-preview.apk.sha256 \
             tiktak-tv-native-preview.json \
             --clobber
+      - name: Replace Downloader release with native TV app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view tv-latest >/dev/null 2>&1; then
+            gh release create tv-latest \
+              --target "${GITHUB_SHA}" \
+              --title "TikTak TV for Android TV and Fire TV" \
+              --notes "Signed native TikTak TV app for Fire TV, Firestick, Android TV, and Google TV. This stable URL is used by Downloader code 2564237 and is updated in place."
+          fi
+          gh release upload tv-latest \
+            tiktak-tv-android-tv.apk \
+            tiktak-tv-android-tv.apk.sha256 \
+            tiktak-tv-android-tv.json \
+            --clobber
       - name: Upload signed preview evidence
         uses: actions/upload-artifact@v7
         with:
@@ -267,5 +287,8 @@ jobs:
             tiktak-tv-native-preview.apk
             tiktak-tv-native-preview.apk.sha256
             tiktak-tv-native-preview.json
+            tiktak-tv-android-tv.apk
+            tiktak-tv-android-tv.apk.sha256
+            tiktak-tv-android-tv.json
           if-no-files-found: error
           retention-days: 30
