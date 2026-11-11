@@ -43,13 +43,13 @@ open class NativeTvActivity : MainActivity() {
         NativeTvHostMode.enable()
         super.onCreate(savedInstanceState)
         previewUpdater = NativePreviewUpdater(this)
-        if (!showShellPreview) previewUpdater.checkForUpdates()
+        if (!showShellPreview && BuildConfig.ENABLE_SIDELOAD_UPDATES) previewUpdater.checkForUpdates()
         enterTvFullscreen()
     }
 
     override fun onResume() {
         super.onResume()
-        if (::previewUpdater.isInitialized) previewUpdater.resumePendingInstall()
+        if (BuildConfig.ENABLE_SIDELOAD_UPDATES && ::previewUpdater.isInitialized) previewUpdater.resumePendingInstall()
     }
 
     @Composable

@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -375,6 +376,7 @@ private fun ProfileAvatarCard(
     }
 
     val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.95f else 1f
     val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
@@ -391,6 +393,16 @@ private fun ProfileAvatarCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (isHovered || focused) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                else Color.Transparent,
+            )
+            .border(
+                2.dp,
+                if (isHovered) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                RoundedCornerShape(20.dp),
+            )
             .onFocusChanged { focused = it.hasFocus }
             .clickable(
                 interactionSource = interactionSource,
@@ -529,6 +541,7 @@ private fun AddProfileCard(
     }
 
     val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.95f else 1f
     val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
@@ -545,6 +558,16 @@ private fun AddProfileCard(
                 translationY = animOffset.value
             }
             .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (isHovered || focused) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                else Color.Transparent,
+            )
+            .border(
+                2.dp,
+                if (isHovered) MaterialTheme.colorScheme.primary
+                else Color.Transparent,
+                RoundedCornerShape(20.dp),
+            )
             .onFocusChanged { focused = it.hasFocus }
             .clickable(
                 interactionSource = interactionSource,

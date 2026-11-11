@@ -22,8 +22,9 @@ android {
         applicationId = "com.tiktaktv.tv.nativepreview"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 68
-        versionName = "0.3.58-preview"
+        versionCode = 69
+        versionName = "0.3.59"
+        buildConfigField("boolean", "ENABLE_SIDELOAD_UPDATES", "true")
         buildConfigField(
             "String",
             "UPDATE_METADATA_URL",
@@ -62,6 +63,11 @@ android {
             if (hasTvReleaseSigning) {
                 signingConfig = signingConfigs.getByName("tvRelease")
             }
+        }
+        create("appstore") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "ENABLE_SIDELOAD_UPDATES", "false")
         }
     }
 
