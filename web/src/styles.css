@@ -685,13 +685,21 @@ body {
 }
 .profile-choices button {
   width: 130px;
-  padding: 0;
-  border: 0;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 18px;
   background: transparent;
   display: grid;
   justify-items: center;
   gap: 0.7rem;
   color: #eee;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+.profile-choices button:not(:disabled):is(:hover, :focus) {
+  background: #a46cff26;
+  border-color: #b88aff;
+  box-shadow: 0 0 0 3px #a46cff40, 0 12px 35px #0008;
 }
 .profile-choices button > span {
   width: 112px;
@@ -712,10 +720,12 @@ body {
     transform 0.18s,
     border-color 0.18s;
 }
-.profile-choices button:hover > span,
-.profile-choices button:focus-visible > span {
-  transform: scale(1.06);
+.profile-choices button:not(:disabled):is(:hover, :focus) > span {
+  transform: scale(1.08);
   border-color: #fff;
+}
+.profile-choices button:not(:disabled):is(:hover, :focus) > strong {
+  color: #fff;
 }
 .profile-choices strong {
   font-size: 1rem;

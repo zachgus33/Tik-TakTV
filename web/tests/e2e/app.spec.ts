@@ -3564,7 +3564,15 @@ test.describe("authenticated integrations", () => {
       .locator("form")
       .getByRole("button", { name: "Sign in", exact: true })
       .click();
-    await page.getByRole("button", { name: /Home/ }).click();
+    const homeProfile = page.locator(".profile-choices button", {
+      hasText: "Home",
+    });
+    await expect(homeProfile).toBeVisible();
+    await homeProfile.hover();
+    await expect(homeProfile).toHaveCSS("border-top-color", "rgb(184, 138, 255)");
+    await homeProfile.focus();
+    await expect(homeProfile).toHaveCSS("border-top-color", "rgb(184, 138, 255)");
+    await homeProfile.click();
     await expect(
       page.getByRole("heading", { name: "The Test Movie" }),
     ).toBeVisible();
