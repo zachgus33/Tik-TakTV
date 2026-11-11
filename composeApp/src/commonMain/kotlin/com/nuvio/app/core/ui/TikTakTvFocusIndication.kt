@@ -58,9 +58,9 @@ private class TikTakTvFocusIndicationNode(
         drawContent()
         if (!focused) return
 
-        // The selected control has to remain obvious from across a room and on
-        // washed-out projectors. A tinted wash plus a two-tone ring survives
-        // both dark artwork and bright cards better than the former thin line.
+        // The selected control has to remain obvious from across a room. Keep
+        // one ring only: feature-level focus modifiers used to stack with this
+        // indication and produced the doubled outline reported on Sports.
         drawRoundRect(
             color = Color(0x33FF4F9A),
             cornerRadius = CornerRadius(14.dp.toPx()),
@@ -76,18 +76,6 @@ private class TikTakTvFocusIndicationNode(
             ),
             cornerRadius = CornerRadius(14.dp.toPx()),
             style = Stroke(width = strokeWidth),
-        )
-        val innerStrokeWidth = 2.dp.toPx()
-        val innerInset = strokeWidth + innerStrokeWidth / 2f
-        drawRoundRect(
-            color = Color.White,
-            topLeft = androidx.compose.ui.geometry.Offset(innerInset, innerInset),
-            size = androidx.compose.ui.geometry.Size(
-                width = (size.width - innerInset * 2f).coerceAtLeast(0f),
-                height = (size.height - innerInset * 2f).coerceAtLeast(0f),
-            ),
-            cornerRadius = CornerRadius(10.dp.toPx()),
-            style = Stroke(width = innerStrokeWidth),
         )
     }
 }

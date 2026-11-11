@@ -7252,6 +7252,31 @@ button.primary:hover,
   border-color: #55d89532;
   background: linear-gradient(145deg, #17211f, #0d1112);
 }
+.sports-section-in:not(.sports-score-priority) {
+  padding: 18px;
+  border: 1px solid #55d89538;
+  border-radius: 20px;
+  background: #55d8950a;
+}
+.sports-section-in .sports-section-title h2,
+.sports-section-in .sports-section-title .live-dot,
+.sports-event-in .sports-event-meta time {
+  color: #77e7ac;
+}
+.sports-section-pre {
+  padding: 18px;
+  border: 1px solid #8b5cf635;
+  border-radius: 20px;
+  background: #8b5cf608;
+}
+.sports-section-pre .sports-section-title h2,
+.sports-event-pre .sports-event-meta time {
+  color: #c5a8ff;
+}
+.sports-section-post .sports-section-title h2,
+.sports-event-post .sports-event-meta time {
+  color: #aaa4b3;
+}
 .sports-event-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -7353,6 +7378,7 @@ button.primary:hover,
 .sports-score-team small {
   margin-left: auto;
   color: #77727f;
+  white-space: nowrap;
 }
 .sports-score-team b {
   min-width: 28px;

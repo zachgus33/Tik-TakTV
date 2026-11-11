@@ -1,7 +1,6 @@
 package com.nuvio.app.features.tiktak
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,8 +31,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -140,6 +137,9 @@ fun TikTakSportsScreen(
     val countries = derived.countries
     val visibleLiveEvents = derived.liveEvents
     val visibleScores = derived.scores
+    val liveScores = visibleScores.filter { it.state == "in" }
+    val upcomingScores = visibleScores.filter { it.state == "pre" }
+    val recentScores = visibleScores.filter { it.state == "post" }
 
     fun refreshScores() {
         if (loading) return
@@ -205,30 +205,29 @@ fun TikTakSportsScreen(
         }
         if (loading && scores.isEmpty()) item { CircularProgressIndicator(color = MaterialTheme.nuvio.colors.accent) }
         error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-        if (visibleScores.isNotEmpty()) {
-            item { SectionTitle("Live and recent scores") }
-            items(visibleScores, key = { "score:${it.id}" }) { event ->
+        if (liveScores.isNotEmpty()) {
+            item { SectionTitle("LIVE NOW", "Games in progress — scores update automatically") }
+            items(liveScores, key = { "live-score:${it.id}" }) { event ->
                 val matchedChannel = derived.matchedChannels[event.id]
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
-                    onClick = {
-                        if (matchedChannel != null) {
-                            onChannelClick(matchedChannel)
-                        } else {
-                            NuvioToastController.show(
-                                if (liveState.channels.isEmpty()) {
-                                    "Live TV is still syncing. Try this score again when your channels are ready."
-                                } else {
-                                    "No live channel carrying ${event.name} was found in your IPTV guide."
-                                },
-                            )
-                        }
-                    },
+                    onClick = { openScoreEvent(event, matchedChannel, liveState.channels.isEmpty(), onChannelClick) },
                 )
             }
         }
-        item { SectionTitle("Live and upcoming on your channels") }
+        if (upcomingScores.isNotEmpty()) {
+            item { SectionTitle("COMING UP", "Scheduled games — streamable games are shown first") }
+            items(upcomingScores, key = { "upcoming-score:${it.id}" }) { event ->
+                val matchedChannel = derived.matchedChannels[event.id]
+                ScoreCard(
+                    event = event,
+                    matchedChannelName = matchedChannel?.name,
+                    onClick = { openScoreEvent(event, matchedChannel, liveState.channels.isEmpty(), onChannelClick) },
+                )
+            }
+        }
+        item { SectionTitle("ON YOUR LIVE TV", "Live and upcoming sports with guide data") }
         if (visibleLiveEvents.isEmpty()) {
             item {
                 Text(
@@ -252,6 +251,17 @@ fun TikTakSportsScreen(
                         color = MaterialTheme.nuvio.colors.textMuted,
                     )
                 }
+            }
+        }
+        if (recentScores.isNotEmpty()) {
+            item { SectionTitle("RECENT RESULTS", "Finished games and final scores") }
+            items(recentScores, key = { "recent-score:${it.id}" }) { event ->
+                val matchedChannel = derived.matchedChannels[event.id]
+                ScoreCard(
+                    event = event,
+                    matchedChannelName = matchedChannel?.name,
+                    onClick = { openScoreEvent(event, matchedChannel, liveState.channels.isEmpty(), onChannelClick) },
+                )
             }
         }
     }
@@ -334,7 +344,9 @@ private fun ScoreCard(
                     }
                     Column {
                         Text(team.name, color = MaterialTheme.nuvio.colors.textPrimary)
-                        team.record?.let { Text(it, color = MaterialTheme.nuvio.colors.textMuted) }
+                        team.record?.let {
+                            Text("Season record: $it", color = MaterialTheme.nuvio.colors.textMuted)
+                        }
                     }
                 }
                 Text(team.score, color = MaterialTheme.nuvio.colors.textPrimary, fontWeight = FontWeight.Bold)
@@ -440,13 +452,10 @@ private val BroadcastMatchStopWords = setOf(
 
 @Composable
 private fun FocusCard(onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    var focused by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 1000.dp)
-            .onFocusChanged { focused = it.hasFocus }
-            .border(if (focused) 4.dp else 1.dp, if (focused) Color(0xFFFF4F9A) else MaterialTheme.nuvio.colors.borderDefault, RoundedCornerShape(16.dp))
             .background(MaterialTheme.nuvio.colors.surface, RoundedCornerShape(16.dp))
             .tikTakTvFocus()
             .clickable(onClick = onClick)
@@ -456,8 +465,30 @@ private fun FocusCard(onClick: () -> Unit, content: @Composable ColumnScope.() -
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.nuvio.colors.textPrimary, fontWeight = FontWeight.Bold)
+private fun SectionTitle(text: String, description: String? = null) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(text, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.nuvio.colors.textPrimary, fontWeight = FontWeight.ExtraBold)
+        description?.let { Text(it, color = MaterialTheme.nuvio.colors.textMuted) }
+    }
+}
+
+private fun openScoreEvent(
+    event: NativeScoreEvent,
+    matchedChannel: LiveTvChannel?,
+    channelsStillLoading: Boolean,
+    onChannelClick: (LiveTvChannel) -> Unit,
+) {
+    if (matchedChannel != null) {
+        onChannelClick(matchedChannel)
+    } else {
+        NuvioToastController.show(
+            if (channelsStillLoading) {
+                "Live TV is still syncing. Try this game again when your channels are ready."
+            } else {
+                "No live channel carrying ${event.name} was found in your IPTV guide."
+            },
+        )
+    }
 }
 
 private suspend fun loadNativeScores(): List<NativeScoreEvent> = coroutineScope {

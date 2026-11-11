@@ -659,7 +659,7 @@ function ScoreboardSection({
 }) {
   return (
     <section
-      className={`sports-event-section${priority ? " sports-score-priority" : ""}`}
+      className={`sports-event-section sports-section-${scores[0]?.state ?? "pre"}${priority ? " sports-score-priority" : ""}`}
       aria-label={title}
     >
       <div className="sports-section-title">
@@ -671,7 +671,10 @@ function ScoreboardSection({
           const kind = SPORTS.find((item) => item.id === score.sport);
           const guideMatch = guideMatches.get(score.id);
           return (
-            <article className="sports-event" key={`score-${score.id}`}>
+            <article
+              className={`sports-event sports-event-${score.state}`}
+              key={`score-${score.id}`}
+            >
               <div className="sports-event-meta">
                 <span>
                   {kind?.icon || "🏅"} {kind?.label || "Sports"}
@@ -742,7 +745,7 @@ function EventSection({
 }) {
   return (
     <section
-      className={`sports-event-section${priority ? " sports-score-priority" : ""}`}
+      className={`sports-event-section${title === "Live now" || priority ? " sports-section-in" : " sports-section-pre"}${priority ? " sports-score-priority" : ""}`}
       aria-label={title}
     >
       <div className="sports-section-title">
@@ -755,7 +758,10 @@ function EventSection({
           const live = event.start <= now && event.end > now;
           const score = scoreByEvent.get(event.id);
           return (
-            <article className="sports-event" key={event.id}>
+            <article
+              className={`sports-event sports-event-${live ? "in" : "pre"}`}
+              key={event.id}
+            >
               <div className="sports-event-meta">
                 <span>
                   {kind?.icon || "🏅"} {kind?.label || "Sports"}
@@ -830,7 +836,11 @@ function ScoreCard({ score }: { score: ScoreEvent }) {
             <span>{team.abbreviation.slice(0, 3)}</span>
           )}
           <strong>{team.shortName}</strong>
-          {team.record && <small>{team.record}</small>}
+          {team.record && (
+            <small title="Season record: wins-losses, with overtime losses where the sport uses them">
+              Record {team.record}
+            </small>
+          )}
           <b>{team.score ?? "—"}</b>
         </div>
       ))}
