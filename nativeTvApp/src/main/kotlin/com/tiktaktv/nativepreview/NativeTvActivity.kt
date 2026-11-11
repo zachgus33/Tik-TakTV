@@ -127,7 +127,7 @@ open class NativeTvActivity : MainActivity() {
  * that cached a blank legacy tile to create a fresh entry during an in-place
  * update while preserving the package, signing identity, and all app data.
  */
-class TikTakTvLauncherActivity : NativeTvActivity()
+class TikTakTvLauncherV2Activity : NativeTvActivity()
 
 /**
  * CI-only host that always renders the deterministic ten-foot shell.
