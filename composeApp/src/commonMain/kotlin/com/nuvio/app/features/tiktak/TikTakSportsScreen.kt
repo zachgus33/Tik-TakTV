@@ -101,7 +101,13 @@ fun TikTakSportsScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val liveState by LiveTvRepository.uiState.collectAsState()
+    val liveState by remember {
+        // Sports depends on the same guide-backed channel index as Live TV. Loading it here
+        // keeps the expensive guide work off Home startup while still making a direct visit
+        // to Sports populate streams and scores.
+        LiveTvRepository.ensureLoaded()
+        LiveTvRepository.uiState
+    }.collectAsState()
     var scores by remember { mutableStateOf<List<NativeScoreEvent>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }

@@ -302,7 +302,10 @@ object LiveTvRepository {
         }
     }
 
-    suspend fun loadXtream(settings: LiveTvXtreamSettings): Result<List<LiveTvChannel>> {
+    suspend fun loadXtream(
+        settings: LiveTvXtreamSettings,
+        loadGuide: Boolean = true,
+    ): Result<List<LiveTvChannel>> {
         val normalizedSettings = settings.normalized()
         if (!normalizedSettings.isConfigured) {
             val error = IllegalArgumentException("Server URL, username, and password are required.")
@@ -342,8 +345,10 @@ object LiveTvRepository {
                 isLoaded = true,
             )
             cacheChannels(channels)
-            mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
-            loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
+            if (loadGuide) {
+                mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+                loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
+            }
             channels
         }.onFailure { error ->
             mutableUiState.value = mutableUiState.value.copy(

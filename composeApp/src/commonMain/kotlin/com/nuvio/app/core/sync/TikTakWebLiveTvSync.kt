@@ -58,7 +58,11 @@ internal object TikTakWebLiveTvSync {
             username = provider.stringValue("username").orEmpty(),
             password = provider.stringValue("password").orEmpty(),
         )
-        val result = LiveTvRepository.loadXtream(settings)
+        // Restore credentials and the bounded channel index during account sync, but leave
+        // the multi-megabyte XMLTV guide until the user opens Live TV or Sports. Running the
+        // guide parse alongside home catalogs, library, collections, and hero video startup
+        // pushed old Fire TV devices to their 192 MB heap ceiling and froze navigation.
+        val result = LiveTvRepository.loadXtream(settings, loadGuide = false)
         if (result.isFailure) {
             log.w(result.exceptionOrNull()) { "Unable to restore the signed-in TikTak TV provider" }
             return false
