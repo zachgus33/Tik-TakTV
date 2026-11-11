@@ -121,6 +121,15 @@ open class NativeTvActivity : MainActivity() {
 }
 
 /**
+ * Stable, explicitly badged Fire TV launcher component.
+ *
+ * Keeping this component separate from [NativeTvActivity] forces launchers
+ * that cached a blank legacy tile to create a fresh entry during an in-place
+ * update while preserving the package, signing identity, and all app data.
+ */
+class TikTakTvLauncherActivity : NativeTvActivity()
+
+/**
  * CI-only host that always renders the deterministic ten-foot shell.
  *
  * This intentionally does not inherit MainActivity: its job is to prove the
