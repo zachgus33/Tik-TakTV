@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.core.ui.nuvio
+import androidx.compose.ui.focus.focusProperties
 
 @Composable
 internal fun PlayerSidePanel(
@@ -65,6 +66,7 @@ internal fun PlayerSidePanel(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.34f))
+                .focusProperties { canFocus = false }
                 .clickable(
                     interactionSource = backgroundInteraction,
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
@@ -86,6 +88,7 @@ internal fun PlayerSidePanel(
                         .fillMaxHeight()
                         .clip(shape)
                         .background(tokens.colors.surfaceElevated)
+                        .focusProperties { canFocus = false }
                         .clickable(
                             interactionSource = panelInteraction,
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,

@@ -125,9 +125,12 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val tvLowerControlsFocusRequester = remember { FocusRequester() }
     var tvSurfaceIsFocused by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
+    val playerModalVisible = showAudioModal || showSubtitleModal || showVideoSettingsModal ||
+        showQualityPanel || showSourcesPanel || showEpisodesPanel || showLiveTvChannelsPanel ||
+        showSubmitIntroModal || pendingP2pSwitch != null
 
-    LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest) {
-        if (isTvMode) {
+    LaunchedEffect(isTvMode, controlsVisible, tvControlsFocusRequest, playerModalVisible) {
+        if (isTvMode && !playerModalVisible) {
             if (controlsVisible) {
                 runCatching { tvControlsFocusRequester.requestFocus() }
             } else {
@@ -146,6 +149,10 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         .onFocusChanged { tvSurfaceIsFocused = it.isFocused }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            if (playerModalVisible) {
+                                // Until the panel receives focus, do not let D-pad keys seek or play.
+                                return@onPreviewKeyEvent tvSurfaceIsFocused
+                            }
                             if (controlsVisible) controlsInteractionEpoch += 1
                             when (event.key) {
                                 Key.DirectionLeft -> {
@@ -195,7 +202,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 },
             )
             .onSizeChanged { layoutSize = it }
-            .playerSurfaceTapGestures(
+            .then(if (playerModalVisible) Modifier else Modifier
+                .playerSurfaceTapGestures(
                 layoutSize = layoutSize,
                 playerControlsLockedState = gestureCallbacks.playerControlsLocked,
                 onSurfaceTap = gestureCallbacks.onSurfaceTap,
@@ -204,7 +212,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 deactivateHoldToSpeedState = gestureCallbacks.deactivateHoldToSpeed,
                 revealLockedOverlayState = gestureCallbacks.revealLockedOverlay,
             )
-            .playerSurfaceDragGestures(
+                .playerSurfaceDragGestures(
                 gestureController = gestureController,
                 layoutSize = layoutSize,
                 sideGestureSystemEdgeExclusionPx = sideGestureSystemEdgeExclusionPx,
@@ -222,7 +230,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 clearLiveGestureFeedbackState = gestureCallbacks.clearLiveGestureFeedback,
                 revealLockedOverlayState = gestureCallbacks.revealLockedOverlay,
                 commitHorizontalSeekState = gestureCallbacks.commitHorizontalSeek,
-            ),
+                )),
     ) {
         val playerSurfaceSourceUrl = currentPlaybackSurfaceSourceUrl
         val initialPositionRequestKey = currentInitialPositionRequestKey()
@@ -818,6 +826,7 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
     if (isLiveTv) {
         LiveTvChannelsPanel(
             visible = showLiveTvChannelsPanel,
+            modifier = Modifier.playerModalTvFocus(showLiveTvChannelsPanel),
             currentStreamUrl = activeSourceUrl,
             onChannelSelected = { channel -> switchToLiveTvChannel(channel) },
             onDismiss = {

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.PlatformBackHandler
+import androidx.compose.ui.focus.focusProperties
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_audio_tracks
 import nuvio.composeapp.generated.resources.compose_player_no_audio_tracks_available
@@ -65,6 +66,7 @@ fun AudioTrackModal(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .focusProperties { canFocus = false }
                 .clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -86,6 +88,7 @@ fun AudioTrackModal(
                         .clip(RoundedCornerShape(24.dp))
                         .background(colorScheme.surface)
                         .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
+                        .focusProperties { canFocus = false }
                         .clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },

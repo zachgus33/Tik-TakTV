@@ -58,6 +58,7 @@ import nuvio.composeapp.generated.resources.compose_player_style
 import nuvio.composeapp.generated.resources.compose_player_subtitles
 import nuvio.composeapp.generated.resources.compose_player_sync_short
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.focus.focusProperties
 
 @Composable
 fun SubtitleModal(
@@ -97,6 +98,7 @@ fun SubtitleModal(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
+                .focusProperties { canFocus = false }
                 .clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -121,6 +123,7 @@ fun SubtitleModal(
                         .clip(RoundedCornerShape(24.dp))
                         .background(colorScheme.surface)
                         .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
+                        .focusProperties { canFocus = false }
                         .clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },

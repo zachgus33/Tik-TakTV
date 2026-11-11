@@ -4,6 +4,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -43,6 +46,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,18 +90,38 @@ internal val HomeContinueWatchingSectionBottomPadding = 12.dp
 private fun Modifier.continueWatchingTvFocus(shape: RoundedCornerShape): Modifier {
     val isTvMode = LocalTvMode.current
     var hasTvFocus by remember { mutableStateOf(false) }
-    return onFocusChanged { hasTvFocus = it.hasFocus }
-        .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+    val hoverInteraction = remember { MutableInteractionSource() }
+    val isHovered by hoverInteraction.collectIsHoveredAsState()
+    val isHighlighted = isTvMode && (hasTvFocus || isHovered)
+    return hoverable(hoverInteraction)
+        .onFocusChanged { hasTvFocus = it.hasFocus }
+        .zIndex(if (isHighlighted) 10f else 0f)
         .graphicsLayer {
-            val focusScale = if (isTvMode && hasTvFocus) 1.06f else 1f
+            val focusScale = if (isHighlighted) 1.06f else 1f
             scaleX = focusScale
             scaleY = focusScale
         }
         .shadow(
-            elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+            elevation = if (isHighlighted) 18.dp else 0.dp,
             shape = shape,
             clip = false,
         )
+        .drawWithContent {
+            drawContent()
+            if (isHighlighted) {
+                val stroke = 5.dp.toPx()
+                drawRoundRect(
+                    color = Color(0xFFFF4F9A),
+                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                    size = Size(
+                        (size.width - stroke).coerceAtLeast(0f),
+                        (size.height - stroke).coerceAtLeast(0f),
+                    ),
+                    cornerRadius = CornerRadius(14.dp.toPx()),
+                    style = Stroke(width = stroke),
+                )
+            }
+        }
 }
 
 internal fun continueWatchingLandscapeCardWidth(basePosterWidthDp: Int): Dp =

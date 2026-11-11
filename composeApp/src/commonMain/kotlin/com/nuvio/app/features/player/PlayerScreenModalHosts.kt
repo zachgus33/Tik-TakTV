@@ -1,6 +1,14 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusGroup
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.withFrameNanos
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.details.MetaDetailsUiState
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.downloads.DownloadsRepository
@@ -122,6 +130,7 @@ internal fun PlayerScreenModalHosts(
 
     AudioTrackModal(
         visible = showAudioModal,
+        modifier = Modifier.playerModalTvFocus(showAudioModal),
         audioTracks = audioTracks,
         selectedIndex = selectedAudioIndex,
         onTrackSelected = onAudioTrackSelected,
@@ -130,6 +139,7 @@ internal fun PlayerScreenModalHosts(
 
     SubtitleModal(
         visible = showSubtitleModal,
+        modifier = Modifier.playerModalTvFocus(showSubtitleModal),
         activeTab = activeSubtitleTab,
         subtitleTracks = subtitleTracks,
         selectedSubtitleIndex = selectedSubtitleIndex,
@@ -155,6 +165,7 @@ internal fun PlayerScreenModalHosts(
 
     IosVideoSettingsModal(
         visible = showVideoSettingsModal,
+        modifier = Modifier.playerModalTvFocus(showVideoSettingsModal),
         settings = playerSettings,
         onSettingsChanged = onVideoSettingsChanged,
         onDismiss = onVideoSettingsModalDismissed,
@@ -162,6 +173,7 @@ internal fun PlayerScreenModalHosts(
 
     PlayerQualityPanel(
         visible = showQualityPanel,
+        modifier = Modifier.playerModalTvFocus(showQualityPanel),
         state = playerQualityState,
         selectedQualityId = selectedPlayerQualityId,
         currentResolutionLabel = currentQualityLabel,
@@ -171,6 +183,7 @@ internal fun PlayerScreenModalHosts(
 
     PlayerSourcesPanel(
         visible = showSourcesPanel,
+        modifier = Modifier.playerModalTvFocus(showSourcesPanel),
         streamsUiState = sourceStreamsState,
         currentStreamUrl = activeSourceUrl,
         currentStreamName = activeStreamTitle,
@@ -183,6 +196,7 @@ internal fun PlayerScreenModalHosts(
     if (isSeries) {
         PlayerEpisodesPanel(
             visible = showEpisodesPanel,
+            modifier = Modifier.playerModalTvFocus(showEpisodesPanel),
             episodes = allEpisodes,
             parentMetaType = parentMetaType,
             parentMetaId = parentMetaId,
@@ -230,6 +244,25 @@ internal fun PlayerScreenModalHosts(
             onSuccess = onSubmitIntroSuccess,
         )
     }
+}
+
+@Composable
+internal fun Modifier.playerModalTvFocus(visible: Boolean): Modifier {
+    if (!LocalTvMode.current) return this
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(visible) {
+        if (visible) {
+            // AnimatedVisibility can add the panel's buttons a frame after its backdrop.
+            repeat(3) {
+                withFrameNanos { }
+                if (runCatching { focusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+            }
+        }
+    }
+    // Focus the first actionable child rather than the clickable dismiss backdrop.
+    return this.focusRequester(focusRequester).focusGroup()
 }
 
 internal fun selectDownloadedEpisodeForPlayback(

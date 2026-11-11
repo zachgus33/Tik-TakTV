@@ -48,6 +48,7 @@ import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.streams.isSelectableForPlayback
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.focus.focusProperties
 
 @Composable
 fun PlayerSourcesPanel(
@@ -79,6 +80,7 @@ fun PlayerSourcesPanel(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .focusProperties { canFocus = false }
                 .clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -102,6 +104,7 @@ fun PlayerSourcesPanel(
                         .clip(tokens.shapes.playerPanel)
                         .background(tokens.colors.surfaceSheet)
                         .border(tokens.borders.thin, tokens.colors.borderDefault, tokens.shapes.playerPanel)
+                        .focusProperties { canFocus = false }
                         .clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
