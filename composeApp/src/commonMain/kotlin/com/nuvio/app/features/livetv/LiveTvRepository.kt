@@ -663,14 +663,20 @@ private object LiveTvRepositoryXtream {
         settings: LiveTvXtreamSettings,
         categories: Map<String, String>,
     ): List<LiveTvChannel> {
-        val data = request(settings, action = "get_live_streams").jsonArrayOrEmpty()
         val guideCandidates = ArrayList<LiveTvChannel>(LiveTvInMemoryChannelLimit)
         val fallbackChannels = ArrayList<LiveTvChannel>(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
         val seenUrls = HashSet<String>(LiveTvInMemoryChannelLimit * 2)
-        data.forEachIndexed { index, element ->
-            val obj = element as? JsonObject ?: return@forEachIndexed
-            val name = obj.stringValue("name") ?: return@forEachIndexed
-            val streamId = obj.stringValue("stream_id") ?: obj.stringValue("id") ?: return@forEachIndexed
+        var index = 0
+        val loadContext = currentCoroutineContext()
+        streamJsonArrayObjects(
+            url = requestUrl(settings, action = "get_live_streams"),
+            headers = M3U_PLAYLIST_REQUEST_HEADERS,
+        ) { obj ->
+            loadContext.ensureActive()
+            val currentIndex = index++
+            val name = obj.stringValue("name") ?: return@streamJsonArrayObjects
+            val streamId = obj.stringValue("stream_id") ?: obj.stringValue("id")
+                ?: return@streamJsonArrayObjects
             val directSource = obj.stringValue("direct_source")
                 ?.takeIf { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
             val extension = obj.stringValue("container_extension")
@@ -688,9 +694,9 @@ private object LiveTvRepositoryXtream {
             } else {
                 fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT
             }
-            if (!hasCapacity || !seenUrls.add(streamUrl)) return@forEachIndexed
+            if (!hasCapacity || !seenUrls.add(streamUrl)) return@streamJsonArrayObjects
             val channel = LiveTvChannel(
-                id = "xtream-$streamId-$index",
+                id = "xtream-$streamId-$currentIndex",
                 name = name,
                 streamUrl = streamUrl,
                 tvgId = tvgId,
@@ -731,20 +737,97 @@ private object LiveTvRepositoryXtream {
         action: String,
         extraParameters: Map<String, String> = emptyMap(),
     ): JsonElement {
+        return stalkerJson.parseToJsonElement(
+            httpGetTextWithHeaders(
+                requestUrl(settings, action, extraParameters),
+                M3U_PLAYLIST_REQUEST_HEADERS,
+            ),
+        )
+    }
+
+    private fun requestUrl(
+        settings: LiveTvXtreamSettings,
+        action: String,
+        extraParameters: Map<String, String> = emptyMap(),
+    ): String {
         val parameters = buildMap {
             put("username", settings.username)
             put("password", settings.password)
             put("action", action)
             putAll(extraParameters)
         }
-        val url = settings.playerApiEndpoint() + parameters.entries.joinToString(
+        return settings.playerApiEndpoint() + parameters.entries.joinToString(
             separator = "&",
             prefix = "?",
         ) { (key, value) ->
             "${key.encodeURLParameter()}=${value.encodeURLParameter()}"
         }
-        return stalkerJson.parseToJsonElement(httpGetTextWithHeaders(url, M3U_PLAYLIST_REQUEST_HEADERS))
     }
+}
+
+/**
+ * Incrementally decodes the top-level objects in a JSON array. Xtream providers can return
+ * tens of thousands of streams; parsing that response as one JsonArray temporarily consumed
+ * the entire 192 MB heap on older Fire TV devices.
+ */
+internal class StreamingJsonArrayObjectDecoder(
+    private val onObject: (JsonObject) -> Unit,
+) {
+    private var arrayStarted = false
+    private var objectBuffer: StringBuilder? = null
+    private var objectDepth = 0
+    private var inString = false
+    private var escaped = false
+
+    fun accept(chunk: String) {
+        chunk.forEach { character ->
+            val buffer = objectBuffer
+            if (buffer == null) {
+                if (!arrayStarted) {
+                    if (character == '[') arrayStarted = true
+                } else if (character == '{') {
+                    objectBuffer = StringBuilder().append(character)
+                    objectDepth = 1
+                    inString = false
+                    escaped = false
+                }
+                return@forEach
+            }
+
+            buffer.append(character)
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    character == '\\' -> escaped = true
+                    character == '"' -> inString = false
+                }
+                return@forEach
+            }
+            when (character) {
+                '"' -> inString = true
+                '{' -> objectDepth += 1
+                '}' -> {
+                    objectDepth -= 1
+                    if (objectDepth == 0) {
+                        val parsed = runCatching {
+                            stalkerJson.parseToJsonElement(buffer.toString()) as? JsonObject
+                        }.getOrNull()
+                        objectBuffer = null
+                        parsed?.let(onObject)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private suspend fun streamJsonArrayObjects(
+    url: String,
+    headers: Map<String, String>,
+    onObject: (JsonObject) -> Unit,
+) {
+    val decoder = StreamingJsonArrayObjectDecoder(onObject)
+    httpStreamTextWithHeaders(url, headers, decoder::accept)
 }
 
 internal fun parseXtreamShortEpg(
