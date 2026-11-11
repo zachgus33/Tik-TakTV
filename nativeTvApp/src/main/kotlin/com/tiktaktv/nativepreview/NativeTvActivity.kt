@@ -129,6 +129,8 @@ open class NativeTvActivity : MainActivity() {
  */
 class TikTakTvLauncherV2Activity : NativeTvActivity()
 
+class TikTakTvLauncherV3Activity : NativeTvActivity()
+
 /**
  * CI-only host that always renders the deterministic ten-foot shell.
  *

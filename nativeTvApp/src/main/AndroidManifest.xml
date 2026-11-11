@@ -52,7 +52,7 @@
           badged launcher component without changing the package or app data.
         -->
         <activity
-            android:name=".TikTakTvLauncherV2Activity"
+            android:name=".TikTakTvLauncherV3Activity"
             android:banner="@drawable/tiktak_tv_banner"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
