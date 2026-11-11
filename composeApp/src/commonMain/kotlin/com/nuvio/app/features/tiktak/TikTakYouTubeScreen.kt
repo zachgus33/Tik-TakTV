@@ -33,6 +33,7 @@ import com.nuvio.app.core.ui.NuvioPosterCard
 import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.tikTakTvFocus
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -187,6 +188,7 @@ fun TikTakYouTubeScreen(
                 listOf("video" to "Videos", "music" to "Music").forEach { (value, label) ->
                     Button(
                         onClick = { kind = value },
+                        modifier = Modifier.tikTakTvFocus(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (kind == value) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.surface,
                         ),
@@ -205,7 +207,10 @@ fun TikTakYouTubeScreen(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Button(onClick = ::search, modifier = Modifier.height(56.dp)) {
+                Button(
+                    onClick = ::search,
+                    modifier = Modifier.height(56.dp).tikTakTvFocus(),
+                ) {
                     Text("Search")
                 }
             }

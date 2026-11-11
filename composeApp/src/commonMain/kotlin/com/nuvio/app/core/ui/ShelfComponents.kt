@@ -258,6 +258,7 @@ fun NuvioPosterCard(
                 )
                 .clip(cardShape)
                 .background(tokens.colors.surface)
+                .tikTakTvFocus()
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,

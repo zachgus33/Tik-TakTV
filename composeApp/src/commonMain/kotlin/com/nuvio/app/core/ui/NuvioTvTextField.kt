@@ -89,6 +89,7 @@ fun NuvioTvTextField(
 
     Box(
         modifier = modifier
+            .tikTakTvFocus()
             .onFocusChanged { state ->
                 hasFocus = state.hasFocus
                 if (!state.hasFocus && editing) {

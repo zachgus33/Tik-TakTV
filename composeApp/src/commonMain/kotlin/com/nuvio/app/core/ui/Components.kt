@@ -247,7 +247,7 @@ fun NuvioActionLabel(
         text = text,
         modifier = modifier.then(
             if (onClick != null) {
-                Modifier.clickable(onClick = onClick)
+                Modifier.tikTakTvFocus().clickable(onClick = onClick)
             } else {
                 Modifier
             }

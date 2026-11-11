@@ -66,6 +66,7 @@ import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioConsumePointerEvents
 import com.nuvio.app.core.ui.rememberAnimatedAccentBrush
+import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.features.home.HomeCatalogSettingsItem
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.settings_homescreen_collection_with_addon
@@ -187,6 +188,7 @@ internal fun SettingsSidebarItem(
             .fillMaxWidth()
             .padding(horizontal = tokens.spacing.listGap, vertical = NuvioTokens.Space.s2)
             .background(background, RoundedCornerShape(NuvioTokens.Space.s10))
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = tokens.spacing.screenHorizontal, vertical = tokens.spacing.listGap),
         verticalAlignment = Alignment.CenterVertically,
@@ -267,6 +269,7 @@ internal fun SettingsNavigationRow(
             .fillMaxWidth()
             .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
             .onFocusChanged { isFocused = it.hasFocus }
+            .tikTakTvFocus()
             .then(
                 if (highlighted) {
                     Modifier
@@ -356,6 +359,7 @@ internal fun SettingsSwitchRow(
             .fillMaxWidth()
             .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
             .onFocusChanged { isFocused = it.hasFocus }
+            .tikTakTvFocus()
             .then(
                 if (highlighted) {
                     Modifier

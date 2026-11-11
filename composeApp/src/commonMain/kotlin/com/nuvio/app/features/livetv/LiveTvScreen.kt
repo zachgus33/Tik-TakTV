@@ -452,7 +452,10 @@ fun LiveTvScreen(
                                 tint = MaterialTheme.nuvio.colors.textMuted,
                             )
                         } else {
-                            IconButton(onClick = { query = "" }) {
+                            IconButton(
+                                onClick = { query = "" },
+                                modifier = Modifier.tikTakTvFocus(),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = null,
@@ -569,10 +572,13 @@ fun LiveTvScreen(
             }
             if (renderedChannels.size < visibleChannels.size) {
                 item {
-                    Button(onClick = {
-                        visibleChannelLimit = (visibleChannelLimit + VISIBLE_CHANNEL_PAGE_SIZE)
-                            .coerceAtMost(visibleChannels.size)
-                    }) {
+                    Button(
+                        onClick = {
+                            visibleChannelLimit = (visibleChannelLimit + VISIBLE_CHANNEL_PAGE_SIZE)
+                                .coerceAtMost(visibleChannels.size)
+                        },
+                        modifier = Modifier.tikTakTvFocus(),
+                    ) {
                         Text("Show more channels (${renderedChannels.size} of ${visibleChannels.size})")
                     }
                 }
@@ -642,7 +648,7 @@ private fun LiveTvRecentChannelCard(
 ) {
     val tokens = MaterialTheme.nuvio
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
         onClick = onClick,
         color = tokens.colors.surface,
         shape = tokens.shapes.card,
@@ -820,7 +826,7 @@ private fun LiveTvSourceCard(
                 onClick = onLoad,
             )
             OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
                 enabled = !isLoading,
                 onClick = onChooseFile,
             ) {
@@ -840,6 +846,7 @@ private fun LiveTvSourceCard(
                     text = stringResource(Res.string.live_tv_disconnect),
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
+                        .tikTakTvFocus()
                         .clickable(onClick = onDisconnect)
                         .padding(8.dp),
                     style = MaterialTheme.typography.labelLarge,
@@ -963,6 +970,7 @@ private fun LiveTvStalkerSettingsCard(
                     text = stringResource(Res.string.live_tv_disconnect),
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
+                        .tikTakTvFocus()
                         .clickable(onClick = onDisconnect)
                         .padding(8.dp),
                     style = MaterialTheme.typography.labelLarge,
@@ -1079,6 +1087,7 @@ private fun LiveTvXtreamSettingsCard(
                     text = stringResource(Res.string.live_tv_disconnect),
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
+                        .tikTakTvFocus()
                         .clickable(onClick = onDisconnect)
                         .padding(8.dp),
                     style = MaterialTheme.typography.labelLarge,
@@ -1140,7 +1149,7 @@ private fun LiveTvChannelRow(
 ) {
     val tokens = MaterialTheme.nuvio
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
         onClick = onClick,
         color = tokens.colors.surface,
         shape = tokens.shapes.compactCard,
@@ -1221,7 +1230,10 @@ private fun LiveTvChannelRow(
                 )
             }
             if (!showGuide) {
-                IconButton(onClick = onFavoriteClick) {
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.tikTakTvFocus(),
+                ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                         contentDescription = stringResource(Res.string.live_tv_favorite),
