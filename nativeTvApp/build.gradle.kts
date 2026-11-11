@@ -22,8 +22,8 @@ android {
         applicationId = "com.tiktaktv.tv.nativepreview"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 54
-        versionName = "0.3.44-preview"
+        versionCode = 55
+        versionName = "0.3.45-preview"
         buildConfigField(
             "String",
             "UPDATE_METADATA_URL",
@@ -50,7 +50,11 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = true
-            isShrinkResources = true
+            // Fire OS caches launcher banner/icon resource paths across in-place
+            // updates. Resource shrinking renames those files on every release,
+            // leaving an existing launcher tile pointing at a missing path.
+            // Keep the release minified, but preserve packaged resource names.
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "../composeApp/proguard-rules.pro",
