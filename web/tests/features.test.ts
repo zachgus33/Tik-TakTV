@@ -11,6 +11,7 @@ import {
 import {
   catalogChoices,
   completeCatalogSettings,
+  homeCatalogEntries,
   normalizeCatalogOrder,
   settingMatchesChoice,
 } from "../src/catalog-settings";
@@ -424,6 +425,43 @@ describe("home catalog management", () => {
     expect(
       normalizeCatalogOrder(settings.reverse()).map((item) => item.order),
     ).toEqual([0, 1]);
+  });
+
+  it("shows all eligible catalogs when settings contain only collection rows", () => {
+    const many = Array.from({ length: 16 }, (_, index) => ({
+      ...addons[0],
+      base: `https://catalog-${index}.example`,
+    }));
+    const entries = homeCatalogEntries(many, [
+      {
+        addon_id: "",
+        type: "movie",
+        catalog_id: "",
+        enabled: true,
+        order: 0,
+        is_collection: true,
+      },
+    ]);
+    expect(entries).toHaveLength(16);
+    expect(entries[15].addon.base).toBe("https://catalog-15.example");
+  });
+
+  it("keeps disabled add-ons off Home even when saved rows include them", () => {
+    const choices = catalogChoices(addons);
+    const settings = completeCatalogSettings(choices, []);
+    expect(
+      homeCatalogEntries(
+        [{ ...addons[0], enabled: false }, addons[1]],
+        settings,
+      ).map((entry) => entry.addon.base),
+    ).toEqual([addons[1].base]);
+  });
+
+  it("honors hidden rows in a custom Home layout", () => {
+    const settings = completeCatalogSettings(catalogChoices(addons), []);
+    settings[0].enabled = false;
+    expect(homeCatalogEntries(addons, settings).map((entry) => entry.addon.base))
+      .toEqual([addons[1].base]);
   });
 });
 describe("Nuvio collections and add-on transfer", () => {

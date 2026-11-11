@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.09.1";
+export const latestRelease = "2026.11.11.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 11, 2026",
+    title: "More reliable Home catalogs",
+    changes: [
+      "Home now shows all available add-on catalogs by default instead of stopping after the first 14.",
+      "Collection settings no longer hide add-on rows, and disabled add-ons stay off Home.",
+      "Catalogs deliberately hidden in a custom Home layout remain hidden.",
+    ],
+  },
+  {
+    version: "2026.11.09.1",
     date: "November 7, 2026",
     title: "Better YouTube playback controls and recovery",
     changes: [
