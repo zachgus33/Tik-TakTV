@@ -34,11 +34,8 @@
 
         <activity
             android:name=".NativeTvActivity"
-            android:banner="@drawable/tiktak_tv_banner"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
-            android:icon="@mipmap/tiktak_tv_icon"
-            android:logo="@mipmap/tiktak_tv_icon"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
             android:supportsPictureInPicture="true"
