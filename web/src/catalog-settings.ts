@@ -70,3 +70,55 @@ export function completeCatalogSettings(
 export function normalizeCatalogOrder(settings: HomeCatalogSetting[]) {
   return settings.map((setting, order) => ({ ...setting, order }));
 }
+
+export function homeCatalogEntries(
+  addons: Addon[],
+  settings: HomeCatalogSetting[],
+) {
+  const available = addons
+    .filter((addon) => addon.enabled !== false)
+    .flatMap((addon) =>
+      (addon.manifest.catalogs ?? [])
+        .filter(
+          (catalog) =>
+            ["movie", "series"].includes(catalog.type) &&
+            !catalog.extra?.some((extra) => extra.isRequired),
+        )
+        .map((catalog) => ({
+          addon,
+          catalog,
+          choice: {
+            key: `${addon.base}|${catalog.type}|${catalog.id}`,
+            addonId: addon.manifest.id,
+            addonName: addon.manifest.name,
+            catalogId: catalog.id,
+            catalogName: catalog.name || addon.manifest.name,
+            type: catalog.type,
+          } satisfies CatalogChoice,
+        })),
+    );
+  const rows = settings.filter((setting) => !setting.is_collection);
+  if (!rows.length)
+    return available.map(({ addon, catalog }) => ({
+      addon,
+      catalog,
+      customTitle: undefined as string | undefined,
+    }));
+  return rows
+    .filter((setting) => setting.enabled)
+    .sort((a, b) => Number(a.order) - Number(b.order))
+    .flatMap((setting) => {
+      const match = available.find(({ choice }) =>
+        settingMatchesChoice(setting, choice),
+      );
+      return match
+        ? [
+            {
+              addon: match.addon,
+              catalog: match.catalog,
+              customTitle: setting.custom_title,
+            },
+          ]
+        : [];
+    });
+}

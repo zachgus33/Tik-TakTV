@@ -119,7 +119,7 @@ import {
   seeders,
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
-import { settingMatchesChoice } from "./catalog-settings";
+import { homeCatalogEntries } from "./catalog-settings";
 import {
   closestTitleCorrection,
   correctionSearchProbes,
@@ -2103,43 +2103,17 @@ export default function App() {
     const c = new AbortController();
     setLoading(true);
     setError("");
-    const available = addons.flatMap((a) =>
-      (a.manifest.catalogs ?? [])
-        .filter(
-          (cat) =>
-            ["movie", "series"].includes(cat.type) &&
-            !cat.extra?.some((e) => e.isRequired),
-        )
-        .map((cat) => ({ a, cat })),
-    );
-    const entries = homeCatalogs.length
-      ? homeCatalogs
-          .filter((setting) => setting.enabled && !setting.is_collection)
-          .sort((a, b) => Number(a.order) - Number(b.order))
-          .flatMap((setting) => {
-            const match = available.find(({ a, cat }) =>
-              settingMatchesChoice(setting, {
-                key: `${a.base}|${cat.type}|${cat.id}`,
-                addonId: a.manifest.id,
-                addonName: a.manifest.name,
-                catalogId: cat.id,
-                catalogName: cat.name || a.manifest.name,
-                type: cat.type,
-              }),
-            );
-            return match
-              ? [{ ...match, customTitle: setting.custom_title }]
-              : [];
-          })
-      : available
-          .slice(0, 14)
-          .map((entry) => ({ ...entry, customTitle: undefined }));
+    const entries = homeCatalogEntries(addons, homeCatalogs);
     void Promise.allSettled(
-      entries.map(async ({ a, cat, customTitle }) => ({
-        title: customTitle || ((cat.name || a.manifest.name) as string) /*
-          `${a.manifest.name} · ${cat.type === "movie" ? "Movies" : "Series"}`,
-          */,
-        items: await catalog(a, cat.type, cat.id, "", c.signal),
+      entries.map(async ({ addon, catalog: entryCatalog, customTitle }) => ({
+        title: customTitle || entryCatalog.name || addon.manifest.name,
+        items: await catalog(
+          addon,
+          entryCatalog.type,
+          entryCatalog.id,
+          "",
+          c.signal,
+        ),
       })),
     ).then((results) => {
       if (c.signal.aborted) return;
