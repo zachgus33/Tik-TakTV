@@ -235,7 +235,7 @@ jobs:
           printf '%s\n' "${packaged_resources}" | grep -Fx 'res/mipmap-xhdpi-v4/tiktak_tv_icon.png'
           printf '%s\n' "${packaged_resources}" | grep -Fx 'res/drawable-xhdpi-v4/tiktak_tv_banner.png'
           leanback_badging="$("${aapt}" dump badging "${apk}" | grep '^leanback-launchable-activity:')"
-          printf '%s\n' "${leanback_badging}" | grep " icon='' banner=''"
+          printf '%s\n' "${leanback_badging}" | grep " icon='res/mipmap-mdpi-v4/tiktak_tv_icon.png' banner='res/drawable-mdpi-v4/tiktak_tv_banner.png'"
           cp "${apk}" tiktak-tv-native-preview.apk
           badging="$("${aapt}" dump badging "${apk}" | head -1)"
           version_code="$(printf '%s' "${badging}" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
