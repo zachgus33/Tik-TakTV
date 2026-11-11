@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import { latestRelease, releases } from "../../src/WhatsNew";
 
 const meta = {
   id: "tt-test",
@@ -109,10 +110,10 @@ async function connect(page: Page) {
   ).toBeVisible();
 }
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    (localStorage.setItem("tiktak:established-local", "1"),
-      localStorage.setItem("tiktak:whats-new-seen", "2026.11.09.1"));
-  });
+  await page.addInitScript((release) => {
+    localStorage.setItem("tiktak:established-local", "1");
+    localStorage.setItem("tiktak:whats-new-seen", release);
+  }, latestRelease);
   await mockSources(page);
 });
 
@@ -124,14 +125,14 @@ test("a new release shows once and links to the complete change history", async 
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
-    name: /Better YouTube playback controls and recovery/,
+    name: releases[0].title,
   });
   await expect(update).toBeVisible({ timeout: 4_000 });
   await update.getByRole("button", { name: "View all changes" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Better YouTube playback controls and recovery",
+      name: releases[0].title,
     }),
   ).toBeVisible({ timeout: 15_000 });
   await page.reload();
