@@ -312,8 +312,11 @@ open class MainActivity : AppCompatActivity() {
 object NativeTvHostMode {
     var enabled: Boolean = false
         private set
+    var isAppStoreBuild: Boolean = false
+        private set
 
-    fun enable() {
+    fun enable(isAppStoreBuild: Boolean = false) {
         enabled = true
+        this.isAppStoreBuild = isAppStoreBuild
     }
 }

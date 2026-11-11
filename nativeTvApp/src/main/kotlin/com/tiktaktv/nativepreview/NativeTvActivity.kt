@@ -40,7 +40,7 @@ open class NativeTvActivity : MainActivity() {
         if (showShellPreview) {
             Log.i(PREVIEW_LOG_TAG, PREVIEW_LOG_MESSAGE)
         }
-        NativeTvHostMode.enable()
+        NativeTvHostMode.enable(isAppStoreBuild = !BuildConfig.ENABLE_SIDELOAD_UPDATES)
         super.onCreate(savedInstanceState)
         previewUpdater = NativePreviewUpdater(this)
         if (!showShellPreview && BuildConfig.ENABLE_SIDELOAD_UPDATES) previewUpdater.checkForUpdates()
