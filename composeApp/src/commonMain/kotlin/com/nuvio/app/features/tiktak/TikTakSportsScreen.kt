@@ -429,6 +429,10 @@ private val SportsMatchStopWords = setOf(
 
 private val BroadcastMatchStopWords = setOf(
     "network", "channel", "sports", "plus", "hd", "uhd", "east", "west", "national",
+    // Streaming-service names are availability metadata, not reliable IPTV
+    // channel identities. Treating "Disney+" as a channel token previously
+    // paired NHL games with Disney Junior, for example.
+    "disney", "hulu", "peacock", "paramount", "amazon", "prime", "apple", "youtube", "max",
 )
 
 @Composable

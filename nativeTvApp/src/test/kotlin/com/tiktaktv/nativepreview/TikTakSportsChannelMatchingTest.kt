@@ -6,6 +6,7 @@ import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TikTakSportsChannelMatchingTest {
@@ -42,6 +43,19 @@ class TikTakSportsChannelMatchingTest {
     @Test
     fun scoreCanUseNamedBroadcasterWhenGuideDataIsMissing() {
         assertEquals(espn, findScoreChannel(event("post", "ESPN Network HD"), listOf(espn), emptyMap()))
+    }
+
+    @Test
+    fun streamingServiceNameDoesNotMatchUnrelatedLinearChannel() {
+        val disneyJunior = LiveTvChannel(
+            id = "disney-junior",
+            name = "Disney Junior",
+            streamUrl = "https://example.com/disney-junior.m3u8",
+            tvgId = "disney-junior.us",
+            group = "Kids",
+        )
+
+        assertNull(findScoreChannel(event("in", "Disney+"), listOf(disneyJunior), emptyMap()))
     }
 
     private fun event(state: String, broadcast: String) = NativeScoreEvent(
