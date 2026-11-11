@@ -222,6 +222,7 @@ private fun SubtitleTabBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
+                    .playerHoverFocusOutline(RoundedCornerShape(radius))
                     .clip(RoundedCornerShape(radius))
                     .background(bgColor)
                     .clickable { onTabSelected(tab) }
@@ -259,6 +260,7 @@ private fun BuiltInSubtitleList(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .playerHoverFocusOutline(RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     if (isNoneSelected) colorScheme.primaryContainer
@@ -322,6 +324,7 @@ private fun AddonSubtitleList(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .playerHoverFocusOutline(RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp))
                 .clickable(onClick = onFetch)
                 .padding(40.dp),
@@ -383,6 +386,7 @@ private fun BuiltInSubtitleLanguageGroups(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .playerHoverFocusOutline(RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         .clickable { onTrackSelected(track.index) }
@@ -438,6 +442,7 @@ private fun AddonSubtitleLanguageGroups(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .playerHoverFocusOutline(RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         .clickable { onSubtitleSelected(sub) }
@@ -555,6 +560,7 @@ private fun SubtitleLanguageCategory(
     Row(
         modifier = Modifier
             .widthIn(min = 72.dp)
+            .playerHoverFocusOutline(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(background)
             .clickable(onClick = onClick)

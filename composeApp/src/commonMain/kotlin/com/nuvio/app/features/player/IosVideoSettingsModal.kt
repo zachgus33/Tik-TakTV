@@ -244,6 +244,7 @@ private fun <T> OptionGroup(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .playerHoverFocusOutline(RoundedCornerShape(12.dp))
                         .clickable { onSelect(option) },
                     color = if (isSelected) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)

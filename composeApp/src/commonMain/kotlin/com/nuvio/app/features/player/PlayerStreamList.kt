@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,6 +88,7 @@ internal fun PlayerStreamList(
                 ) { _, stream ->
                     StreamCard(
                         stream = stream,
+                        modifier = Modifier.playerHoverFocusOutline(RoundedCornerShape(12.dp)),
                         enabled = stream.isSelectableForPlayback(debridSettings.canResolvePlayableLinks),
                         appendInstantServiceToDefaultName = debridSettings.canResolvePlayableLinks &&
                             !debridSettings.hasCustomStreamFormatting,

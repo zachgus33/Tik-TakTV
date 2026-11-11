@@ -672,7 +672,7 @@ private fun PlayerHeaderIconButton(
 ) {
     Box(
         modifier = Modifier
-            .tvPlayerFocus()
+            .tvPlayerFocus(CircleShape)
             .size(buttonSize)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.35f))
@@ -752,7 +752,7 @@ private fun SideControlButton(
 ) {
     Box(
         modifier = Modifier
-            .tvPlayerFocus()
+            .tvPlayerFocus(CircleShape)
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .tvPlayerDirectionalKeys(
                 left = leftActionFocusRequester,
@@ -791,7 +791,7 @@ private fun PlayPauseControlButton(
 
     Box(
         modifier = modifier
-            .tvPlayerFocus()
+            .tvPlayerFocus(CircleShape)
             .then(
                 if (focusRequester != null) {
                     Modifier.focusRequester(focusRequester)
@@ -1232,10 +1232,11 @@ private fun Modifier.tvPlayerDirectionalKeys(
     }
 }
 
-private fun Modifier.tvPlayerFocus(): Modifier = composed {
+private fun Modifier.tvPlayerFocus(shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(22.dp)): Modifier = composed {
     val isTvMode = LocalTvMode.current
     var focused by remember { mutableStateOf(false) }
     this
+        .playerHoverFocusOutline(shape)
         .onFocusChanged { focused = it.hasFocus }
         .graphicsLayer {
             val scale = if (isTvMode && focused) 1.12f else 1f

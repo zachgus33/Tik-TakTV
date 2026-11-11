@@ -150,8 +150,14 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             if (playerModalVisible) {
-                                // Until the panel receives focus, do not let D-pad keys seek or play.
-                                return@onPreviewKeyEvent tvSurfaceIsFocused
+                                // Block player shortcuts while a panel is open, but let Back
+                                // reach its panel handler even if focus briefly returns here.
+                                return@onPreviewKeyEvent tvSurfaceIsFocused && when (event.key) {
+                                    Key.DirectionLeft, Key.DirectionRight,
+                                    Key.DirectionUp, Key.DirectionDown,
+                                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> true
+                                    else -> false
+                                }
                             }
                             if (controlsVisible) controlsInteractionEpoch += 1
                             when (event.key) {

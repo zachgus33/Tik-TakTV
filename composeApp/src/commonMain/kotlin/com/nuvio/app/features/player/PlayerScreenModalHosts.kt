@@ -4,9 +4,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.withFrameNanos
 import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.details.MetaDetailsUiState
@@ -246,12 +252,14 @@ internal fun PlayerScreenModalHosts(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun Modifier.playerModalTvFocus(visible: Boolean): Modifier {
     if (!LocalTvMode.current) return this
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(visible) {
-        if (visible) {
+    var hasPanelFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(visible, hasPanelFocus) {
+        if (visible && !hasPanelFocus) {
             // AnimatedVisibility can add the panel's buttons a frame after its backdrop.
             repeat(3) {
                 withFrameNanos { }
@@ -261,8 +269,13 @@ internal fun Modifier.playerModalTvFocus(visible: Boolean): Modifier {
             }
         }
     }
-    // Focus the first actionable child rather than the clickable dismiss backdrop.
-    return this.focusRequester(focusRequester).focusGroup()
+    // Keep directional navigation inside the active panel. If a tab replaces its
+    // focused content, reclaim focus after the replacement has been composed.
+    return this
+        .onFocusChanged { hasPanelFocus = it.hasFocus }
+        .focusRequester(focusRequester)
+        .focusGroup()
+        .focusProperties { exit = { FocusRequester.Cancel } }
 }
 
 internal fun selectDownloadedEpisodeForPlayback(

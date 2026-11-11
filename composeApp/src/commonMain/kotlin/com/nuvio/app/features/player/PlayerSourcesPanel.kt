@@ -219,6 +219,7 @@ fun PlayerSourcesPanel(
                                         )
                                         StreamCard(
                                             stream = stream,
+                                            modifier = Modifier.playerHoverFocusOutline(tokens.shapes.compactCard),
                                             enabled = stream.isSelectableForPlayback(debridSettings.canResolvePlayableLinks),
                                             appendInstantServiceToDefaultName = debridSettings.canResolvePlayableLinks &&
                                                 !debridSettings.hasCustomStreamFormatting,
@@ -252,6 +253,7 @@ internal fun AddonFilterChip(
 
     Box(
         modifier = Modifier
+            .playerHoverFocusOutline(tokens.shapes.chip)
             .clip(tokens.shapes.chip)
             .background(
                 when {
@@ -304,6 +306,7 @@ internal fun PanelChipButton(
 
     Box(
         modifier = Modifier
+            .playerHoverFocusOutline(tokens.shapes.compactCard)
             .clip(tokens.shapes.compactCard)
             .background(tokens.colors.surfacePopover, tokens.shapes.compactCard)
             .border(tokens.borders.thin, tokens.colors.borderSubtle, tokens.shapes.compactCard)

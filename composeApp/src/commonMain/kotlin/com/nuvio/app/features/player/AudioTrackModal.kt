@@ -150,6 +150,7 @@ private fun AudioTrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .playerHoverFocusOutline(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
             .clickable(onClick = onClick)

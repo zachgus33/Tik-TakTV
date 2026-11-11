@@ -207,6 +207,7 @@ private fun QualityOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .playerHoverFocusOutline(tokens.shapes.compactCard)
             .clip(tokens.shapes.compactCard)
             .background(if (isSelected) tokens.colors.overlaySelected else tokens.colors.surfacePopover)
             .border(

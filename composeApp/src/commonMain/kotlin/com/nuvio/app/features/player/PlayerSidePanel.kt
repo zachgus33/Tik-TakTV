@@ -143,6 +143,7 @@ internal fun PlayerDialogButton(
     Box(
         modifier = modifier
             .alpha(if (enabled) 1f else tokens.opacity.disabled)
+            .playerHoverFocusOutline(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(tokens.colors.surfaceCard)
             .clickable(enabled = enabled, onClick = onClick)
@@ -199,6 +200,7 @@ internal fun AddonFilterChip(
 
     Box(
         modifier = modifier
+            .playerHoverFocusOutline(RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(containerColor)
             .border(
