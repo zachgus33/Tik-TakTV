@@ -17,7 +17,7 @@ class LauncherArtworkRefreshReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
         Thread {
-            val component = ComponentName(context, TikTakTvLauncherV3Activity::class.java)
+            val component = ComponentName(context, TikTakTvLauncherV4Activity::class.java)
             val packageManager = context.packageManager
             runCatching {
                 packageManager.setComponentEnabledSetting(

@@ -131,6 +131,8 @@ class TikTakTvLauncherV2Activity : NativeTvActivity()
 
 class TikTakTvLauncherV3Activity : NativeTvActivity()
 
+class TikTakTvLauncherV4Activity : NativeTvActivity()
+
 /**
  * CI-only host that always renders the deterministic ten-foot shell.
  *

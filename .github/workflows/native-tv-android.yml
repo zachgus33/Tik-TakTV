@@ -234,8 +234,9 @@ jobs:
           packaged_resources="$("${aapt}" list "${apk}")"
           printf '%s\n' "${packaged_resources}" | grep -Fx 'res/drawable-nodpi-v4/tiktak_tv_icon.png'
           printf '%s\n' "${packaged_resources}" | grep -Fx 'res/drawable-nodpi-v4/tiktak_tv_banner.png'
-          leanback_badging="$("${aapt}" dump badging "${apk}" | grep '^leanback-launchable-activity:')"
-          printf '%s\n' "${leanback_badging}" | grep " icon='res/drawable-nodpi-v4/tiktak_tv_icon.png' banner='res/drawable-nodpi-v4/tiktak_tv_banner.png'"
+          application_badging="$("${aapt}" dump badging "${apk}" | grep '^application:')"
+          printf '%s\n' "${application_badging}" | grep " icon='res/drawable-nodpi-v4/tiktak_tv_icon.png' banner='res/drawable-nodpi-v4/tiktak_tv_banner.png'"
+          "${aapt}" dump badging "${apk}" | grep '^leanback-launchable-activity:'
           cp "${apk}" tiktak-tv-native-preview.apk
           badging="$("${aapt}" dump badging "${apk}" | head -1)"
           version_code="$(printf '%s' "${badging}" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p")"
