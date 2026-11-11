@@ -32,7 +32,7 @@ jobs:
           printf '%s' "${TIKTAK_TV_KEYSTORE_BASE64}" | base64 --decode > "${TIKTAK_TV_KEYSTORE_FILE}"
           echo "TIKTAK_TV_KEYSTORE_FILE=${TIKTAK_TV_KEYSTORE_FILE}" >> "${GITHUB_ENV}"
       - name: Test, lint, and build signed Amazon APK
-        run: ./gradlew :nativeTvApp:testAppstoreUnitTest :nativeTvApp:lintAppstore :nativeTvApp:assembleAppstore -Pnuvio.android.distribution=full --stacktrace
+        run: ./gradlew :nativeTvApp:testDebugUnitTest :nativeTvApp:lintAppstore :nativeTvApp:assembleAppstore -Pnuvio.android.distribution=full --stacktrace
       - name: Verify Amazon package
         run: |
           apk="nativeTvApp/build/outputs/apk/appstore/nativeTvApp-appstore.apk"
