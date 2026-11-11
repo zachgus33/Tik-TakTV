@@ -392,11 +392,6 @@ private fun ProfileAvatarCard(
             }
             .clip(RoundedCornerShape(20.dp))
             .onFocusChanged { focused = it.hasFocus }
-            .border(
-                width = if (isNativeTv && focused) 4.dp else 0.dp,
-                color = if (isNativeTv && focused) Color(0xFFFF4F9A) else Color.Transparent,
-                shape = RoundedCornerShape(20.dp),
-            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
@@ -551,11 +546,6 @@ private fun AddProfileCard(
             }
             .clip(RoundedCornerShape(20.dp))
             .onFocusChanged { focused = it.hasFocus }
-            .border(
-                width = if (isNativeTv && focused) 4.dp else 0.dp,
-                color = if (isNativeTv && focused) Color(0xFFFF4F9A) else Color.Transparent,
-                shape = RoundedCornerShape(20.dp),
-            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,

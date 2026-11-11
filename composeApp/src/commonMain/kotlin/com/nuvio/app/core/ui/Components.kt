@@ -551,12 +551,7 @@ private fun NuvioStatusModalButton(
                 shape = tokens.shapes.button,
                 clip = false,
             )
-            .onFocusChanged { focused = it.hasFocus }
-            .border(
-                width = if (focused) 4.dp else 1.dp,
-                color = if (focused) Color(0xFFFF4F9A) else Color.Transparent,
-                shape = tokens.shapes.button,
-            ),
+            .onFocusChanged { focused = it.hasFocus },
         onClick = onClick,
         enabled = enabled,
         shape = tokens.shapes.button,

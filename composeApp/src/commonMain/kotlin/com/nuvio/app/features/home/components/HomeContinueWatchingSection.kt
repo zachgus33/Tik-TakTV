@@ -97,11 +97,6 @@ private fun Modifier.continueWatchingTvFocus(shape: RoundedCornerShape): Modifie
             shape = shape,
             clip = false,
         )
-        .border(
-            width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
-            color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
-            shape = shape,
-        )
 }
 
 internal fun continueWatchingLandscapeCardWidth(basePosterWidthDp: Int): Dp =

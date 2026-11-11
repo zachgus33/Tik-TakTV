@@ -256,11 +256,6 @@ fun NuvioPosterCard(
                     shape = cardShape,
                     clip = false,
                 )
-                .border(
-                    width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
-                    color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
-                    shape = cardShape,
-                )
                 .clip(cardShape)
                 .background(tokens.colors.surface)
                 .posterCardClickable(
@@ -494,11 +489,6 @@ internal fun Modifier.posterCardClickable(
             elevation = if (focusEffectsEnabled && isFocused) 18.dp else 0.dp,
             shape = focusShape,
             clip = false,
-        )
-        .border(
-            width = if (focusEffectsEnabled && isFocused) 4.dp else 0.dp,
-            color = if (focusEffectsEnabled && isFocused) Color(0xFFFF4F9A) else Color.Transparent,
-            shape = focusShape,
         )
         .onFocusChanged { isFocused = it.hasFocus }
         .onGloballyPositioned { coordinates -> bounds.value = coordinates.unclippedBoundsInRoot() }

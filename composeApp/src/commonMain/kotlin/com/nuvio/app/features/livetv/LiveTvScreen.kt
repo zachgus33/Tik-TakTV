@@ -44,7 +44,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -1135,16 +1134,12 @@ private fun LiveTvChannelRow(
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    var isFocused by remember { mutableStateOf(false) }
     Surface(
-        modifier = Modifier.fillMaxWidth().onFocusChanged { isFocused = it.hasFocus },
+        modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         color = tokens.colors.surface,
         shape = tokens.shapes.compactCard,
-        border = BorderStroke(
-            if (isFocused) 4.dp else 1.dp,
-            if (isFocused) Color(0xFFFF4F9A) else tokens.colors.borderSubtle,
-        ),
+        border = BorderStroke(1.dp, tokens.colors.borderSubtle),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

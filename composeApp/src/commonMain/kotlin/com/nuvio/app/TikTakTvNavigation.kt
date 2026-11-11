@@ -166,10 +166,6 @@ private fun TikTakTvNavigationItem(
         },
         label = "tv_nav_background",
     )
-    val borderColor by animateColorAsState(
-        targetValue = if (focused) MaterialTheme.nuvio.colors.accent else Color.Transparent,
-        label = "tv_nav_border",
-    )
     val itemSize by animateDpAsState(
         targetValue = if (focused) 64.dp else 58.dp,
         label = "tv_nav_item_size",
@@ -195,7 +191,6 @@ private fun TikTakTvNavigationItem(
             }
             .clip(RoundedCornerShape(14.dp))
             .background(background)
-            .border(2.dp, borderColor, RoundedCornerShape(14.dp))
             .selectable(
                 selected = selected,
                 role = Role.Tab,

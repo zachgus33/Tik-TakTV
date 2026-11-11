@@ -159,11 +159,6 @@ private fun PosterGridTile(
                     shape = cardShape,
                     clip = false,
                 )
-                .border(
-                    width = if (isTvMode && hasTvFocus) 6.dp else 0.dp,
-                    color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else Color.Transparent,
-                    shape = cardShape,
-                )
                 .clip(cardShape)
                 .background(MaterialTheme.colorScheme.surface)
                 .nuvioCardDepth(

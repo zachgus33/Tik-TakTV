@@ -71,7 +71,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.Key
@@ -673,7 +672,7 @@ private fun PlayerHeaderIconButton(
 ) {
     Box(
         modifier = Modifier
-            .tvPlayerFocus(CircleShape)
+            .tvPlayerFocus()
             .size(buttonSize)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.35f))
@@ -753,7 +752,7 @@ private fun SideControlButton(
 ) {
     Box(
         modifier = Modifier
-            .tvPlayerFocus(CircleShape)
+            .tvPlayerFocus()
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .tvPlayerDirectionalKeys(
                 left = leftActionFocusRequester,
@@ -792,7 +791,7 @@ private fun PlayPauseControlButton(
 
     Box(
         modifier = modifier
-            .tvPlayerFocus(CircleShape)
+            .tvPlayerFocus()
             .then(
                 if (focusRequester != null) {
                     Modifier.focusRequester(focusRequester)
@@ -1153,7 +1152,7 @@ private fun PlayerActionPillButton(
 ) {
     Row(
         modifier = modifier
-            .tvPlayerFocus(RoundedCornerShape(22.dp))
+            .tvPlayerFocus()
             .then(
                 if (focusRequester != null) {
                     Modifier.focusRequester(focusRequester)
@@ -1233,7 +1232,7 @@ private fun Modifier.tvPlayerDirectionalKeys(
     }
 }
 
-private fun Modifier.tvPlayerFocus(shape: Shape): Modifier = composed {
+private fun Modifier.tvPlayerFocus(): Modifier = composed {
     val isTvMode = LocalTvMode.current
     var focused by remember { mutableStateOf(false) }
     this
@@ -1243,9 +1242,4 @@ private fun Modifier.tvPlayerFocus(shape: Shape): Modifier = composed {
             scaleX = scale
             scaleY = scale
         }
-        .border(
-            width = if (isTvMode && focused) 4.dp else 0.dp,
-            color = if (isTvMode && focused) Color(0xFFFF4F9A) else Color.Transparent,
-            shape = shape,
-        )
 }

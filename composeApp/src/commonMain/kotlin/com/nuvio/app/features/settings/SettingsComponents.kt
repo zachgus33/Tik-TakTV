@@ -177,7 +177,6 @@ internal fun SettingsSidebarItem(
     onClick: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
-    var isFocused by remember { mutableStateOf(false) }
     val primary = tokens.colors.accent
     val background = if (selected) primary.copy(alpha = tokens.opacity.hover) else Color.Transparent
     val iconChip = if (selected) primary.copy(alpha = tokens.opacity.selected) else Color.Transparent
@@ -188,12 +187,6 @@ internal fun SettingsSidebarItem(
             .fillMaxWidth()
             .padding(horizontal = tokens.spacing.listGap, vertical = NuvioTokens.Space.s2)
             .background(background, RoundedCornerShape(NuvioTokens.Space.s10))
-            .border(
-                width = if (isFocused) 4.dp else 0.dp,
-                color = if (isFocused) Color(0xFFFF4F9A) else Color.Transparent,
-                shape = RoundedCornerShape(NuvioTokens.Space.s10),
-            )
-            .onFocusChanged { isFocused = it.hasFocus }
             .clickable(onClick = onClick)
             .padding(horizontal = tokens.spacing.screenHorizontal, vertical = tokens.spacing.listGap),
         verticalAlignment = Alignment.CenterVertically,
@@ -273,7 +266,6 @@ internal fun SettingsNavigationRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
-            .border(if (isFocused) 4.dp else 0.dp, if (isFocused) Color.White else Color.Transparent, highlightShape)
             .onFocusChanged { isFocused = it.hasFocus }
             .then(
                 if (highlighted) {
@@ -363,7 +355,6 @@ internal fun SettingsSwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(if (isFocused) Color(0x33FF4F9A) else Color.Transparent, highlightShape)
-            .border(if (isFocused) 4.dp else 0.dp, if (isFocused) Color.White else Color.Transparent, highlightShape)
             .onFocusChanged { isFocused = it.hasFocus }
             .then(
                 if (highlighted) {
