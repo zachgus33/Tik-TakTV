@@ -41,6 +41,7 @@ import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.tikTakTvFocus
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.items
 import nuvio.composeapp.generated.resources.Res
@@ -133,6 +134,7 @@ private fun LiveTvCountryDropdownChip(
                 color = if (selected != null) Color.Transparent else tokens.colors.borderSubtle,
                 shape = tokens.shapes.chip,
             )
+            .tikTakTvFocus()
             .clickable { isSheetVisible = true }
             .padding(horizontal = 16.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
@@ -233,6 +235,7 @@ private fun LiveTvFilterChip(
                     shape = tokens.shapes.chip,
                 ),
             )
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
@@ -277,6 +280,7 @@ private fun LiveTvCategoryDropdownChip(
                 color = if (selected) Color.Transparent else tokens.colors.borderSubtle,
                 shape = shape,
             )
+            .tikTakTvFocus()
             .clickable { isSheetVisible = true }
             .padding(horizontal = 16.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),

@@ -61,6 +61,7 @@ import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.features.settings.NuvioEnhancedBackupFileBridge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -112,6 +113,7 @@ fun LiveTvScreen(
         LiveTvRepository.uiState
     }.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { LiveTvRepository.ensureGuideLoaded() }
     var sourceUrl by rememberSaveable { mutableStateOf(uiState.sourceUrl) }
     var query by rememberSaveable { mutableStateOf("") }
     var selectedGroup by rememberSaveable { mutableStateOf("") }
@@ -497,7 +499,10 @@ fun LiveTvScreen(
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         NuvioSectionLabel(text = if (guideMode) "Live TV guide" else stringResource(Res.string.live_tv_channels))
-                        OutlinedButton(onClick = { guideMode = !guideMode }) {
+                        OutlinedButton(
+                            onClick = { guideMode = !guideMode },
+                            modifier = Modifier.tikTakTvFocus(),
+                        ) {
                             Text(if (guideMode) "Channel list" else "Guide")
                         }
                     }

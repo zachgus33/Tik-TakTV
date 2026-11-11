@@ -102,6 +102,35 @@ object LiveTvRepository {
         }
     }
 
+    fun ensureGuideLoaded() {
+        ensureLoaded()
+        epgScope.launch {
+            uiState.first { state ->
+                state.channels.isNotEmpty() || state.errorMessage != null || state.isLoaded
+            }
+            val state = mutableUiState.value
+            val guideAlreadyLoading = synchronized(epgLoadLock) { activeEpgLoad?.isActive == true }
+            val hasGuideBackedChannel = state.channels.any { channel ->
+                channelHasGuideData(channel, state.currentProgrammes, state.programmeSchedules)
+            }
+            if (state.channels.isEmpty() || hasGuideBackedChannel || guideAlreadyLoading) return@launch
+
+            when {
+                state.sourceType == LiveTvSourceType.Xtream && state.xtreamSettings.isConfigured -> {
+                    mutableUiState.value = state.copy(isEpgLoading = true)
+                    loadXtreamEpgInBackground(state.sourceUrl, state.xtreamSettings)
+                }
+                state.sourceType == LiveTvSourceType.M3u && LiveTvStorage.hasStoredLocalPlaylist() -> {
+                    val playlist = runCatching { LiveTvStorage.loadStoredLocalPlaylist() }.getOrNull()
+                    if (playlist != null && playlist.epgUrls.isNotEmpty()) {
+                        mutableUiState.value = state.copy(isEpgLoading = true)
+                        loadEpgInBackground(state.sourceUrl, playlist.epgUrls)
+                    }
+                }
+            }
+        }
+    }
+
     fun onProfileChanged() {
         cancelEpgLoad()
         initialized = false
@@ -318,6 +347,18 @@ object LiveTvRepository {
             return Result.failure(error)
         }
 
+        if (!loadGuide) {
+            val existing = mutableUiState.value
+            if (existing.sourceType == LiveTvSourceType.Xtream &&
+                existing.xtreamSettings.normalized() == normalizedSettings &&
+                existing.channels.isNotEmpty()
+            ) {
+                LiveTvStorage.saveSourceType(LiveTvSourceType.Xtream)
+                LiveTvStorage.saveXtreamSettings(normalizedSettings)
+                return Result.success(existing.channels)
+            }
+        }
+
         mutableUiState.value = mutableUiState.value.copy(
             sourceType = LiveTvSourceType.Xtream,
             sourceUrl = normalizedSettings.serverUrl,
@@ -334,6 +375,14 @@ object LiveTvRepository {
             LiveTvStorage.saveLocalPlaylistData("")
             LiveTvStorage.saveSourceType(LiveTvSourceType.Xtream)
             LiveTvStorage.saveXtreamSettings(normalizedSettings)
+            val latest = mutableUiState.value
+            if (!loadGuide &&
+                latest.sourceType == LiveTvSourceType.Xtream &&
+                latest.xtreamSettings.normalized() == normalizedSettings &&
+                latest.channels.isNotEmpty()
+            ) {
+                return@runCatching latest.channels
+            }
             mutableUiState.value = LiveTvUiState(
                 sourceType = LiveTvSourceType.Xtream,
                 sourceUrl = normalizedSettings.serverUrl,

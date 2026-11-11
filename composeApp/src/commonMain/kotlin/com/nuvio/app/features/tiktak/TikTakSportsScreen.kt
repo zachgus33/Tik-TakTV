@@ -105,11 +105,11 @@ fun TikTakSportsScreen(
         LiveTvRepository.ensureLoaded()
         LiveTvRepository.uiState
     }.collectAsState()
+    LaunchedEffect(Unit) { LiveTvRepository.ensureGuideLoaded() }
     var scores by remember { mutableStateOf<List<NativeScoreEvent>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var sportFilter by remember { mutableStateOf("all") }
-    var countryFilter by remember { mutableStateOf("All countries") }
 
     // Indexing thousands of IPTV channels and matching every score used to run
     // during composition. On Fire TV that blocked input dispatch long enough to
@@ -121,7 +121,6 @@ fun TikTakSportsScreen(
         liveState.programmeSchedules,
         scores,
         sportFilter,
-        countryFilter,
     ) {
         value = withContext(Dispatchers.Default) {
             deriveSportsState(
@@ -130,11 +129,9 @@ fun TikTakSportsScreen(
                 schedules = liveState.programmeSchedules,
                 scores = scores,
                 sportFilter = sportFilter,
-                countryFilter = countryFilter,
             )
         }
     }
-    val countries = derived.countries
     val visibleLiveEvents = derived.liveEvents
     val visibleScores = derived.scores
     val liveScores = visibleScores.filter { it.state == "in" }
@@ -174,7 +171,10 @@ fun TikTakSportsScreen(
                         color = MaterialTheme.nuvio.colors.textMuted,
                     )
                 }
-                Button(onClick = ::refreshScores) { Text("Refresh scores") }
+                Button(
+                    onClick = ::refreshScores,
+                    modifier = Modifier.tikTakTvFocus(),
+                ) { Text("Refresh scores") }
             }
         }
         item {
@@ -182,24 +182,11 @@ fun TikTakSportsScreen(
                 items(listOf("all", "football", "basketball", "baseball", "hockey", "soccer", "fighting")) { sport ->
                     Button(
                         onClick = { sportFilter = sport },
+                        modifier = Modifier.tikTakTvFocus(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (sportFilter == sport) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.surface,
                         ),
                     ) { Text(if (sport == "all") "All sports" else sport.replaceFirstChar { it.uppercase() }) }
-                }
-            }
-        }
-        if (countries.size > 1) {
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(countries) { country ->
-                        Button(
-                            onClick = { countryFilter = country },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (countryFilter == country) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.surface,
-                            ),
-                        ) { Text(country) }
-                    }
                 }
             }
         }
@@ -268,7 +255,6 @@ fun TikTakSportsScreen(
 }
 
 private data class SportsDerivedState(
-    val countries: List<String> = listOf("All countries"),
     val liveEvents: List<Pair<LiveTvChannel, String?>> = emptyList(),
     val scores: List<NativeScoreEvent> = emptyList(),
     val matchedChannels: Map<String, LiveTvChannel> = emptyMap(),
@@ -280,7 +266,6 @@ private fun deriveSportsState(
     schedules: Map<String, List<LiveTvProgramme>>,
     scores: List<NativeScoreEvent>,
     sportFilter: String,
-    countryFilter: String,
 ): SportsDerivedState {
     val guidedChannels = channels.filter { channelHasGuideData(it, programmes, schedules) }
     val channelSearchIndex = buildSportsChannelSearchIndex(guidedChannels, programmes)
@@ -298,13 +283,9 @@ private fun deriveSportsState(
     val visibleScores = prioritizeStreamableScores(filteredScores, matchedChannels)
         .take(MAX_VISIBLE_SCORE_EVENTS)
     return SportsDerivedState(
-        countries = listOf("All countries") + liveEvents.mapNotNull { (channel, _) ->
-            channel.group.substringBefore('|').substringBefore(':').trim().takeIf { it.length in 2..28 }
-        }.distinct().sorted(),
         liveEvents = liveEvents.asSequence().filter { (channel, title) ->
             val searchable = "${title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
-            (sportFilter == "all" || searchable.contains(sportFilter)) &&
-                (countryFilter == "All countries" || channel.group.contains(countryFilter, ignoreCase = true))
+            sportFilter == "all" || searchable.contains(sportFilter)
         }.take(MAX_VISIBLE_SPORT_CHANNELS).toList(),
         scores = visibleScores,
         matchedChannels = matchedChannels,
