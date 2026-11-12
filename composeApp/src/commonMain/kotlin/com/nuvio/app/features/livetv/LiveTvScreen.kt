@@ -159,11 +159,26 @@ fun LiveTvScreen(
         selectedGroup,
         selectedCountry,
         favoritesOnly,
+        guideMode,
     ) {
         value = withContext(Dispatchers.Default) {
             // Programme data is optional. Keep playable channels visible while
             // the guide loads, and when a provider does not supply guide data.
             val realChannels = selectLiveTvDisplayChannels(uiState.channels)
+            val filteredChannels = realChannels.filter { channel ->
+                (selectedCountry.isNullOrBlank() || liveTvCountryFor(channel)?.code == selectedCountry) &&
+                    (selectedGroup.isBlank() || channel.group == selectedGroup) &&
+                    (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
+                    (query.isBlank() || channel.name.contains(query, ignoreCase = true))
+            }
+            val visibleChannels = if (guideMode) {
+                val (withGuide, withoutGuide) = filteredChannels.partition { channel ->
+                    channelHasGuideData(channel, uiState.currentProgrammes, uiState.programmeSchedules)
+                }
+                withGuide + withoutGuide
+            } else {
+                filteredChannels
+            }
             LiveTvDerivedChannels(
                 countries = realChannels.asSequence()
                     .mapNotNull(::liveTvCountryFor)
@@ -176,12 +191,7 @@ fun LiveTvScreen(
                     .distinct()
                     .sorted()
                     .toList(),
-                visible = realChannels.filter { channel ->
-                    (selectedCountry.isNullOrBlank() || liveTvCountryFor(channel)?.code == selectedCountry) &&
-                    (selectedGroup.isBlank() || channel.group == selectedGroup) &&
-                        (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
-                        (query.isBlank() || channel.name.contains(query, ignoreCase = true))
-                },
+                visible = visibleChannels,
             )
         }
     }
@@ -214,6 +224,9 @@ fun LiveTvScreen(
     val visibleChannels = derivedChannels.visible
     val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
         visibleChannels.take(visibleChannelLimit)
+    }
+    LaunchedEffect(uiState.sourceType, uiState.xtreamSettings, renderedChannels) {
+        LiveTvRepository.loadXtreamGuideForChannels(renderedChannels)
     }
     LaunchedEffect(query, selectedGroup, selectedCountry, favoritesOnly) {
         visibleChannelLimit = INITIAL_VISIBLE_CHANNEL_LIMIT

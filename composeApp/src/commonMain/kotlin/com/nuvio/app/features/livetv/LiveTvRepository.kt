@@ -19,6 +19,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -42,6 +43,9 @@ object LiveTvRepository {
     private val epgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val epgLoadLock = SynchronizedObject()
     private var activeEpgLoad: Job? = null
+    private val shortGuideLock = SynchronizedObject()
+    private var shortGuideSettings: LiveTvXtreamSettings? = null
+    private val requestedShortGuideIds = mutableSetOf<String>()
 
     private var initialized = false
 
@@ -133,6 +137,10 @@ object LiveTvRepository {
 
     fun onProfileChanged() {
         cancelEpgLoad()
+        synchronized(shortGuideLock) {
+            shortGuideSettings = null
+            requestedShortGuideIds.clear()
+        }
         initialized = false
         mutableUiState.value = LiveTvUiState()
         ensureLoaded()
@@ -383,6 +391,10 @@ object LiveTvRepository {
             ) {
                 return@runCatching latest.channels
             }
+            synchronized(shortGuideLock) {
+                shortGuideSettings = normalizedSettings
+                requestedShortGuideIds.clear()
+            }
             mutableUiState.value = LiveTvUiState(
                 sourceType = LiveTvSourceType.Xtream,
                 sourceUrl = normalizedSettings.serverUrl,
@@ -481,6 +493,44 @@ object LiveTvRepository {
         }
     }
 
+    fun loadXtreamGuideForChannels(channels: List<LiveTvChannel>) {
+        val state = mutableUiState.value
+        if (state.sourceType != LiveTvSourceType.Xtream || !state.xtreamSettings.isConfigured) return
+        val settings = state.xtreamSettings
+        val pending = synchronized(shortGuideLock) {
+            if (shortGuideSettings != settings) {
+                shortGuideSettings = settings
+                requestedShortGuideIds.clear()
+            }
+            channels.filter { channel ->
+                channel.xtreamStreamId() != null &&
+                    !channelHasGuideData(channel, state.currentProgrammes, state.programmeSchedules) &&
+                    requestedShortGuideIds.add(channel.id)
+            }
+        }
+        if (pending.isEmpty()) return
+        epgScope.launch {
+            pending.chunked(XTREAM_SHORT_EPG_BATCH_SIZE).forEach { batch ->
+                val results = coroutineScope {
+                    batch.map { channel ->
+                        async {
+                            channel to runCatching { LiveTvRepositoryXtream.getShortEpg(settings, channel) }
+                                .getOrNull()
+                        }
+                    }.awaitAll()
+                }
+                val current = mutableUiState.value
+                if (current.sourceType != LiveTvSourceType.Xtream || current.xtreamSettings != settings) return@launch
+                val schedules = results.mapNotNull { (channel, entries) ->
+                    entries?.takeIf(List<LiveTvProgramme>::isNotEmpty)?.let {
+                        (channel.tvgId?.takeIf(String::isNotBlank) ?: channel.id) to it
+                    }
+                }.toMap()
+                if (schedules.isNotEmpty()) publishGuideSchedules(schedules, loading = current.isEpgLoading)
+            }
+        }
+    }
+
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {
         if (epgUrls.isEmpty()) return
         replaceEpgLoad {
@@ -527,7 +577,6 @@ object LiveTvRepository {
     private fun loadXtreamEpgInBackground(sourceUrl: String, settings: LiveTvXtreamSettings) {
         replaceEpgLoad {
             val channels = mutableUiState.value.channels
-                .sortedWith(compareBy<LiveTvChannel>({ !it.looksLikeUnitedStatesChannel() }, { it.name }))
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
             // Do not make the UI wait for a multi-megabyte XMLTV download.
             // Xtream's short-EPG endpoint is small, so warm the first US-first
@@ -632,16 +681,17 @@ object LiveTvRepository {
         loading: Boolean = true,
     ) {
         val now = LiveTvClock.nowEpochMs()
-        val previousState = mutableUiState.value
-        val mergedSchedules = previousState.programmeSchedules + schedules
-        val programmes = mergedSchedules.mapNotNull { (channel, entries) ->
-            entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
-        }.toMap()
-        mutableUiState.value = previousState.copy(
-            currentProgrammes = programmes,
-            programmeSchedules = mergedSchedules,
-            isEpgLoading = loading,
-        )
+        mutableUiState.update { previousState ->
+            val mergedSchedules = previousState.programmeSchedules + schedules
+            val programmes = mergedSchedules.mapNotNull { (channel, entries) ->
+                entries.firstOrNull { now in it.startEpochMs until it.stopEpochMs }?.let { channel to it }
+            }.toMap()
+            previousState.copy(
+                currentProgrammes = programmes,
+                programmeSchedules = mergedSchedules,
+                isEpgLoading = loading,
+            )
+        }
         // Screens expose only guide-backed rows. Keep the provider channel
         // index intact so later guide refreshes and Sports can still resolve
         // every stream instead of permanently shrinking the saved lineup.
@@ -916,15 +966,9 @@ private fun String.decodeXtreamGuideText(): String {
 private fun LiveTvChannel.xtreamStreamId(): String? =
     Regex("""^xtream-([^-]+)-""").find(id)?.groupValues?.getOrNull(1)
 
-private fun LiveTvChannel.looksLikeUnitedStatesChannel(): Boolean {
-    val value = "$group $name".trim().uppercase()
-    return value.startsWith("US ") || value.startsWith("US|") || value.startsWith("USA ") ||
-        value.contains(" UNITED STATES")
-}
-
 private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 60
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
-private const val XTREAM_FAST_EPG_CHANNEL_LIMIT = 120
+private const val XTREAM_FAST_EPG_CHANNEL_LIMIT = 400
 // Publishing a new StateFlow snapshot makes both the guide and Sports rebuild
 // their derived indexes. Fire TV hardware cannot keep up when a large XMLTV
 // document publishes every handful of channels. Publish the first match so the
