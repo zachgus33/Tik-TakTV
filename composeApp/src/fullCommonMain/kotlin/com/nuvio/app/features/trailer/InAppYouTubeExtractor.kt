@@ -17,7 +17,7 @@ private const val EXTRACTOR_TIMEOUT_MS = 30_000L
 private const val PREFERRED_SEPARATE_CLIENT = "visionos"
 private const val TV_SAFE_PROGRESSIVE_HEIGHT = 720
 private const val TV_SAFE_ADAPTIVE_HEIGHT = 1080
-private const val TV_SAFE_MAX_FPS = 30
+private const val TV_SAFE_MAX_FPS = 60
 
 private val VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
 private val API_KEY_REGEX = Regex("\"INNERTUBE_API_KEY\":\"([^\"]+)\"")
