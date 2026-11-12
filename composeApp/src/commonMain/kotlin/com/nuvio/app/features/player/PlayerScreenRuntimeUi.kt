@@ -150,14 +150,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             if (playerModalVisible) {
-                                // Block player shortcuts while a panel is open, but let Back
-                                // reach its panel handler even if focus briefly returns here.
-                                return@onPreviewKeyEvent tvSurfaceIsFocused && when (event.key) {
-                                    Key.DirectionLeft, Key.DirectionRight,
-                                    Key.DirectionUp, Key.DirectionDown,
-                                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> true
-                                    else -> false
-                                }
+                                // A panel handles remote navigation. Do not let the player
+                                // consume directions while focus moves into the panel.
+                                return@onPreviewKeyEvent false
                             }
                             if (controlsVisible) controlsInteractionEpoch += 1
                             when (event.key) {
@@ -202,7 +197,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                 else -> false
                             }
                         }
-                        .focusable()
+                        .focusable(enabled = !playerModalVisible)
                 } else {
                     Modifier
                 },
