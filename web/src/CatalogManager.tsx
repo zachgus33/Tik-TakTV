@@ -15,8 +15,9 @@ export default function CatalogManager(props: {
 }) {
   const choices = catalogChoices(props.addons);
   const collectionSettings = props.value.filter((item) => item.is_collection);
+  const removedSettings = props.value.filter((item) => !item.is_collection && item.removed);
   const configured = props.value
-    .filter((item) => !item.is_collection)
+    .filter((item) => !item.is_collection && !item.removed)
     .sort((a, b) => a.order - b.order);
   const rows = configured.flatMap((setting) => {
     const choice = choices.find((item) => settingMatchesChoice(setting, item));
@@ -28,7 +29,13 @@ export default function CatalogManager(props: {
   );
 
   const commit = (next: HomeCatalogSetting[]) =>
-    props.onChange([...normalizeCatalogOrder(next), ...collectionSettings]);
+    props.onChange([
+      ...normalizeCatalogOrder(next),
+      ...removedSettings.filter((removed) =>
+        !next.some((item) => item.key === removed.key),
+      ),
+      ...collectionSettings,
+    ]);
   const ensureRows = () => completeCatalogSettings(choices, props.value);
 
   return (
@@ -143,9 +150,12 @@ export default function CatalogManager(props: {
                     aria-label={`Remove ${choice.catalogName}`}
                     onClick={() =>
                       commit(
-                        configured.filter(
-                          (item) => !settingMatchesChoice(item, choice),
-                        ),
+                        [
+                          ...configured.filter(
+                            (item) => !settingMatchesChoice(item, choice),
+                          ),
+                          { ...setting, enabled: false, removed: true },
+                        ],
                       )
                     }
                   >

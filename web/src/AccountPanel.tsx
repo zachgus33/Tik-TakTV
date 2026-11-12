@@ -19,6 +19,7 @@ export default function AccountPanel({
   onLoading,
   onChangeUser,
   skipProfileSelection,
+  canSync,
   onSkipProfileSelection,
   onProfileUpdated,
 }: {
@@ -27,6 +28,7 @@ export default function AccountPanel({
   onLoading: (value: boolean) => void;
   onChangeUser: () => void;
   skipProfileSelection: boolean;
+  canSync: boolean;
   onSkipProfileSelection: (value: boolean) => void;
   onProfileUpdated: (profile: {
     name: string;
@@ -43,6 +45,8 @@ export default function AccountPanel({
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const initial = useRef("");
+  const syncQueue = useRef(Promise.resolve());
+  const syncIdentity = useRef("");
   const [lastSynced, setLastSynced] = useState<number>(() =>
     Number(localStorage.getItem("tiktak:last-sync") ?? 0),
   );
@@ -93,6 +97,15 @@ export default function AccountPanel({
 
   useEffect(() => {
     if (!selected || !ownerId) return;
+    const identity = `${ownerId}:${selected.profile_index}`;
+    if (syncIdentity.current !== identity) {
+      syncIdentity.current = identity;
+      initial.current = "";
+    }
+    if (!canSync) {
+      initial.current = "";
+      return;
+    }
     const next = JSON.stringify(setup);
     if (!initial.current) {
       initial.current = next;
@@ -101,7 +114,10 @@ export default function AccountPanel({
     if (next === initial.current) return;
     const timer = setTimeout(() => {
       setStatus("Saving changes…");
-      void saveSetup(selected, setup, ownerId)
+      syncQueue.current = syncQueue.current.catch(() => undefined).then(() =>
+        saveSetup(selected, setup, ownerId),
+      );
+      void syncQueue.current
         .then(() => {
           initial.current = next;
           const now = Date.now();
@@ -112,7 +128,7 @@ export default function AccountPanel({
         .catch((e) => setError(e.message));
     }, 1200);
     return () => clearTimeout(timer);
-  }, [setup, selected, ownerId]);
+  }, [setup, selected, ownerId, canSync]);
 
   const currentAvatar =
     chosenAvatar ?? catalog.find((avatar) => avatar.id === selected?.avatar_id);

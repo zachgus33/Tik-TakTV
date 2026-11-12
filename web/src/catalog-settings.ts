@@ -50,7 +50,7 @@ export function completeCatalogSettings(
   choices: CatalogChoice[],
   settings: HomeCatalogSetting[],
 ) {
-  const active = settings.filter((setting) => !setting.is_collection);
+  const active = settings.filter((setting) => !setting.is_collection && !setting.removed);
   return choices.map((choice, index) => {
     const existing = active.find((setting) =>
       settingMatchesChoice(setting, choice),
@@ -97,14 +97,14 @@ export function homeCatalogEntries(
           } satisfies CatalogChoice,
         })),
     );
-  const rows = settings.filter((setting) => !setting.is_collection);
-  if (!rows.length)
+  const rows = settings.filter((setting) => !setting.is_collection && !setting.removed);
+  if (!settings.some((setting) => !setting.is_collection))
     return available.map(({ addon, catalog }) => ({
       addon,
       catalog,
       customTitle: undefined as string | undefined,
     }));
-  return rows
+  const configured = rows
     .filter((setting) => setting.enabled)
     .sort((a, b) => Number(a.order) - Number(b.order))
     .flatMap((setting) => {
@@ -121,4 +121,14 @@ export function homeCatalogEntries(
           ]
         : [];
     });
+  const newCatalogs = available
+    .filter(({ choice }) => !settings.some((setting) =>
+      !setting.is_collection && settingMatchesChoice(setting, choice),
+    ))
+    .map(({ addon, catalog }) => ({
+      addon,
+      catalog,
+      customTitle: undefined as string | undefined,
+    }));
+  return [...configured, ...newCatalogs];
 }

@@ -6,10 +6,9 @@ import {
 import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
-import { installMany, mergeAddons } from "./addon-import";
+import { installMany } from "./addon-import";
 import {
   defaultAddon,
-  defaultAddons,
   safeSourceUrl,
   safeUrl,
   addonDetail,
@@ -19,6 +18,7 @@ import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
 import { persistableSetup } from "./account-isolation";
 import { profileSyncKey } from "./profile-sync";
+import { cleanedAddonRows, manifestUrl, restoreSavedAddons } from "./account-addons";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -45,13 +45,6 @@ export type Avatar = {
   bg_color?: string | null;
 };
 
-function addonManifestUrl(base: string) {
-  const [path, query] = base.trim().split("?", 2);
-  const manifestPath = path.replace(/\/$/, "").endsWith("/manifest.json")
-    ? path.replace(/\/$/, "")
-    : `${path.replace(/\/$/, "")}/manifest.json`;
-  return query ? `${manifestPath}?${query}` : manifestPath;
-}
 export type Setup = {
   playbackService?: PlaybackService | null;
   tmdbKey?: string;
@@ -74,6 +67,7 @@ export type HomeCatalogSetting = {
   order: number;
   custom_title?: string;
   is_collection?: boolean;
+  removed?: boolean;
   collection_id?: string;
   key?: string;
 };
@@ -88,6 +82,7 @@ const baselines = new Map<
     rows: Record<string, unknown>[];
     progress: Progress[];
     progressRows: Record<string, unknown>[];
+    homeCatalogs: string;
   }
 >();
 async function setupOwner(ownerId?: string) {
@@ -290,7 +285,7 @@ export async function loadSetup(
     );
     const repairedRows = nativeRows.map((row) => {
       const base = restoredByUrl.get(String(row.url));
-      return base ? { ...row, url: addonManifestUrl(base) } : row;
+      return base ? { ...row, url: manifestUrl(base) } : row;
     });
     if (repairedRows.some((row, index) => row.url !== nativeRows[index]?.url)) {
       await rpc("sync_push_addons", {
@@ -308,40 +303,23 @@ export async function loadSetup(
     .filter((a) => !isRemovedPenguPlay(a.url))
     .map((a) => String(a.url));
   const installed = await installMany(urls);
-  const restoredAddons = mergeAddons(
+  // The native add-on rows are authoritative. The web blob is only a manifest
+  // cache for a row that could not be refreshed; it must never resurrect a
+  // deleted add-on or turn a disabled one back on.
+  const restoredAddons = restoreSavedAddons(
+    nativeRows,
     installed.addons,
-    Array.isArray(web.addons)
-      ? web.addons.filter((addon) => !isRemovedPenguPlay(addon.base))
-      : [],
-  ).map((addon) => ({
-    ...addon,
-    enabled:
-      (addonRows.data ?? []).find(
-        (row) =>
-          safeUrl(String(row.url).replace(/\/manifest\.json$/, "")) ===
-          addon.base,
-      )?.enabled !== false,
-  }));
+    Array.isArray(web.addons) ? web.addons : [],
+  );
   const warnings = installed.failed
     ? [
         `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
       ]
     : [];
-  const cleanedRows = nativeRows.filter(
-    (row) =>
-      !isRemovedPenguPlay(row.url) &&
-      String(row.name ?? "").toLowerCase() !== "penguplay",
-  );
+  const cleanedRows = cleanedAddonRows(nativeRows);
   let savedRows: Record<string, unknown>[] = cleanedRows;
-  if (!nativeRows.length || cleanedRows.length !== nativeRows.length) {
-    const addonsToSave = !cleanedRows.length
-      ? defaultAddons.map((addon, index) => ({
-          url: `${addon.base}/manifest.json`,
-          name: addon.manifest.name,
-          enabled: true,
-          sort_order: index,
-        }))
-      : cleanedRows.map((row, index) => ({ ...row, sort_order: index }));
+  if (cleanedRows.length !== nativeRows.length) {
+    const addonsToSave = cleanedRows.map((row, index) => ({ ...row, sort_order: index }));
     await rpc("sync_push_addons", {
       p_profile_id: addonId,
       p_addons: addonsToSave,
@@ -434,13 +412,14 @@ export async function loadSetup(
     .slice(0, 100);
   baselines.set(profileSyncKey(owner, id), {
     addons: JSON.stringify(
-      restoredAddons.length ? restoredAddons : defaultAddons,
+      restoredAddons,
     ),
     collections: JSON.stringify(resolvedCollections),
     library,
     rows: savedRows,
     progress: mergedProgress,
     progressRows,
+    homeCatalogs: JSON.stringify(homeCatalogs),
   });
   return {
     warnings,
@@ -448,7 +427,7 @@ export async function loadSetup(
       playbackService: getService(),
       tmdbKey:
         typeof tmdb === "string" ? tmdb : (web.tmdbKey ?? DEFAULT_TMDB_KEY),
-      addons: restoredAddons.length ? restoredAddons : defaultAddons,
+      addons: restoredAddons,
       collections: resolvedCollections,
       library: library.length
         ? library
@@ -464,7 +443,9 @@ export async function loadSetup(
           ? realDebridKey
           : (web.realDebridKey ?? ""),
       autoplay: web.autoplay ?? true,
-      homeCatalogs: homeCatalogs.length ? homeCatalogs : web.homeCatalogs,
+      homeCatalogs: Array.isArray((homeBlob as { items?: unknown[] } | null)?.items)
+        ? homeCatalogs
+        : web.homeCatalogs,
     },
   };
 }
@@ -513,7 +494,7 @@ export async function saveSetup(
       p_profile_id: profile.uses_primary_addons ? 1 : id,
       p_addons: [
         ...setup.addons.map((a, index) => ({
-          url: `${a.base}/manifest.json`,
+          url: manifestUrl(a.base),
           name: a.manifest.name,
           enabled: a.enabled !== false,
           sort_order: index,
@@ -527,6 +508,22 @@ export async function saveSetup(
       p_collections_json: setup.collections,
       p_origin_client_id: origin,
     });
+  if (previous.homeCatalogs !== JSON.stringify(setup.homeCatalogs ?? [])) {
+    const current = await rpc<{ settings_json: unknown }[]>(
+      "sync_pull_home_catalog_settings",
+      { p_profile_id: id, p_platform: "home_catalog_shared" },
+    );
+    const raw = current?.[0]?.settings_json;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const existing = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown> : {};
+    await rpc("sync_push_home_catalog_settings", {
+      p_profile_id: id,
+      p_platform: "home_catalog_shared",
+      p_settings_json: { ...existing, items: setup.homeCatalogs ?? [] },
+      p_origin_client_id: origin,
+    });
+  }
   const key = (i: Item) => i.type + ":" + i.id;
   const additions = setup.library.filter(
     (i) =>
@@ -601,5 +598,6 @@ export async function saveSetup(
     addons: JSON.stringify(setup.addons),
     collections: JSON.stringify(setup.collections),
     library: setup.library.filter((i) => i.source === "addon"),
+    homeCatalogs: JSON.stringify(setup.homeCatalogs ?? []),
   });
 }

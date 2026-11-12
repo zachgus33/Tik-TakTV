@@ -465,7 +465,7 @@ export async function addonStreams(
         const data = await json<{ streams?: Stream[] }>(
           `${a.base}/stream/${item.type}/${encodeURIComponent(id)}.json`,
           signal,
-          6000,
+          20000,
         );
         recordAddonSuccess(a);
         return (data.streams ?? []).map((s) => ({

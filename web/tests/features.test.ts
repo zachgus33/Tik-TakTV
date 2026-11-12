@@ -463,6 +463,18 @@ describe("home catalog management", () => {
     expect(homeCatalogEntries(addons, settings).map((entry) => entry.addon.base))
       .toEqual([addons[1].base]);
   });
+
+  it("keeps removed default rows gone while showing newly installed catalogs", () => {
+    const choices = catalogChoices(addons);
+    const removed = {
+      ...completeCatalogSettings(choices, [])[0],
+      removed: true,
+      enabled: false,
+    };
+    expect(homeCatalogEntries(addons, [removed]).map((entry) => entry.addon.base))
+      .toEqual([addons[1].base]);
+    expect(homeCatalogEntries([addons[0]], [removed])).toEqual([]);
+  });
 });
 describe("Nuvio collections and add-on transfer", () => {
   const collection = {

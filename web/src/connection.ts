@@ -213,21 +213,11 @@ export async function sourceFetch(
   // companion even when the provider itself uses HTTPS.
   if (providerApi && config) return relay();
   if (forceService && config) return relay();
-  const addonPayload = /\/(?:stream|subtitles)\//i.test(new URL(url).pathname);
-  if (addonPayload && config) {
-    try {
-      return await relay();
-    } catch (error) {
-      if (options.signal?.aborted) throw error;
-      // If the companion is temporarily unavailable, direct access can still
-      // work for add-ons that grant browser CORS access.
-    }
-  }
   try {
     const response = await fetch(url, options);
     if (
       config &&
-      [401, 403, 408, 425, 429].includes(response.status) &&
+      [401, 403, 408, 425, 429, 502, 503, 504].includes(response.status) &&
       !options.signal?.aborted
     ) {
       const relayed = await relay().catch(() => undefined);

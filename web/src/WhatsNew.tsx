@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.11.1";
+export const latestRelease = "2026.11.12.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 12, 2026",
+    title: "Catalog and streaming reliability",
+    changes: [
+      "Account sync now keeps deleted and disabled add-ons as you saved them, including an empty add-on list.",
+      "Home catalog changes sync to your profile, and removed default rows stay removed while new catalogs can appear.",
+      "Streaming add-ons get more time to respond, browser access is tried before the fallback service, and retries request fresh results.",
+    ],
+  },
+  {
+    version: "2026.11.11.1",
     date: "November 11, 2026",
     title: "More reliable Home catalogs",
     changes: [

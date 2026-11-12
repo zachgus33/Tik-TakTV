@@ -998,9 +998,11 @@ function Detail({
     const key = `${target.type}:${id}`;
     const existing = streamRequests.current.get(key);
     if (existing) return existing;
-    const request = addonStreams(addons, target, id, signal).catch((error) => {
-      streamRequests.current.delete(key);
-      throw error;
+    const request = addonStreams(addons, target, id, signal).finally(() => {
+      // A completed preload must not hide a later retry or a changed add-on
+      // configuration behind a stale result.
+      if (streamRequests.current.get(key) === request)
+        streamRequests.current.delete(key);
     });
     streamRequests.current.set(key, request);
     return request;
@@ -1841,6 +1843,7 @@ export default function App() {
       : "home";
   const [accountLoading, setAccountLoading] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
+  const [profileSyncLoaded, setProfileSyncLoaded] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [activeProfileView, setActiveProfileView] = useState<{
     name: string;
@@ -2598,6 +2601,7 @@ export default function App() {
         skipSelection={skipProfileSelection && !forceProfileSelection}
         onGuest={() => setProfileReady(true)}
         onEnter={(profile, ownerId) => {
+          setProfileSyncLoaded(false);
           const hasCachedSetup = activeProfileMatches(
             ownerId,
             profile.profile_index,
@@ -2638,6 +2642,7 @@ export default function App() {
           const now = Date.now();
           localStorage.setItem("tiktak:last-sync", String(now));
           setProfileSyncing(false);
+          setProfileSyncLoaded(true);
           const wizardKey = `tiktak:setup-wizard-v2:${ownerId}:${profile.profile_index}`;
           if (localStorage.getItem(wizardKey) !== "complete")
             setSetupWizardKey(wizardKey);
@@ -2646,6 +2651,7 @@ export default function App() {
         onSetupError={(reason, profile, ownerId) => {
           if (!activeProfileMatches(ownerId, profile.profile_index)) return;
           setProfileSyncing(false);
+          setProfileSyncLoaded(false);
           setToast(
             reason instanceof Error
               ? `Profile opened from this device. Nuvio refresh failed: ${reason.message}`
@@ -3684,6 +3690,7 @@ export default function App() {
             <div hidden={page !== "account"}>
               <Suspense fallback={<Loading />}>
                 <AccountPanel
+                  canSync={profileSyncLoaded}
                   setup={{
                     playbackService: getService(),
                     tmdbKey,
@@ -3723,6 +3730,7 @@ export default function App() {
                     sessionStorage.removeItem("tiktak:profile-active");
                     setForceProfileSelection(true);
                     setProfileReady(false);
+                    setProfileSyncLoaded(false);
                   }}
                   onProfileUpdated={setActiveProfileView}
                 />
