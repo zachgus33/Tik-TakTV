@@ -18,7 +18,8 @@ import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
 import { persistableSetup } from "./account-isolation";
 import { profileSyncKey } from "./profile-sync";
-import { cleanedAddonRows, manifestUrl, restoreSavedAddons } from "./account-addons";
+import { cleanedAddonRows, restoreSavedAddons } from "./account-addons";
+import { manifestUrl } from "./addon-urls";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {

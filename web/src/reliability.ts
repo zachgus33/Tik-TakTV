@@ -9,6 +9,7 @@ import {
 import { validateTorboxKey } from "./torbox";
 import { validateRealDebridKey } from "./realdebrid";
 import { categories } from "./api";
+import { manifestUrl } from "./addon-urls";
 
 export type HealthResult = {
   id: string;
@@ -50,7 +51,7 @@ export async function runHealthChecks(input: {
   const service = getService();
   const manifestChecks = await Promise.allSettled(
     input.addons.map((addon) =>
-      reachable(`${addon.base.replace(/\/$/, "")}/manifest.json`, input.signal),
+      reachable(manifestUrl(addon.base), input.signal),
     ),
   );
   const online = manifestChecks.filter(

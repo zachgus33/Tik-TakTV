@@ -1,4 +1,5 @@
 import { sourceFetch } from "./connection";
+import { addonResourceUrl } from "./addon-urls";
 import type {
   Addon,
   Category,
@@ -406,9 +407,9 @@ export async function catalog(
     search ? `search=${encodeURIComponent(search)}` : "",
     genre ? `genre=${encodeURIComponent(genre)}` : "",
   ].filter(Boolean);
-  const extra = parameters.length ? `/${parameters.join("&")}` : "";
+  const extra = parameters.join("&");
   const data = await json<{ metas?: Record<string, unknown>[] }>(
-    `${addon.base}/catalog/${encodeURIComponent(type)}/${encodeURIComponent(id)}${extra}.json`,
+    addonResourceUrl(addon.base, "catalog", type, id, extra || undefined),
     signal,
   );
   return (data.metas ?? []).slice(0, 200).map((m) => fromMeta(m, addon));
@@ -422,7 +423,7 @@ export async function addonDetail(
     item = await resolveTmdb(item, signal);
   }
   const data = await json<{ meta: Record<string, unknown> }>(
-    `${item.provider}/meta/${item.type}/${encodeURIComponent(item.id)}.json`,
+    addonResourceUrl(item.provider!, "meta", item.type, item.id),
     signal,
   );
   if (!data.meta) throw new Error("No details available from this add-on.");
@@ -463,7 +464,7 @@ export async function addonStreams(
     active.map(async (a) => {
       try {
         const data = await json<{ streams?: Stream[] }>(
-          `${a.base}/stream/${item.type}/${encodeURIComponent(id)}.json`,
+          addonResourceUrl(a.base, "stream", item.type, id),
           signal,
           20000,
         );
@@ -479,6 +480,17 @@ export async function addonStreams(
       }
     }),
   );
+  const failureReason = (error: unknown) => {
+    const detail = error instanceof Error ? error.message : "";
+    if (/HTTP \d{3}/.test(detail)) return detail.match(/HTTP \d{3}/)![0];
+    if (/too long|timed out/i.test(detail)) return "Timed out";
+    if (/blocked direct browser access/i.test(detail))
+      return "Playback service unavailable; browser access blocked";
+    if (/browser access|CORS|Cannot reach/i.test(detail))
+      return "Browser access blocked or source unreachable";
+    if (/valid API response/i.test(detail)) return "Invalid add-on response";
+    return "Request failed";
+  };
   return {
     streams: results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     failed: results.filter((r) => r.status === "rejected").length,
@@ -507,7 +519,14 @@ export async function addonStreams(
             status: "responded" as const,
             streams: result.value.length,
           }
-        : { name: addon.manifest.name, status: "failed" as const, streams: 0 };
+        : {
+            name: addon.manifest.name,
+            status: "failed" as const,
+            streams: 0,
+            reason: result?.status === "rejected"
+              ? failureReason(result.reason)
+              : "Request failed",
+          };
     }),
   };
 }
@@ -532,7 +551,7 @@ export async function addonSubtitles(
   const results = await Promise.allSettled(
     eligible.map(async (a) => {
       const data = await json<{ subtitles?: Subtitle[] }>(
-        `${a.base}/subtitles/${item.type}/${encodeURIComponent(id)}.json`,
+        addonResourceUrl(a.base, "subtitles", item.type, id),
         signal,
       );
       return (data.subtitles ?? []).filter(

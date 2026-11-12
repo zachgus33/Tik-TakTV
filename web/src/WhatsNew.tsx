@@ -1,13 +1,24 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.12.1";
+export const latestRelease = "2026.11.12.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 12, 2026",
+    title: "Configured add-on streaming fix",
+    changes: [
+      "Configured add-on URLs now keep their account parameters on stream, catalog, details, and subtitle requests.",
+      "A failed playback-service request now falls back to direct browser access when the add-on supports it.",
+      "Home and Catalog manager keep separately installed catalogs visible when an older default catalog is hidden.",
+      "Stream search now shows a safe reason for each failed add-on without showing its private address.",
+    ],
+  },
+  {
+    version: "2026.11.12.1",
     date: "November 12, 2026",
     title: "Catalog and streaming reliability",
     changes: [

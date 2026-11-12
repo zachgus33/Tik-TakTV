@@ -46,15 +46,39 @@ export function settingMatchesChoice(
   );
 }
 
+export function assignedCatalogSettings(
+  choices: CatalogChoice[],
+  settings: HomeCatalogSetting[],
+) {
+  const claimed = new Set<number>();
+  const assignments = new Map<HomeCatalogSetting, CatalogChoice>();
+  // URL-specific web settings take priority. Older native settings only name
+  // the manifest, so each legacy row claims one remaining installation.
+  for (const setting of [
+    ...settings.filter((item) => item.key?.includes("|")),
+    ...settings.filter((item) => !item.key?.includes("|")),
+  ]) {
+    const index = choices.findIndex((choice, candidate) =>
+      !claimed.has(candidate) && settingMatchesChoice(setting, choice),
+    );
+    if (index < 0) continue;
+    claimed.add(index);
+    assignments.set(setting, choices[index]);
+  }
+  return settings.flatMap((setting) => {
+    const choice = assignments.get(setting);
+    return choice ? [{ setting, choice }] : [];
+  });
+}
+
 export function completeCatalogSettings(
   choices: CatalogChoice[],
   settings: HomeCatalogSetting[],
 ) {
   const active = settings.filter((setting) => !setting.is_collection && !setting.removed);
+  const assigned = assignedCatalogSettings(choices, active);
   return choices.map((choice, index) => {
-    const existing = active.find((setting) =>
-      settingMatchesChoice(setting, choice),
-    );
+    const existing = assigned.find((item) => item.choice.key === choice.key)?.setting;
     return {
       addon_id: choice.addonId,
       type: choice.type,
@@ -97,34 +121,28 @@ export function homeCatalogEntries(
           } satisfies CatalogChoice,
         })),
     );
-  const rows = settings.filter((setting) => !setting.is_collection && !setting.removed);
+  const rows = settings.filter((setting) => !setting.is_collection);
   if (!settings.some((setting) => !setting.is_collection))
     return available.map(({ addon, catalog }) => ({
       addon,
       catalog,
       customTitle: undefined as string | undefined,
     }));
-  const configured = rows
-    .filter((setting) => setting.enabled)
-    .sort((a, b) => Number(a.order) - Number(b.order))
-    .flatMap((setting) => {
-      const match = available.find(({ choice }) =>
-        settingMatchesChoice(setting, choice),
-      );
-      return match
-        ? [
-            {
-              addon: match.addon,
-              catalog: match.catalog,
-              customTitle: setting.custom_title,
-            },
-          ]
-        : [];
+  const assignments = assignedCatalogSettings(available.map((item) => item.choice), rows);
+  const assigned = new Set(assignments.map(({ choice }) => choice.key));
+  const configured = assignments
+    .sort((a, b) => Number(a.setting.order) - Number(b.setting.order))
+    .flatMap(({ setting, choice }) => {
+      if (!setting.enabled || setting.removed) return [];
+      const match = available.find((item) => item.choice.key === choice.key)!;
+      return [{
+        addon: match.addon,
+        catalog: match.catalog,
+        customTitle: setting.custom_title,
+      }];
     });
   const newCatalogs = available
-    .filter(({ choice }) => !settings.some((setting) =>
-      !setting.is_collection && settingMatchesChoice(setting, choice),
-    ))
+    .filter(({ choice }) => !assigned.has(choice.key))
     .map(({ addon, catalog }) => ({
       addon,
       catalog,

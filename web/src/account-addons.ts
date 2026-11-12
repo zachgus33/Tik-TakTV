@@ -1,19 +1,11 @@
 import type { Addon } from "./types";
+import { baseFromManifest } from "./addon-urls";
 
 export type SavedAddonRow = { url: string; name?: string | null; enabled?: boolean | null };
 
-export function manifestUrl(base: string) {
-  const url = new URL(base.trim());
-  if (!url.pathname.endsWith("/manifest.json"))
-    url.pathname = `${url.pathname.replace(/\/$/, "")}/manifest.json`;
-  return url.href;
-}
-
 function addonBaseUrl(manifest: string) {
   try {
-    const url = new URL(manifest);
-    url.pathname = url.pathname.replace(/\/manifest\.json$/, "").replace(/\/$/, "");
-    return url.origin + url.pathname.replace(/\/$/, "") + url.search;
+    return baseFromManifest(manifest);
   } catch {
     return undefined;
   }

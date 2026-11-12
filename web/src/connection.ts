@@ -214,6 +214,8 @@ export async function sourceFetch(
   if (providerApi && config) return relay();
   if (forceService && config) return relay();
   const addonPayload = parsed && /\/(?:stream|subtitles)\//i.test(parsed.pathname);
+  let relayResponse: Response | undefined;
+  let relayError: unknown;
   if (addonPayload && config) {
     // A stalled relay must leave enough of the stream-search deadline for a
     // browser-accessible add-on to answer directly.
@@ -222,9 +224,12 @@ export async function sourceFetch(
     options.signal?.addEventListener("abort", cancel, { once: true });
     const timer = setTimeout(cancel, 8000);
     try {
-      return await relay(attempt.signal);
+      const response = await relay(attempt.signal);
+      if (response.ok) return response;
+      relayResponse = response;
     } catch (error) {
       if (options.signal?.aborted) throw error;
+      relayError = error;
     } finally {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", cancel);
@@ -234,15 +239,21 @@ export async function sourceFetch(
     const response = await fetch(url, options);
     if (
       config &&
+      !addonPayload &&
       [401, 403, 408, 425, 429, 502, 503, 504].includes(response.status) &&
       !options.signal?.aborted
     ) {
       const relayed = await relay().catch(() => undefined);
       if (relayed?.ok) return relayed;
     }
-    return response;
+    return response.ok ? response : (relayResponse ?? response);
   } catch (e) {
-    if (e instanceof TypeError && config && !options.signal?.aborted)
+    if (relayResponse) return relayResponse;
+    if (relayError && e instanceof TypeError)
+      throw new Error(
+        "The playback service did not reach this add-on, and the add-on blocked direct browser access.",
+      );
+    if (e instanceof TypeError && config && !addonPayload && !options.signal?.aborted)
       return relay();
     throw e;
   }

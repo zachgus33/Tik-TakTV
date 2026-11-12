@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { manifestUrl, restoreSavedAddons } from "../src/account-addons";
+import { restoreSavedAddons } from "../src/account-addons";
+import { addonResourceUrl, manifestUrl } from "../src/addon-urls";
 import type { Addon } from "../src/types";
 
 const addon = (base: string): Addon => ({
@@ -29,5 +30,17 @@ describe("profile add-on restore", () => {
       [{ url: "https://root.example/manifest.json", enabled: true }],
       [saved],
     )).toEqual([{ ...saved, enabled: true }]);
+  });
+
+  it("keeps configured query parameters after each resource path", () => {
+    const base = "https://source.example/config?token=private";
+    expect(addonResourceUrl(base, "stream", "series", "tt123:1:2"))
+      .toBe("https://source.example/config/stream/series/tt123%3A1%3A2.json?token=private");
+    expect(addonResourceUrl(base, "catalog", "movie", "popular", "search=Star%20Wars"))
+      .toBe("https://source.example/config/catalog/movie/popular/search=Star%20Wars.json?token=private");
+    expect(addonResourceUrl(base, "meta", "movie", "tt123"))
+      .toBe("https://source.example/config/meta/movie/tt123.json?token=private");
+    expect(addonResourceUrl(base, "subtitles", "movie", "tt123"))
+      .toBe("https://source.example/config/subtitles/movie/tt123.json?token=private");
   });
 });

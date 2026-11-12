@@ -475,6 +475,21 @@ describe("home catalog management", () => {
       .toEqual([addons[1].base]);
     expect(homeCatalogEntries([addons[0]], [removed])).toEqual([]);
   });
+
+  it("does not hide a personal installation when a legacy default catalog is disabled", () => {
+    const choices = catalogChoices(addons);
+    const legacy = {
+      addon_id: "torrentio", type: "movie", catalog_id: "popular",
+      enabled: false, order: 0, key: "torrentio:movie:popular",
+    };
+    expect(homeCatalogEntries(addons, [legacy]).map((entry) => entry.addon.base))
+      .toEqual([addons[1].base]);
+    expect(completeCatalogSettings(choices, [legacy]).map((row) => row.enabled))
+      .toEqual([false, true]);
+    expect(homeCatalogEntries(addons, [legacy, {
+      ...legacy, key: choices[1].key, enabled: true, order: 1,
+    }]).map((entry) => entry.addon.base)).toEqual([addons[1].base]);
+  });
 });
 describe("Nuvio collections and add-on transfer", () => {
   const collection = {

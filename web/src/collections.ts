@@ -1,4 +1,5 @@
 import { safeUrl } from "./api";
+import { manifestUrl } from "./addon-urls";
 import { itemKey, type Item, type Addon, type Progress } from "./types";
 
 export type CollectionSource = {
@@ -121,7 +122,7 @@ export function sourceAddon(
     (a) =>
       a.manifest.id === source.addonId ||
       a.base === source.addonId ||
-      `${a.base}/manifest.json` === source.addonId,
+      manifestUrl(a.base) === source.addonId,
   );
 }
 export function addonUrls(text: string): string[] {
@@ -149,7 +150,7 @@ export function addonUrls(text: string): string[] {
       : (raw?.manifestUrl ??
         raw?.transportUrl ??
         raw?.url ??
-        (raw?.base ? `${raw.base}/manifest.json` : "")),
+        (raw?.base ? manifestUrl(String(raw.base)) : "")),
   );
   if (
     urls.some(

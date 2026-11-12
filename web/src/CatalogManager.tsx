@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import type { HomeCatalogSetting } from "./account";
 import {
+  assignedCatalogSettings,
   catalogChoices,
   completeCatalogSettings,
   normalizeCatalogOrder,
@@ -15,17 +16,21 @@ export default function CatalogManager(props: {
 }) {
   const choices = catalogChoices(props.addons);
   const collectionSettings = props.value.filter((item) => item.is_collection);
-  const removedSettings = props.value.filter((item) => !item.is_collection && item.removed);
-  const configured = props.value
-    .filter((item) => !item.is_collection && !item.removed)
-    .sort((a, b) => a.order - b.order);
-  const rows = configured.flatMap((setting) => {
-    const choice = choices.find((item) => settingMatchesChoice(setting, item));
-    return choice ? [{ setting, choice }] : [];
-  });
+  const assigned = assignedCatalogSettings(
+    choices,
+    props.value.filter((item) => !item.is_collection),
+  );
+  const removedSettings = assigned
+    .filter(({ setting }) => setting.removed)
+    .map(({ setting, choice }) => ({ ...setting, key: choice.key }));
+  const rows = assigned
+    .filter(({ setting }) => !setting.removed)
+    .map(({ setting, choice }) => ({ setting: { ...setting, key: choice.key }, choice }))
+    .sort((a, b) => a.setting.order - b.setting.order);
+  const configured = rows.map(({ setting }) => setting);
+  const claimed = new Set(assigned.map(({ choice }) => choice.key));
   const unused = choices.filter(
-    (choice) =>
-      !configured.some((setting) => settingMatchesChoice(setting, choice)),
+    (choice) => !claimed.has(choice.key),
   );
 
   const commit = (next: HomeCatalogSetting[]) =>

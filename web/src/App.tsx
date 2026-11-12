@@ -971,6 +971,7 @@ function Detail({
       name: string;
       status: "responded" | "failed" | "paused";
       streams: number;
+      reason?: string;
     }[]
   >([]);
   const [downloadMode, setDownloadMode] = useState(false);
@@ -1642,7 +1643,7 @@ function Detail({
                           ? `${source.streams} stream${source.streams === 1 ? "" : "s"}`
                           : source.status === "paused"
                             ? "Temporarily paused"
-                            : "Failed or timed out"}
+                            : source.reason ?? "Request failed"}
                       </span>
                     </li>
                   ))}

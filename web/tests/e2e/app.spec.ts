@@ -2359,6 +2359,45 @@ test("an independent user's configured Torrentio debrid stream uses the playback
   expect(preparations[0].mode).toBe("direct");
   await expect(page.locator("video")).toBeVisible();
 });
+
+test("configured add-on streams retain query settings and recover from relay failure", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nuvio:playback-service", JSON.stringify({
+      url: "https://playback.example", token: "test-user", mode: "direct",
+    }));
+    localStorage.setItem("nuvio:addons", JSON.stringify([{
+      base: "https://configured.example/account?token=private",
+      manifest: {
+        id: "configured.example", name: "Configured streams",
+        types: ["movie"], resources: ["catalog", "meta", "stream"],
+        catalogs: [{ id: "top", type: "movie" }],
+      },
+    }]));
+  });
+  const requested: string[] = [];
+  await page.route("https://playback.example/request", (route) => {
+    const source = route.request().postDataJSON().url as string;
+    if (source.startsWith("https://configured.example/")) requested.push(source);
+    return route.fulfill({ status: 502, json: { error: "upstream" } });
+  });
+  await page.route("https://configured.example/**", (route) => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get("token")).toBe("private");
+    if (url.pathname.includes("/stream/"))
+      return route.fulfill({ json: { streams: [{ name: "Test 1080p", url: "https://cdn.example/film.mp4" }] } });
+    if (url.pathname.includes("/meta/"))
+      return route.fulfill({ json: { meta } });
+    return route.fulfill({ json: { metas: [meta] } });
+  });
+  await page.route("https://cdn.example/film.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect.poll(() => requested.some((url) => url.includes("/stream/movie/tt-test.json?token=private"))).toBe(true);
+  await expect(page.locator("video")).toBeVisible();
+});
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {
