@@ -62,7 +62,6 @@ import nuvio.composeapp.generated.resources.live_tv_favorites
 import nuvio.composeapp.generated.resources.live_tv_choose_category
 import nuvio.composeapp.generated.resources.live_tv_no_channels_found
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.focus.focusProperties
 
 @Composable
 internal fun LiveTvChannelsPanel(
@@ -107,12 +106,11 @@ internal fun LiveTvChannelsPanel(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .focusProperties { canFocus = false }
-                .clickable(
+                .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
-                )
+                ))
                 .background(tokens.colors.overlayScrim.copy(alpha = tokens.opacity.medium)),
             contentAlignment = Alignment.Center,
         ) {
@@ -131,12 +129,11 @@ internal fun LiveTvChannelsPanel(
                         .clip(tokens.shapes.playerPanel)
                         .background(tokens.colors.surfaceSheet)
                         .border(tokens.borders.thin, tokens.colors.borderDefault, tokens.shapes.playerPanel)
-                        .focusProperties { canFocus = false }
-                        .clickable(
+                        .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
-                        ),
+                        )),
                 ) {
                     Row(
                         modifier = Modifier

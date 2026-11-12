@@ -41,11 +41,11 @@ internal fun PlayerOverlayScaffold(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(
+                .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                     interactionSource = interactionSource,
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     onClick = onDismiss,
-                ),
+                )),
         ) {
             Box(
                 modifier = Modifier

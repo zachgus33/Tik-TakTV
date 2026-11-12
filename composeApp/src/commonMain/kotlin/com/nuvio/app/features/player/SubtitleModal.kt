@@ -59,7 +59,6 @@ import nuvio.composeapp.generated.resources.compose_player_style
 import nuvio.composeapp.generated.resources.compose_player_subtitles
 import nuvio.composeapp.generated.resources.compose_player_sync_short
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 
@@ -111,12 +110,11 @@ fun SubtitleModal(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .focusProperties { canFocus = false }
-                .clickable(
+                .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
-                )
+                ))
                 .background(colorScheme.scrim.copy(alpha = 0.56f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -136,12 +134,11 @@ fun SubtitleModal(
                         .clip(RoundedCornerShape(24.dp))
                         .background(colorScheme.surface)
                         .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
-                        .focusProperties { canFocus = false }
-                        .clickable(
+                        .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
-                        ),
+                        )),
                 ) {
                     Column {
                         Row(

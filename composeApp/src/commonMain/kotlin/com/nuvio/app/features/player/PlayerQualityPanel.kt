@@ -39,7 +39,6 @@ import com.nuvio.app.core.ui.nuvio
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_close
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.focus.focusProperties
 
 @Composable
 internal fun PlayerQualityPanel(
@@ -61,12 +60,11 @@ internal fun PlayerQualityPanel(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .focusProperties { canFocus = false }
-                .clickable(
+                .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                     indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss,
-                )
+                ))
                 .background(tokens.colors.overlayScrim.copy(alpha = tokens.opacity.medium)),
             contentAlignment = Alignment.Center,
         ) {
@@ -85,12 +83,11 @@ internal fun PlayerQualityPanel(
                         .clip(tokens.shapes.playerPanel)
                         .background(tokens.colors.surfaceSheet)
                         .border(tokens.borders.thin, tokens.colors.borderDefault, tokens.shapes.playerPanel)
-                        .focusProperties { canFocus = false }
-                        .clickable(
+                        .then(if (com.nuvio.app.core.ui.LocalTvMode.current) Modifier else Modifier.clickable(
                             indication = if (com.nuvio.app.core.ui.LocalTvMode.current) androidx.compose.foundation.LocalIndication.current else null,
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = {},
-                        ),
+                        )),
                 ) {
                     Column {
                         Row(

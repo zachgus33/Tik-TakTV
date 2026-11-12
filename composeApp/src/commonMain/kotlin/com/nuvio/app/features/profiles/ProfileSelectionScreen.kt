@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -398,11 +399,12 @@ private fun ProfileAvatarCard(
                 else Color.Transparent,
             )
             .border(
-                2.dp,
-                if (isHovered) MaterialTheme.colorScheme.primary
+                if (isHovered || focused) 4.dp else 0.dp,
+                if (isHovered || focused) Color(0xFFFF4F9A)
                 else Color.Transparent,
                 RoundedCornerShape(20.dp),
             )
+            .hoverable(interactionSource)
             .onFocusChanged { focused = it.hasFocus }
             .clickable(
                 interactionSource = interactionSource,
@@ -563,11 +565,12 @@ private fun AddProfileCard(
                 else Color.Transparent,
             )
             .border(
-                2.dp,
-                if (isHovered) MaterialTheme.colorScheme.primary
+                if (isHovered || focused) 4.dp else 0.dp,
+                if (isHovered || focused) Color(0xFFFF4F9A)
                 else Color.Transparent,
                 RoundedCornerShape(20.dp),
             )
+            .hoverable(interactionSource)
             .onFocusChanged { focused = it.hasFocus }
             .clickable(
                 interactionSource = interactionSource,
