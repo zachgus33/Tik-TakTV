@@ -22,4 +22,12 @@ describe("profile add-on restore", () => {
     expect(restored).toEqual([{ ...saved, enabled: false }]);
     expect(manifestUrl(saved.base)).toBe("https://saved.example/config/manifest.json?token=private");
   });
+
+  it("matches a root-level manifest to its installed add-on", () => {
+    const saved = addon("https://root.example");
+    expect(restoreSavedAddons(
+      [{ url: "https://root.example/manifest.json", enabled: true }],
+      [saved],
+    )).toEqual([{ ...saved, enabled: true }]);
+  });
 });

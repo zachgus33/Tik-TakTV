@@ -13,7 +13,7 @@ function addonBaseUrl(manifest: string) {
   try {
     const url = new URL(manifest);
     url.pathname = url.pathname.replace(/\/manifest\.json$/, "").replace(/\/$/, "");
-    return url.href;
+    return url.origin + url.pathname.replace(/\/$/, "") + url.search;
   } catch {
     return undefined;
   }

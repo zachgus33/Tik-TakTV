@@ -184,7 +184,7 @@ export async function sourceFetch(
     if (error instanceof Error && error.message.includes("playback service"))
       throw error;
   }
-  const relay = () =>
+  const relay = (signal = options.signal ?? undefined) =>
     serviceRequest(
       "/request",
       {
@@ -196,7 +196,7 @@ export async function sourceFetch(
             ? Object.fromEntries(options.body)
             : undefined,
       },
-      options.signal ?? undefined,
+      signal,
       config,
     );
   if (parsed?.protocol === "http:") {
@@ -213,6 +213,23 @@ export async function sourceFetch(
   // companion even when the provider itself uses HTTPS.
   if (providerApi && config) return relay();
   if (forceService && config) return relay();
+  const addonPayload = parsed && /\/(?:stream|subtitles)\//i.test(parsed.pathname);
+  if (addonPayload && config) {
+    // A stalled relay must leave enough of the stream-search deadline for a
+    // browser-accessible add-on to answer directly.
+    const attempt = new AbortController();
+    const cancel = () => attempt.abort();
+    options.signal?.addEventListener("abort", cancel, { once: true });
+    const timer = setTimeout(cancel, 8000);
+    try {
+      return await relay(attempt.signal);
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", cancel);
+    }
+  }
   try {
     const response = await fetch(url, options);
     if (
