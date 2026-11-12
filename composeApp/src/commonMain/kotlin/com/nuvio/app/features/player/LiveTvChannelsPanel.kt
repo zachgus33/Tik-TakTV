@@ -154,6 +154,8 @@ internal fun LiveTvChannelsPanel(
                         Text(
                             text = stringResource(Res.string.action_close),
                             modifier = Modifier
+                                .playerInitialFocus(visible)
+                                .playerHoverFocusOutline(RoundedCornerShape(8.dp))
                                 .clickable(onClick = onDismiss)
                                 .padding(8.dp),
                             color = tokens.colors.accent,

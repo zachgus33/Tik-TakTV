@@ -5,11 +5,15 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -32,4 +36,18 @@ internal fun Modifier.playerHoverFocusOutline(shape: Shape): Modifier {
             color = if (highlighted) Color(0xFFFF4F9A) else Color.Transparent,
             shape = shape,
         )
+}
+
+/** Request focus on a real action after its animated panel enters the tree. */
+@Composable
+internal fun Modifier.playerInitialFocus(visible: Boolean): Modifier {
+    if (!LocalTvMode.current) return this
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(visible) {
+        if (visible) repeat(4) {
+            withFrameNanos { }
+            if (runCatching { requester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+        }
+    }
+    return this.focusRequester(requester)
 }

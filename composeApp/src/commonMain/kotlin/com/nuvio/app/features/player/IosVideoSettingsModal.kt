@@ -76,6 +76,7 @@ internal fun IosVideoSettingsModal(
                 PlayerDialogButton(
                     label = stringResource(Res.string.action_close),
                     onClick = onDismiss,
+                    modifier = Modifier.playerInitialFocus(visible),
                 )
             }
 

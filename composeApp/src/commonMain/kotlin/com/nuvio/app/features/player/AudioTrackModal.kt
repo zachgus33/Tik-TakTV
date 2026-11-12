@@ -124,6 +124,7 @@ fun AudioTrackModal(
                                     AudioTrackRow(
                                         track = track,
                                         isSelected = track.index == selectedIndex,
+                                        modifier = if (idx == 0) Modifier.playerInitialFocus(visible) else Modifier,
                                         onClick = { onTrackSelected(track.index) },
                                     )
                                 }
@@ -141,6 +142,7 @@ private fun AudioTrackRow(
     track: AudioTrack,
     isSelected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val bgColor = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceVariant.copy(alpha = 0.6f)
@@ -148,7 +150,7 @@ private fun AudioTrackRow(
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .playerHoverFocusOutline(RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))

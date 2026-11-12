@@ -1217,8 +1217,15 @@ private fun Modifier.tvPlayerDirectionalKeys(
             else -> return@onPreviewKeyEvent false
         }
         if (explicitTarget != null) {
-            runCatching { explicitTarget.requestFocus() }
-            true
+            runCatching { explicitTarget.requestFocus() }.getOrDefault(false) ||
+                focusManager.moveFocus(
+                    when (event.key) {
+                        Key.DirectionLeft -> FocusDirection.Left
+                        Key.DirectionRight -> FocusDirection.Right
+                        Key.DirectionUp -> FocusDirection.Up
+                        else -> FocusDirection.Down
+                    },
+                )
         } else {
             val direction = when (event.key) {
                 Key.DirectionLeft -> FocusDirection.Left

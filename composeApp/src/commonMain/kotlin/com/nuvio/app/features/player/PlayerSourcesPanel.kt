@@ -135,6 +135,7 @@ fun PlayerSourcesPanel(
                                 PanelChipButton(
                                     label = stringResource(Res.string.action_close),
                                     onClick = onDismiss,
+                                    modifier = Modifier.playerInitialFocus(visible),
                                 )
                             }
                         }
@@ -301,11 +302,12 @@ internal fun PanelChipButton(
     label: String,
     onClick: () -> Unit,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .playerHoverFocusOutline(tokens.shapes.compactCard)
             .clip(tokens.shapes.compactCard)
             .background(tokens.colors.surfacePopover, tokens.shapes.compactCard)

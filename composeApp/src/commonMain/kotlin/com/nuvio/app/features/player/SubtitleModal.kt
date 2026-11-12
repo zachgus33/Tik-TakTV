@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +60,8 @@ import nuvio.composeapp.generated.resources.compose_player_subtitles
 import nuvio.composeapp.generated.resources.compose_player_sync_short
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 
 @Composable
 fun SubtitleModal(
@@ -87,6 +90,16 @@ fun SubtitleModal(
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val tabFocusRequesters = remember { SubtitleTab.entries.map { FocusRequester() } }
+
+    LaunchedEffect(visible, activeTab) {
+        if (visible) repeat(4) {
+            withFrameNanos { }
+            if (runCatching { tabFocusRequesters[activeTab.ordinal].requestFocus() }.getOrDefault(false)) {
+                return@LaunchedEffect
+            }
+        }
+    }
 
     PlatformBackHandler(enabled = visible, onBack = onDismiss)
 
@@ -147,6 +160,7 @@ fun SubtitleModal(
 
                         SubtitleTabBar(
                             activeTab = activeTab,
+                            tabFocusRequesters = tabFocusRequesters,
                             onTabSelected = onTabSelected,
                         )
 
@@ -197,6 +211,7 @@ fun SubtitleModal(
 @Composable
 private fun SubtitleTabBar(
     activeTab: SubtitleTab,
+    tabFocusRequesters: List<FocusRequester>,
     onTabSelected: (SubtitleTab) -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -222,6 +237,7 @@ private fun SubtitleTabBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
+                    .focusRequester(tabFocusRequesters[tab.ordinal])
                     .playerHoverFocusOutline(RoundedCornerShape(radius))
                     .clip(RoundedCornerShape(radius))
                     .background(bgColor)
