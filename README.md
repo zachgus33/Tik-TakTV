@@ -11,7 +11,7 @@ _Movies, shows, Live TV, sports, YouTube, and music — together in one place, o
 [![GitHub Stars](https://img.shields.io/github/stars/zachgus33/Tik-TakTV?style=for-the-badge&color=7d5bef)](https://github.com/zachgus33/Tik-TakTV/stargazers)
 [![License](https://img.shields.io/github/license/zachgus33/Tik-TakTV?style=for-the-badge&color=30303d)](LICENSE)
 
-**[Try it on the web](https://www.tiktaktv.me/)** · **[Install on TV](#install-on-fire-tv--android-tv--google-tv)** · **[Features](#what-can-tiktak-tv-do)** · **[Report a bug](#feedback-bug-reports--feature-requests)**
+**[Try it on the web](https://www.tiktaktv.me/)** · **[Stable TV install](#install-on-fire-tv--android-tv--google-tv)** · **[Native TV preview](#try-the-native-tv-preview)** · **[Features](#what-can-tiktak-tv-do)** · **[Community](https://github.com/zachgus33/Tik-TakTV/discussions)**
 
 <img src="docs/screenshots/welcome.png" alt="TikTak TV welcome and sign-in experience, showing the entertainment interface on the left" width="100%" />
 
@@ -24,7 +24,7 @@ _Movies, shows, Live TV, sports, YouTube, and music — together in one place, o
 
 TikTak TV is a multi-device entertainment frontend built around the Nuvio ecosystem. It brings the things you already use — your add-on catalogs, movies and series, live television, sports, YouTube, YouTube Music, profiles, and watch progress — into one customizable interface.
 
-Use **the website** on desktop, iPhone, iPad, and Android browsers, or install **the TV app** on Fire TV, Android TV, and Google TV. Configure your setup on the web and use supported account/profile synchronization across devices instead of typing everything with a remote.
+Use **the web app** on desktop, iPhone, iPad, and Android browsers, or install **the stable TV wrapper** on Fire TV, Android TV, and Google TV. The wrapper runs the web interface with remote navigation. A separate **native TV preview** is available for testing. You can configure your setup on the web and use supported profile sync on your other devices.
 
 ### At a glance
 
@@ -160,7 +160,7 @@ The web experience can also be installed as a Progressive Web App (PWA) where th
 
 ### Install on Fire TV / Android TV / Google TV
 
-The TV edition is distributed as a sideloadable Android APK. **Downloader code: `2564237`**.
+For everyday use, install the [stable TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest). It packages the web app with TV remote support. The Downloader code for this build is **`2564237`**.
 
 1. Install and open **Downloader by AFTVnews** on your TV device.
 2. In Downloader, enter **`2564237`** and press **Go**.
@@ -177,6 +177,10 @@ The TV edition is distributed as a sideloadable Android APK. **Downloader code: 
 > [!TIP]
 > The web interface can update without rebuilding the TV app. When the APK itself changes, use the built-in update checking or the official signed release. Don't uninstall the app just to check for updates; uninstalling can remove local data.
 
+### Try the native TV preview
+
+Download `tiktak-tv-native-preview.apk` from the [native TV prerelease](https://github.com/zachgus33/Tik-TakTV/releases/tag/native-preview-latest). It installs alongside the stable wrapper, so you can test both on the same Fire TV, Android TV, or Google TV device. Use the [build and setup guide](https://github.com/zachgus33/Tik-TakTV/discussions/4) if you’re deciding which to install.
+
 ### Platform support
 
 | Platform               | How to use TikTak TV         | Notes                                                                  |
@@ -184,70 +188,47 @@ The TV edition is distributed as a sideloadable Android APK. **Downloader code: 
 | Desktop / laptop       | Website                      | Current Chrome, Firefox, Edge, Safari and similar modern browsers      |
 | iPhone / iPad          | Website / Add to Home Screen | Web/PWA experience; **native iOS IPA is not released**                 |
 | Android phone / tablet | Website / PWA                | Browser-based experience                                               |
-| Fire TV / Firestick    | TV APK                       | D-pad/remote-first interface                                           |
-| Android TV / Google TV | TV APK                       | Remote-first interface; performance and codec support depend on device |
+| Fire TV / Firestick    | Stable TV APK                | Web wrapper with remote navigation. Native preview available separately. |
+| Android TV / Google TV | Stable TV APK                | Web wrapper with remote navigation. Native preview available separately. |
 
-## What's new in the 0.3.35 TV update?
+## Recent web and stable TV updates
 
-The [current signed TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest) includes:
+- **Home catalogs.** Web update **2026.11.11.1** shows all available add-on catalogs by default. Catalogs you’ve hidden in a custom Home layout and catalogs from disabled add-ons stay hidden.
+- **Playback.** The web player lists compatible movie and episode sources for manual selection and reports which add-ons responded during stream search. YouTube and YouTube Music have continuous play and SponsorBlock controls.
+- **Live TV and sports.** The guide shows matching channels progressively as XMLTV data loads. Sports can display scores and schedules even when the guide has no playable channel for an event.
+- **Stable TV wrapper.** The APK adds remote focus, fullscreen playback, and update checking to the web experience. Older Android 9 televisions can use the compatibility bundle. The startup screen shows the WebView version and offers a retry if the interface fails to load.
 
-- **Scrollable, focus-visible TV settings** keep every sidebar destination reachable and give navigation rows and switches a high-contrast remote cursor.
-- **Guide-first Live TV and Sports** prefer channels with schedule data, default to United States when available, and retain a country selector.
-- **Fast, guide-only Fire TV Live TV** streams the provider guide first, publishes matching US channels progressively, and hides every playlist entry that has no real programme data.
-- **Low-CPU Live TV and Sports** publishes guide updates in coarse batches, caches only guide-backed channels, and reuses a prepared sports search index instead of repeatedly scanning and tokenizing the full IPTV lineup.
-- **Reliable Fire TV launcher artwork** ships dedicated raster icon and banner resources bound directly to the Leanback activity.
-- **Provider-compatible guide fallback** uses a bounded set of Xtream short-guide requests only when the streamed XMLTV feed has no matches, avoiding thousands of slow per-channel calls.
-- **Connected YouTube library rows** restore playlists, Watch Later, subscriptions, videos, and music from the signed-in account instead of showing only the recommendation feed.
-- **Explicit focus throughout title details** adds the same high-contrast pink-and-white remote cursor to Play, the action menu, episodes, seasons, trailers, cast, production links, comments, and related title controls.
-- **Remote-ready hero library controls** make the hero carousel's Details, Play, and Save controls visibly focusable and allow Save to add or remove the highlighted title from the active library.
-- **Streamable sports first** keeps live and recent score ordering while moving events with a matched guide-backed channel above scores that have no playable source.
-- **Sports scores and schedules remain visible** when the current IPTV guide has no matching channel; playback buttons still appear only for real guide-linked channels.
-- **A compact TV title screen** keeps Play and the detail sections within reach, gives Play deterministic initial focus, and leaves cast and actor information easier to reach.
-- **Faster web Live TV and Sports guides** parse only the relevant channel subset and publish matches progressively instead of waiting for a complete provider XMLTV download.
-- **Reachable SponsorBlock categories** expand as a scrollable section in the YouTube player instead of being clipped behind its playback pane.
-- **Every compatible movie and episode source remains selectable** in the player, even when it is outside the smaller automatic fallback set.
-- **Clearer add-on search progress** names each eligible add-on that responded, failed, or was temporarily paused without exposing private add-on addresses.
-- **Audio-aware playback selection and conversion** improves handling of sources whose original audio format is not supported by the device.
-- **Broader older-TV compatibility** with a Chromium 69-compatible web bundle for Android 9 televisions.
-- **A diagnosable TV startup screen** with retry controls and the installed WebView version instead of leaving the screen blank when startup fails.
-- **More accurate production monitoring** recognizes the visible startup fallback while continuing to check built assets, companion health, account access, source discovery, and playback preparation.
-- **Portable friend-code setups** preserve the original add-on manifest addresses for TikTak TV, Nuvio, and other compatible clients. Web and native TV also repair older `friend.tiktaktv.invalid` entries back to their original manifest URLs when the signed-in grant is still valid.
-- **Configurable SponsorBlock controls** are available in the YouTube player and under **Settings → Playback**, including separate choices for sponsors, self-promotion, interaction reminders, intros, outros, previews, and non-music sections.
-- **Optional continuous play for YouTube and YouTube Music** advances through the current results, recommendations, or playlist when an item ends. Autoplay is enabled by default and can be changed in the player or under **Settings → Playback**.
-- **More reliable YouTube Music playback** filters uploads that disallow embedding, automatically tries another available track when a saved recommendation becomes unavailable, and offers a clear YouTube/SmartTube fallback when needed.
-- The 0.3.5 features remain included: **Live TV mini-player, refreshed EPG, Sports and scores, compact TV navigation, SmartTube handoff, in-app feedback, and responsive layouts.**
+See **Settings → What's new** in the web app or stable TV wrapper for more update notes. Check the [stable TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest) for the current signed APK.
 
-The shared web interface also gives the private owner dashboard **versioned analytics definitions**, returned/eligible retention counts, and explicit explanations of sessions, returning accounts, device IDs, platform windows, and visits. It now separates heartbeat-observed UI session time from privacy-safe playback engagement: aggregate player opens, successful starts, final errors, sessions that reached playback, and playing-time buckets by app type/release. Titles, channels, searches, source URLs, credentials, and per-account viewing histories are never included. Users can disable usage analytics under **Settings → Privacy & status**.
+## Native Android TV development
 
-Navigation now uses a slimmer, always-visible sidebar on desktop, a compact rail that expands only while it has remote focus on TV, and the existing bottom navigation on phones. This gives content more room without hiding touch or remote controls.
+The native app uses Kotlin/Compose and the shared native account, profiles, library, Live TV, and playback stack. It has a remote-first navigation rail for Home, Search, Live TV, YouTube, Sports, Library, and Settings.
 
-YouTube autoplay and SponsorBlock behavior can now be changed without leaving the player, and the same choices are available under **Settings → Playback**. Music search excludes uploads that YouTube marks as non-embeddable; if a previously saved recommendation later becomes unavailable, TikTak TV tries the next available track and keeps an explicit external-playback option.
+In **preview 0.3.66**, pressing **Back** in the Fire TV player’s **Quality** or **Sources** panel should close that panel and keep you in playback. Recent preview work also improved D-pad focus inside player menus and made Live TV display channels with programme data. See the [preview announcement](https://github.com/zachgus33/Tik-TakTV/discussions/8) and [device testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5) for details.
 
-These are shipped features, not a claim that every TV model or stream works perfectly. **Real-device testing and feedback are very welcome.** The earlier [0.3.5 community announcement](https://www.reddit.com/r/AndroidTVApps/comments/1xoy0kq/updatetesters_wanted_tiktak_tv_035_live_tv/) remains available for its original testing discussion. Check [Releases](https://github.com/zachgus33/Tik-TakTV/releases) for the current downloadable build.
-
-### Native Android TV development
-
-A dedicated native Android TV client is now under active development. The side-by-side preview reuses the repository's native Kotlin/Compose account, profile, catalog, Live TV, library, sync, and Media3/MPV playback stack. Its ten-foot shell provides a native, always-visible rail for Home, Search, Live TV, YouTube, Sports, Library, and Settings with D-pad focus and overscan-safe spacing. Preview 0.3.35 prevents Live TV and Sports CPU overload, persists only guide-backed channels for fast subsequent launches, and restores dependable Fire TV launcher artwork. Preview 0.3.34 strengthens the remote cursor on season and episode cards, makes the hero carousel Save action reachable, and orders score cards with working guide-backed streams first. Preview 0.3.33 shows only channels with real programme data, starts the memory-safe streaming XMLTV guide before slower per-channel fallbacks so the filtered US-first guide appears sooner, and restores connected YouTube playlists, Watch Later, and subscriptions as separate remote-friendly rows. Preview 0.3.32 added the streaming XMLTV reader for providers that return an empty short guide. Preview 0.3.31 restored connected Live TV channels while guide matching was incomplete and added progressive bounded short-guide requests that fit the Fire TV memory limit. Preview 0.3.30 makes the complete Settings rail scroll with remote focus, strengthens focus inside its submenus, reduces oversized title details, focuses Play on entry, and limits Live TV and Sports to channels with guide data while retaining the US-first country selector. Preview 0.3.29 restores shared TikTak Home rows such as Trending and Popular beneath Continue Watching and collections, defaults Live TV to United States channels when available with a remote-friendly country selector, and gives every standard remote-selectable control a stronger pink-and-white focus treatment. When fewer than three configured catalog shelves can render, native TV supplies TikTak fallback shelves for Trending Movies, Trending Series, Popular Movies, and Popular Series; working user catalogs keep priority. Its Home catalog parser counts the full provider page but decodes only the small prefix each visible shelf needs, avoiding the large temporary JSON tree that exhausted the Fire TV heap before those rows could render. Fire TV Home also defers CloudStream provider previews, explicitly requests page zero from paginated add-on catalogs, caps catalog responses before parsing, and bounds every native-TV artwork decode to the 1280×720 render envelope; CloudStream remains available through its dedicated browsing paths. Preview 0.3.19 replaced the Live TV schedule chips with a proportional two-hour EPG timeline, including half-hour markers and current-program highlighting. It restores XMLTV data from both the signed-in web profile and the saved M3U header after cached channels load and starts guide loading immediately for newly imported playlists. YouTube and YouTube Music prefer a single Fire-TV-friendly 720p H.264/AAC stream and cap the adaptive fallback at 1080p/30fps, avoiding the 4K WebM/AV1 and dual-connection path that caused stutter and missing music audio on older hardware. Home shelves use a TV-only poster-size cap, and Search/Discover show five or six columns on television layouts instead of three oversized cards; phone and web sizing preferences remain unchanged. Preview 0.3.16's low-memory Live TV migration, off-thread channel and Sports processing, cached-profile startup recovery, high-contrast poster focus, TikTak settings, collections, friend-code tools, downloads, and profile-scoped data remain included. Permanently signed previews use an in-app update channel, so compatible installed previews can download and open the Fire OS installer for newer versions. It uses a separate package and is **not yet the public TV release** while feature parity, saved-data migration, playback quality, and broader physical-device testing are completed. See the [native TV architecture plan](Docs/NATIVE_TV_ARCHITECTURE.md).
+The native app is being prepared for the **Amazon Appstore on Fire TV**. The plan is for it to replace the stable TV wrapper over time, once it’s ready for everyday use. The [GitHub prerelease](https://github.com/zachgus33/Tik-TakTV/releases/tag/native-preview-latest) is the side-by-side test build. For development details, see the [native TV architecture notes](Docs/NATIVE_TV_ARCHITECTURE.md).
 
 ## Feedback, bug reports & feature requests
 
-TikTak TV is being improved with community feedback — especially reports from actual Android TV, Google TV, Fire TV, and Nvidia Shield devices.
+TikTak TV started as a family project. Community feedback helps decide what to fix and build next, especially when it comes from real TVs and remotes.
 
-**In the app:** Go to **Settings → What's New → Report a problem or request a feature**. You can include device details and up to three screenshots for a private owner-inbox submission.
+- **Getting set up or troubleshooting?** Start with the [build and setup guide](https://github.com/zachgus33/Tik-TakTV/discussions/4) or ask a question in [Help & Support](https://github.com/zachgus33/Tik-TakTV/discussions/categories/help-support).
+- **Testing the native preview?** Share device-specific results in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5). Use [GitHub Issues](https://github.com/zachgus33/Tik-TakTV/issues) to track reproducible app bugs.
+- **Have an idea?** Tell us [what you’d like to see added](https://github.com/zachgus33/Tik-TakTV/discussions/3), or [vote on native TV priorities](https://github.com/zachgus33/Tik-TakTV/discussions/7).
+- **Want to share your setup?** Post a screenshot or describe how you watch in [Show Your Setup](https://github.com/zachgus33/Tik-TakTV/discussions/6). See [GitHub Discussions](https://github.com/zachgus33/Tik-TakTV/discussions) for the rest of the community.
 
-**On GitHub:** [Open an issue](https://github.com/zachgus33/Tik-TakTV/issues) or review [existing issues](https://github.com/zachgus33/Tik-TakTV/issues).
-
-For a useful report, include **device/model, OS version, web or APK, app version, what you did, what you expected, what actually happened**, and a screenshot if it helps.
+On the web app or stable TV wrapper, **Settings → Feedback** lets you send a private report or feature request with screenshots. In any report, include your **device model, OS, build, app version, steps, expected result, and actual result**.
 
 > [!CAUTION]
-> **Never put secrets in public issues or screenshots.** Redact emails, passwords, IPTV/Xtream credentials, API keys, tokens, private add-on URLs, and friend codes.
+> Keep credentials and private details out of public posts and screenshots. Redact emails, passwords, IPTV/Xtream credentials, API keys, tokens, private add-on and stream URLs, and friend codes.
 
 ## For developers & contributors
 
 This repository contains the **TikTak TV web experience** alongside its Android TV packaging and inherited Nuvio Mobile Enhanced codebase.
 
 - **Web app:** [`web/`](web/) — React/TypeScript browser application; see [web setup](web/README.md) and [deployment](web/DEPLOYMENT.md).
-- **TV app:** [`tvApp/`](tvApp/) — TV-focused Android wrapper; see [TV build/install notes](tvApp/README.md).
+- **Stable TV wrapper:** [`tvApp/`](tvApp/) — Android TV packaging for the web app. See the [stable TV build and install notes](tvApp/README.md).
+- **Native TV app:** [`nativeTvApp/`](nativeTvApp/) — Kotlin/Compose client built on the shared native app. See the [native TV architecture](Docs/NATIVE_TV_ARCHITECTURE.md).
 - **Shared/native inherited project:** `composeApp/`, `androidApp/`, `iosApp/`, and associated Gradle modules.
 - **Releases and updates:** [GitHub Releases](https://github.com/zachgus33/Tik-TakTV/releases) and repository Actions.
 
@@ -259,7 +240,7 @@ npm ci
 npm run dev
 ```
 
-**Build a debug TV APK:**
+**Build a debug APK for the stable TV wrapper**
 
 ```bash
 ./gradlew :tvApp:assembleDebug
@@ -271,7 +252,7 @@ Contributions, reproducible bug reports, testing, and suggestions are welcome. R
 
 ### What's still being explored?
 
-Longer-term ideas include **more native Android TV functionality**, a **sideloadable native iOS app**, and broader extension compatibility. Experimental code or folders in the repository should **not** be interpreted as features supported in a public release. In particular, arbitrary CloudStream plugins are not presented as supported in the current public TV/web editions.
+Longer-term ideas include a **sideloadable native iOS app** and broader extension compatibility. Experimental code or folders in the repository should **not** be interpreted as features supported in a public release. In particular, arbitrary CloudStream plugins are not presented as supported in the current public TV/web editions.
 
 ## Credits, license & disclaimer
 
