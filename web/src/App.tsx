@@ -79,6 +79,7 @@ import {
   useStored,
 } from "./storage";
 import { WhatsNewPrompt } from "./WhatsNew";
+import { KoFiWidget } from "./KoFiWidget";
 import ChannelArt from "./ChannelArt";
 import { beginProfileSync } from "./profile-sync";
 import {
@@ -2694,6 +2695,7 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
+          <KoFiWidget />
           <div className="connection-status">
             <span
               className={provider ? "status-dot connected-dot" : "status-dot"}

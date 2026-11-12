@@ -1272,6 +1272,43 @@ label {
   color: #65616e;
   margin-top: 11px;
 }
+
+/* Keep Ko-fi above the sidebar footer instead of covering its status text. */
+body.show-kofi-widget .floatingchat-container-wrap,
+body.show-kofi-widget .floatingchat-container-wrap-mobi {
+  left: 24px !important;
+  bottom: 84px !important;
+}
+body.show-kofi-widget .floating-chat-kofi-popup-iframe,
+body.show-kofi-widget .floating-chat-kofi-popup-iframe-mobi {
+  left: 24px !important;
+  bottom: 149px !important;
+}
+body:not(.show-kofi-widget) .floatingchat-container-wrap,
+body:not(.show-kofi-widget) .floatingchat-container-wrap-mobi,
+body:not(.show-kofi-widget) .floating-chat-kofi-popup-iframe,
+body:not(.show-kofi-widget) .floating-chat-kofi-popup-iframe-mobi,
+.tv-mode .floatingchat-container-wrap,
+.tv-mode .floatingchat-container-wrap-mobi,
+.tv-mode .floating-chat-kofi-popup-iframe,
+.tv-mode .floating-chat-kofi-popup-iframe-mobi {
+  display: none !important;
+}
+@media (max-width: 800px) {
+  body.show-kofi-widget .floatingchat-container-wrap,
+  body.show-kofi-widget .floatingchat-container-wrap-mobi {
+    left: auto !important;
+    right: 16px !important;
+    bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  }
+  body.show-kofi-widget .floating-chat-kofi-popup-iframe,
+  body.show-kofi-widget .floating-chat-kofi-popup-iframe-mobi {
+    left: auto !important;
+    right: 16px !important;
+    bottom: calc(81px + env(safe-area-inset-bottom)) !important;
+    max-width: calc(100vw - 32px);
+  }
+}
 .main-shell {
   margin-left: 184px;
   min-width: 0;
