@@ -70,6 +70,17 @@ class LiveTvPlaylistParserTest {
     }
 
     @Test
+    fun liveTvShowsPlayableChannelsWithoutGuideData() {
+        val channels = listOf(
+            LiveTvChannel("one", "CBS", "https://stream.test/one"),
+            LiveTvChannel("heading", "### Sports ###", "https://stream.test/heading"),
+            LiveTvChannel("two", "NBC", "https://stream.test/two"),
+        )
+
+        assertEquals(listOf("CBS", "NBC"), selectLiveTvDisplayChannels(channels).map(LiveTvChannel::name))
+    }
+
+    @Test
     fun parsesChannelMetadataAndHeaders() {
         val playlist = parseM3uPlaylistData(
             """

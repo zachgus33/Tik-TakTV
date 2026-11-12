@@ -161,14 +161,9 @@ fun LiveTvScreen(
         favoritesOnly,
     ) {
         value = withContext(Dispatchers.Default) {
-            val eligibleChannels = uiState.channels.filterNot { isLikelyCategoryHeading(it.name) }
-            // The guide is the source of truth for this screen. Do not expose
-            // raw playlist rows that have no programme data.
-            val realChannels = selectGuideBackedChannels(
-                eligibleChannels,
-                uiState.currentProgrammes,
-                uiState.programmeSchedules,
-            )
+            // Programme data is optional. Keep playable channels visible while
+            // the guide loads, and when a provider does not supply guide data.
+            val realChannels = selectLiveTvDisplayChannels(uiState.channels)
             LiveTvDerivedChannels(
                 countries = realChannels.asSequence()
                     .mapNotNull(::liveTvCountryFor)
@@ -204,7 +199,7 @@ fun LiveTvScreen(
     val recentChannel = remember(uiState.recentChannel, uiState.channels, uiState.currentProgrammes, uiState.programmeSchedules) {
         uiState.recentChannel?.let { recent ->
             val currentMatch = uiState.channels.firstOrNull { it.streamUrl == recent.streamUrl }
-            if (currentMatch != null && channelHasGuideData(currentMatch, uiState.currentProgrammes, uiState.programmeSchedules)) {
+            if (currentMatch != null) {
                 recent.copy(
                     name = currentMatch.name,
                     logoUrl = currentMatch.logoUrl ?: recent.logoUrl,
@@ -520,11 +515,7 @@ fun LiveTvScreen(
             if (visibleChannels.isEmpty()) {
                 item {
                     Text(
-                        text = if (uiState.isEpgLoading) {
-                            "Loading guide data. Channels will appear when programme information is ready…"
-                        } else {
-                            "No channels with guide data match these filters."
-                        },
+                        text = "No channels match these filters.",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.nuvio.colors.textMuted,
                     )
@@ -611,6 +602,9 @@ internal fun selectGuideBackedChannels(
     currentProgrammes: Map<String, LiveTvProgramme>,
     schedules: Map<String, List<LiveTvProgramme>>,
 ): List<LiveTvChannel> = channels.filter { channelHasGuideData(it, currentProgrammes, schedules) }
+
+internal fun selectLiveTvDisplayChannels(channels: List<LiveTvChannel>): List<LiveTvChannel> =
+    channels.filterNot { isLikelyCategoryHeading(it.name) }
 
 internal data class LiveTvCountry(val code: String, val name: String)
 
@@ -1302,7 +1296,7 @@ private fun LiveTvTwoHourProgrammeRow(
                 val entry = segment.programme
                 Surface(
                     modifier = Modifier.weight(duration).fillMaxSize(),
-                    color = if (entry == currentProgramme) tokens.colors.overlaySelected else tokens.colors.surfaceCard,
+                    color = if (entry != null && entry == currentProgramme) tokens.colors.overlaySelected else tokens.colors.surfaceCard,
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, tokens.colors.borderSubtle),
                 ) {
@@ -1313,7 +1307,7 @@ private fun LiveTvTwoHourProgrammeRow(
                         Text(
                             text = entry?.title ?: "No guide data",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (entry == currentProgramme) tokens.colors.accent else tokens.colors.textPrimary,
+                            color = if (entry != null && entry == currentProgramme) tokens.colors.accent else tokens.colors.textPrimary,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
