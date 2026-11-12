@@ -33,6 +33,7 @@ internal class PlayerScreenRuntime(
     val profileId: Int get() = args.profileId
     val sourceUrl: String get() = args.sourceUrl
     val sourceAudioUrl: String? get() = args.sourceAudioUrl
+    val sourceQualities: List<PlayerQualityVariant> get() = args.sourceQualities
     val sourceHeaders: Map<String, String> get() = args.sourceHeaders
     val sourceResponseHeaders: Map<String, String> get() = args.sourceResponseHeaders
     val streamType: String? get() = args.streamType
@@ -65,6 +66,7 @@ internal class PlayerScreenRuntime(
     val isLiveTv: Boolean get() = contentType == "live-tv"
     private val shouldResolveInitialPlayerQuality: Boolean
         get() = torrentInfoHash == null &&
+            sourceQualities.isEmpty() &&
             sourceAudioUrl == null &&
             sourceUrl.contains(".m3u8", ignoreCase = true)
 
@@ -117,6 +119,10 @@ internal class PlayerScreenRuntime(
         PlayerQualitySelectionState(
             isLoading = shouldResolveInitialPlayerQuality,
             sourceUrl = sourceUrl,
+            variants = sourceQualities,
+            recommendedVariantId = sourceQualities.firstOrNull {
+                it.playbackUrl == sourceUrl && it.audioUrl == sourceAudioUrl
+            }?.id,
         ),
     )
     var activeStreamType by mutableStateOf(streamType)

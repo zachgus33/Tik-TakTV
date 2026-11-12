@@ -16,6 +16,7 @@ data class PlayerQualityVariant(
     val audioGroupId: String?,
     val absoluteUri: String,
     val playbackUrl: String,
+    val audioUrl: String? = null,
 ) {
     val isAv1: Boolean
         get() = codecs.split(',').any { codec -> codec.trim().startsWith("av01", ignoreCase = true) }

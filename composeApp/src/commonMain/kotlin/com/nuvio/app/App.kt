@@ -209,6 +209,7 @@ import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepositor
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerLaunch
+import com.nuvio.app.features.player.PlayerQualityVariant
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.PlayerRoute
 import com.nuvio.app.features.player.PlayerScreen
@@ -2176,6 +2177,20 @@ private fun MainAppContent(
                                                         title = item.title,
                                                         sourceUrl = source.videoUrl,
                                                         sourceAudioUrl = source.audioUrl,
+                                                        sourceQualities = source.qualities.map { quality ->
+                                                            PlayerQualityVariant(
+                                                                id = "youtube-${quality.height}",
+                                                                name = "${quality.height}p",
+                                                                width = null,
+                                                                height = quality.height,
+                                                                bandwidth = null,
+                                                                codecs = "avc1",
+                                                                audioGroupId = null,
+                                                                absoluteUri = quality.videoUrl,
+                                                                playbackUrl = quality.videoUrl,
+                                                                audioUrl = quality.audioUrl,
+                                                            )
+                                                        },
                                                         poster = item.thumbnail,
                                                         streamTitle = item.title,
                                                         streamSubtitle = item.channel,
@@ -3253,6 +3268,7 @@ private fun MainAppContent(
                         title = launch.title,
                         sourceUrl = launch.sourceUrl,
                         sourceAudioUrl = launch.sourceAudioUrl,
+                        sourceQualities = launch.sourceQualities,
                         sourceHeaders = launch.sourceHeaders,
                         sourceResponseHeaders = launch.sourceResponseHeaders,
                         externalSubtitles = launch.externalSubtitles,

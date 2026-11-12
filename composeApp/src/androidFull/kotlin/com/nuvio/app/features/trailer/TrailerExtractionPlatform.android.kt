@@ -5,7 +5,10 @@ import com.nuvio.app.core.network.IPv4FirstDns
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -80,13 +83,28 @@ internal object TrailerExtractionPlatform {
         bestProgressive: StreamCandidate?,
         bestVideo: StreamCandidate?,
         bestAudio: StreamCandidate?,
+        qualityPairs: List<Pair<StreamCandidate, StreamCandidate?>>,
     ): TrailerPlaybackSource? = withContext(Dispatchers.IO) {
-        // Prefer one muxed MP4 connection on Android TV. Two independent
-        // adaptive GoogleVideo connections are much more prone to buffering,
-        // A/V drift, and total audio failure on memory-constrained Fire TVs.
+        val qualities = coroutineScope {
+            qualityPairs.map { (video, audio) ->
+                async {
+                    val videoUrl = resolveReachableUrlOrNull(video.url) ?: return@async null
+                    val audioUrl = audio?.url?.let { resolveReachableUrlOrNull(it) }
+                    if (audio != null && audioUrl == null) return@async null
+                    TrailerPlaybackQuality(video.height, videoUrl, audioUrl)
+                }
+            }.awaitAll().filterNotNull()
+        }
+        // Try a 720p H.264 stream first. Muxed 360p remains a reliable
+        // fallback when a TV cannot reach separate video and audio streams.
+        val preferred = qualities.lastOrNull { it.height in 480..720 }
+            ?: qualities.lastOrNull { it.height in 721..1080 }
+        if (preferred != null) {
+            return@withContext TrailerPlaybackSource(preferred.videoUrl, preferred.audioUrl, qualities)
+        }
         val progressiveUrl = bestProgressive?.url?.let { resolveReachableUrlOrNull(it) }
         if (!progressiveUrl.isNullOrBlank()) {
-            return@withContext TrailerPlaybackSource(videoUrl = progressiveUrl, audioUrl = null)
+            return@withContext TrailerPlaybackSource(videoUrl = progressiveUrl, audioUrl = null, qualities = qualities)
         }
         val separatedVideoUrl = bestVideo?.url?.let { resolveReachableUrlOrNull(it) }
         val separatedAudioUrl = bestAudio?.url?.let { resolveReachableUrlOrNull(it) }
@@ -94,12 +112,13 @@ internal object TrailerExtractionPlatform {
             return@withContext TrailerPlaybackSource(
                 videoUrl = separatedVideoUrl,
                 audioUrl = separatedAudioUrl,
+                qualities = qualities,
             )
         }
 
         val manifestUrl = bestManifest?.selectedVariantUrl?.let { resolveReachableUrlOrNull(it) }
             ?: return@withContext null
-        TrailerPlaybackSource(videoUrl = manifestUrl, audioUrl = null)
+        TrailerPlaybackSource(videoUrl = manifestUrl, audioUrl = null, qualities = qualities)
     }
 
     private suspend fun resolveReachableUrlOrNull(url: String): String? {

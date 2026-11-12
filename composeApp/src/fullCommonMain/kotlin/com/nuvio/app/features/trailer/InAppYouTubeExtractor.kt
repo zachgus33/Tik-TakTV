@@ -349,11 +349,28 @@ class InAppYouTubeExtractor {
             PREFERRED_SEPARATE_CLIENT,
         )
 
+        // Muxed YouTube formats often stop at 360p. Keep the separate video
+        // formats and their matching audio tracks for the player's quality menu.
+        val audioCandidates = tvSafeAudio.ifEmpty { adaptiveAudio }
+        val qualityPairs = buildList {
+            sortCandidates(tvSafeProgressive.ifEmpty { listOfNotNull(bestProgressive) })
+                .distinctBy { it.height }
+                .forEach { add(it to null) }
+            sortCandidates(tvSafeVideo.ifEmpty { listOfNotNull(bestVideo) })
+                .distinctBy { it.height }
+                .forEach { video ->
+                    val audio = sortCandidates(audioCandidates.filter { it.client == video.client }).firstOrNull()
+                        ?: bestAudio
+                    if (audio != null) add(video to audio)
+                }
+        }.distinctBy { it.first.height }.sortedBy { it.first.height }
+
         return TrailerExtractionPlatform.buildPlaybackSource(
             bestManifest = bestManifest,
             bestProgressive = bestProgressive,
             bestVideo = bestVideo,
             bestAudio = bestAudio,
+            qualityPairs = qualityPairs,
         )
     }
 

@@ -607,7 +607,16 @@ private fun PlayerScreenRuntime.playbackResolutionLabel(forButton: Boolean): Str
 
 private fun PlayerScreenRuntime.selectPlayerQuality(qualityId: String?) {
     val playbackUrl = playerQualityState.playbackUrlFor(qualityId) ?: return
-    if (activePlaybackSourceUrl == playbackUrl && selectedPlayerQualityId == qualityId) {
+    val selectedVariant = playerQualityState.variants.firstOrNull {
+        it.id == (qualityId ?: playerQualityState.recommendedVariantId)
+    }
+    val audioUrl = if (sourceQualities.isNotEmpty()) {
+        selectedVariant?.audioUrl ?: if (qualityId == null) sourceAudioUrl else null
+    } else {
+        activeSourceAudioUrl
+    }
+    if (activePlaybackSourceUrl == playbackUrl && activeSourceAudioUrl == audioUrl &&
+        selectedPlayerQualityId == qualityId) {
         showQualityPanel = false
         controlsVisible = true
         return
@@ -620,6 +629,7 @@ private fun PlayerScreenRuntime.selectPlayerQuality(qualityId: String?) {
     rememberPlaybackSpeedForSourceReload()
     selectedPlayerQualityId = qualityId
     activePlaybackSourceUrl = playbackUrl
+    activeSourceAudioUrl = audioUrl
     activeInitialPositionMs = resumePositionMs
     activeInitialProgressFraction = null
     initialSeekApplied = resumePositionMs <= 0L

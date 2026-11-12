@@ -76,6 +76,7 @@ internal object TrailerExtractionPlatform {
         bestProgressive: StreamCandidate?,
         bestVideo: StreamCandidate?,
         bestAudio: StreamCandidate?,
+        qualityPairs: List<Pair<StreamCandidate, StreamCandidate?>>,
     ): TrailerPlaybackSource? = withContext(Dispatchers.Default) {
         val bestManifestHeight = bestManifest?.height ?: -1
         val bestCombinedIsManifest = bestManifest != null &&

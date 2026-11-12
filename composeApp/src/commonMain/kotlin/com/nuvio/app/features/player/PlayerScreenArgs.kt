@@ -7,6 +7,7 @@ internal data class PlayerScreenArgs(
     val title: String,
     val sourceUrl: String,
     val sourceAudioUrl: String?,
+    val sourceQualities: List<PlayerQualityVariant> = emptyList(),
     val sourceHeaders: Map<String, String>,
     val sourceResponseHeaders: Map<String, String>,
     val streamType: String?,
