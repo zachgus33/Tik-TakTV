@@ -212,7 +212,7 @@ There is only **one native TV app**. Existing sideload installations continue to
 | Desktop / laptop       | Website                      | Current Chrome, Firefox, Edge, Safari and similar modern browsers      |
 | iPhone / iPad          | Website / Add to Home Screen | Web/PWA experience; **native iOS IPA is not released**                 |
 | Android phone / tablet | Website / PWA                | Browser-based experience                                               |
-| Fire TV / Firestick    | Native TV APK                | Sideload with Downloader or the direct APK. Amazon Appstore submission is under review. |
+| Fire TV / Firestick    | Native TV APK                | Sideload with Downloader or the direct APK. The Amazon Appstore listing is not live yet. |
 | Android TV / Google TV | Native TV APK                | Sideload with Downloader or the direct APK. |
 
 ## Recent web app updates
@@ -229,7 +229,7 @@ The native app uses Kotlin/Compose and the shared native account, profiles, libr
 
 To install the current build, follow the [native TV install instructions](#install-the-native-tv-app). If you run into a device-specific issue, share your TV model and app version in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5).
 
-The native app has been submitted to the **Amazon Appstore on Fire TV** and is awaiting review. For development details, see the [native TV architecture notes](Docs/NATIVE_TV_ARCHITECTURE.md).
+The native app is being prepared for the **Amazon Appstore on Fire TV**. It is not yet published there. For development details, see the [native TV architecture notes](Docs/NATIVE_TV_ARCHITECTURE.md).
 
 ## Feedback, bug reports & feature requests
 
