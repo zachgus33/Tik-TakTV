@@ -2035,7 +2035,7 @@ export function createService({ token, origins, authorizeAccount }) {
           (body.refresh !== true || Date.now() - cachedAccount.fetchedAt < 30_000)
         )
           return send(200, rotateAccount(cachedAccount.account));
-        const [subscriptions, playlists, activities, popular, liked] = await Promise.all([
+        const [subscriptions, playlists, activities, popular, liked, gaming, entertainment, technology] = await Promise.all([
           youtubeApi(userId, "subscriptions", {
             part: "snippet",
             mine: "true",
@@ -2063,6 +2063,14 @@ export function createService({ token, origins, authorizeAccount }) {
             myRating: "like",
             maxResults: 30,
           }).catch(() => null),
+          ...["20", "24", "28"].map((videoCategoryId) =>
+            youtubeApi(userId, "videos", {
+              part: "snippet,status,contentDetails",
+              chart: "mostPopular",
+              maxResults: 30,
+              regionCode: "US",
+              videoCategoryId,
+            }).catch(() => null)),
         ]);
         const selectionFromActivity = (item) => ({
           videoId:
@@ -2159,7 +2167,12 @@ export function createService({ token, origins, authorizeAccount }) {
           !recentVideoIds.includes(item.videoId) &&
           !subscribedChannelIds.has(item.channelId),
         );
-        const popularCandidates = (popular?.items ?? [])
+        const popularCharts = [popular, gaming, entertainment, technology]
+          .map((chart) => chart?.items ?? []);
+        const popularCandidates = Array.from(
+          { length: Math.max(0, ...popularCharts.map((items) => items.length)) },
+          (_, index) => popularCharts.map((items) => items[index]).filter(Boolean),
+        ).flat()
           .filter((item) =>
             youtubeVideoIdPattern.test(item?.id) &&
             !recentVideoIds.includes(item.id) &&
@@ -2359,7 +2372,7 @@ export function createService({ token, origins, authorizeAccount }) {
           ),
         );
         const detailsById = new Map(
-          [...(popular?.items ?? []), ...videoDetails.flatMap((payload) => payload?.items ?? [])]
+          [...popularCharts.flat(), ...videoDetails.flatMap((payload) => payload?.items ?? [])]
             .map((item) => [item?.id, item]),
         );
         const decorate = (item) => {
