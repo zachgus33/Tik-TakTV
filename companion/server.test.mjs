@@ -52,6 +52,15 @@ test("For You survives subscriptions with no eligible video uploads", () => {
     youtubeForYouFeed(watched, [{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
     ["watched-channel-video", "subscription-video"],
   );
+  assert.deepEqual(
+    youtubeForYouFeed(
+      [{ videoId: "recent-1" }, { videoId: "recent-2" }],
+      [{ videoId: "subscription-1" }, { videoId: "subscription-2" }],
+      [],
+      [],
+    ).map((item) => item.videoId),
+    ["recent-1", "subscription-1", "recent-2", "subscription-2"],
+  );
 });
 
 test("YouTube recent-video seeds are validated and bounded", () => {

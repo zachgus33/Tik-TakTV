@@ -230,7 +230,12 @@ export function youtubeForYouFeed(recentMatches, subscriptionVideos, watchedChan
   const unique = (items) => [
     ...new Map(items.filter((item) => item?.videoId).map((item) => [item.videoId, item])).values(),
   ];
-  const videos = unique([...recentMatches, ...subscriptionVideos, ...watchedChannelVideos]);
+  const blended = [];
+  for (let index = 0; index < Math.max(recentMatches.length, subscriptionVideos.length); index += 1) {
+    if (recentMatches[index]) blended.push(recentMatches[index]);
+    if (subscriptionVideos[index]) blended.push(subscriptionVideos[index]);
+  }
+  const videos = unique([...blended, ...watchedChannelVideos]);
   // Music uploads are still videos. Use them only when subscriptions and
   // watched channels have no eligible long-form uploads.
   return videos.length ? videos : unique(musicVideos);
