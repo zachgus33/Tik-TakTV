@@ -266,6 +266,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
             videoId: String(index + 1).padStart(11, "0"),
             title: `More video ${index + 1}`,
             channel: "Another channel",
+            thumbnail: "https://img.example/more-video.jpg",
             kind: "video",
           })),
         ],

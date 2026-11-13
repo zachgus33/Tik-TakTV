@@ -774,7 +774,7 @@ export default function YouTubeHub({
   const forYouSection = (
     <>
       {kind === "video" && !accountBusy && !account?.connected && (
-        <section className="youtube-section">
+        <section className="youtube-section youtube-for-you">
           <h2>For You</h2>
           <p className="youtube-feed-empty">
             Connect your YouTube account below to see video suggestions here.
@@ -782,7 +782,7 @@ export default function YouTubeHub({
         </section>
       )}
       {!!account?.connected && (
-        <section className="youtube-section">
+        <section className="youtube-section youtube-for-you">
           <h2>{kind === "music" ? "Your music" : "For You"}</h2>
           {!suggestions.length ? (
             <p className="youtube-feed-empty">

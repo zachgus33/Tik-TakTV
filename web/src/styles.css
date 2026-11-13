@@ -6152,6 +6152,13 @@ button.primary:hover,
   .youtube-grid {
     grid-template-columns: 1fr;
   }
+  .youtube-for-you .youtube-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .youtube-for-you .youtube-card > span:last-child {
+    padding: 9px;
+  }
   .youtube-controls {
     width: 100%;
     justify-content: space-between;

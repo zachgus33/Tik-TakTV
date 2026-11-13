@@ -804,7 +804,7 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
   });
-  it("only autoplays streams that can play without compatibility conversion", () => {
+    it("prefers direct playback and keeps conversion as a fallback", () => {
     const mkv = { name: "1080p", url: "https://cdn.example/movie.mkv" };
     const webReady = { name: "720p", url: "https://cdn.example/movie.mp4" };
     const flagged = {
@@ -812,7 +812,8 @@ describe("720p+ preference and safe episode matching", () => {
       url: "https://cdn.example/movie.mp4",
       behaviorHints: { notWebReady: true },
     };
-    expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([webReady]);
+      expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([webReady, mkv]);
+      expect(autoplayStreams([mkv], false)).toEqual([mkv]);
   });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [
