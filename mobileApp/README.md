@@ -1,6 +1,6 @@
 # TikTak TV for Android phones and tablets
 
-`mobileApp` is the touch-first Android companion to the existing TikTak TV website and Android TV app. It has its own package (`com.tiktaktv.mobile`), version history, signing key, and Play Store release. Changes here do not replace `tvApp` or the web deployment.
+`mobileApp` is the touch-first Android companion to the existing TikTak TV website and native Android TV app. It has its own package (`com.tiktaktv.mobile`), version history, signing key, and Play Store release. Changes here do not replace `nativeTvApp` or the web deployment.
 
 ## Native phone features
 

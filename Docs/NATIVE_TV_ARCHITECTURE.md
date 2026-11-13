@@ -1,17 +1,30 @@
 # TikTak TV native Android TV architecture
 
-## Decision
+## Current release status
 
-TikTak TV will move from the released WebView wrapper to a dedicated native Android TV application in measured stages. The native client will reuse the repository's existing Kotlin/Compose application and Media3/MPV playback stack instead of duplicating account, profile, catalog, stream, library, sync, and playback logic.
+The native `nativeTvApp` module is the only TV application in the build. Its
+package remains `com.tiktaktv.tv.nativepreview`, matching existing native
+installations and the Amazon Appstore submission. The signed native workflow
+publishes both `native-preview-latest` and the stable `tv-latest` APK used by
+Downloader code 2564237. The separate WebView wrapper module and its release
+workflow were retired after native TV became the public download.
 
-The existing `tvApp` remains the supported public APK until the native client reaches feature parity and passes real-device migration tests. The `nativeTvApp` module uses the separate `com.tiktaktv.tv.nativepreview` package so both apps can be installed together and a preview cannot overwrite saved wrapper data.
+Older WebView wrapper installs have a different Android package and private
+storage. Users should set up or sync their native app before uninstalling an
+older wrapper; Android cannot migrate that local data through an APK update.
+
+## Original decision and migration history
+
+TikTak TV moved from the released WebView wrapper to a dedicated native Android TV application in measured stages. The native client reuses the repository's existing Kotlin/Compose application and Media3/MPV playback stack instead of duplicating account, profile, catalog, stream, library, sync, and playback logic.
+
+During migration, `nativeTvApp` used the separate `com.tiktaktv.tv.nativepreview` package so both apps could be installed together without overwriting saved wrapper data. That package is now the production native identity and must remain stable for Amazon and sideload updates.
 
 ## Why this path
 
 - Removes WebView layout scaling, page lifecycle, JavaScript focus, and browser playback overhead from the final TV experience.
 - Reuses native Media3/MPV playback, audio-track selection, profiles, add-ons, library, Live TV repositories, source selection, and account sync already present in `composeApp`.
 - Keeps web and mobile development independent while allowing shared account and service contracts.
-- Preserves a working public APK during development and provides an explicit rollback path.
+- Preserved a working public APK during development and an explicit rollback path.
 
 ## Migration stages
 
@@ -19,7 +32,7 @@ The existing `tvApp` remains the supported public APK until the native client re
 2. **Ten-foot shell:** dedicated navigation rail, predictable focus restoration, large focus indicators, Back/Menu handling, overscan-safe spacing, and 720p/1080p/4K layout tests.
 3. **Core viewing:** native Home, Discover, details, source chooser, Media3/MPV player, audio/subtitle selection, profiles, library, and settings.
 4. **TikTak parity:** native Live TV guide and mini-player, Sports/scores/country filters, YouTube/YouTube Music and SmartTube handoff, SponsorBlock/autoplay preferences, What's New, and feedback with screenshots.
-5. **Safe replacement:** migrate or explicitly re-link account/profile/provider settings, verify signed update compatibility, run Shield/Google TV/Fire TV/older Android TV tests, then promote the native package to the public TV release.
+5. **Safe replacement:** re-link account/profile/provider settings where needed, verify signed update compatibility, run TV device tests, then promote the native package to the public TV release. The stable Downloader URL now serves the native package.
 
 ## Release gates
 
@@ -28,7 +41,7 @@ The existing `tvApp` remains the supported public APK until the native client re
 - Native playback verifies video, audio, track selection, subtitles, resume, fallback, and manual source selection.
 - Updating or switching clients never deletes profiles, history, add-ons, provider credentials, or library data.
 - Live TV and Sports handle large provider lists without blocking the main thread.
-- The public wrapper remains downloadable until native parity and rollback tests pass.
+- The stable Downloader APK and Amazon submission retain the native package and permanent signing key.
 
 ## Foundation validation
 
