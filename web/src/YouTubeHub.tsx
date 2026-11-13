@@ -1141,7 +1141,7 @@ export default function YouTubeHub({
         kind === "video" &&
         !!account.recentFeed?.length && (
           <section className="youtube-section">
-            <h2>Inspired by your recent watches</h2>
+            <h2>Related uploads from channels you watched</h2>
             <div className="youtube-grid">
               {account.recentFeed.map((item) => (
                 <button
@@ -1164,7 +1164,13 @@ export default function YouTubeHub({
         !!(kind === "music" ? account.musicFeed : account.videoFeed)
           ?.length && (
           <section className="youtube-section">
-            <h2>{kind === "music" ? "Your music" : "Videos for you"}</h2>
+            <h2>
+              {kind === "music"
+                ? "Your music"
+                : account.subscriptions?.length
+                  ? "Latest from your subscriptions"
+                  : "Recent YouTube videos"}
+            </h2>
             <div className="youtube-grid">
               {(kind === "music" ? account.musicFeed : account.videoFeed)!
                 .slice(0, visibleFeedCount)

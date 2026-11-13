@@ -241,8 +241,42 @@ export function youtubeRecentVideoIds(value) {
 export function youtubeVideoAllowed(item, kind = "video") {
   return (
     item?.status?.embeddable !== false &&
-    (kind === "music" || String(item?.snippet?.categoryId ?? "") !== "10")
+    (kind === "music" ||
+      (String(item?.snippet?.categoryId ?? "") !== "10" &&
+        youtubeLongFormVideo(item)))
   );
+}
+
+export function youtubeLongFormVideo(item) {
+  const duration = String(item?.contentDetails?.duration ?? "");
+  const match =
+    /^P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(duration);
+  if (!match) return false;
+  const seconds =
+    Number(match[1] ?? 0) * 86_400 +
+    Number(match[2] ?? 0) * 3_600 +
+    Number(match[3] ?? 0) * 60 +
+    Number(match[4] ?? 0);
+  // YouTube Shorts can run for three minutes. Excluding every video at or
+  // under that length also removes some short landscape clips.
+  return seconds > 180;
+}
+
+const youtubeGenericTitleWords = new Set([
+  "about", "after", "again", "best", "first", "from", "full", "latest",
+  "more", "most", "official", "part", "shorts", "that", "this", "today",
+  "video", "watch", "with", "your",
+]);
+
+export function youtubeTitlesRelated(watchedTitle, candidateTitle) {
+  const tokens = (title) =>
+    new Set(
+      (String(title ?? "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter(
+        (word) => !youtubeGenericTitleWords.has(word) && !/^\d+$/.test(word),
+      ),
+    );
+  const watched = tokens(watchedTitle);
+  return [...tokens(candidateTitle)].some((word) => watched.has(word));
 }
 
 const youtubeVideoIdPattern = /^[A-Za-z0-9_-]{11}$/;
@@ -2009,10 +2043,13 @@ export function createService({ token, origins, authorizeAccount }) {
               maxResults: 6,
             }).catch(() => null)
           : null;
+        const recentlyWatchedById = new Map(
+          (recentlyWatched?.items ?? []).map((item) => [item?.id, item]),
+        );
         const recentChannelIds = [
           ...new Set(
-            (recentlyWatched?.items ?? [])
-              .map((item) => item?.snippet?.channelId)
+            recentVideoIds
+              .map((id) => recentlyWatchedById.get(id)?.snippet?.channelId)
               .filter(
                 (id) =>
                   typeof id === "string" && /^[A-Za-z0-9_-]{10,64}$/.test(id),
@@ -2045,7 +2082,7 @@ export function createService({ token, origins, authorizeAccount }) {
               ? youtubeApi(userId, "playlistItems", {
                   part: "snippet,contentDetails,status",
                   playlistId,
-                  maxResults: 12,
+                  maxResults: 24,
                 }).catch(() => null)
               : null;
           }),
@@ -2104,18 +2141,20 @@ export function createService({ token, origins, authorizeAccount }) {
           ...uploadsFor(
             subscriptionSample.map((subscription) => subscription.id),
           ),
-          ...(activities?.items ?? []).map(selectionFromActivity),
+          ...(subscriptionSample.length
+            ? []
+            : (activities?.items ?? []).map(selectionFromActivity)),
         ].filter((item) => youtubeVideoIdPattern.test(item.videoId));
         const uniqueFeed = [
           ...new Map(
             feedCandidates.map((item) => [item.videoId, item]),
           ).values(),
-        ].slice(0, 160);
+        ].slice(0, 300);
         const uniqueRecentFeed = [
           ...new Map(
             recentCandidates.map((item) => [item.videoId, item]),
           ).values(),
-        ].slice(0, 48);
+        ].slice(0, 96);
         const watchLaterId = String(
           channel.items?.[0]?.contentDetails?.relatedPlaylists?.watchLater ??
             "",
@@ -2190,7 +2229,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const videoDetails = await Promise.all(
           detailBatches.map((ids) =>
             youtubeApi(userId, "videos", {
-              part: "snippet,status",
+              part: "snippet,status,contentDetails",
               id: ids.join(","),
               maxResults: 50,
             }),
@@ -2205,6 +2244,11 @@ export function createService({ token, origins, authorizeAccount }) {
           const detail = detailsById.get(item.videoId);
           if (!detail) return null;
           if (detail?.status?.embeddable === false) return null;
+          if (
+            String(detail?.snippet?.categoryId ?? "") !== "10" &&
+            !youtubeLongFormVideo(detail)
+          )
+            return null;
           return {
             ...item,
             title: String(detail?.snippet?.title ?? item.title).slice(0, 300),
@@ -2224,9 +2268,24 @@ export function createService({ token, origins, authorizeAccount }) {
           };
         };
         const decoratedFeed = uniqueFeed.map(decorate).filter(Boolean);
+        const watchedTitlesByChannel = new Map();
+        for (const id of recentVideoIds) {
+          const item = recentlyWatchedById.get(id);
+          const channelId = item?.snippet?.channelId;
+          if (!channelId) continue;
+          const titles = watchedTitlesByChannel.get(channelId) ?? [];
+          titles.push(item?.snippet?.title ?? "");
+          watchedTitlesByChannel.set(channelId, titles);
+        }
         const decoratedRecentFeed = uniqueRecentFeed
           .map(decorate)
-          .filter((item) => item?.kind === "video");
+          .filter((item) =>
+            item?.kind === "video" &&
+            (watchedTitlesByChannel.get(
+              detailsById.get(item.videoId)?.snippet?.channelId,
+            ) ?? []).some((title) => youtubeTitlesRelated(title, item.title)),
+          )
+          .slice(0, 48);
         const decoratedPlaylists = playlistSelections
           .map(decorate)
           .filter(Boolean);
@@ -2236,7 +2295,9 @@ export function createService({ token, origins, authorizeAccount }) {
           channel: channel.items?.[0]?.snippet ?? null,
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
-          videoFeed: decoratedFeed.filter((item) => item.kind === "video"),
+          videoFeed: decoratedFeed
+            .filter((item) => item.kind === "video")
+            .slice(0, 160),
           musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
           recentFeed: decoratedRecentFeed,
         };
@@ -2310,7 +2371,7 @@ export function createService({ token, origins, authorizeAccount }) {
               "https://www.googleapis.com/youtube/v3/videos",
             );
             videosTarget.search = new URLSearchParams({
-              part: "snippet,status",
+              part: "snippet,status,contentDetails",
               id: results.map((item) => item.videoId).join(","),
               maxResults: "50",
               key: apiKey,
@@ -2331,6 +2392,10 @@ export function createService({ token, origins, authorizeAccount }) {
                 results = results
                   .filter((item) => allowed.has(item.videoId))
                   .map((item) => ({ ...item, kind }));
+              } else {
+                return send(502, {
+                  error: "YouTube search is temporarily unavailable.",
+                });
               }
             } finally {
               await videosUpstream.close();
