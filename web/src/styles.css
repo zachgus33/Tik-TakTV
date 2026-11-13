@@ -6104,6 +6104,24 @@ button.primary:hover,
 .youtube-card small {
   color: var(--muted);
 }
+.youtube-feed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.youtube-feed-actions button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+.youtube-feed-actions button:hover,
+.youtube-feed-actions button:focus-visible {
+  border-color: var(--pink);
+}
 
 @media (max-width: 850px) {
   .youtube-heading {

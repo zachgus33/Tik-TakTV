@@ -138,6 +138,7 @@ export default function YouTubeHub({
   const [notice, setNotice] = useState("");
   const [account, setAccount] = useState<YouTubeAccount | null>(null);
   const [accountBusy, setAccountBusy] = useState(true);
+  const [visibleFeedCount, setVisibleFeedCount] = useState(24);
   const [device, setDevice] = useState<{
     userCode: string;
     verificationUrl: string;
@@ -211,10 +212,15 @@ export default function YouTubeHub({
     }, 3500);
   }, [tvMode]);
 
-  const loadAccount = async () => {
+  const loadAccount = async (refresh = false) => {
     setAccountBusy(true);
     try {
-      setAccount(await youtubeAccount(false));
+      const recentVideoIds = readYouTubeHistory()
+        .map((item) => item.videoId)
+        .filter((id): id is string => !!id)
+        .slice(0, 6);
+      setAccount(await youtubeAccount(false, { refresh, recentVideoIds }));
+      if (refresh) setVisibleFeedCount(24);
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "YouTube sign-in failed.",
@@ -225,7 +231,7 @@ export default function YouTubeHub({
   };
 
   useEffect(() => {
-    void loadAccount();
+    void loadAccount(false);
   }, []);
 
   useEffect(() => subscribeSponsorBlockPreferences(setSponsorPreferences), []);
@@ -1132,13 +1138,37 @@ export default function YouTubeHub({
         ))}
 
       {!!account?.connected &&
+        kind === "video" &&
+        !!account.recentFeed?.length && (
+          <section className="youtube-section">
+            <h2>Inspired by your recent watches</h2>
+            <div className="youtube-grid">
+              {account.recentFeed.map((item) => (
+                <button
+                  key={item.videoId}
+                  className="youtube-card"
+                  onClick={() => void select(item)}
+                >
+                  <img src={item.thumbnail} alt="" loading="lazy" />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.channel}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+      {!!account?.connected &&
         !!(kind === "music" ? account.musicFeed : account.videoFeed)
           ?.length && (
           <section className="youtube-section">
             <h2>{kind === "music" ? "Your music" : "Videos for you"}</h2>
             <div className="youtube-grid">
-              {(kind === "music" ? account.musicFeed : account.videoFeed)!.map(
-                (item, index) => (
+              {(kind === "music" ? account.musicFeed : account.videoFeed)!
+                .slice(0, visibleFeedCount)
+                .map((item, index) => (
                   <button
                     key={`${item.videoId}-${index}`}
                     className="youtube-card"
@@ -1150,8 +1180,24 @@ export default function YouTubeHub({
                       <small>{item.channel}</small>
                     </span>
                   </button>
-                ),
+                ))}
+            </div>
+            <div className="youtube-feed-actions">
+              {visibleFeedCount <
+                (kind === "music" ? account.musicFeed : account.videoFeed)!
+                  .length && (
+                <button
+                  onClick={() => setVisibleFeedCount((count) => count + 24)}
+                >
+                  Show more videos
+                </button>
               )}
+              <button
+                disabled={accountBusy}
+                onClick={() => void loadAccount(true)}
+              >
+                {accountBusy ? "Refreshing…" : "Refresh suggestions"}
+              </button>
             </div>
           </section>
         )}
