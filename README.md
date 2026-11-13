@@ -18,7 +18,7 @@ _Movies, shows, Live TV, sports, YouTube, and music — together in one place, o
 </div>
 
 > [!IMPORTANT]
-> **TikTak TV is a free, unofficial community project — not an IPTV provider.** It does not include channels, subscriptions, add-ons, or media. Bring your own compatible services and sources that you are authorized to use.
+> **TikTak TV is a free, unofficial community project — not an IPTV provider.** It does not sell subscriptions or include private provider credentials, movie/series streams, or add-ons. Public Live TV channels may appear where available; bring your own compatible services and sources that you are authorized to use for other content.
 
 ## One home for everything you watch
 
@@ -31,7 +31,7 @@ Use **the web app** on desktop, iPhone, iPad, and Android browsers, or install t
 |                          | What you get                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Movies & series**      | Catalog-powered Home, Discover, search, title details, seasons, episodes, and Continue Watching            |
-| **Live TV**              | User-supplied Xtream/M3U services, XMLTV/EPG matching, channel artwork, and a two-hour guide               |
+| **Live TV**              | Public channels where available, optional Xtream/M3U services, XMLTV/EPG matching, and a two-hour guide     |
 | **Sports**               | Live/upcoming events, scores where available, followed events, and matched channels from _your_ IPTV setup |
 | **YouTube & music**      | Separate YouTube and YouTube Music experiences, search, and account-based features where available         |
 | **Your library**         | Profiles, collections, favorites, watch progress, and supported Nuvio account/add-on sync                  |
