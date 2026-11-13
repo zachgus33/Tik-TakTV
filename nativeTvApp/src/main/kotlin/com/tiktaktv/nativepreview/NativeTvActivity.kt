@@ -25,8 +25,8 @@ import com.nuvio.app.core.ui.TikTakTvFocusIndication
 /**
  * Android TV host for the native Compose application.
  *
- * The preview intentionally uses a separate application id from the released
- * WebView client until migration and feature-parity checks are complete.
+ * Keep the existing native application id so Fire TV installations and the
+ * submitted Amazon package continue to update in place.
  */
 open class NativeTvActivity : MainActivity() {
     private var showShellPreview = false
