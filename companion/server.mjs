@@ -222,7 +222,20 @@ export function rotateYoutubeAccount(account, rotation = 0) {
     ...account,
     videoFeed: rotateYoutubeItems(account?.videoFeed, rotation),
     musicFeed: rotateYoutubeItems(account?.musicFeed, rotation),
+    recentFeed: rotateYoutubeItems(account?.recentFeed, rotation),
   };
+}
+
+export function youtubeRecentVideoIds(value) {
+  return Array.isArray(value)
+    ? [
+        ...new Set(
+          value.filter(
+            (id) => typeof id === "string" && youtubeVideoIdPattern.test(id),
+          ),
+        ),
+      ].slice(0, 6)
+    : [];
 }
 
 export function youtubeVideoAllowed(item, kind = "video") {
@@ -1844,7 +1857,8 @@ export function createService({ token, origins, authorizeAccount }) {
         delete vault.accounts[userId];
         await writeYoutubeVault(vault);
         youtubeDevices.delete(userId);
-        youtubeCache.delete(`account:${userId}`);
+        for (const key of youtubeCache.keys())
+          if (key.startsWith(`account:${userId}:`)) youtubeCache.delete(key);
         youtubeFeedRotations.delete(userId);
         youtubeSubscriptionOffsets.delete(userId);
         return send(200, { connected: false });
@@ -1918,20 +1932,24 @@ export function createService({ token, origins, authorizeAccount }) {
             connected: true,
             channel: channel.items?.[0]?.snippet ?? null,
           });
-        const accountCacheKey = `account:${userId}`;
+        const recentVideoIds = youtubeRecentVideoIds(body.recentVideoIds);
+        const accountCacheKey = `account:${userId}:${recentVideoIds.join(",")}`;
         const cachedAccount = youtubeCache.get(accountCacheKey);
         const rotateAccount = (account) => {
           const rotation = youtubeFeedRotations.get(userId) ?? 0;
           youtubeFeedRotations.set(userId, rotation + 1);
           return rotateYoutubeAccount(account, rotation);
         };
-        if (cachedAccount?.expires > Date.now())
+        if (
+          cachedAccount?.expires > Date.now() &&
+          (body.refresh !== true || Date.now() - cachedAccount.fetchedAt < 30_000)
+        )
           return send(200, rotateAccount(cachedAccount.account));
         const [subscriptions, playlists, activities] = await Promise.all([
           youtubeApi(userId, "subscriptions", {
             part: "snippet",
             mine: "true",
-            maxResults: 30,
+            maxResults: 50,
             order: "relevance",
           }),
           youtubeApi(userId, "playlists", {
@@ -1984,24 +2002,118 @@ export function createService({ token, origins, authorizeAccount }) {
             (subscriptionOffset + subscriptionSample.length) %
               subscriptionItems.length,
           );
-        const subscriptionActivity = await Promise.all(
-          subscriptionSample.map((subscription) =>
-            youtubeApi(userId, "activities", {
-              part: "snippet,contentDetails",
-              channelId: subscription.id,
-              maxResults: 3,
-            }),
+        const recentlyWatched = recentVideoIds.length
+          ? await youtubeApi(userId, "videos", {
+              part: "snippet",
+              id: recentVideoIds.join(","),
+              maxResults: 6,
+            }).catch(() => null)
+          : null;
+        const recentChannelIds = [
+          ...new Set(
+            (recentlyWatched?.items ?? [])
+              .map((item) => item?.snippet?.channelId)
+              .filter(
+                (id) =>
+                  typeof id === "string" && /^[A-Za-z0-9_-]{10,64}$/.test(id),
+              ),
+          ),
+        ].slice(0, 4);
+        const feedChannelIds = [
+          ...new Set([
+            ...recentChannelIds,
+            ...subscriptionSample.map((subscription) => subscription.id),
+          ]),
+        ];
+        const feedChannels = feedChannelIds.length
+          ? await youtubeApi(userId, "channels", {
+              part: "contentDetails",
+              id: feedChannelIds.join(","),
+              maxResults: 16,
+            }).catch(() => null)
+          : null;
+        const uploadsByChannel = new Map(
+          (feedChannels?.items ?? []).map((item) => [
+            item?.id,
+            item?.contentDetails?.relatedPlaylists?.uploads,
+          ]),
+        );
+        const uploadLists = await Promise.all(
+          feedChannelIds.map((channelId) => {
+            const playlistId = uploadsByChannel.get(channelId);
+            return playlistId
+              ? youtubeApi(userId, "playlistItems", {
+                  part: "snippet,contentDetails,status",
+                  playlistId,
+                  maxResults: 12,
+                }).catch(() => null)
+              : null;
+          }),
+        );
+        const fallbackActivity = new Map(
+          await Promise.all(
+            feedChannelIds
+              .filter((channelId) => {
+                const index = feedChannelIds.indexOf(channelId);
+                return !(uploadLists[index]?.items?.length > 0);
+              })
+              .map(async (channelId) => [
+                channelId,
+                await youtubeApi(userId, "activities", {
+                  part: "snippet,contentDetails",
+                  channelId,
+                  maxResults: 12,
+                }).catch(() => null),
+              ]),
           ),
         );
+        const selectionFromUpload = (item) => ({
+          videoId:
+            item?.contentDetails?.videoId ??
+            item?.snippet?.resourceId?.videoId ??
+            "",
+          title: String(item?.snippet?.title ?? "YouTube video").slice(0, 300),
+          channel: String(item?.snippet?.videoOwnerChannelTitle ?? "").slice(
+            0,
+            200,
+          ),
+          thumbnail: String(
+            item?.snippet?.thumbnails?.medium?.url ??
+              item?.snippet?.thumbnails?.default?.url ??
+              "",
+          ),
+        });
+        const uploadsFor = (channelIds) =>
+          channelIds.flatMap((channelId) => {
+            const index = feedChannelIds.indexOf(channelId);
+            const uploads = uploadLists[index]?.items ?? [];
+            return uploads.length
+              ? uploads
+                  .filter((item) => item?.status?.privacyStatus !== "private")
+                  .map(selectionFromUpload)
+              : (fallbackActivity.get(channelId)?.items ?? []).map(
+                  selectionFromActivity,
+                );
+          });
+        const recentCandidates = uploadsFor(recentChannelIds).filter(
+          (item) =>
+            youtubeVideoIdPattern.test(item.videoId) &&
+            !recentVideoIds.includes(item.videoId),
+        );
         const feedCandidates = [
-          ...subscriptionActivity.flatMap((payload) =>
-            (payload?.items ?? []).map(selectionFromActivity),
+          ...uploadsFor(
+            subscriptionSample.map((subscription) => subscription.id),
           ),
           ...(activities?.items ?? []).map(selectionFromActivity),
-        ].filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
+        ].filter((item) => youtubeVideoIdPattern.test(item.videoId));
         const uniqueFeed = [
           ...new Map(
             feedCandidates.map((item) => [item.videoId, item]),
+          ).values(),
+        ].slice(0, 160);
+        const uniqueRecentFeed = [
+          ...new Map(
+            recentCandidates.map((item) => [item.videoId, item]),
           ).values(),
         ].slice(0, 48);
         const watchLaterId = String(
@@ -2068,6 +2180,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const detailIds = [
           ...new Set([
             ...uniqueFeed.map((item) => item.videoId),
+            ...uniqueRecentFeed.map((item) => item.videoId),
             ...playlistSelections.map((item) => item.videoId),
           ]),
         ];
@@ -2111,6 +2224,9 @@ export function createService({ token, origins, authorizeAccount }) {
           };
         };
         const decoratedFeed = uniqueFeed.map(decorate).filter(Boolean);
+        const decoratedRecentFeed = uniqueRecentFeed
+          .map(decorate)
+          .filter((item) => item?.kind === "video");
         const decoratedPlaylists = playlistSelections
           .map(decorate)
           .filter(Boolean);
@@ -2122,11 +2238,15 @@ export function createService({ token, origins, authorizeAccount }) {
           playlists: decoratedPlaylists,
           videoFeed: decoratedFeed.filter((item) => item.kind === "video"),
           musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
+          recentFeed: decoratedRecentFeed,
         };
         youtubeCache.set(accountCacheKey, {
           account,
-          expires: Date.now() + 5 * 60_000,
+          fetchedAt: Date.now(),
+          expires: Date.now() + 2 * 60_000,
         });
+        while (youtubeCache.size > 100)
+          youtubeCache.delete(youtubeCache.keys().next().value);
         return send(200, rotateAccount(account));
       }
       if (route.pathname === "/youtube/search") {

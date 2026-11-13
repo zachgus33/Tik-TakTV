@@ -9,6 +9,7 @@ import {
   resolveTarget,
   rewritePlaylist,
   rotateYoutubeAccount,
+  youtubeRecentVideoIds,
   safeDownloadName,
   sourceHeaders,
   youtubeVideoAllowed,
@@ -23,16 +24,34 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
     musicFeed: Array.from({ length: 7 }, (_, index) => ({
       videoId: `music-${index}`,
     })),
+    recentFeed: Array.from({ length: 5 }, (_, index) => ({
+      videoId: `recent-${index}`,
+    })),
   };
   const first = rotateYoutubeAccount(account, 0);
   const second = rotateYoutubeAccount(account, 1);
   assert.notEqual(first.videoFeed[0].videoId, second.videoFeed[0].videoId);
   assert.notEqual(first.musicFeed[0].videoId, second.musicFeed[0].videoId);
+  assert.notEqual(first.recentFeed[0].videoId, second.recentFeed[0].videoId);
   assert.deepEqual(
     new Set(second.videoFeed.map((item) => item.videoId)),
     new Set(first.videoFeed.map((item) => item.videoId)),
   );
   assert.equal(account.videoFeed[0].videoId, "video-0");
+});
+
+test("YouTube recent-video seeds are validated and bounded", () => {
+  assert.deepEqual(
+    youtubeRecentVideoIds([
+      "dQw4w9WgXcQ",
+      "dQw4w9WgXcQ",
+      "M7lc1UVf-VE",
+      "invalid",
+      42,
+    ]),
+    ["dQw4w9WgXcQ", "M7lc1UVf-VE"],
+  );
+  assert.deepEqual(youtubeRecentVideoIds(null), []);
 });
 
 test("YouTube search rejects blocked embeds for video and music", () => {

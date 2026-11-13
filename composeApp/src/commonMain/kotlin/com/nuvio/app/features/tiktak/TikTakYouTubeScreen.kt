@@ -34,6 +34,7 @@ import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.tikTakTvFocus
+import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -67,6 +68,7 @@ private data class YouTubeSearchResponse(
 private data class YouTubeAccountResponse(
     val connected: Boolean = false,
     val videoFeed: List<TikTakYouTubeItem> = emptyList(),
+    val recentFeed: List<TikTakYouTubeItem> = emptyList(),
     val musicFeed: List<TikTakYouTubeItem> = emptyList(),
     val activity: List<TikTakYouTubeItem> = emptyList(),
     val playlists: List<TikTakYouTubeItem> = emptyList(),
@@ -74,7 +76,15 @@ private data class YouTubeAccountResponse(
     val error: String? = null,
 )
 
+@Serializable
+private data class YouTubeAccountRequest(
+    val summary: Boolean = false,
+    val refresh: Boolean = false,
+    val recentVideoIds: List<String> = emptyList(),
+)
+
 private val YouTubeJson = Json { ignoreUnknownKeys = true }
+private val YouTubeVideoIdPattern = Regex("^[A-Za-z0-9_-]{11}$")
 
 @Composable
 fun TikTakYouTubeScreen(
@@ -85,15 +95,26 @@ fun TikTakYouTubeScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("video") }
     var accountItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
+    var recentItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var playlistItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var subscriptions by remember { mutableStateOf<List<TikTakYouTubeSubscription>>(emptyList()) }
     var results by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var accountLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    suspend fun loadAccount() {
+    suspend fun loadAccount(refresh: Boolean = false) {
+        accountLoading = true
         runCatching {
-            val response = TikTakServiceClient.post("/youtube/account", "{\"summary\":false}")
+            val recentVideoIds = WatchProgressRepository.uiState.value.entries
+                .filter { it.contentType.equals("youtube", ignoreCase = true) || it.parentMetaId.startsWith("youtube:", ignoreCase = true) }
+                .sortedByDescending { it.lastUpdatedEpochMs }
+                .map { it.videoId }
+                .filter(YouTubeVideoIdPattern::matches)
+                .distinct()
+                .take(6)
+            val body = YouTubeJson.encodeToString(YouTubeAccountRequest(refresh = refresh, recentVideoIds = recentVideoIds))
+            val response = TikTakServiceClient.post("/youtube/account", body)
             val payload = YouTubeJson.decodeFromString<YouTubeAccountResponse>(response.body)
             if (response.status !in 200..299) error(payload.error ?: "YouTube account could not be loaded.")
             payload
@@ -103,7 +124,10 @@ fun TikTakYouTubeScreen(
             // devices, and unbounded artwork decoding can freeze Fire TV.
             accountItems = (if (kind == "music") payload.musicFeed else payload.videoFeed.ifEmpty { payload.activity })
                 .distinctBy(TikTakYouTubeItem::stableKey)
-                .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+                .take(MAX_YOUTUBE_FEED_ITEMS)
+            recentItems = if (kind == "video") payload.recentFeed
+                .distinctBy(TikTakYouTubeItem::stableKey)
+                .take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
             playlistItems = payload.playlists
                 .filter { item -> item.kind == null || item.kind == kind }
                 .distinctBy(TikTakYouTubeItem::stableKey)
@@ -111,6 +135,7 @@ fun TikTakYouTubeScreen(
             subscriptions = if (kind == "video") payload.subscriptions.take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
         }
             .onFailure { error = it.message }
+        accountLoading = false
     }
 
     fun search() {
@@ -159,9 +184,10 @@ fun TikTakYouTubeScreen(
 
     LaunchedEffect(kind) {
         accountItems = emptyList()
+        recentItems = emptyList()
         playlistItems = emptyList()
         subscriptions = emptyList()
-        loadAccount()
+        loadAccount(false)
     }
 
     LazyColumn(
@@ -195,6 +221,12 @@ fun TikTakYouTubeScreen(
                         shape = RoundedCornerShape(12.dp),
                     ) { Text(label) }
                 }
+                Button(
+                    onClick = { scope.launch { loadAccount(true) } },
+                    enabled = !accountLoading,
+                    modifier = Modifier.tikTakTvFocus(),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text(if (accountLoading) "Refreshing…" else "Refresh suggestions") }
             }
         }
         item {
@@ -223,6 +255,9 @@ fun TikTakYouTubeScreen(
         }
         if (results.isNotEmpty()) {
             item { YouTubeRow("Search results", results, onPlay) }
+        }
+        if (kind == "video" && recentItems.isNotEmpty()) {
+            item { YouTubeRow("Inspired by your recent watches", recentItems, onPlay) }
         }
         if (accountItems.isNotEmpty()) {
             item { YouTubeRow(if (kind == "music") "Your music" else "Videos for you", accountItems, onPlay) }
@@ -295,3 +330,4 @@ private fun TikTakYouTubeItem.stableKey(): String =
         ?: "title:${title.trim().lowercase()}:${channel.orEmpty().trim().lowercase()}"
 
 private const val MAX_VISIBLE_YOUTUBE_ITEMS = 72
+private const val MAX_YOUTUBE_FEED_ITEMS = 160
