@@ -1480,6 +1480,59 @@ private fun MainAppContent(
             navController.navigate(PlayerRoute(launchId = launchId))
         }
 
+        suspend fun launchYouTubeVideo(
+            item: TikTakYouTubeItem,
+            resumePositionMs: Long = 0L,
+            resumeProgressFraction: Float? = null,
+        ) {
+            val videoId = item.videoId
+            if (videoId.isNullOrBlank()) {
+                NuvioToastController.show("Choose a video from this playlist to play it.")
+                return
+            }
+            // Resolve a fresh stream URL. YouTube's extracted URLs can expire between sessions.
+            val source = TrailerPlaybackResolver.resolveFromYouTubeUrl(
+                "https://www.youtube.com/watch?v=$videoId",
+            )
+            if (source == null) {
+                NuvioToastController.show("This YouTube item could not be played.")
+                return
+            }
+            launchPlayer(
+                PlayerLaunch(
+                    profileId = activePlaybackProfileId,
+                    title = item.title,
+                    sourceUrl = source.videoUrl,
+                    sourceAudioUrl = source.audioUrl,
+                    sourceQualities = source.qualities.map { quality ->
+                        PlayerQualityVariant(
+                            id = "youtube-${quality.height}",
+                            name = "${quality.height}p",
+                            width = null,
+                            height = quality.height,
+                            bandwidth = null,
+                            codecs = "avc1",
+                            audioGroupId = null,
+                            absoluteUri = quality.videoUrl,
+                            playbackUrl = quality.videoUrl,
+                            audioUrl = quality.audioUrl,
+                        )
+                    },
+                    poster = item.thumbnail,
+                    streamTitle = item.title,
+                    streamSubtitle = item.channel,
+                    providerName = "YouTube",
+                    providerAddonId = "tiktak:youtube",
+                    contentType = "youtube",
+                    videoId = videoId,
+                    parentMetaId = "youtube:$videoId",
+                    parentMetaType = "youtube",
+                    initialPositionMs = resumePositionMs.coerceAtLeast(0L),
+                    initialProgressFraction = resumeProgressFraction,
+                ),
+            )
+        }
+
         suspend fun openDownloadedItem(item: DownloadItem) {
             val sourceUrl = DownloadsRepository.playableLocalFileUri(item) ?: return
             val resumeEntry = item.videoId
@@ -1898,7 +1951,20 @@ private fun MainAppContent(
 
         val openContinueWatching: (ContinueWatchingItem, Boolean, Boolean) -> Unit = { item, manualSelection, startFromBeginning ->
             resumePromptItem = null
-            if (item.isCloudLibraryContinueWatchingItem()) {
+            val youtubeVideoId = item.youtubeVideoIdOrNull()
+            if (youtubeVideoId != null) {
+                coroutineScope.launch {
+                    launchYouTubeVideo(
+                        item = TikTakYouTubeItem(
+                            videoId = youtubeVideoId,
+                            title = item.title,
+                            thumbnail = item.poster ?: item.imageUrl,
+                        ),
+                        resumePositionMs = if (startFromBeginning) 0L else item.resumePositionMs,
+                        resumeProgressFraction = if (startFromBeginning) null else item.resumeProgressFraction,
+                    )
+                }
+            } else if (item.isCloudLibraryContinueWatchingItem()) {
                 coroutineScope.launch {
                     when (
                         val lookup = CloudLibraryRepository.findPlaybackTargetForProgressResult(
@@ -2159,49 +2225,7 @@ private fun MainAppContent(
                                         onLiveTvSettingsClick = { handleRootTabClick(AppScreenTab.LiveTv) },
                                         onYouTubePlay = { item ->
                                             coroutineScope.launch {
-                                                val videoId = item.videoId
-                                                if (videoId.isNullOrBlank()) {
-                                                    NuvioToastController.show("Choose a video from this playlist to play it.")
-                                                    return@launch
-                                                }
-                                                val source = TrailerPlaybackResolver.resolveFromYouTubeUrl(
-                                                    "https://www.youtube.com/watch?v=$videoId",
-                                                )
-                                                if (source == null) {
-                                                    NuvioToastController.show("This YouTube item could not be played.")
-                                                    return@launch
-                                                }
-                                                launchPlayer(
-                                                    PlayerLaunch(
-                                                        profileId = activePlaybackProfileId,
-                                                        title = item.title,
-                                                        sourceUrl = source.videoUrl,
-                                                        sourceAudioUrl = source.audioUrl,
-                                                        sourceQualities = source.qualities.map { quality ->
-                                                            PlayerQualityVariant(
-                                                                id = "youtube-${quality.height}",
-                                                                name = "${quality.height}p",
-                                                                width = null,
-                                                                height = quality.height,
-                                                                bandwidth = null,
-                                                                codecs = "avc1",
-                                                                audioGroupId = null,
-                                                                absoluteUri = quality.videoUrl,
-                                                                playbackUrl = quality.videoUrl,
-                                                                audioUrl = quality.audioUrl,
-                                                            )
-                                                        },
-                                                        poster = item.thumbnail,
-                                                        streamTitle = item.title,
-                                                        streamSubtitle = item.channel,
-                                                        providerName = "YouTube",
-                                                        providerAddonId = "tiktak:youtube",
-                                                        contentType = "youtube",
-                                                        videoId = videoId,
-                                                        parentMetaId = "youtube:$videoId",
-                                                        parentMetaType = "youtube",
-                                                    ),
-                                                )
+                                                launchYouTubeVideo(item)
                                             }
                                         },
                                         onLibraryPosterClick = { item ->
@@ -4369,6 +4393,17 @@ private fun TabletFloatingTopBar(
             }
         }
     }
+}
+
+internal fun ContinueWatchingItem.youtubeVideoIdOrNull(): String? {
+    val parentVideoId = parentMetaId.takeIf { it.startsWith("youtube:", ignoreCase = true) }
+        ?.substringAfter(':')
+        ?.takeIf(String::isNotBlank)
+    if (parentVideoId == null &&
+        !parentMetaType.equals("youtube", ignoreCase = true) &&
+        !videoId.startsWith("youtube:", ignoreCase = true)
+    ) return null
+    return parentVideoId ?: videoId.substringAfter(':', videoId).takeIf(String::isNotBlank)
 }
 
 private fun ContinueWatchingItem.isCloudLibraryContinueWatchingItem(): Boolean =
