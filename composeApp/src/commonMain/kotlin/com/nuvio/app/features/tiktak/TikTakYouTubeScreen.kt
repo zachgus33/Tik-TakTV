@@ -256,11 +256,16 @@ fun TikTakYouTubeScreen(
         if (results.isNotEmpty()) {
             item { YouTubeRow("Search results", results, onPlay) }
         }
+        if (accountItems.isNotEmpty()) {
+            item { YouTubeRow(if (kind == "music") "Your music" else "For You", accountItems, onPlay) }
+        } else if (kind == "video" && !accountLoading) {
+            item {
+                Text("For You", style = MaterialTheme.typography.titleLarge)
+                Text("No suggestions yet. Refresh suggestions or search for a video.")
+            }
+        }
         if (kind == "video" && recentItems.isNotEmpty()) {
             item { YouTubeRow("Related uploads from channels you watched", recentItems, onPlay) }
-        }
-        if (accountItems.isNotEmpty()) {
-            item { YouTubeRow(if (kind == "music") "Your music" else if (subscriptions.isNotEmpty()) "Latest from your subscriptions" else "Recent YouTube videos", accountItems, onPlay) }
         }
         if (playlistItems.isNotEmpty()) {
             item { YouTubeRow(if (kind == "music") "Saved music & playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }

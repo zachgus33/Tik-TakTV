@@ -9,6 +9,7 @@ import {
   resolveTarget,
   rewritePlaylist,
   rotateYoutubeAccount,
+  youtubeForYouFeed,
   youtubeLongFormVideo,
   youtubeRecentVideoIds,
   youtubeTitlesRelated,
@@ -40,6 +41,17 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
     new Set(first.videoFeed.map((item) => item.videoId)),
   );
   assert.equal(account.videoFeed[0].videoId, "video-0");
+});
+
+test("For You survives subscriptions with no eligible video uploads", () => {
+  const watched = [{ videoId: "watched-channel-video" }];
+  const music = [{ videoId: "music-video" }];
+  assert.deepEqual(youtubeForYouFeed([], watched, music), watched);
+  assert.deepEqual(youtubeForYouFeed([], [], music), music);
+  assert.deepEqual(
+    youtubeForYouFeed([{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
+    ["subscription-video", "watched-channel-video"],
+  );
 });
 
 test("YouTube recent-video seeds are validated and bounded", () => {

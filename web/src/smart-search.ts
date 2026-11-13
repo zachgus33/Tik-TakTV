@@ -1,9 +1,9 @@
-function normalizeSearchText(value: string) {
+export function normalizeSearchText(value: string) {
   return value
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\p{M}/gu, "")
     .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
 }
@@ -30,16 +30,23 @@ export function rankExactTitleFirst<T extends { name: string }>(
   items: T[],
   query: string,
 ) {
-  return [...items].sort(
-    (left, right) =>
-      Number(
-        right.name.localeCompare(query, undefined, { sensitivity: "base" }) ===
-          0,
-      ) -
-      Number(
-        left.name.localeCompare(query, undefined, { sensitivity: "base" }) ===
-          0,
-      ),
+  const normalizedQuery = normalizeSearchText(query);
+  const score = (name: string) => {
+    const title = normalizeSearchText(name);
+    if (!normalizedQuery) return 0;
+    if (title === normalizedQuery) return 4;
+    if (title.startsWith(`${normalizedQuery} `)) return 3;
+    if (title.includes(` ${normalizedQuery} `) || title.endsWith(` ${normalizedQuery}`)) return 2;
+    if (title.includes(normalizedQuery)) return 1;
+    return 0;
+  };
+  return [...items].sort((left, right) => score(right.name) - score(left.name));
+}
+
+export function hasRelevantTitle(query: string, titles: string[]) {
+  const normalizedQuery = normalizeSearchText(query);
+  return !!normalizedQuery && titles.some((title) =>
+    normalizeSearchText(title).includes(normalizedQuery),
   );
 }
 

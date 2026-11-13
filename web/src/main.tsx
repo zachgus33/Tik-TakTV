@@ -87,7 +87,7 @@ const isTvShell =
 if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
   const registerServiceWorker = () => {
     let refreshing = false;
-    const replacingExistingWorker = !!navigator.serviceWorker.controller;
+    let replacingExistingWorker = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (refreshing || !replacingExistingWorker) return;
       refreshing = true;
@@ -96,6 +96,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
+        replacingExistingWorker = replacingExistingWorker || !!registration.active;
         const activate = () =>
           registration.waiting?.postMessage({ type: "SKIP_WAITING" });
         (
@@ -112,7 +113,18 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
             }
           }),
         );
-        void registration.update();
+        const checkForUpdate = () => {
+          if (navigator.onLine) void registration.update().catch(() => {});
+        };
+        const checkWhenVisible = () => {
+          if (document.visibilityState === "visible") checkForUpdate();
+        };
+        window.addEventListener("online", checkForUpdate);
+        document.addEventListener("visibilitychange", checkWhenVisible);
+        // Installed iOS PWAs can stay open for days without a navigation.
+        // Check on resume and while visible so the old app shell is replaced.
+        window.setInterval(checkWhenVisible, 15 * 60_000);
+        checkForUpdate();
       })
       .catch(() => {
         /* App remains usable when storage is disabled. */

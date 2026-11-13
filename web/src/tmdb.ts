@@ -71,7 +71,7 @@ export async function searchTmdbTitles(
     "search/multi",
     {
       query: query.trim(),
-      language: "en-US",
+      language: /[\u0600-\u06ff]/.test(query) ? "ar-SA" : "en-US",
       page: "1",
       include_adult: "false",
     },

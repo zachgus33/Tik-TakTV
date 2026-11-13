@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Folder, Play } from "lucide-react";
-import { catalog, safeUrl } from "./api";
+import { catalog, safeSourceUrl, safeUrl } from "./api";
+import { relayedArtwork } from "./ChannelArt";
 import {
   type Collection,
   type CollectionFolder,
   type CollectionSource,
   folderLabel,
-  sourceAddon,
+  sourceCatalog,
 } from "./collections";
 import { tmdbCollection } from "./tmdb";
 import { itemKey, type Addon, type Item } from "./types";
@@ -34,10 +35,7 @@ function rowTitle(
 ) {
   const explicit = typeof source.title === "string" ? source.title.trim() : "";
   if (explicit) return explicit;
-  const addon = sourceAddon(source, addons);
-  const catalogName = addon?.manifest.catalogs?.find(
-    (entry) => entry.id === source.catalogId && entry.type === source.type,
-  )?.name;
+  const catalogName = sourceCatalog(source, addons)?.catalog.name;
   if (catalogName) return catalogName;
   const media = ["tv", "series"].includes(
     String(source.mediaType ?? source.type).toLowerCase(),
@@ -64,14 +62,14 @@ async function resolveSource(
     return tmdbCollection(source, signal);
   if (source.provider && source.provider !== "addon")
     throw new Error(`${source.provider} is not available in the web app.`);
-  const addon = sourceAddon(source, addons);
-  if (!addon) throw new Error("The add-on used by this row is not installed.");
+  const resolved = sourceCatalog(source, addons);
+  if (!resolved) throw new Error("The add-on catalog used by this row is not available.");
   if (!source.catalogId || !source.type)
     throw new Error("This Nuvio source is missing its catalog information.");
   return catalog(
-    addon,
+    resolved.addon,
     source.type,
-    source.catalogId,
+    resolved.catalog.id,
     "",
     signal,
     source.genre,
@@ -85,16 +83,36 @@ function MediaCard({
   item: Item;
   onOpen: (item: Item) => void;
 }) {
-  const poster = safeUrl(item.poster);
+  const poster = safeSourceUrl(item.poster);
+  const [displayPoster, setDisplayPoster] = useState(
+    poster?.startsWith("http:") ? "" : poster ?? "",
+  );
+  useEffect(() => {
+    let cancelled = false;
+    setDisplayPoster(poster?.startsWith("http:") ? "" : poster ?? "");
+    if (poster?.startsWith("http:"))
+      void relayedArtwork(poster).then(
+        (url) => { if (!cancelled) setDisplayPoster(url); },
+        () => {},
+      );
+    return () => { cancelled = true; };
+  }, [poster]);
   return (
     <button className="media-card" onClick={() => onOpen(item)}>
       <div className="poster">
-        {poster ? (
+        {displayPoster ? (
           <img
-            src={poster}
+            src={displayPoster}
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
+            onError={() => {
+              if (!poster || displayPoster !== poster) {
+                setDisplayPoster("");
+                return;
+              }
+              void relayedArtwork(poster).then(setDisplayPoster, () => setDisplayPoster(""));
+            }}
           />
         ) : (
           <div className="art-fallback">

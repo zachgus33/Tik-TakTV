@@ -7,7 +7,9 @@ import {
   parseCollections,
   parseTransfer,
   mergeCollections,
+  sourceCatalog,
 } from "../src/collections";
+
 import {
   catalogChoices,
   completeCatalogSettings,
@@ -47,6 +49,25 @@ import {
 import { persistableSetup } from "../src/account-isolation";
 import { clearAccountStorage } from "../src/storage";
 import { beginProfileSync, profileSyncKey } from "../src/profile-sync";
+
+describe("custom collection catalog resolution", () => {
+  it("keeps a configured catalog when the default add-on is disabled", () => {
+    const disabled = {
+      base: "https://default.example",
+      enabled: false,
+      manifest: { id: "catalog", name: "Default", catalogs: [{ id: "arabic", type: "movie" }] },
+    };
+    const configured = {
+      base: "https://configured.example",
+      enabled: true,
+      manifest: { id: "catalog", name: "Configured", catalogs: [{ id: "arabic", type: "movie" }] },
+    };
+    expect(sourceCatalog(
+      { provider: "addon", addonId: "catalog", type: "movie", catalogId: "arabic,genre" },
+      [disabled, configured],
+    )).toEqual({ addon: configured, catalog: configured.manifest.catalogs[0] });
+  });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -642,17 +663,17 @@ describe("720p+ preference and safe episode matching", () => {
     const ready = {
       name: "[TB+] Torrentio 720p",
       title: "Episode \u{1F464} 170 \u{1F4BE} 500 MB",
-      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mkv",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mp4",
     };
     const download = {
       name: "[TB download] Torrentio 1080p",
       title: "Episode \u{1F464} 900 \u{1F4BE} 2 GB",
-      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mkv",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/0/file.mp4",
     };
     const malformed = {
       name: "[TB+] Torrentio 1080p",
       title: "Episode \u{1F464} 800 \u{1F4BE} 2 GB",
-      url: "https://torrentio.example/resolve/torbox/token/hash/file/undefined/file.mkv",
+      url: "https://torrentio.example/resolve/torbox/token/hash/file/undefined/file.mp4",
     };
     expect(autoplayStreams([download, malformed, ready], true)).toEqual([
       ready,
@@ -782,6 +803,16 @@ describe("720p+ preference and safe episode matching", () => {
       url: "https://torrentsdb.com/play.mkv",
     };
     expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
+  });
+  it("only autoplays streams that can play without compatibility conversion", () => {
+    const mkv = { name: "1080p", url: "https://cdn.example/movie.mkv" };
+    const webReady = { name: "720p", url: "https://cdn.example/movie.mp4" };
+    const flagged = {
+      name: "2160p",
+      url: "https://cdn.example/movie.mp4",
+      behaviorHints: { notWebReady: true },
+    };
+    expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([webReady]);
   });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [

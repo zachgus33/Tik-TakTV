@@ -226,6 +226,16 @@ export function rotateYoutubeAccount(account, rotation = 0) {
   };
 }
 
+export function youtubeForYouFeed(subscriptionVideos, watchedChannelVideos, musicVideos) {
+  const unique = (items) => [
+    ...new Map(items.filter((item) => item?.videoId).map((item) => [item.videoId, item])).values(),
+  ];
+  const videos = unique([...subscriptionVideos, ...watchedChannelVideos]);
+  // Music uploads are still videos. Use them only when subscriptions and
+  // watched channels have no eligible long-form uploads.
+  return videos.length ? videos : unique(musicVideos);
+}
+
 export function youtubeRecentVideoIds(value) {
   return Array.isArray(value)
     ? [
@@ -2277,10 +2287,11 @@ export function createService({ token, origins, authorizeAccount }) {
           titles.push(item?.snippet?.title ?? "");
           watchedTitlesByChannel.set(channelId, titles);
         }
-        const decoratedRecentFeed = uniqueRecentFeed
+        const watchedChannelVideos = uniqueRecentFeed
           .map(decorate)
+          .filter((item) => item?.kind === "video");
+        const decoratedRecentFeed = watchedChannelVideos
           .filter((item) =>
-            item?.kind === "video" &&
             (watchedTitlesByChannel.get(
               detailsById.get(item.videoId)?.snippet?.channelId,
             ) ?? []).some((title) => youtubeTitlesRelated(title, item.title)),
@@ -2295,9 +2306,15 @@ export function createService({ token, origins, authorizeAccount }) {
           channel: channel.items?.[0]?.snippet ?? null,
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
-          videoFeed: decoratedFeed
-            .filter((item) => item.kind === "video")
-            .slice(0, 160),
+          videoFeed: youtubeForYouFeed(
+            decoratedFeed.filter((item) => item.kind === "video"),
+            watchedChannelVideos,
+            decoratedFeed.filter(
+              (item) =>
+                item.kind === "music" &&
+                youtubeLongFormVideo(detailsById.get(item.videoId)),
+            ),
+          ).slice(0, 160),
           musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
           recentFeed: decoratedRecentFeed,
         };

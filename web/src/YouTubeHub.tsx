@@ -770,6 +770,55 @@ export default function YouTubeHub({
     return () => window.removeEventListener("keydown", handleKeys, true);
   }, [tvMode, selection, playing, revealTvControls]);
 
+  const suggestions = kind === "music" ? account?.musicFeed ?? [] : account?.videoFeed ?? [];
+  const forYouSection = (
+    <>
+      {kind === "video" && !accountBusy && !account?.connected && (
+        <section className="youtube-section">
+          <h2>For You</h2>
+          <p className="youtube-feed-empty">
+            Connect your YouTube account below to see video suggestions here.
+          </p>
+        </section>
+      )}
+      {!!account?.connected && (
+        <section className="youtube-section">
+          <h2>{kind === "music" ? "Your music" : "For You"}</h2>
+          {!suggestions.length ? (
+            <p className="youtube-feed-empty">
+              No suggestions are available yet. Refresh suggestions or search for a video.
+            </p>
+          ) : (
+            <div className="youtube-grid">
+              {suggestions.slice(0, visibleFeedCount).map((item, index) => (
+                <button
+                  key={`${item.videoId}-${index}`}
+                  className="youtube-card"
+                  onClick={() => void select(item)}
+                >
+                  <img src={item.thumbnail} alt="" loading="lazy" />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.channel}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="youtube-feed-actions">
+            {visibleFeedCount < suggestions.length && (
+              <button onClick={() => setVisibleFeedCount((count) => count + 24)}>
+                Show more videos
+              </button>
+            )}
+            <button disabled={accountBusy} onClick={() => void loadAccount(true)}>
+              {accountBusy ? "Refreshing…" : "Refresh suggestions"}
+            </button>
+          </div>
+        </section>
+      )}
+    </>
+  );
   return (
     <div className="youtube-hub">
       <section className="youtube-heading">
@@ -802,6 +851,8 @@ export default function YouTubeHub({
           </button>
         </div>
       </section>
+
+      {forYouSection}
 
       <section className="youtube-account-card" aria-label="YouTube account">
         <div>
@@ -1143,7 +1194,7 @@ export default function YouTubeHub({
           <section className="youtube-section">
             <h2>Related uploads from channels you watched</h2>
             <div className="youtube-grid">
-              {account.recentFeed.map((item) => (
+              {account.recentFeed.slice(0, 12).map((item) => (
                 <button
                   key={item.videoId}
                   className="youtube-card"
@@ -1156,54 +1207,6 @@ export default function YouTubeHub({
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-        )}
-
-      {!!account?.connected &&
-        !!(kind === "music" ? account.musicFeed : account.videoFeed)
-          ?.length && (
-          <section className="youtube-section">
-            <h2>
-              {kind === "music"
-                ? "Your music"
-                : account.subscriptions?.length
-                  ? "Latest from your subscriptions"
-                  : "Recent YouTube videos"}
-            </h2>
-            <div className="youtube-grid">
-              {(kind === "music" ? account.musicFeed : account.videoFeed)!
-                .slice(0, visibleFeedCount)
-                .map((item, index) => (
-                  <button
-                    key={`${item.videoId}-${index}`}
-                    className="youtube-card"
-                    onClick={() => void select(item)}
-                  >
-                    <img src={item.thumbnail} alt="" loading="lazy" />
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{item.channel}</small>
-                    </span>
-                  </button>
-                ))}
-            </div>
-            <div className="youtube-feed-actions">
-              {visibleFeedCount <
-                (kind === "music" ? account.musicFeed : account.videoFeed)!
-                  .length && (
-                <button
-                  onClick={() => setVisibleFeedCount((count) => count + 24)}
-                >
-                  Show more videos
-                </button>
-              )}
-              <button
-                disabled={accountBusy}
-                onClick={() => void loadAccount(true)}
-              >
-                {accountBusy ? "Refreshing…" : "Refresh suggestions"}
-              </button>
             </div>
           </section>
         )}

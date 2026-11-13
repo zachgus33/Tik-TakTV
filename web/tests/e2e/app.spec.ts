@@ -367,6 +367,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await page.route("https://playback.example/sponsorblock", (route) =>
     route.fulfill({ json: { segments: [] } }),
   );
+  await page.route("https://img.example/**", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#30213f"/><circle cx="320" cy="180" r="60" fill="#9b5cff"/><path d="M304 146v68l55-34z" fill="white"/></svg>',
+    }),
+  );
   await page.goto("/#youtube");
   await expect(
     page.getByRole("heading", { name: "YouTube", exact: true }),
@@ -377,8 +383,14 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
     page.getByRole("heading", { name: "Related uploads from channels you watched" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Latest from your subscriptions" }),
+    page.getByRole("heading", { name: "For You", exact: true }),
   ).toBeVisible();
+  const youtubeHeadings = await page.locator(".youtube-section h2").allTextContents();
+  expect(youtubeHeadings.indexOf("For You")).toBeLessThan(
+    youtubeHeadings.indexOf("Related uploads from channels you watched"),
+  );
+  if (testInfo.project.name === "iphone")
+    await page.screenshot({ path: "tests/visual/youtube-for-you-mobile-after.png" });
   await expect(page.getByText("More video 29")).toHaveCount(0);
   await page.getByRole("button", { name: "Show more videos" }).click();
   await expect(page.getByText("More video 29")).toBeVisible();

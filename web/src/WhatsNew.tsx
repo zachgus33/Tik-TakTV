@@ -1,13 +1,24 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.12.3";
+export const latestRelease = "2026.11.13.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 13, 2026",
+    title: "For You and web playback fixes",
+    changes: [
+      "For You is back near the top of YouTube on phones and displays suggestions even when subscriptions have no eligible uploads.",
+      "Installed PWAs check for updates when reopened or brought back to the foreground.",
+      "Play best stream now chooses a direct browser-playable source; other sources stay available through Find streams.",
+      "Arabic title search and custom catalog posters work with more add-ons, and remembered profiles open without the chooser.",
+    ],
+  },
+  {
+    version: "2026.11.12.3",
     date: "November 12, 2026",
     title: "YouTube browsing updates",
     changes: [

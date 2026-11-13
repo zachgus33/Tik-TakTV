@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   closestTitleCorrection,
   correctionSearchProbes,
+  hasRelevantTitle,
+  normalizeSearchText,
   rankExactTitleFirst,
 } from "../src/smart-search";
 
@@ -55,5 +57,14 @@ describe("smart title spelling", () => {
         "Game of Thrones",
       ).map((item) => item.name),
     ).toEqual(["Game of Thrones", "Aegon's Conquest"]);
+  });
+
+  it("keeps Arabic searches and ranks matching Arabic titles first", () => {
+    expect(normalizeSearchText("أفلام عربية")).toBe("افلام عربية");
+    expect(hasRelevantTitle("أفلام", ["أفضل أفلام عربية"])).toBe(true);
+    expect(rankExactTitleFirst(
+      [{ name: "Other movie" }, { name: "أفلام عربية" }],
+      "أفلام عربية",
+    )[0].name).toBe("أفلام عربية");
   });
 });

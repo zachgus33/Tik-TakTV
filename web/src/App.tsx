@@ -80,7 +80,7 @@ import {
 } from "./storage";
 import { WhatsNewPrompt } from "./WhatsNew";
 import { KoFiWidget } from "./KoFiWidget";
-import ChannelArt from "./ChannelArt";
+import ChannelArt, { relayedArtwork } from "./ChannelArt";
 import { beginProfileSync } from "./profile-sync";
 import {
   itemKey,
@@ -131,6 +131,7 @@ import { homeCatalogEntries } from "./catalog-settings";
 import {
   closestTitleCorrection,
   correctionSearchProbes,
+  hasRelevantTitle,
   rankExactTitleFirst,
 } from "./smart-search";
 
@@ -326,8 +327,10 @@ function ProfileGate({
       );
       const preferred =
         available.find((item) => item.profile_index === remembered) ??
-        available.find((item) => !item.pin_enabled);
-      if (preferred && !preferred.pin_enabled) await enter(preferred);
+        available.find((item) => !item.pin_enabled) ??
+        available[0];
+      if (preferred?.pin_enabled) setPinProfile(preferred);
+      else if (preferred) await enter(preferred);
     }
   }
   useEffect(() => {
@@ -473,7 +476,7 @@ function ProfileGate({
         </aside>
       )}
       <section>
-        <h1>{email ? "Who's watching?" : "Your entertainment, your way"}</h1>
+        <h1>{pinProfile ? `Unlock ${pinProfile.name}` : email ? "Who's watching?" : "Your entertainment, your way"}</h1>
         {!email && (
           <p className="profile-gate-intro">
             Sign in to restore your profiles and add-ons, or create a free Nuvio
@@ -494,7 +497,7 @@ function ProfileGate({
           <Loading />
         ) : email ? (
           <>
-            <div className="profile-choices">
+            {!pinProfile && <div className="profile-choices">
               {list.map((profile, index) => (
                 <button
                   key={profile.profile_index}
@@ -518,7 +521,7 @@ function ProfileGate({
                   {profile.pin_enabled && <small>PIN required</small>}
                 </button>
               ))}
-            </div>
+            </div>}
             {pinProfile && (
               <form
                 className="profile-pin"
@@ -705,17 +708,38 @@ function Art({
 }) {
   const [failed, setFailed] = useState(false);
   const src = wide ? (item.background ?? item.poster) : item.poster;
+  const [displaySrc, setDisplaySrc] = useState(
+    src?.startsWith("http:") ? "" : src ?? "",
+  );
+  useEffect(() => {
+    if (item.type === "live") return;
+    let cancelled = false;
+    setFailed(false);
+    setDisplaySrc(src?.startsWith("http:") ? "" : src ?? "");
+    if (src?.startsWith("http:"))
+      void relayedArtwork(src).then(
+        (url) => { if (!cancelled) setDisplaySrc(url); },
+        () => { if (!cancelled) setFailed(true); },
+      );
+    return () => { cancelled = true; };
+  }, [src, item.type]);
   if (item.type === "live")
     return <ChannelArt channel={item} guideArtwork={guideArtwork} />;
-  return src && !failed ? (
+  return displaySrc && !failed ? (
     <img
-      src={src}
+      src={displaySrc}
       alt=""
       loading={priority ? "eager" : "lazy"}
       fetchPriority={priority ? "high" : "auto"}
       decoding="async"
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => {
+        if (!src || displaySrc !== src) {
+          setFailed(true);
+          return;
+        }
+        void relayedArtwork(src).then(setDisplaySrc, () => setFailed(true));
+      }}
     />
   ) : (
     <div className="art-fallback" aria-hidden="true">
@@ -2270,10 +2294,13 @@ export default function App() {
                   : [],
               ),
             ];
+            const hasExactQueryResults = hasRelevantTitle(deferredQuery, originalCandidates);
             let suggestion = exactSearch
               ? searchSuggestion
-              : closestTitleCorrection(deferredQuery, originalCandidates);
-            if (!suggestion && !exactSearch) {
+              : hasExactQueryResults
+                ? ""
+                : closestTitleCorrection(deferredQuery, originalCandidates);
+            if (!suggestion && !exactSearch && !hasExactQueryResults) {
               const probeMatches = await Promise.allSettled(
                 correctionSearchProbes(deferredQuery).map((probe) =>
                   import("./tmdb").then((module) =>

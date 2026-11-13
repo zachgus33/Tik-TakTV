@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   connectProvider,
   decodeText,
+  fromMeta,
   installAddon,
   json,
   normalizeServer,
@@ -24,6 +25,14 @@ const provider: Provider = {
 };
 afterEach(() => vi.restoreAllMocks());
 describe("provider URLs and data", () => {
+  it("keeps custom catalog artwork when it is HTTP or relative to the add-on", () => {
+    const addon = { base: "https://arabic.example/config", manifest: { id: "arabic", name: "Arabic" } };
+    expect(fromMeta({ id: "arabic:1", name: "فيلم", poster: "/posters/1.jpg" }, addon).poster)
+      .toBe("https://arabic.example/posters/1.jpg");
+    expect(fromMeta({ id: "arabic:2", name: "فيلم", poster: "http://art.example/2.jpg" }, addon).poster)
+      .toBe("http://art.example/2.jpg");
+    expect(fromMeta({ id: "arabic:3", name: "فيلم" }, addon).poster).toBeUndefined();
+  });
   it("normalizes Xtream endpoint URLs without keeping query credentials", () => {
     expect(
       normalizeServer(

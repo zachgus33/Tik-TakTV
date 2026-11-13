@@ -194,6 +194,8 @@ export function autoplayStreams(
 ): Stream[] {
   return rankedStreams(streams, hasTorbox).filter((stream) => {
     if (!directStream(stream)) return false;
+    if (stream.behaviorHints?.notWebReady === true) return false;
+    if (compatibilityPlaybackMode(stream)) return false;
     const descriptor = streamDescriptor(stream);
     // Uncached add-on results can still look like HTTPS media URLs. These
     // labels mean selecting the URL starts a debrid download instead.

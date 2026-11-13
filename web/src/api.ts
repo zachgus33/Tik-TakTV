@@ -46,8 +46,9 @@ export function safeSourceUrl(value: unknown): string | undefined {
   }
 }
 function safeArtwork(value: unknown, base: string): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
   try {
-    const url = new URL(String(value ?? ""), `${base.replace(/\/$/, "")}/`);
+    const url = new URL(value.trim(), `${base.replace(/\/$/, "")}/`);
     // Keep provider supplied HTTP artwork intact. ChannelArt securely fetches
     // it through the signed-in companion; changing it to HTTPS breaks hosts
     // that only expose their picon service over HTTP.
@@ -379,8 +380,8 @@ export function fromMeta(meta: Record<string, unknown>, addon: Addon): Item {
     type: meta.type === "series" ? "series" : "movie",
     source: "addon",
     provider: addon.base,
-    poster: safeUrl(meta.poster),
-    background: safeUrl(meta.background),
+    poster: safeArtwork(meta.poster, addon.base),
+    background: safeArtwork(meta.background, addon.base),
     description: String(meta.description ?? ""),
     year: String(meta.releaseInfo ?? meta.year ?? ""),
     released: typeof meta.released === "string" ? meta.released : undefined,

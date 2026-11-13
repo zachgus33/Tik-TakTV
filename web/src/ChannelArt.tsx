@@ -30,7 +30,7 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-async function relayedArtwork(url: string) {
+export async function relayedArtwork(url: string) {
   const existing = artworkCache.get(url);
   if (existing) return existing;
   const pending = withArtworkSlot(async () => {

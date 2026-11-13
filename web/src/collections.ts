@@ -118,12 +118,27 @@ export function sourceAddon(
   source: CollectionSource,
   addons: Addon[],
 ): Addon | undefined {
-  return addons.find(
-    (a) =>
-      a.manifest.id === source.addonId ||
-      a.base === source.addonId ||
-      manifestUrl(a.base) === source.addonId,
+  return sourceCatalog(source, addons)?.addon;
+}
+
+export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
+  const active = addons.filter((addon) => addon.enabled !== false);
+  const matchesCatalog = (addon: Addon) =>
+    addon.manifest.catalogs?.find((entry) =>
+      entry.type === source.type &&
+      (entry.id === source.catalogId ||
+        entry.id === source.catalogId?.split(",", 1)[0]),
+    );
+  const declared = active.find((addon) =>
+    addon.base === source.addonId ||
+    manifestUrl(addon.base) === source.addonId ||
+    addon.manifest.id === source.addonId,
   );
+  const addon = declared && matchesCatalog(declared)
+    ? declared
+    : active.find((item) => !!matchesCatalog(item));
+  const catalog = addon && matchesCatalog(addon);
+  return addon && catalog ? { addon, catalog } : undefined;
 }
 export function addonUrls(text: string): string[] {
   let input: unknown;
