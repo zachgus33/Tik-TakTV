@@ -2126,17 +2126,16 @@ export function createService({ token, origins, authorizeAccount }) {
         const recentlyWatchedById = new Map(
           (recentlyWatched?.items ?? []).map((item) => [item?.id, item]),
         );
-        const discoveryQueries = [...new Set([
-          ...interestTopics,
-          ...youtubeDiscoveryQueries(
+        const discoveryQueries = interestTopics.length
+          ? interestTopics
+          : youtubeDiscoveryQueries(
           recentVideoIds
             .map((id) => recentlyWatchedById.get(id))
             .filter((item) => item && youtubeVideoAllowed(item))
             .slice(0, 12)
             .map((item) => item.snippet?.title),
           [],
-          ),
-        ])].slice(0, 4);
+          );
         const discoverySearches = await Promise.all(
           discoveryQueries.map(async (query) => {
             const cached = youtubeDiscoveryCache.get(query);
@@ -2452,12 +2451,14 @@ export function createService({ token, origins, authorizeAccount }) {
           channel: channel.items?.[0]?.snippet ?? null,
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
-          videoFeed: youtubeForYouFeed(
+          videoFeed: (interestTopics.length
+            ? youtubeForYouFeed(decoratedDiscovery, [], [])
+            : youtubeForYouFeed(
             decoratedDiscovery,
             decoratedPopular,
             decoratedRecentFeed.filter((item) =>
               !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
-          ).slice(0, 160),
+          )).slice(0, 160),
           musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
           recentFeed: decoratedRecentFeed,
           subscriptionFeed: decoratedFeed.filter((item) => item.kind === "video"),
