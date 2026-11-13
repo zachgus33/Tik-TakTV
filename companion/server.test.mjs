@@ -10,6 +10,7 @@ import {
   rewritePlaylist,
   rotateYoutubeAccount,
   youtubeForYouFeed,
+  youtubeDiscoveryQuery,
   youtubeLongFormVideo,
   youtubeRecentVideoIds,
   youtubeTitlesRelated,
@@ -46,20 +47,31 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
 test("For You survives subscriptions with no eligible video uploads", () => {
   const watched = [{ videoId: "watched-channel-video" }];
   const music = [{ videoId: "music-video" }];
-  assert.deepEqual(youtubeForYouFeed([], [], watched, music), watched);
-  assert.deepEqual(youtubeForYouFeed([], [], [], music), music);
+  assert.deepEqual(youtubeForYouFeed([], [], [], watched, music), watched);
+  assert.deepEqual(youtubeForYouFeed([], [], [], [], music), music);
   assert.deepEqual(
-    youtubeForYouFeed(watched, [{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
+    youtubeForYouFeed(watched, [], [{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
     ["watched-channel-video", "subscription-video"],
   );
   assert.deepEqual(
     youtubeForYouFeed(
       [{ videoId: "recent-1" }, { videoId: "recent-2" }],
+      [],
       [{ videoId: "subscription-1" }, { videoId: "subscription-2" }],
       [],
       [],
     ).map((item) => item.videoId),
-    ["recent-1", "subscription-1", "recent-2", "subscription-2"],
+    ["recent-1", "recent-2", "subscription-1", "subscription-2"],
+  );
+});
+
+test("For You prioritizes unsubscribed discovery and derives a topic from watch history", () => {
+  assert.equal(youtubeDiscoveryQuery("Minecraft Survival House (Official Video)"), "minecraft survival house");
+  const discovery = [{ videoId: "new-creator", channel: "New creator" }];
+  const subscriptions = [{ videoId: "followed-creator", channel: "Followed creator" }];
+  assert.deepEqual(
+    youtubeForYouFeed(discovery, [], subscriptions, [], []).map((item) => item.videoId),
+    ["new-creator", "followed-creator"],
   );
 });
 

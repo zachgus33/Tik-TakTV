@@ -11,8 +11,10 @@ object TmdbSettingsRepository {
 
     private var hasLoaded = false
 
-    private var enabled = false
-    private var apiKey = ""
+    // The app needs metadata for its built-in catalogs on a fresh install,
+    // before the user has configured any add-ons or profile settings.
+    private var enabled = true
+    private var apiKey = DEFAULT_TMDB_API_KEY
     private var language = "en"
     private var useTrailers = true
     private var useArtwork = true
@@ -171,8 +173,9 @@ object TmdbSettingsRepository {
 
     private fun loadFromDisk() {
         hasLoaded = true
-        apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
-        enabled = (TmdbSettingsStorage.loadEnabled() ?: false) && apiKey.isNotBlank()
+        apiKey = TmdbSettingsStorage.loadApiKey()?.trim()?.takeIf(String::isNotBlank)
+            ?: DEFAULT_TMDB_API_KEY
+        enabled = (TmdbSettingsStorage.loadEnabled() ?: true) && apiKey.isNotBlank()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()
         language = storedLanguage?.let(::normalizeLanguage)
             ?.takeIf(String::isNotBlank)
@@ -217,6 +220,9 @@ object TmdbSettingsRepository {
         return normalizeLanguage(preferred).ifBlank { "en" }
     }
 }
+
+// TMDB v3 application key; like the web key, this is public in distributed clients.
+internal const val DEFAULT_TMDB_API_KEY = "c49921f8195461e369d52a70a15fc8e1"
 
 internal fun normalizeLanguage(value: String?): String {
     val trimmed = value?.trim()?.replace('_', '-') ?: return ""

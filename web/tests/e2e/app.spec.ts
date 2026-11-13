@@ -311,6 +311,8 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
           },
         ],
         subscriptions: [{ id: "channel-1", title: "Subscribed channel" }],
+        subscriptionFeed: [{ videoId: "aqz-KE-bpKQ", title: "Subscription upload", channel: "Subscribed channel", kind: "video" }],
+        historyFeed: [{ videoId: "dQw4w9WgXcQ", title: "Previously watched", channel: "History channel", kind: "video" }],
       },
     });
   });
@@ -375,6 +377,10 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
     }),
   );
   await page.goto("/#youtube");
+  const updateDialog = page.getByRole("dialog", { name: /YouTube discovery and library/ });
+  await updateDialog.waitFor({ state: "visible", timeout: 3_000 }).catch(() => {});
+  if (await updateDialog.isVisible())
+    await updateDialog.getByRole("button", { name: "Dismiss update" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube", exact: true }),
   ).toBeVisible();
@@ -397,8 +403,15 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByText("More video 29")).toBeVisible();
   await page.getByRole("button", { name: "Refresh suggestions" }).click();
   await expect(page.getByText("Fresh recommendation")).toBeVisible();
+  const sections = page.getByRole("navigation", { name: "YouTube sections" });
+  await sections.getByRole("button", { name: "My Playlists" }).click();
   await expect(page.getByText("Saved playlist")).toBeVisible();
-  await expect(page.getByText("Subscribed channel")).toBeVisible();
+  await expect(page.getByText("Fresh recommendation")).toBeHidden();
+  await sections.getByRole("button", { name: "History" }).click();
+  await expect(page.getByText("Previously watched")).toBeVisible();
+  await sections.getByRole("button", { name: "Subscriptions" }).click();
+  await expect(page.getByLabel("Search videos from Subscribed channel")).toBeVisible();
+  await expect(page.getByText("Subscription upload")).toBeVisible();
   await page.getByLabel("Search videos from Subscribed channel").click();
   await expect(
     page.getByRole("heading", { name: "Latest from Subscribed channel" }),

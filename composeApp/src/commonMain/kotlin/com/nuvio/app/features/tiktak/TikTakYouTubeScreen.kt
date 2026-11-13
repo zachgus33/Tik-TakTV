@@ -69,6 +69,8 @@ private data class YouTubeAccountResponse(
     val connected: Boolean = false,
     val videoFeed: List<TikTakYouTubeItem> = emptyList(),
     val recentFeed: List<TikTakYouTubeItem> = emptyList(),
+    val subscriptionFeed: List<TikTakYouTubeItem> = emptyList(),
+    val historyFeed: List<TikTakYouTubeItem> = emptyList(),
     val musicFeed: List<TikTakYouTubeItem> = emptyList(),
     val activity: List<TikTakYouTubeItem> = emptyList(),
     val playlists: List<TikTakYouTubeItem> = emptyList(),
@@ -94,8 +96,11 @@ fun TikTakYouTubeScreen(
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("video") }
+    var section by rememberSaveable { mutableStateOf("forYou") }
     var accountItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var recentItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
+    var subscriptionItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
+    var historyItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var playlistItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var subscriptions by remember { mutableStateOf<List<TikTakYouTubeSubscription>>(emptyList()) }
     var results by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
@@ -112,7 +117,7 @@ fun TikTakYouTubeScreen(
                 .map { it.videoId }
                 .filter(YouTubeVideoIdPattern::matches)
                 .distinct()
-                .take(6)
+                .take(40)
             val body = YouTubeJson.encodeToString(YouTubeAccountRequest(refresh = refresh, recentVideoIds = recentVideoIds))
             val response = TikTakServiceClient.post("/youtube/account", body)
             val payload = YouTubeJson.decodeFromString<YouTubeAccountResponse>(response.body)
@@ -128,6 +133,10 @@ fun TikTakYouTubeScreen(
             recentItems = if (kind == "video") payload.recentFeed
                 .distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
+            subscriptionItems = payload.subscriptionFeed.distinctBy(TikTakYouTubeItem::stableKey)
+                .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+            historyItems = payload.historyFeed.distinctBy(TikTakYouTubeItem::stableKey)
+                .take(MAX_VISIBLE_YOUTUBE_ITEMS)
             playlistItems = payload.playlists
                 .filter { item -> item.kind == null || item.kind == kind }
                 .distinctBy(TikTakYouTubeItem::stableKey)
@@ -185,6 +194,8 @@ fun TikTakYouTubeScreen(
     LaunchedEffect(kind) {
         accountItems = emptyList()
         recentItems = emptyList()
+        subscriptionItems = emptyList()
+        historyItems = emptyList()
         playlistItems = emptyList()
         subscriptions = emptyList()
         loadAccount(false)
@@ -229,6 +240,23 @@ fun TikTakYouTubeScreen(
                 ) { Text(if (accountLoading) "Refreshing…" else "Refresh suggestions") }
             }
         }
+        if (kind == "video") {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("forYou" to "For You", "playlists" to "My Playlists", "subscriptions" to "Subscriptions", "history" to "History")
+                        .forEach { (value, label) ->
+                            Button(
+                                onClick = { section = value },
+                                modifier = Modifier.tikTakTvFocus(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (section == value) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.surface,
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                            ) { Text(label) }
+                        }
+                }
+            }
+        }
         item {
             Row(modifier = Modifier.fillMaxWidth()) {
                 NuvioTvTextField(
@@ -256,22 +284,28 @@ fun TikTakYouTubeScreen(
         if (results.isNotEmpty()) {
             item { YouTubeRow("Search results", results, onPlay) }
         }
-        if (accountItems.isNotEmpty()) {
+        if ((kind == "music" || section == "forYou") && accountItems.isNotEmpty()) {
             item { YouTubeRow(if (kind == "music") "Your music" else "For You", accountItems, onPlay) }
-        } else if (kind == "video" && !accountLoading) {
+        } else if (kind == "video" && section == "forYou" && !accountLoading) {
             item {
                 Text("For You", style = MaterialTheme.typography.titleLarge)
                 Text("No suggestions yet. Refresh suggestions or search for a video.")
             }
         }
-        if (kind == "video" && recentItems.isNotEmpty()) {
+        if (kind == "video" && section == "forYou" && recentItems.isNotEmpty()) {
             item { YouTubeRow("Related uploads from channels you watched", recentItems, onPlay) }
         }
-        if (playlistItems.isNotEmpty()) {
+        if ((kind == "music" || section == "playlists") && playlistItems.isNotEmpty()) {
             item { YouTubeRow(if (kind == "music") "Saved music & playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }
         }
-        if (subscriptions.isNotEmpty()) {
+        if (kind == "video" && section == "subscriptions" && subscriptionItems.isNotEmpty()) {
+            item { YouTubeRow("Latest from your subscriptions", subscriptionItems, onPlay) }
+        }
+        if (kind == "video" && section == "subscriptions" && subscriptions.isNotEmpty()) {
             item { YouTubeSubscriptionRow(subscriptions, ::loadSubscription) }
+        }
+        if (kind == "video" && section == "history" && historyItems.isNotEmpty()) {
+            item { YouTubeRow("Watch history", historyItems, onPlay) }
         }
     }
 }

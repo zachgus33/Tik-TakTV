@@ -33,6 +33,8 @@ export type YouTubeAccount = {
   videoFeed?: YouTubeSelection[];
   musicFeed?: YouTubeSelection[];
   recentFeed?: YouTubeSelection[];
+  subscriptionFeed?: YouTubeSelection[];
+  historyFeed?: YouTubeSelection[];
 };
 
 async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {

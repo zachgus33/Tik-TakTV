@@ -54,7 +54,10 @@ import {
   youtubeHistoryKey,
   type YouTubePlaybackProgress,
   type YouTubeResumeRequest,
+  youtubeVideoIdFromItem,
 } from "./youtube-progress";
+import { read } from "./storage";
+import type { Progress } from "./types";
 
 type Player = {
   destroy(): void;
@@ -139,6 +142,7 @@ export default function YouTubeHub({
   const [account, setAccount] = useState<YouTubeAccount | null>(null);
   const [accountBusy, setAccountBusy] = useState(true);
   const [visibleFeedCount, setVisibleFeedCount] = useState(24);
+  const [section, setSection] = useState<"forYou" | "playlists" | "subscriptions" | "history">("forYou");
   const [device, setDevice] = useState<{
     userCode: string;
     verificationUrl: string;
@@ -218,7 +222,7 @@ export default function YouTubeHub({
       const recentVideoIds = readYouTubeHistory()
         .map((item) => item.videoId)
         .filter((id): id is string => !!id)
-        .slice(0, 6);
+        .slice(0, 40);
       setAccount(await youtubeAccount(false, { refresh, recentVideoIds }));
       if (refresh) setVisibleFeedCount(24);
     } catch (reason) {
@@ -282,7 +286,7 @@ export default function YouTubeHub({
         (item) =>
           item.videoId !== next.videoId || item.playlistId !== next.playlistId,
       ),
-    ].slice(0, 12);
+    ].slice(0, 50);
     setHistory(value);
     localStorage.setItem(youtubeHistoryKey, JSON.stringify(value));
   };
@@ -852,7 +856,22 @@ export default function YouTubeHub({
         </div>
       </section>
 
-      {forYouSection}
+      {kind === "video" && (
+        <nav className="youtube-mode youtube-sections" aria-label="YouTube sections">
+          {([
+            ["forYou", "For You"],
+            ["playlists", "My Playlists"],
+            ["subscriptions", "Subscriptions"],
+            ["history", "History"],
+          ] as const).map(([value, label]) => (
+            <button key={value} className={section === value ? "active" : ""}
+              aria-current={section === value ? "page" : undefined}
+              onClick={() => setSection(value)}>{label}</button>
+          ))}
+        </nav>
+      )}
+
+      {(kind === "music" || section === "forYou") && forYouSection}
 
       <section className="youtube-account-card" aria-label="YouTube account">
         <div>
@@ -1188,7 +1207,7 @@ export default function YouTubeHub({
           </section>
         ))}
 
-      {!!account?.connected &&
+      {section === "forYou" && !!account?.connected &&
         kind === "video" &&
         !!account.recentFeed?.length && (
           <section className="youtube-section">
@@ -1211,7 +1230,7 @@ export default function YouTubeHub({
           </section>
         )}
 
-      {!!account?.connected &&
+      {(kind === "music" || section === "playlists") && !!account?.connected &&
         !!account.playlists?.filter((item) => item.kind === kind).length && (
           <section className="youtube-section">
             <h2>
@@ -1242,14 +1261,27 @@ export default function YouTubeHub({
             </div>
           </section>
         )}
+      {kind === "video" && section === "playlists" && !account?.playlists?.some((item) => item.kind === "video") && (
+        <section className="youtube-section"><h2>My Playlists</h2><p className="youtube-feed-empty">{account?.connected ? "No saved playlists found." : "Connect your YouTube account to see your playlists."}</p></section>
+      )}
 
-      {kind === "video" &&
+      {kind === "video" && section === "subscriptions" &&
         !!account?.connected &&
-        !!account.subscriptions?.length && (
+        (!!account.subscriptions?.length || !!account.subscriptionFeed?.length) && (
           <section className="youtube-section">
             <h2>Subscriptions</h2>
+            {!!account.subscriptionFeed?.length && (
+              <div className="youtube-grid">
+                {account.subscriptionFeed.map((item) => (
+                  <button key={item.videoId} className="youtube-card" onClick={() => void select(item)}>
+                    <img src={item.thumbnail} alt="" loading="lazy" />
+                    <span><strong>{item.title}</strong><small>{item.channel}</small></span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="youtube-subscriptions">
-              {account.subscriptions.map((item) => (
+              {account.subscriptions?.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => void loadSubscription(item.id, item.title)}
@@ -1264,20 +1296,29 @@ export default function YouTubeHub({
             </div>
           </section>
         )}
+      {kind === "video" && section === "subscriptions" && !account?.subscriptions?.length && !account?.subscriptionFeed?.length && (
+        <section className="youtube-section"><h2>Subscriptions</h2><p className="youtube-feed-empty">{account?.connected ? "No subscriptions found." : "Connect your YouTube account to see subscribed channels."}</p></section>
+      )}
 
-      {!!history.filter((item) => item.kind === kind).length && (
+      {(kind === "music" || section === "history") &&
+        (!!history.filter((item) => item.kind === kind).length || !!account?.historyFeed?.length) && (
         <section className="youtube-section">
           <h2>
             <History size={20} /> Recently played
           </h2>
           <div className="youtube-grid compact">
-            {history
-              .filter((item) => item.kind === kind)
+            {[...history.filter((item) => item.kind === kind), ...(kind === "video" ? account?.historyFeed ?? [] : [])]
+              .filter((item, index, items) => items.findIndex((entry) => entry.videoId === item.videoId) === index)
               .map((item, index) => (
                 <button
                   key={`${item.videoId ?? item.playlistId}-${index}`}
                   className="youtube-card"
-                  onClick={() => void select(item)}
+                  onClick={() => {
+                    const saved = read<Progress[]>("progress", []).find(
+                      (entry) => youtubeVideoIdFromItem(entry.item) === item.videoId,
+                    );
+                    void select(item, false, saved?.seconds ?? 0);
+                  }}
                 >
                   {item.thumbnail ? (
                     <img src={item.thumbnail} alt="" loading="lazy" />
@@ -1297,6 +1338,9 @@ export default function YouTubeHub({
               ))}
           </div>
         </section>
+      )}
+      {kind === "video" && section === "history" && !history.some((item) => item.kind === "video") && !account?.historyFeed?.length && (
+        <section className="youtube-section"><h2>History</h2><p className="youtube-feed-empty">Videos you watch in TikTak TV will appear here.</p></section>
       )}
     </div>
   );

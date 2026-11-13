@@ -234,7 +234,7 @@ object MetaDetailsRepository {
 
     private const val FETCH_TIMEOUT_MS = 5_000L
     private const val METADATA_PROVIDER_READY_TIMEOUT_MS = 10_000L
-    private const val TMDB_ENRICH_TIMEOUT_MS = 5_000L
+    private const val TMDB_ENRICH_TIMEOUT_MS = 12_000L
     private const val MDBLIST_ENRICH_TIMEOUT_MS = 5_000L
 
     private fun loadCloudStream(

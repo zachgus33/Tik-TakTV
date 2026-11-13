@@ -8,7 +8,7 @@ export function readYouTubeHistory(): YouTubeSelection[] {
   try {
     const value = JSON.parse(localStorage.getItem(youtubeHistoryKey) ?? "[]");
     return Array.isArray(value)
-      ? value.filter((entry) => entry && typeof entry === "object").slice(0, 12)
+      ? value.filter((entry) => entry && typeof entry === "object").slice(0, 50)
       : [];
   } catch {
     return [];

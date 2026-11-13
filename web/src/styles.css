@@ -5719,6 +5719,20 @@ button.primary:hover,
   color: #fff;
   background: #e62117;
 }
+.youtube-sections {
+  flex-wrap: nowrap;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 22px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.youtube-sections button {
+  flex: 0 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
 .youtube-search {
   gap: 12px;
   min-height: 58px;

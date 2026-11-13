@@ -678,12 +678,7 @@ object TmdbMetadataService {
     ): MetaDetails? {
         if (!settings.hasApiKey) return null
 
-        val tmdbId = id
-            .takeIf { it.startsWith("tmdb:", ignoreCase = true) }
-            ?.substringAfter(':')
-            ?.substringBefore(':')
-            ?.toIntOrNull()
-            ?: return null
+        val tmdbId = TmdbService.ensureTmdbId(id, type)?.toIntOrNull() ?: return null
         val tmdbType = normalizeMetaType(type)
         val enrichment = fetchEnrichment(
             tmdbId = tmdbId.toString(),
