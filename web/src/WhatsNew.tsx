@@ -1,13 +1,24 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.12.2";
+export const latestRelease = "2026.11.12.3";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 12, 2026",
+    title: "YouTube browsing updates",
+    changes: [
+      "Browse more recent uploads from your subscriptions and use Refresh suggestions to see another selection.",
+      "Related uploads from channels you've watched appear when their titles match a topic you've watched.",
+      "YouTube video feeds and search now hide Shorts, including other clips of three minutes or less.",
+      "YouTube videos in Continue Watching now reopen at your saved position on the website.",
+    ],
+  },
+  {
+    version: "2026.11.12.2",
     date: "November 12, 2026",
     title: "Configured add-on streaming fix",
     changes: [

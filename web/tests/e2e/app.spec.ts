@@ -120,8 +120,9 @@ test.beforeEach(async ({ page }) => {
 test("a new release shows once and links to the complete change history", async ({
   page,
 }) => {
-  await page.addInitScript(() =>
-    localStorage.removeItem("tiktak:whats-new-seen"),
+  await page.addInitScript((previousRelease) =>
+    localStorage.setItem("tiktak:whats-new-seen", previousRelease),
+    releases[1].version,
   );
   await page.goto("/#home");
   const update = page.getByRole("dialog", {
