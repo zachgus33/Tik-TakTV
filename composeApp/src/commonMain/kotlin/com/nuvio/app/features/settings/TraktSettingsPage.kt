@@ -730,32 +730,16 @@ private fun TraktConnectionCard(
 
             TraktConnectionMode.AWAITING_APPROVAL -> {
                 Text(
-                    text = stringResource(Res.string.settings_trakt_finish_sign_in),
+                    text = "On your phone or computer, visit ${uiState.deviceVerificationUrl ?: "https://trakt.tv/activate"}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    text = stringResource(Res.string.settings_trakt_approval_redirect),
+                    text = "Enter code ${uiState.deviceUserCode.orEmpty()} to connect your own Trakt account.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Button(
-                    onClick = {
-                        val authUrl = TraktAuthRepository.pendingAuthorizationUrl()
-                            ?: TraktAuthRepository.onConnectRequested()
-                        if (authUrl == null) return@Button
-                        runCatching { uriHandler.openUri(authUrl) }
-                            .onFailure {
-                                TraktAuthRepository.onAuthLaunchFailed(
-                                    it.message ?: failedOpenBrowserMessage,
-                                )
-                            }
-                    },
-                    enabled = !uiState.isLoading,
-                ) {
-                    Text(stringResource(Res.string.settings_trakt_open_login))
-                }
                 Button(
                     onClick = TraktAuthRepository::onCancelAuthorization,
                     enabled = !uiState.isLoading,
@@ -776,13 +760,7 @@ private fun TraktConnectionCard(
                 )
                 Button(
                     onClick = {
-                        val authUrl = TraktAuthRepository.onConnectRequested() ?: return@Button
-                        runCatching { uriHandler.openUri(authUrl) }
-                            .onFailure {
-                                TraktAuthRepository.onAuthLaunchFailed(
-                                    it.message ?: failedOpenBrowserMessage,
-                                )
-                            }
+                        TraktAuthRepository.onConnectRequested()
                     },
                     enabled = uiState.credentialsConfigured && !uiState.isLoading,
                 ) {

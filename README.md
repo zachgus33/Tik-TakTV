@@ -117,6 +117,13 @@ Search videos, browse recommendations, and use the separate Music view without c
 
 ## What can TikTak TV do?
 
+Trakt is optional. Each person who chooses to connect signs in to their own
+Trakt account; it is disconnected by default. **TikTak TV uses Trakt but is not
+endorsed or certified by Trakt.** The web connection currently displays that
+person's watchlist. TV watch tracking is available to connected users. The
+Trakt integration is in a limited Development tier while Production access is
+under review.
+
 <details>
 <summary><strong>Movies, shows & discovery</strong></summary>
 

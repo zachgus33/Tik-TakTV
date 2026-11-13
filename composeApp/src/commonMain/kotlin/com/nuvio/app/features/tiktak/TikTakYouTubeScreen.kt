@@ -83,6 +83,7 @@ private data class YouTubeAccountRequest(
     val summary: Boolean = false,
     val refresh: Boolean = false,
     val recentVideoIds: List<String> = emptyList(),
+    val interestTopics: List<String> = emptyList(),
 )
 
 private val YouTubeJson = Json { ignoreUnknownKeys = true }
@@ -97,6 +98,7 @@ fun TikTakYouTubeScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("video") }
     var section by rememberSaveable { mutableStateOf("forYou") }
+    var interests by rememberSaveable { mutableStateOf("") }
     var accountItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var recentItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var subscriptionItems by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
@@ -133,7 +135,8 @@ fun TikTakYouTubeScreen(
             val recentVideoIds = localHistory()
                 .mapNotNull(TikTakYouTubeItem::videoId)
                 .take(40)
-            val body = YouTubeJson.encodeToString(YouTubeAccountRequest(refresh = refresh, recentVideoIds = recentVideoIds))
+            val topics = interests.split(',').map(String::trim).filter(String::isNotEmpty).take(4)
+            val body = YouTubeJson.encodeToString(YouTubeAccountRequest(refresh = refresh, recentVideoIds = recentVideoIds, interestTopics = topics))
             val response = TikTakServiceClient.post("/youtube/account", body)
             val payload = YouTubeJson.decodeFromString<YouTubeAccountResponse>(response.body)
             if (response.status !in 200..299) error(payload.error ?: "YouTube account could not be loaded.")
@@ -275,6 +278,25 @@ fun TikTakYouTubeScreen(
                 }
             }
         }
+        if (kind == "video" && section == "forYou") {
+            item {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    NuvioTvTextField(
+                        value = interests,
+                        onValueChange = { interests = it },
+                        label = { Text("Show me more about (up to 4 topics)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = { scope.launch { loadAccount(true) } },
+                        enabled = !accountLoading,
+                        modifier = Modifier.height(56.dp).tikTakTvFocus(),
+                    ) { Text("Update For You") }
+                }
+            }
+        }
         item {
             Row(modifier = Modifier.fillMaxWidth()) {
                 NuvioTvTextField(
@@ -303,7 +325,7 @@ fun TikTakYouTubeScreen(
             item { YouTubeRow("Search results", results, onPlay) }
         }
         if ((kind == "music" || section == "forYou") && accountItems.isNotEmpty()) {
-            item { YouTubeRow(if (kind == "music") "Your music" else "For You", accountItems, onPlay) }
+            item { YouTubeRow(if (kind == "music") "Music For You" else "For You", accountItems, onPlay) }
         } else if (kind == "video" && section == "forYou" && !accountLoading) {
             item {
                 Text("For You", style = MaterialTheme.typography.titleLarge)
@@ -314,7 +336,7 @@ fun TikTakYouTubeScreen(
             item { YouTubeRow("Related uploads from channels you watched", recentItems, onPlay) }
         }
         if ((kind == "music" || section == "playlists") && playlistItems.isNotEmpty()) {
-            item { YouTubeRow(if (kind == "music") "Saved music & playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }
+            item { YouTubeRow(if (kind == "music") "Music playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }
         }
         if (kind == "video" && section == "subscriptions" && subscriptionItems.isNotEmpty()) {
             item { YouTubeRow("Latest from your subscriptions", subscriptionItems, onPlay) }

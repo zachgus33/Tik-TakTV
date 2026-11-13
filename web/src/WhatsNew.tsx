@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.13.4";
+export const latestRelease = "2026.11.13.5";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 13, 2026",
+    title: "Music discovery and optional Trakt",
+    changes: [
+      "Music For You now mixes music related to recent plays with popular music beyond subscriptions.",
+      "Music playlists appear separately with their playlist titles.",
+      "Settings now has an optional Trakt connection for invited Development testers; each person authorizes their own account.",
+    ],
+  },
+  {
+    version: "2026.11.13.4",
     date: "November 13, 2026",
     title: "YouTube search and For You updates",
     changes: [

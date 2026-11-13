@@ -58,6 +58,7 @@ import {
 import FeedbackCenter from "./FeedbackCenter";
 import SponsorBlockSettings from "./SponsorBlockSettings";
 import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
+import TraktSettings from "./TraktSettings";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -108,6 +109,7 @@ type SettingsSection =
   | "health"
   | "downloads"
   | "privacy"
+  | "trakt"
   | "feedback"
   | "whatsnew"
   | "general";
@@ -168,6 +170,12 @@ const sections = [
     icon: Megaphone,
   },
   {
+    id: "trakt",
+    label: "Trakt",
+    description: "Your own watchlist",
+    icon: Activity,
+  },
+  {
     id: "privacy",
     label: "Privacy & status",
     description: "Data and services",
@@ -176,7 +184,7 @@ const sections = [
 ] as const;
 export default function Settings(props: Props) {
   const [section, setSection] = useState<SettingsSection>(() =>
-    requestedWhatsNewSection() ? "whatsnew" : "addons",
+    sessionStorage.getItem("tiktak:trakt-callback") ? "trakt" : requestedWhatsNewSection() ? "whatsnew" : "addons",
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -730,6 +738,7 @@ export default function Settings(props: Props) {
             />
           )}
           {section === "downloads" && <DownloadCenter />}
+          {section === "trakt" && <TraktSettings profileName={props.profileName} />}
           {section === "privacy" && (
             <PrivacyStatus onOpenFeedback={() => setSection("feedback")} />
           )}

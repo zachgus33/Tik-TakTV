@@ -792,7 +792,7 @@ export default function YouTubeHub({
       )}
       {!!account?.connected && (
         <section className="youtube-section youtube-for-you">
-          <h2>{kind === "music" ? "Your music" : "For You"}</h2>
+          <h2>{kind === "music" ? "Music For You" : "For You"}</h2>
           {!suggestions.length ? (
             <p className="youtube-feed-empty">
               No suggestions are available yet. Refresh suggestions or search for a video.
@@ -1258,7 +1258,7 @@ export default function YouTubeHub({
         !!account.playlists?.filter((item) => item.kind === kind).length && (
           <section className="youtube-section">
             <h2>
-              {kind === "music" ? "Saved music & playlists" : "Your playlists"}
+              {kind === "music" ? "Music playlists" : "Your playlists"}
             </h2>
             <div className="youtube-grid compact">
               {account.playlists

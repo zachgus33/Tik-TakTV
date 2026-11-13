@@ -2045,7 +2045,7 @@ export function createService({ token, origins, authorizeAccount }) {
           (body.refresh !== true || Date.now() - cachedAccount.fetchedAt < 30_000)
         )
           return send(200, rotateAccount(cachedAccount.account));
-        const [subscriptions, playlists, activities, popular, gaming, entertainment, technology] = await Promise.all([
+        const [subscriptions, playlists, activities, popular, gaming, entertainment, technology, popularMusic] = await Promise.all([
           youtubeApi(userId, "subscriptions", {
             part: "snippet",
             mine: "true",
@@ -2076,6 +2076,13 @@ export function createService({ token, origins, authorizeAccount }) {
               regionCode: "US",
               videoCategoryId,
             }).catch(() => null)),
+          youtubeApi(userId, "videos", {
+            part: "snippet,status,contentDetails",
+            chart: "mostPopular",
+            maxResults: 50,
+            regionCode: "US",
+            videoCategoryId: "10",
+          }).catch(() => null),
         ]);
         const selectionFromActivity = (item) => ({
           videoId:
@@ -2126,6 +2133,32 @@ export function createService({ token, origins, authorizeAccount }) {
         const recentlyWatchedById = new Map(
           (recentlyWatched?.items ?? []).map((item) => [item?.id, item]),
         );
+        const musicQueries = [
+          ...youtubeDiscoveryQueries(
+            [...recentlyWatchedById.values()]
+              .filter((item) => String(item?.snippet?.categoryId ?? "") === "10")
+              .slice(0, 12)
+              .map((item) => item?.snippet?.title),
+            [],
+            2,
+          ),
+          "new music",
+        ];
+        const musicSearches = await Promise.all(musicQueries.map((query) =>
+          youtubeApi(userId, "search", {
+            part: "snippet",
+            type: "video",
+            q: query,
+            maxResults: 50,
+            videoCategoryId: "10",
+            videoEmbeddable: "true",
+            videoDuration: "medium",
+            order: "relevance",
+          }).catch(() => null),
+        ));
+        const musicDiscoveryCandidates = musicSearches.flatMap((result) =>
+          (result?.items ?? []).map((item) => ({ videoId: String(item?.id?.videoId ?? "") })))
+          .filter((item) => youtubeVideoIdPattern.test(item.videoId) && !recentVideoIds.includes(item.videoId));
         const discoveryQueries = interestTopics.length
           ? interestTopics
           : youtubeDiscoveryQueries(
@@ -2311,10 +2344,26 @@ export function createService({ token, origins, authorizeAccount }) {
               },
             ]
           : [];
+        const discoveredMusic = await youtubeApi(userId, "search", {
+          part: "snippet",
+          q: "music playlist",
+          type: "playlist",
+          maxResults: 12,
+          order: "relevance",
+        });
+        const publicMusicPlaylists = (discoveredMusic?.items ?? [])
+          .map((item) => ({
+            id: item?.id?.playlistId,
+            snippet: item?.snippet,
+            discoveredMusic: true,
+          }))
+          .filter((item) => /^[A-Za-z0-9_-]{10,64}$/.test(item.id ?? ""))
+          .slice(0, 8);
         const playlistItems = [
           ...watchLaterPlaylist,
           ...(playlists?.items ?? []),
-        ].slice(0, 51);
+          ...publicMusicPlaylists,
+        ].slice(0, 59);
         const playlistLeads = await Promise.all(
           playlistItems.map((item) =>
             youtubeApi(userId, "playlistItems", {
@@ -2356,6 +2405,7 @@ export function createService({ token, origins, authorizeAccount }) {
                 first?.snippet?.thumbnails?.default?.url ??
                 "",
               itemCount: Number(item?.contentDetails?.itemCount ?? 0),
+              discoveredMusic: item?.discoveredMusic === true,
             },
           ];
         });
@@ -2366,6 +2416,8 @@ export function createService({ token, origins, authorizeAccount }) {
             ...uniqueFeed.map((item) => item.videoId),
             ...uniqueRecentFeed.map((item) => item.videoId),
             ...playlistSelections.map((item) => item.videoId),
+            ...musicDiscoveryCandidates.map((item) => item.videoId),
+            ...(popularMusic?.items ?? []).map((item) => item.id),
             ...recentVideoIds,
           ]),
         ];
@@ -2382,7 +2434,7 @@ export function createService({ token, origins, authorizeAccount }) {
           ),
         );
         const detailsById = new Map(
-          [...popularCharts.flat(), ...videoDetails.flatMap((payload) => payload?.items ?? [])]
+          [...popularCharts.flat(), ...(popularMusic?.items ?? []), ...videoDetails.flatMap((payload) => payload?.items ?? [])]
             .map((item) => [item?.id, item]),
         );
         const decorate = (item) => {
@@ -2444,7 +2496,18 @@ export function createService({ token, origins, authorizeAccount }) {
           .slice(0, 48);
         const decoratedPlaylists = playlistSelections
           .map(decorate)
-          .filter(Boolean);
+          .filter((item) => item && (!item.discoveredMusic || item.kind === "music"))
+          .map((item) => ({
+            ...item,
+            title: playlistSelections.find((playlist) => playlist.playlistId === item.playlistId)?.title ?? item.title,
+            channel: item.discoveredMusic ? "Music playlist" : "Your playlist",
+            kind: item.discoveredMusic ? "music" : item.kind,
+          }));
+        const musicAllowed = (item) =>
+          item?.kind === "music" && youtubeLongFormVideo(detailsById.get(item.videoId));
+        const decoratedMusicDiscovery = musicDiscoveryCandidates.map(decorate).filter(musicAllowed);
+        const decoratedMusicPopular = (popularMusic?.items ?? [])
+          .map((item) => decorate({ videoId: item.id })).filter(musicAllowed);
         const account = {
           configured: true,
           connected: true,
@@ -2459,7 +2522,11 @@ export function createService({ token, origins, authorizeAccount }) {
             decoratedRecentFeed.filter((item) =>
               !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
           )).slice(0, 160),
-          musicFeed: decoratedFeed.filter((item) => item.kind === "music"),
+          musicFeed: youtubeForYouFeed(
+            decoratedMusicDiscovery,
+            decoratedMusicPopular,
+            decoratedFeed.filter(musicAllowed),
+          ).slice(0, 160),
           recentFeed: decoratedRecentFeed,
           subscriptionFeed: decoratedFeed.filter((item) => item.kind === "video"),
           historyFeed: decoratedHistory,
