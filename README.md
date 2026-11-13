@@ -197,14 +197,14 @@ The web experience can also be installed as a Progressive Web App (PWA) where th
 
 #### Install the native TV app
 
-**Downloader code `2564237`** · **[Download the native TV APK](https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk)** · [Stable TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest)
+**Downloader code `2564237`** · **[Download the native TV APK](https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk)** · [Current TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest)
 
 1. Open **Downloader by AFTVnews** on your TV.
 2. Enter **`2564237`** and press **Go** to download the native TV APK.
 3. If prompted, allow Downloader to install apps, then open the downloaded APK.
 4. Launch TikTak TV and choose your profile. Connect or sync the services you use.
 
-You can also [download the native APK from the preview channel](https://github.com/zachgus33/Tik-TakTV/releases/download/native-preview-latest/tiktak-tv-native-preview.apk). Both links install the same native package. An older TV web wrapper installation has a separate package and local data; see the [TV install and update notes](nativeTvApp/README.md) before removing it.
+The [pre-release update feed](https://github.com/zachgus33/Tik-TakTV/releases/tag/native-preview-latest) is kept for existing native sideload installations. It publishes the same signed APK as the Current release above; it is not a second TV app. An older TV web wrapper installation has a separate package and local data; see the [TV install and update notes](nativeTvApp/README.md) before removing it.
 
 ### Platform support
 
@@ -224,11 +224,11 @@ You can also [download the native APK from the preview channel](https://github.c
 
 See **Settings → What's new** in the web app for more update notes.
 
-## Native Android TV development
+## Native Android TV app
 
 The native app uses Kotlin/Compose and the shared native account, profiles, library, Live TV, and playback stack. It has a remote-first navigation rail for Home, Search, Live TV, YouTube, Sports, Library, and Settings.
 
-For the newest build, use the [GitHub prerelease](https://github.com/zachgus33/Tik-TakTV/releases/tag/native-preview-latest). If you run into a device-specific issue, share your TV model and app version in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5).
+For the current native TV build, use the [Current Fire TV and Android TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest). If you run into a device-specific issue, share your TV model and app version in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5).
 
 The native app has been submitted to the **Amazon Appstore on Fire TV** and is awaiting review. For development details, see the [native TV architecture notes](Docs/NATIVE_TV_ARCHITECTURE.md).
 
