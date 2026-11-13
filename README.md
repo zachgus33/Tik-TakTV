@@ -89,7 +89,7 @@ Explore catalogs from your installed add-ons, browse curated rows, switch betwee
 
 ### Live TV that feels like TV
 
-Connect your own IPTV service and use a visual electronic program guide with program descriptions, schedule progress, channel logos, category/country filters, and recently watched channels.
+Browse public channels where available, or connect your own IPTV service. The visual electronic program guide shows program descriptions, schedule progress, channel logos, category/country filters, and recently watched channels.
 
 The **Live TV mini-player** can keep the current channel on screen while you browse the guide in TV mode. Restore fullscreen without intentionally restarting the stream, or close the mini-player to stop playback.
 
@@ -131,6 +131,7 @@ Search videos, browse recommendations, and use the separate Music view without c
 <details>
 <summary><strong>IPTV & live television</strong></summary>
 
+- Browse public channels where available.
 - Connect an authorized Xtream or M3U playlist/service.
 - Use automatic EPG matching and optional custom XMLTV/EPG links.
 - Browse channel categories and countries, program details, artwork, and the two-hour guide.
@@ -176,7 +177,7 @@ Search videos, browse recommendations, and use the separate Music view without c
 - Remote/D-pad navigation, visible focus indicators, and improved TV layouts.
 - Sidebar that stays compact and expands when focused.
 - Player controls designed to auto-hide during playback.
-- Signed Android TV APK with update checking and installation over an existing compatible release.
+- Signed native TV APK; sideload installations can update in place, while Amazon Appstore installations receive updates through Amazon.
 - What's New messages, release history, and in-app feedback requests.
 
 </details>
@@ -197,14 +198,12 @@ The web experience can also be installed as a Progressive Web App (PWA) where th
 
 #### Install the native TV app
 
-**Downloader code `2564237`** · **[Download the native TV APK](https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk)** · [Current TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest)
-
 1. Open **Downloader by AFTVnews** on your TV.
-2. Enter **`2564237`** and press **Go** to download the native TV APK.
+2. Enter **`2564237`** and press **Go**. This downloads the [current native TV APK](https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk). The code and link lead to the **same file**; use the link if you prefer to download it directly.
 3. If prompted, allow Downloader to install apps, then open the downloaded APK.
 4. Launch TikTak TV and choose your profile. Connect or sync the services you use.
 
-The [pre-release update feed](https://github.com/zachgus33/Tik-TakTV/releases/tag/native-preview-latest) is kept for existing native sideload installations. It publishes the same signed APK as the Current release above; it is not a second TV app. An older TV web wrapper installation has a separate package and local data; see the [TV install and update notes](nativeTvApp/README.md) before removing it.
+There is only **one native TV app**. Existing sideload installations continue to use their compatible update feed, which publishes the same signed APK. An older TV web wrapper installation has a separate package and local data; see the [TV install and update notes](nativeTvApp/README.md) before removing it.
 
 ### Platform support
 
@@ -228,7 +227,7 @@ See **Settings → What's new** in the web app for more update notes.
 
 The native app uses Kotlin/Compose and the shared native account, profiles, library, Live TV, and playback stack. It has a remote-first navigation rail for Home, Search, Live TV, YouTube, Sports, Library, and Settings.
 
-For the current native TV build, use the [Current Fire TV and Android TV release](https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest). If you run into a device-specific issue, share your TV model and app version in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5).
+To install the current build, follow the [native TV install instructions](#install-the-native-tv-app). If you run into a device-specific issue, share your TV model and app version in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5).
 
 The native app has been submitted to the **Amazon Appstore on Fire TV** and is awaiting review. For development details, see the [native TV architecture notes](Docs/NATIVE_TV_ARCHITECTURE.md).
 
@@ -237,7 +236,7 @@ The native app has been submitted to the **Amazon Appstore on Fire TV** and is a
 TikTak TV started as a family project. Community feedback helps decide what to fix and build next, especially when it comes from real TVs and remotes.
 
 - **Getting set up or troubleshooting?** Start with the [native TV install instructions](#install-the-native-tv-app) or ask a question in [Help & Support](https://github.com/zachgus33/Tik-TakTV/discussions/categories/help-support).
-- **Testing the native preview?** Share device-specific results in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5). Use [GitHub Issues](https://github.com/zachgus33/Tik-TakTV/issues) to track reproducible app bugs.
+- **Using the native TV app?** Share device-specific results in the [native TV testing thread](https://github.com/zachgus33/Tik-TakTV/discussions/5). Use [GitHub Issues](https://github.com/zachgus33/Tik-TakTV/issues) to track reproducible app bugs.
 - **Have an idea?** Tell us [what you’d like to see added](https://github.com/zachgus33/Tik-TakTV/discussions/3), or [vote on native TV priorities](https://github.com/zachgus33/Tik-TakTV/discussions/7).
 - **Want to share your setup?** Post a screenshot or describe how you watch in [Show Your Setup](https://github.com/zachgus33/Tik-TakTV/discussions/6). See [GitHub Discussions](https://github.com/zachgus33/Tik-TakTV/discussions) for the rest of the community.
 
@@ -248,7 +247,7 @@ In the web app, **Settings → Feedback** lets you send a private report or feat
 
 ## For developers & contributors
 
-This repository contains the **TikTak TV web experience** alongside its Android TV packaging and inherited Nuvio Mobile Enhanced codebase.
+This repository contains the **TikTak TV web app**, the **native Android TV app**, and inherited Nuvio Mobile Enhanced modules.
 
 - **Web app:** [`web/`](web/) — React/TypeScript browser application; see [web setup](web/README.md) and [deployment](web/DEPLOYMENT.md).
 - **Native TV app:** [`nativeTvApp/`](nativeTvApp/) - the only TV APK, built with Kotlin/Compose and the shared native app. See the [TV build and install notes](nativeTvApp/README.md) and [native TV architecture](Docs/NATIVE_TV_ARCHITECTURE.md).
@@ -286,7 +285,7 @@ TikTak TV is an **unofficial community fork**, not affiliated with or endorsed b
 - **Original Nuvio project:** [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile)
 - **License:** [GPL-3.0](LICENSE) (see the repository for applicable third-party notices)
 
-TikTak TV is a frontend for services and sources that users connect themselves. It does **not** provide channels, paid subscriptions, hosted movies/shows, or third-party streaming access. Use only content and services you are authorized to access.
+TikTak TV is a frontend for services and sources that users connect themselves. Public Live TV channels may appear where available; TikTak TV does **not** provide private provider credentials, paid subscriptions, hosted movies/shows, or third-party streaming access. Use only content and services you are authorized to access.
 
 ---
 
@@ -294,7 +293,7 @@ TikTak TV is a frontend for services and sources that users connect themselves. 
 
 ### Stream your world.
 
-**[Open TikTak TV](https://www.tiktaktv.me/)** · **[Get the TV APK](https://github.com/zachgus33/Tik-TakTV/releases)** · **[Share feedback](https://github.com/zachgus33/Tik-TakTV/issues)**
+**[Open TikTak TV](https://www.tiktaktv.me/)** · **[Install on TV](#install-the-native-tv-app)** · **[Share feedback](https://github.com/zachgus33/Tik-TakTV/issues)**
 
 _Built for people who want their entertainment in one place._
 
