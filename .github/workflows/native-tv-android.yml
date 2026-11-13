@@ -270,6 +270,11 @@ jobs:
             tiktak-tv-native-preview.apk.sha256 \
             tiktak-tv-native-preview.json \
             --clobber
+          version_name="$(jq -r .versionName tiktak-tv-native-preview.json)"
+          version_code="$(jq -r .versionCode tiktak-tv-native-preview.json)"
+          gh release edit native-preview-latest \
+            --title "TikTak TV compatibility update feed (v${version_name})" \
+            --notes "This compatibility feed serves existing native TV installations. It contains the same signed app as the current Fire TV and Android TV release, version ${version_name} (${version_code}). For new installs use https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest or Downloader code 2564237."
       - name: Replace Downloader release with native TV app
         env:
           GH_TOKEN: ${{ github.token }}
@@ -285,6 +290,10 @@ jobs:
             tiktak-tv-android-tv.apk.sha256 \
             tiktak-tv-android-tv.json \
             --clobber
+          version_name="$(jq -r .versionName tiktak-tv-android-tv.json)"
+          gh release edit tv-latest \
+            --title "TikTak TV ${version_name} — Fire TV and Android TV" \
+            --notes "Current signed native TikTak TV app for Fire TV, Firestick, Android TV, and Google TV. Downloader code 2564237 installs this APK. Existing sideloaded installations can update in place. The separate Amazon Appstore package must be submitted and reviewed through Amazon."
       - name: Upload signed preview evidence
         uses: actions/upload-artifact@v7
         with:
