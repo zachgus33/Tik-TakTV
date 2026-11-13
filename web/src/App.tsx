@@ -95,6 +95,13 @@ import {
   type Stream,
 } from "./types";
 import type { Playback } from "./Player";
+import {
+  normalizeYouTubeProgress,
+  youtubeProgressItem,
+  youtubeVideoIdFromItem,
+  type YouTubePlaybackProgress,
+  type YouTubeResumeRequest,
+} from "./youtube-progress";
 import { useGuide } from "./useGuide";
 import SportsHub from "./SportsHub";
 import {
@@ -1880,7 +1887,7 @@ export default function App() {
     () => localStorage.getItem("nuvio:tmdb-key")?.trim() || DEFAULT_TMDB_KEY,
   );
   const [progress, setProgress] = useState<Progress[]>(() =>
-    read("progress", []),
+    normalizeYouTubeProgress(read("progress", [])),
   );
   function loadAccountSetup(s: Setup) {
     // Failure history belongs to the previous browser profile and must never
@@ -1913,8 +1920,9 @@ export default function App() {
       }),
     );
     setLibrary(s.library);
-    setProgress(s.progress);
-    save("progress", s.progress);
+    const restoredProgress = normalizeYouTubeProgress(s.progress);
+    setProgress(restoredProgress);
+    save("progress", restoredProgress);
     setProvider(s.provider);
     storeProvider(s.provider, true);
     setEpgUrl(s.epgUrl ?? "");
@@ -1986,6 +1994,8 @@ export default function App() {
   } | null>(null);
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
+  const [youtubeResumeRequest, setYoutubeResumeRequest] =
+    useState<YouTubeResumeRequest | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [recentChannels, setRecentChannels] = useStored<Item[]>(
@@ -2370,6 +2380,20 @@ export default function App() {
         : [...old, cleanItem(item)],
     );
   const open = (item: Item) => {
+    const youtubeVideoId = youtubeVideoIdFromItem(item);
+    if (youtubeVideoId) {
+      const savedPosition = progress.find(
+        (entry) => itemKey(entry.item) === itemKey(item),
+      )?.seconds;
+      setYoutubeResumeRequest({
+        videoId: youtubeVideoId,
+        seconds: savedPosition ?? 0,
+        title: item.name,
+        thumbnail: item.poster,
+      });
+      navigate("youtube");
+      return;
+    }
     if (item.type === "live") {
       if (item.source === "playlist") {
         const current = playlist.find((p) => itemKey(p) === itemKey(item));
@@ -2593,8 +2617,9 @@ export default function App() {
     ]
       .sort((a, b) => b.at - a.at)
       .slice(0, 100);
-    save("progress", mergedProgress);
-    setProgress(mergedProgress);
+    const restoredProgress = normalizeYouTubeProgress(mergedProgress);
+    save("progress", restoredProgress);
+    setProgress(restoredProgress);
     return `Restored ${installed.addons.length} add-ons, ${transfer.collections.length} collections and ${transfer.library.length} saved titles.${installed.failed ? ` ${installed.failed} add-ons could not be reached; reinstall those URLs separately.` : ""}`;
   }
   if (!profileReady)
@@ -3662,7 +3687,38 @@ export default function App() {
           )}
           {page === "youtube" && (
             <Suspense fallback={<Loading />}>
-              <YouTubeHub />
+              <YouTubeHub
+                resumeRequest={youtubeResumeRequest}
+                onResumeConsumed={() => setYoutubeResumeRequest(null)}
+                onProgress={(next: YouTubePlaybackProgress) => {
+                  setProgress((current) => {
+                    const remaining = current.filter(
+                      (entry) =>
+                        youtubeVideoIdFromItem(entry.item) !== next.videoId,
+                    );
+                    const updated =
+                      next.seconds >= next.duration * 0.97
+                        ? remaining
+                        : [
+                            {
+                              item: youtubeProgressItem(next.videoId, undefined, [
+                                {
+                                  videoId: next.videoId,
+                                  title: next.title,
+                                  thumbnail: next.thumbnail,
+                                },
+                              ]),
+                              seconds: next.seconds,
+                              duration: next.duration,
+                              at: Date.now(),
+                            },
+                            ...remaining,
+                          ].slice(0, 100);
+                    save("progress", updated);
+                    return updated;
+                  });
+                }}
+              />
             </Suspense>
           )}
           <div
@@ -3872,7 +3928,7 @@ export default function App() {
                 partyAttemptedRef.current = "";
               }
               setPlayback(null);
-              setProgress(read("progress", []));
+              setProgress(normalizeYouTubeProgress(read("progress", [])));
             }}
           />
         </Suspense>

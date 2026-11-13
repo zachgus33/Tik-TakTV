@@ -144,6 +144,24 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
 }, testInfo) => {
   await page.addInitScript(() =>
     localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item: {
+            id: "youtube:dQw4w9WgXcQ",
+            name: "youtube:dQw4w9WgXcQ",
+            type: "movie",
+            source: "addon",
+          },
+          seconds: 47,
+          duration: 300,
+          at: Date.now(),
+        },
+      ]),
+    ),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
       "nuvio:playback-service",
       JSON.stringify({ url: "https://playback.example", token: "test-key" }),
     ),
@@ -436,6 +454,38 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   }
   await page.keyboard.press("Escape");
   await expect(tvPlayer).toBeHidden();
+
+  await page.goto("/#home");
+  const continueSection = page.locator(".media-row", {
+    has: page.getByRole("heading", { name: "Pick up where you left off" }),
+  });
+  await expect(continueSection.locator(".media-card strong").first()).not.toHaveText(
+    "youtube:dQw4w9WgXcQ",
+  );
+  await continueSection.locator(".media-card").first().click();
+  await expect(page).toHaveURL(/#youtube$/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const players = (window as any).__youtubePlayers;
+        return players?.[players.length - 1]?.getCurrentTime();
+      }),
+    )
+    .toBe(47);
+  await page.evaluate(() => {
+    const players = (window as any).__youtubePlayers;
+    players[players.length - 1].seekTo(90);
+  });
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("nuvio:progress") ?? "[]").find(
+          (entry: any) => entry.item.id === "youtube:dQw4w9WgXcQ",
+        )?.seconds,
+      ),
+    )
+    .toBe(90);
 });
 
 test("SponsorBlock category choices persist in Playback settings", async ({

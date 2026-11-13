@@ -49,6 +49,12 @@ import {
   readYouTubeAutoplayPreferences,
   subscribeYouTubeAutoplayPreferences,
 } from "./youtube-autoplay";
+import {
+  readYouTubeHistory,
+  youtubeHistoryKey,
+  type YouTubePlaybackProgress,
+  type YouTubeResumeRequest,
+} from "./youtube-progress";
 
 type Player = {
   destroy(): void;
@@ -105,18 +111,15 @@ function loadPlayerApi() {
   return window.__tiktakYouTubeApi;
 }
 
-const historyKey = "tiktak:youtube-history";
-
-function readHistory(): YouTubeSelection[] {
-  try {
-    const value = JSON.parse(localStorage.getItem(historyKey) ?? "[]");
-    return Array.isArray(value) ? value.slice(0, 12) : [];
-  } catch {
-    return [];
-  }
-}
-
-export default function YouTubeHub() {
+export default function YouTubeHub({
+  resumeRequest,
+  onResumeConsumed,
+  onProgress,
+}: {
+  resumeRequest?: YouTubeResumeRequest | null;
+  onResumeConsumed?: () => void;
+  onProgress?: (progress: YouTubePlaybackProgress) => void;
+}) {
   const tvMode =
     document.documentElement.classList.contains("tv-mode") ||
     new URLSearchParams(location.search).get("tv") === "1" ||
@@ -125,7 +128,7 @@ export default function YouTubeHub() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<YouTubeSelection[]>([]);
   const [selection, setSelection] = useState<YouTubeSelection | null>(null);
-  const [history, setHistory] = useState(readHistory);
+  const [history, setHistory] = useState(readYouTubeHistory);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
@@ -160,9 +163,22 @@ export default function YouTubeHub() {
   const failedMusicRef = useRef(new Set<string>());
   const playbackCandidatesRef = useRef<YouTubeSelection[]>([]);
   const autoplayEnabledRef = useRef(autoplayPreferences.enabled);
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+  const saveProgressRef = useRef<() => void>(() => {});
   const endedAdvanceRef = useRef(false);
+  const resumeTargetRef = useRef<{
+    videoId: string;
+    seconds: number;
+    embedApplied: boolean;
+    directApplied: boolean;
+  } | null>(null);
   const selectRef = useRef<
-    (next: YouTubeSelection, recovering?: boolean) => Promise<void>
+    (
+      next: YouTubeSelection,
+      recovering?: boolean,
+      resumeSeconds?: number,
+    ) => Promise<void>
   >(async () => {});
   const resultsRef = useRef<HTMLElement>(null);
   const [resultsTitle, setResultsTitle] = useState("Search results");
@@ -262,10 +278,23 @@ export default function YouTubeHub() {
       ),
     ].slice(0, 12);
     setHistory(value);
-    localStorage.setItem(historyKey, JSON.stringify(value));
+    localStorage.setItem(youtubeHistoryKey, JSON.stringify(value));
   };
 
-  const select = async (next: YouTubeSelection, recovering = false) => {
+  const select = async (
+    next: YouTubeSelection,
+    recovering = false,
+    resumeSeconds = 0,
+  ) => {
+    resumeTargetRef.current =
+      next.videoId && resumeSeconds > 0
+        ? {
+            videoId: next.videoId,
+            seconds: resumeSeconds,
+            embedApplied: false,
+            directApplied: false,
+          }
+        : null;
     setError("");
     setEmbedError(null);
     setDirectPlayback(null);
@@ -286,6 +315,22 @@ export default function YouTubeHub() {
     }
   };
   selectRef.current = select;
+
+  useEffect(() => {
+    if (!resumeRequest) return;
+    setKind("video");
+    void selectRef.current(
+      {
+        videoId: resumeRequest.videoId,
+        title: resumeRequest.title,
+        thumbnail: resumeRequest.thumbnail,
+        kind: "video",
+      },
+      false,
+      resumeRequest.seconds,
+    );
+    onResumeConsumed?.();
+  }, [resumeRequest, onResumeConsumed]);
 
   const switchKind = (next: YouTubeKind) => {
     setKind(next);
@@ -384,6 +429,16 @@ export default function YouTubeHub() {
             onStateChange: (event: { data: number; target: Player }) => {
               const isPlaying = event.data === window.YT?.PlayerState.PLAYING;
               setPlaying(isPlaying);
+              const resume = resumeTargetRef.current;
+              if (
+                isPlaying &&
+                resume &&
+                !resume.embedApplied &&
+                event.target.getVideoData().video_id === resume.videoId
+              ) {
+                resume.embedApplied = true;
+                event.target.seekTo(resume.seconds, true);
+              }
               window.dispatchEvent(
                 new CustomEvent("tiktak-media-activity", {
                   detail: { active: isPlaying },
@@ -507,6 +562,7 @@ export default function YouTubeHub() {
       );
     return () => {
       cancelled = true;
+      saveProgressRef.current();
       window.dispatchEvent(
         new CustomEvent("tiktak-media-activity", { detail: { active: false } }),
       );
@@ -558,8 +614,23 @@ export default function YouTubeHub() {
     };
     playerRef.current = adapter;
     setReady(true);
+    const applyDirectResume = () => {
+      const resume = resumeTargetRef.current;
+      if (
+        resume &&
+        !resume.directApplied &&
+        resume.videoId === selection.videoId
+      ) {
+        resume.directApplied = true;
+        media.currentTime = resume.seconds;
+      }
+    };
+    media.addEventListener("loadedmetadata", applyDirectResume);
+    if (media.readyState >= 1) applyDirectResume();
     void media.play();
     return () => {
+      saveProgressRef.current();
+      media.removeEventListener("loadedmetadata", applyDirectResume);
       hls?.destroy();
       media.removeAttribute("src");
       media.load();
@@ -586,6 +657,36 @@ export default function YouTubeHub() {
     );
     return () => cancelAnimationFrame(frame);
   }, [selection, tvMode]);
+
+  useEffect(() => {
+    if (!selection?.videoId || !ready) return;
+    const savePosition = () => {
+      const player = playerRef.current;
+      if (!player) return;
+      const seconds = player.getCurrentTime();
+      const duration = player.getDuration();
+      if (!Number.isFinite(seconds) || !Number.isFinite(duration) || seconds <= 0 || duration <= 0)
+        return;
+      const data = player.getVideoData();
+      const videoId = data.video_id || selection.videoId;
+      if (!videoId) return;
+      onProgressRef.current?.({
+        videoId,
+        seconds,
+        duration,
+        title: data.title || selection.title,
+        thumbnail:
+          videoId === selection.videoId ? selection.thumbnail : undefined,
+      });
+    };
+    const timer = window.setInterval(savePosition, 5_000);
+    saveProgressRef.current = savePosition;
+    return () => {
+      window.clearInterval(timer);
+      savePosition();
+      saveProgressRef.current = () => {};
+    };
+  }, [ready, selection]);
 
   useEffect(() => {
     if (!ready || !sponsorPreferences.enabled) return;

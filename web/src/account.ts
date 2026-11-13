@@ -20,6 +20,12 @@ import { persistableSetup } from "./account-isolation";
 import { profileSyncKey } from "./profile-sync";
 import { cleanedAddonRows, restoreSavedAddons } from "./account-addons";
 import { manifestUrl } from "./addon-urls";
+import {
+  readYouTubeHistory,
+  youtubeProgressItem,
+  youtubeVideoIdFromItem,
+  youtubeVideoIdFromProgressRow,
+} from "./youtube-progress";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -362,6 +368,7 @@ export async function loadSetup(
         .sort((a, b) => Number(a.order) - Number(b.order))
     : [];
   const remoteProgress: Progress[] = [];
+  const youtubeHistory = readYouTubeHistory();
   for (const row of [...progressRows]
     .sort((a, b) => Number(b.last_watched) - Number(a.last_watched))
     .slice(0, 30)) {
@@ -371,20 +378,29 @@ export async function loadSetup(
     )
       continue;
     const type = row.content_type === "series" ? "series" : "movie";
-    let item =
-      library.find((i) => i.id === row.content_id && i.type === type) ??
-      web.progress?.find((p) => p.item.id === row.content_id)?.item;
-    if (!item) {
-      item = {
+    const youtubeVideoId = youtubeVideoIdFromProgressRow(row);
+    let item: Item;
+    if (youtubeVideoId) {
+      const previous = web.progress?.find(
+        (progress) => youtubeVideoIdFromItem(progress.item) === youtubeVideoId,
+      )?.item;
+      item = youtubeProgressItem(youtubeVideoId, previous, youtubeHistory);
+    } else {
+      const existing =
+        library.find((i) => i.id === row.content_id && i.type === type) ??
+        web.progress?.find((p) => p.item.id === row.content_id)?.item;
+      item = existing ?? {
         id: String(row.content_id),
         name: String(row.content_id),
         type,
         source: "addon",
         provider: defaultAddon.base,
       };
-      try {
-        item = (await addonDetail(item)).item;
-      } catch {}
+      if (!existing) {
+        try {
+          item = (await addonDetail(item)).item;
+        } catch {}
+      }
     }
     remoteProgress.push({
       item,
@@ -571,26 +587,29 @@ export async function saveSetup(
   if (changedProgress.length)
     await rpc("sync_push_watch_progress", {
       p_profile_id: id,
-      p_entries: changedProgress.map((p) => ({
-        content_id: p.item.id,
-        content_type: p.item.type,
-        video_id: p.episode?.id ?? p.item.id,
-        season: p.episode?.season ?? null,
-        episode: p.episode?.episode ?? null,
-        position: Math.round(p.seconds * 1000),
-        duration: Math.round(p.duration * 1000),
-        last_watched: p.at,
-        progress_key:
-          previous.progressRows.find(
-            (r) =>
-              r.content_id === p.item.id &&
-              (r.season ?? undefined) === p.episode?.season &&
-              (r.episode ?? undefined) === p.episode?.episode,
-          )?.progress_key ??
-          (p.episode
-            ? p.item.id + "_s" + p.episode.season + "e" + p.episode.episode
-            : p.item.id),
-      })),
+      p_entries: changedProgress.map((p) => {
+        const youtubeVideoId = youtubeVideoIdFromItem(p.item);
+        return {
+          content_id: p.item.id,
+          content_type: youtubeVideoId ? "youtube" : p.item.type,
+          video_id: youtubeVideoId ?? p.episode?.id ?? p.item.id,
+          season: p.episode?.season ?? null,
+          episode: p.episode?.episode ?? null,
+          position: Math.round(p.seconds * 1000),
+          duration: Math.round(p.duration * 1000),
+          last_watched: p.at,
+          progress_key:
+            previous.progressRows.find(
+              (r) =>
+                r.content_id === p.item.id &&
+                (r.season ?? undefined) === p.episode?.season &&
+                (r.episode ?? undefined) === p.episode?.episode,
+            )?.progress_key ??
+            (p.episode
+              ? p.item.id + "_s" + p.episode.season + "e" + p.episode.episode
+              : p.item.id),
+        };
+      }),
       p_origin_client_id: origin,
     });
   baselines.set(keyForProfile, {
