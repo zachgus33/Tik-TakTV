@@ -373,7 +373,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   ).toBeVisible();
   await expect(page.getByText("Test viewer", { exact: true })).toBeVisible();
   await expect(page.getByText("Account recommendation")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Inspired by your recent watches" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Related uploads from channels you watched" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Latest from your subscriptions" }),
+  ).toBeVisible();
   await expect(page.getByText("More video 29")).toHaveCount(0);
   await page.getByRole("button", { name: "Show more videos" }).click();
   await expect(page.getByText("More video 29")).toBeVisible();

@@ -257,10 +257,10 @@ fun TikTakYouTubeScreen(
             item { YouTubeRow("Search results", results, onPlay) }
         }
         if (kind == "video" && recentItems.isNotEmpty()) {
-            item { YouTubeRow("Inspired by your recent watches", recentItems, onPlay) }
+            item { YouTubeRow("Related uploads from channels you watched", recentItems, onPlay) }
         }
         if (accountItems.isNotEmpty()) {
-            item { YouTubeRow(if (kind == "music") "Your music" else "Videos for you", accountItems, onPlay) }
+            item { YouTubeRow(if (kind == "music") "Your music" else if (subscriptions.isNotEmpty()) "Latest from your subscriptions" else "Recent YouTube videos", accountItems, onPlay) }
         }
         if (playlistItems.isNotEmpty()) {
             item { YouTubeRow(if (kind == "music") "Saved music & playlists" else "Your playlists & Watch Later", playlistItems, onPlay) }

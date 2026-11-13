@@ -9,7 +9,9 @@ import {
   resolveTarget,
   rewritePlaylist,
   rotateYoutubeAccount,
+  youtubeLongFormVideo,
   youtubeRecentVideoIds,
+  youtubeTitlesRelated,
   safeDownloadName,
   sourceHeaders,
   youtubeVideoAllowed,
@@ -63,9 +65,33 @@ test("YouTube search rejects blocked embeds for video and music", () => {
     snippet: { categoryId: "10" },
     status: { embeddable: true },
   };
+  const playableVideo = {
+    snippet: { categoryId: "20" },
+    status: { embeddable: true },
+    contentDetails: { duration: "PT12M3S" },
+  };
   assert.equal(youtubeVideoAllowed(blockedMusic, "music"), false);
   assert.equal(youtubeVideoAllowed(playableMusic, "music"), true);
   assert.equal(youtubeVideoAllowed(playableMusic, "video"), false);
+  assert.equal(youtubeVideoAllowed(playableVideo, "video"), true);
+  assert.equal(
+    youtubeVideoAllowed({ ...playableVideo, contentDetails: { duration: "PT3M" } }, "video"),
+    false,
+  );
+});
+
+test("YouTube video feed excludes all possible three-minute Shorts", () => {
+  assert.equal(youtubeLongFormVideo({ contentDetails: { duration: "PT59S" } }), false);
+  assert.equal(youtubeLongFormVideo({ contentDetails: { duration: "PT3M" } }), false);
+  assert.equal(youtubeLongFormVideo({ contentDetails: { duration: "PT3M1S" } }), true);
+  assert.equal(youtubeLongFormVideo({ contentDetails: { duration: "PT1H2M" } }), true);
+  assert.equal(youtubeLongFormVideo({ contentDetails: {} }), false);
+});
+
+test("recent-watch suggestions require a meaningful title match", () => {
+  assert.equal(youtubeTitlesRelated("Minecraft survival house", "Building a Minecraft base"), true);
+  assert.equal(youtubeTitlesRelated("Minecraft survival house", "Official video 2026"), false);
+  assert.equal(youtubeTitlesRelated("Official video 2026", "Another official video 2026"), false);
 });
 
 test("public liveness endpoint exposes no private configuration", async () => {
