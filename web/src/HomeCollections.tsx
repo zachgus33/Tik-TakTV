@@ -1,9 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import CollectionsView from "./CollectionsView";
-import { safeUrl } from "./api";
+import { safeSourceUrl } from "./api";
+import { relayedArtwork } from "./ChannelArt";
 import { folderLabel, type Collection } from "./collections";
 import type { Addon, Item } from "./types";
+
+function CollectionCover({ source }: { source?: string }) {
+  const url = safeSourceUrl(source);
+  const [displayUrl, setDisplayUrl] = useState(url?.startsWith("http:") ? "" : url ?? "");
+  useEffect(() => {
+    let active = true;
+    setDisplayUrl(url?.startsWith("http:") ? "" : url ?? "");
+    if (url?.startsWith("http:"))
+      void relayedArtwork(url).then(
+        (resolved) => { if (active) setDisplayUrl(resolved); },
+        () => {},
+      );
+    return () => { active = false; };
+  }, [url]);
+  return displayUrl ? (
+    <img
+      src={displayUrl}
+      alt=""
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (!url || displayUrl !== url) { setDisplayUrl(""); return; }
+        void relayedArtwork(url).then(setDisplayUrl, () => setDisplayUrl(""));
+      }}
+    />
+  ) : null;
+}
+
 export default function HomeCollections(props: {
   collections: Collection[];
   addons: Addon[];
@@ -53,7 +82,7 @@ export default function HomeCollections(props: {
   return (
     <>
       {visibleCollections.map((c) => {
-        const backdrop = safeUrl(c.backdropImageUrl);
+        const backdrop = safeSourceUrl(c.backdropImageUrl);
         return (
           <section
             className={`home-collection collection-view-${c.viewMode === "TABS" || c.viewMode === "tabs" ? "tabs" : "rows"}`}
@@ -80,7 +109,6 @@ export default function HomeCollections(props: {
             </div>
             <div className="service-tiles">
               {c.folders.map((f, index) => {
-                const cover = safeUrl(f.coverImageUrl);
                 const label = folderLabel(f, index);
                 return (
                   <button
@@ -93,16 +121,7 @@ export default function HomeCollections(props: {
                     }}
                     aria-label={`Open ${c.title}: ${label}`}
                   >
-                    {cover ? (
-                      <img
-                        src={cover}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : null}
+                    <CollectionCover source={f.coverImageUrl} />
                     {!f.hideTitle && f.title.trim() && (
                       <span>
                         {typeof f.coverEmoji === "string"

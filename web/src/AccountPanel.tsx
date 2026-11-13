@@ -286,7 +286,7 @@ export default function AccountPanel({
       </section>
       <section className="settings-card preference-card">
         <div>
-          <strong>Profile selection on launch</strong>
+          <strong>Skip profile selection on launch</strong>
           <p>
             Skip the profile chooser on this device and open the last profile
             automatically.
@@ -299,7 +299,7 @@ export default function AccountPanel({
             onChange={(event) => onSkipProfileSelection(event.target.checked)}
           />
           <span aria-hidden="true" />
-          <em>{skipProfileSelection ? "Skip selector" : "Show selector"}</em>
+          <em>{skipProfileSelection ? "On" : "Off"}</em>
         </label>
       </section>
     </div>
