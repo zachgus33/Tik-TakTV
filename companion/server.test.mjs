@@ -10,6 +10,7 @@ import {
   rewritePlaylist,
   rotateYoutubeAccount,
   youtubeForYouFeed,
+  youtubeDiscoveryQueries,
   youtubeDiscoveryQuery,
   youtubeLongFormVideo,
   youtubeRecentVideoIds,
@@ -44,34 +45,30 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
   assert.equal(account.videoFeed[0].videoId, "video-0");
 });
 
-test("For You survives subscriptions with no eligible video uploads", () => {
-  const watched = [{ videoId: "watched-channel-video" }];
-  const music = [{ videoId: "music-video" }];
-  assert.deepEqual(youtubeForYouFeed([], [], [], watched, music), watched);
-  assert.deepEqual(youtubeForYouFeed([], [], [], [], music), music);
+test("For You blends interest discovery with popular videos, never subscription uploads", () => {
+  const discovery = [{ videoId: "interest-1" }, { videoId: "interest-2" }];
+  const popular = [{ videoId: "popular-1" }, { videoId: "popular-2" }];
+  const related = [{ videoId: "related-1" }];
   assert.deepEqual(
-    youtubeForYouFeed(watched, [], [{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
-    ["watched-channel-video", "subscription-video"],
+    youtubeForYouFeed(discovery, popular, related).map((item) => item.videoId),
+    ["interest-1", "popular-1", "related-1", "interest-2", "popular-2"],
   );
-  assert.deepEqual(
-    youtubeForYouFeed(
-      [{ videoId: "recent-1" }, { videoId: "recent-2" }],
-      [],
-      [{ videoId: "subscription-1" }, { videoId: "subscription-2" }],
-      [],
-      [],
-    ).map((item) => item.videoId),
-    ["recent-1", "recent-2", "subscription-1", "subscription-2"],
-  );
+  assert.deepEqual(youtubeForYouFeed([], popular, []).map((item) => item.videoId), ["popular-1", "popular-2"]);
 });
 
 test("For You prioritizes unsubscribed discovery and derives a topic from watch history", () => {
   assert.equal(youtubeDiscoveryQuery("Minecraft Survival House (Official Video)"), "minecraft survival house");
   const discovery = [{ videoId: "new-creator", channel: "New creator" }];
-  const subscriptions = [{ videoId: "followed-creator", channel: "Followed creator" }];
   assert.deepEqual(
-    youtubeForYouFeed(discovery, [], subscriptions, [], []).map((item) => item.videoId),
-    ["new-creator", "followed-creator"],
+    youtubeForYouFeed(discovery, [], []).map((item) => item.videoId),
+    ["new-creator"],
+  );
+  assert.deepEqual(
+    youtubeDiscoveryQueries(
+      ["Minecraft survival house tutorial", "Minecraft survival house ideas"],
+      ["Friends cast reunion interview", "Laptop review 2026"],
+    ),
+    ["friends cast reunion interview", "minecraft survival house tutorial", "laptop review 2026"],
   );
 });
 

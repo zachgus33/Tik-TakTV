@@ -142,7 +142,7 @@ fun TikTakYouTubeScreen(
             // Account feeds can repeat the same upload across subscriptions and
             // activity. Duplicate LazyRow keys crash Compose on low-memory TV
             // devices, and unbounded artwork decoding can freeze Fire TV.
-            accountItems = (if (kind == "music") payload.musicFeed else payload.videoFeed.ifEmpty { payload.activity })
+            accountItems = (if (kind == "music") payload.musicFeed else payload.videoFeed)
                 .distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_YOUTUBE_FEED_ITEMS)
             recentItems = if (kind == "video") payload.recentFeed

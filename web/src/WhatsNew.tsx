@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.13.2";
+export const latestRelease = "2026.11.13.3";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 13, 2026",
+    title: "A better YouTube For You",
+    changes: [
+      "For You now mixes topics from recent TikTak TV watches and liked YouTube videos with current popular uploads.",
+      "Subscribed-channel uploads stay in Subscriptions, and For You limits repeats from any one creator.",
+      "Refresh suggestions to explore a different mix without losing your playlists or history.",
+    ],
+  },
+  {
+    version: "2026.11.13.2",
     date: "November 13, 2026",
     title: "YouTube discovery and library",
     changes: [
