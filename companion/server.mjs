@@ -2016,7 +2016,7 @@ export function createService({ token, origins, authorizeAccount }) {
           youtubeApi(userId, "playlists", {
             part: "snippet,contentDetails",
             mine: "true",
-            maxResults: 30,
+            maxResults: 50,
           }),
           youtubeApi(userId, "activities", {
             part: "snippet,contentDetails",
@@ -2255,7 +2255,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const playlistItems = [
           ...watchLaterPlaylist,
           ...(playlists?.items ?? []),
-        ].slice(0, 31);
+        ].slice(0, 51);
         const playlistLeads = await Promise.all(
           playlistItems.map((item) =>
             youtubeApi(userId, "playlistItems", {
