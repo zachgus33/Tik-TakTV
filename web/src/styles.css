@@ -5758,6 +5758,30 @@ button.primary:hover,
   min-width: 108px;
   min-height: 44px;
 }
+.youtube-interests {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 22px;
+  color: var(--muted);
+}
+.youtube-interests input {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+}
+.youtube-interests button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
 .youtube-account-card,
 .youtube-device-card {
   display: flex;

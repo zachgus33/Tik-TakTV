@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.13.3";
+export const latestRelease = "2026.11.13.4";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,11 +9,11 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 13, 2026",
-    title: "A better YouTube For You",
+    title: "YouTube search and For You updates",
     changes: [
-      "For You now mixes topics from recent TikTak TV watches and liked YouTube videos with current popular uploads.",
-      "Subscribed-channel uploads stay in Subscriptions, and For You limits repeats from any one creator.",
-      "Refresh suggestions to explore a different mix without losing your playlists or history.",
+      "YouTube search is visible above For You again.",
+      "For You uses long videos watched in TikTak TV and stops using likes on Shorts to pick topics.",
+      "Choose up to four topics, such as survival or camping, to steer your suggestions.",
     ],
   },
   {

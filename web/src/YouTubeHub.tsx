@@ -129,6 +129,9 @@ export default function YouTubeHub({
     /TikTakTV-AndroidTV/i.test(navigator.userAgent);
   const [kind, setKind] = useState<YouTubeKind>("video");
   const [query, setQuery] = useState("");
+  const [interestInput, setInterestInput] = useState(() =>
+    localStorage.getItem("tiktak:youtube-interests") ?? "",
+  );
   const [results, setResults] = useState<YouTubeSelection[]>([]);
   const [selection, setSelection] = useState<YouTubeSelection | null>(null);
   const [history, setHistory] = useState(readYouTubeHistory);
@@ -223,7 +226,9 @@ export default function YouTubeHub({
         .map((item) => item.videoId)
         .filter((id): id is string => !!id)
         .slice(0, 40);
-      setAccount(await youtubeAccount(false, { refresh, recentVideoIds }));
+      const interestTopics = (localStorage.getItem("tiktak:youtube-interests") ?? "")
+        .split(",").map((topic) => topic.trim()).filter(Boolean).slice(0, 4);
+      setAccount(await youtubeAccount(false, { refresh, recentVideoIds, interestTopics }));
       if (refresh) setVisibleFeedCount(24);
     } catch (reason) {
       setError(
@@ -871,6 +876,40 @@ export default function YouTubeHub({
         </nav>
       )}
 
+      <form className="youtube-search" onSubmit={submit}>
+        <Search size={20} />
+        <input
+          aria-label="Search YouTube or paste a link"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={
+            kind === "music"
+              ? "Search music or paste a YouTube Music link"
+              : "Search YouTube or paste a video / playlist link"
+          }
+        />
+        <button className="primary" disabled={busy}>
+          {busy ? "Searching…" : "Search"}
+        </button>
+      </form>
+
+      {kind === "video" && section === "forYou" && (
+        <form className="youtube-interests" onSubmit={(event) => {
+          event.preventDefault();
+          const topics = interestInput.split(",").map((topic) => topic.trim())
+            .filter(Boolean).slice(0, 4).join(", ");
+          setInterestInput(topics);
+          localStorage.setItem("tiktak:youtube-interests", topics);
+          void loadAccount(true);
+        }}>
+          <label htmlFor="youtube-interests">Show me more about</label>
+          <input id="youtube-interests" value={interestInput}
+            onChange={(event) => setInterestInput(event.target.value)}
+            placeholder="Survival, camping, gaming… (up to 4 topics)" />
+          <button type="submit">Update For You</button>
+        </form>
+      )}
+
       {(kind === "music" || section === "forYou") && forYouSection}
 
       <section className="youtube-account-card" aria-label="YouTube account">
@@ -951,22 +990,7 @@ export default function YouTubeHub({
         </section>
       )}
 
-      <form className="youtube-search" onSubmit={submit}>
-        <Search size={20} />
-        <input
-          aria-label="Search YouTube or paste a link"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={
-            kind === "music"
-              ? "Search music or paste a YouTube Music link"
-              : "Search YouTube or paste a video / playlist link"
-          }
-        />
-        <button className="primary" disabled={busy}>
-          {busy ? "Searching…" : "Search"}
-        </button>
-      </form>
+
 
       {error && (
         <div className="error" role="alert">

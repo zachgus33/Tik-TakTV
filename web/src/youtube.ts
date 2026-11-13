@@ -49,7 +49,7 @@ async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
 
 export async function youtubeAccount(
   summary = false,
-  options: { refresh?: boolean; recentVideoIds?: string[] } = {},
+  options: { refresh?: boolean; recentVideoIds?: string[]; interestTopics?: string[] } = {},
 ) {
   return (
     await youtubeAccountRequest<YouTubeAccount>("/youtube/account", { summary, ...options })
