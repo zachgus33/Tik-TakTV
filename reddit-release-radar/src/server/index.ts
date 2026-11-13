@@ -1,5 +1,6 @@
-import { redis, reddit } from "@devvit/web/server";
+import { createServer, getServerPort, redis, reddit } from "@devvit/web/server";
 import type { TaskResponse } from "@devvit/web/server";
+import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import {
   composePost,
@@ -121,4 +122,4 @@ app.post("/internal/scheduler/check-releases", async (context) => {
   return context.json<TaskResponse>({ status: errors.length ? "error" : "ok" }, errors.length ? 500 : 200);
 });
 
-export default app;
+serve({ fetch: app.fetch, createServer, port: getServerPort() });
