@@ -2421,100 +2421,60 @@ export function createService({ token, origins, authorizeAccount }) {
           return send(400, { error: "Enter a shorter YouTube search." });
         if (channelId && !/^[A-Za-z0-9_-]{10,64}$/.test(channelId))
           return send(400, { error: "Invalid YouTube channel." });
-        const apiKey = String(process.env.YOUTUBE_API_KEY ?? "").trim();
-        if (!apiKey)
-          return send(503, {
-            error:
-              "YouTube search is being configured. Paste a YouTube video or playlist link for now.",
-          });
         const cacheKey = `${kind}:${channelId}:${query.toLocaleLowerCase()}`;
         const cached = youtubeCache.get(cacheKey);
         if (cached?.expires > Date.now())
           return send(200, { results: cached.results });
-        const target = new URL("https://www.googleapis.com/youtube/v3/search");
-        target.search = new URLSearchParams({
+        const searchParams = {
           part: "snippet",
           type: "video",
-          maxResults: "24",
+          maxResults: 24,
           videoEmbeddable: "true",
           safeSearch: "moderate",
           ...(query ? { q: query } : {}),
           ...(channelId ? { channelId, order: "date" } : {}),
-          key: apiKey,
-          ...(kind === "music" ? { videoCategoryId: "10" } : {}),
-        }).toString();
-        const upstream = await fetchSafe(target.href, {
-          signal: controller.signal,
-        });
-        try {
-          if (!upstream.response.ok)
-            return send(upstream.response.status === 403 ? 503 : 502, {
-              error: "YouTube search is temporarily unavailable.",
-            });
-          const payload = JSON.parse(
-            await limitedText(upstream.response, 2_000_000),
-          );
-          let results = (Array.isArray(payload.items) ? payload.items : [])
-            .map((item) => ({
-              videoId: String(item?.id?.videoId ?? ""),
-              title: String(item?.snippet?.title ?? "YouTube video").slice(
-                0,
-                300,
-              ),
-              channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
-              thumbnail: String(
-                item?.snippet?.thumbnails?.medium?.url ??
-                  item?.snippet?.thumbnails?.default?.url ??
-                  "",
-              ),
-            }))
-            .filter((item) => /^[A-Za-z0-9_-]{11}$/.test(item.videoId));
-          if (results.length) {
-            const videosTarget = new URL(
-              "https://www.googleapis.com/youtube/v3/videos",
-            );
-            videosTarget.search = new URLSearchParams({
-              part: "snippet,status,contentDetails",
-              id: results.map((item) => item.videoId).join(","),
-              maxResults: "50",
-              key: apiKey,
-            }).toString();
-            const videosUpstream = await fetchSafe(videosTarget.href, {
-              signal: controller.signal,
-            });
-            try {
-              if (videosUpstream.response.ok) {
-                const videosPayload = JSON.parse(
-                  await limitedText(videosUpstream.response, 2_000_000),
-                );
-                const allowed = new Set(
-                  (videosPayload.items ?? [])
-                    .filter((item) => youtubeVideoAllowed(item, kind))
-                    .map((item) => item.id),
-                );
-                results = results
-                  .filter((item) => allowed.has(item.videoId))
-                  .map((item) => ({ ...item, kind }));
-              } else {
-                return send(502, {
-                  error: "YouTube search is temporarily unavailable.",
-                });
-              }
-            } finally {
-              await videosUpstream.close();
-            }
-          }
-          results = results.map((item) => ({ ...item, kind }));
-          youtubeCache.set(cacheKey, {
-            results,
-            expires: Date.now() + 15 * 60_000,
+          ...(kind === "music" ? { videoCategoryId: "10" } : { videoDuration: "medium" }),
+        };
+        const payload = await youtubeApi(userId, "search", searchParams)
+          ?? await youtubePublicApi("search", searchParams);
+        if (!payload)
+          return send(503, {
+            error: "YouTube search is temporarily unavailable. Connect your YouTube account or try again later.",
           });
-          while (youtubeCache.size > 100)
-            youtubeCache.delete(youtubeCache.keys().next().value);
-          return send(200, { results });
-        } finally {
-          await upstream.close();
+        let results = (Array.isArray(payload.items) ? payload.items : [])
+          .map((item) => ({
+            videoId: String(item?.id?.videoId ?? ""),
+            title: String(item?.snippet?.title ?? "YouTube video").slice(0, 300),
+            channel: String(item?.snippet?.channelTitle ?? "").slice(0, 200),
+            thumbnail: String(item?.snippet?.thumbnails?.medium?.url
+              ?? item?.snippet?.thumbnails?.default?.url ?? ""),
+          }))
+          .filter((item) => youtubeVideoIdPattern.test(item.videoId));
+        if (results.length) {
+          const videoParams = {
+            part: "snippet,status,contentDetails",
+            id: results.map((item) => item.videoId).join(","),
+            maxResults: 50,
+          };
+          const details = await youtubeApi(userId, "videos", videoParams)
+            ?? await youtubePublicApi("videos", videoParams);
+          if (!details)
+            return send(502, { error: "YouTube search is temporarily unavailable." });
+          const allowed = new Set(
+            (details.items ?? [])
+              .filter((item) => youtubeVideoAllowed(item, kind))
+              .map((item) => item.id),
+          );
+          results = results.filter((item) => allowed.has(item.videoId));
         }
+        results = results.map((item) => ({ ...item, kind }));
+        youtubeCache.set(cacheKey, {
+          results,
+          expires: Date.now() + 15 * 60_000,
+        });
+        while (youtubeCache.size > 100)
+          youtubeCache.delete(youtubeCache.keys().next().value);
+        return send(200, { results });
       }
       if (route.pathname === "/youtube/playback") {
         const videoId = String(body.videoId ?? "").trim();
