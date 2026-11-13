@@ -108,15 +108,30 @@ fun TikTakYouTubeScreen(
     var accountLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    fun localHistory(): List<TikTakYouTubeItem> =
+        WatchProgressRepository.uiState.value.entries
+            .asSequence()
+            .filter { it.contentType.equals("youtube", ignoreCase = true) || it.parentMetaId.startsWith("youtube:", ignoreCase = true) }
+            .filter { YouTubeVideoIdPattern.matches(it.videoId) }
+            .sortedByDescending { it.lastUpdatedEpochMs }
+            .map { entry ->
+                TikTakYouTubeItem(
+                    videoId = entry.videoId,
+                    kind = "video",
+                    title = entry.title,
+                    channel = entry.providerName ?: "YouTube",
+                    thumbnail = entry.poster ?: "https://i.ytimg.com/vi/${entry.videoId}/hqdefault.jpg",
+                )
+            }
+            .distinctBy(TikTakYouTubeItem::stableKey)
+            .take(MAX_VISIBLE_YOUTUBE_ITEMS)
+            .toList()
+
     suspend fun loadAccount(refresh: Boolean = false) {
         accountLoading = true
         runCatching {
-            val recentVideoIds = WatchProgressRepository.uiState.value.entries
-                .filter { it.contentType.equals("youtube", ignoreCase = true) || it.parentMetaId.startsWith("youtube:", ignoreCase = true) }
-                .sortedByDescending { it.lastUpdatedEpochMs }
-                .map { it.videoId }
-                .filter(YouTubeVideoIdPattern::matches)
-                .distinct()
+            val recentVideoIds = localHistory()
+                .mapNotNull(TikTakYouTubeItem::videoId)
                 .take(40)
             val body = YouTubeJson.encodeToString(YouTubeAccountRequest(refresh = refresh, recentVideoIds = recentVideoIds))
             val response = TikTakServiceClient.post("/youtube/account", body)
@@ -135,7 +150,7 @@ fun TikTakYouTubeScreen(
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
             subscriptionItems = payload.subscriptionFeed.distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS)
-            historyItems = payload.historyFeed.distinctBy(TikTakYouTubeItem::stableKey)
+            historyItems = (localHistory() + payload.historyFeed).distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS)
             playlistItems = payload.playlists
                 .filter { item -> item.kind == null || item.kind == kind }
@@ -143,7 +158,10 @@ fun TikTakYouTubeScreen(
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS)
             subscriptions = if (kind == "video") payload.subscriptions.take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
         }
-            .onFailure { error = it.message }
+            .onFailure {
+                error = it.message
+                historyItems = localHistory()
+            }
         accountLoading = false
     }
 
