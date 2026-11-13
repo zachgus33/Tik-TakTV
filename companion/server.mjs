@@ -226,11 +226,11 @@ export function rotateYoutubeAccount(account, rotation = 0) {
   };
 }
 
-export function youtubeForYouFeed(subscriptionVideos, watchedChannelVideos, musicVideos) {
+export function youtubeForYouFeed(recentMatches, subscriptionVideos, watchedChannelVideos, musicVideos) {
   const unique = (items) => [
     ...new Map(items.filter((item) => item?.videoId).map((item) => [item.videoId, item])).values(),
   ];
-  const videos = unique([...subscriptionVideos, ...watchedChannelVideos]);
+  const videos = unique([...recentMatches, ...subscriptionVideos, ...watchedChannelVideos]);
   // Music uploads are still videos. Use them only when subscriptions and
   // watched channels have no eligible long-form uploads.
   return videos.length ? videos : unique(musicVideos);
@@ -2307,6 +2307,7 @@ export function createService({ token, origins, authorizeAccount }) {
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
           videoFeed: youtubeForYouFeed(
+            decoratedRecentFeed,
             decoratedFeed.filter((item) => item.kind === "video"),
             watchedChannelVideos,
             decoratedFeed.filter(

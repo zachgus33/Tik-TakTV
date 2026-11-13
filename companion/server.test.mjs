@@ -46,11 +46,11 @@ test("YouTube account feeds rotate without dropping recommendations", () => {
 test("For You survives subscriptions with no eligible video uploads", () => {
   const watched = [{ videoId: "watched-channel-video" }];
   const music = [{ videoId: "music-video" }];
-  assert.deepEqual(youtubeForYouFeed([], watched, music), watched);
-  assert.deepEqual(youtubeForYouFeed([], [], music), music);
+  assert.deepEqual(youtubeForYouFeed([], [], watched, music), watched);
+  assert.deepEqual(youtubeForYouFeed([], [], [], music), music);
   assert.deepEqual(
-    youtubeForYouFeed([{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
-    ["subscription-video", "watched-channel-video"],
+    youtubeForYouFeed(watched, [{ videoId: "subscription-video" }], watched, music).map((item) => item.videoId),
+    ["watched-channel-video", "subscription-video"],
   );
 });
 
