@@ -32,6 +32,7 @@ export type YouTubeAccount = {
   activity?: YouTubeSelection[];
   videoFeed?: YouTubeSelection[];
   musicFeed?: YouTubeSelection[];
+  recentFeed?: YouTubeSelection[];
 };
 
 async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
@@ -44,9 +45,12 @@ async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
   return { response, data };
 }
 
-export async function youtubeAccount(summary = false) {
+export async function youtubeAccount(
+  summary = false,
+  options: { refresh?: boolean; recentVideoIds?: string[] } = {},
+) {
   return (
-    await youtubeAccountRequest<YouTubeAccount>("/youtube/account", { summary })
+    await youtubeAccountRequest<YouTubeAccount>("/youtube/account", { summary, ...options })
   ).data;
 }
 

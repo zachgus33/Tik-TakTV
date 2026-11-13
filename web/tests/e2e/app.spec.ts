@@ -162,6 +162,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   );
   await page.addInitScript(() =>
     localStorage.setItem(
+      "tiktak:youtube-history",
+      JSON.stringify([{ videoId: "dQw4w9WgXcQ", title: "Recently watched" }]),
+    ),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
       "nuvio:playback-service",
       JSON.stringify({ url: "https://playback.example", token: "test-key" }),
     ),
@@ -240,8 +246,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await page.route("https://api.tiktaktv.me/sponsorblock", (route) =>
     route.fulfill({ json: { segments: [] } }),
   );
-  await page.route("https://playback.example/youtube/account", (route) =>
-    route.fulfill({
+  await page.route("https://playback.example/youtube/account", (route) => {
+    const refresh = route.request().postDataJSON()?.refresh === true;
+    return route.fulfill({
       json: {
         configured: true,
         connected: true,
@@ -249,9 +256,23 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
         videoFeed: [
           {
             videoId: "dQw4w9WgXcQ",
-            title: "Account recommendation",
+            title: refresh ? "Fresh recommendation" : "Account recommendation",
             channel: "Test channel",
             thumbnail: "https://img.example/recommendation.jpg",
+            kind: "video",
+          },
+          ...Array.from({ length: 29 }, (_, index) => ({
+            videoId: String(index + 1).padStart(11, "0"),
+            title: `More video ${index + 1}`,
+            channel: "Another channel",
+            kind: "video",
+          })),
+        ],
+        recentFeed: [
+          {
+            videoId: "aqz-KE-bpKQ",
+            title: "From recently watched channel",
+            channel: "Recent channel",
             kind: "video",
           },
         ],
@@ -289,8 +310,8 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
         ],
         subscriptions: [{ id: "channel-1", title: "Subscribed channel" }],
       },
-    }),
-  );
+    });
+  });
   await page.route("https://playback.example/youtube/search", async (route) => {
     const body = route.request().postDataJSON() as {
       kind?: string;
@@ -351,6 +372,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   ).toBeVisible();
   await expect(page.getByText("Test viewer", { exact: true })).toBeVisible();
   await expect(page.getByText("Account recommendation")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inspired by your recent watches" })).toBeVisible();
+  await expect(page.getByText("More video 29")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show more videos" }).click();
+  await expect(page.getByText("More video 29")).toBeVisible();
+  await page.getByRole("button", { name: "Refresh suggestions" }).click();
+  await expect(page.getByText("Fresh recommendation")).toBeVisible();
   await expect(page.getByText("Saved playlist")).toBeVisible();
   await expect(page.getByText("Subscribed channel")).toBeVisible();
   await page.getByLabel("Search videos from Subscribed channel").click();

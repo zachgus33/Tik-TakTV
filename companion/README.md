@@ -136,6 +136,8 @@ Native systemd units apply memory, CPU, task and file-descriptor limits. The wat
 
 Create a Google OAuth client with the **TVs and Limited Input devices** application type and enable YouTube Data API v3. Set its client ID as `YOUTUBE_OAUTH_CLIENT_ID`. If Google issues a client secret for the client, set it as `YOUTUBE_OAUTH_CLIENT_SECRET`; device clients without a secret are also supported. Set `YOUTUBE_VAULT_KEY` to a base64-encoded 32-byte random key, or let the service reuse an existing `FRIEND_VAULT_KEY`. `YOUTUBE_API_KEY` separately enables public text search. TikTak TV stores each Google refresh token encrypted and associates it only with the authenticated Nuvio user ID.
 
+The For You feed collects recent uploads from a rotating sample of subscriptions and refreshes its server cache after two minutes. The website and native TV app can also send up to six recently watched TikTak TV video IDs to suggest other uploads from those channels. Refresh suggestions fetches a new pool when the current one is at least 30 seconds old; closer requests rotate the cached pool to protect API quota. This is an app-specific approximation; YouTube's personalized home feed and full watch history are not available through this API.
+
 ## Validation limits
 
 Automated tests cover authentication, origin restrictions, SSRF checks, header validation and playlist rewriting. A public sample HLS playlist was fetched and rewritten through the actual relay on Windows. ARM64 image startup, real provider media, and FFmpeg throughput must be checked on your Pi before calling the setup complete.
