@@ -9,10 +9,11 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 12, 2026",
-    title: "More YouTube videos for you",
+    title: "YouTube browsing updates",
     changes: [
-      "YouTube now shows a larger, fresher For You selection with more videos to browse and a Refresh suggestions button.",
-      "A new row suggests uploads from channels related to videos you've recently watched in TikTak TV.",
+      "Browse more recent uploads from your subscriptions and use Refresh suggestions to see another selection.",
+      "Related uploads from channels you've watched appear when their titles match a topic you've watched.",
+      "YouTube video feeds and search now hide Shorts, including other clips of three minutes or less.",
       "YouTube videos in Continue Watching now reopen at your saved position on the website.",
     ],
   },
