@@ -125,11 +125,11 @@ object MetaDetailsRepository {
             val manifests = findReadyMetaManifests(type = type, id = metaLookupId)
 
             if (manifests.isEmpty()) {
-                val tmdbMeta = tryFetchTmdbFallbackMeta(type = type, id = id)
-                if (tmdbMeta != null) {
+                val fallbackMeta = tryFetchFallbackMeta(type = type, id = id)
+                if (fallbackMeta != null) {
                     publishLoadedMeta(
                         requestKey = requestKey,
-                        meta = tmdbMeta,
+                        meta = fallbackMeta,
                         fallbackItemId = id,
                         fallbackItemType = type,
                         mdbListSettings = mdbListSettings,
@@ -163,11 +163,11 @@ object MetaDetailsRepository {
                 }
             }
 
-            val tmdbMeta = tryFetchTmdbFallbackMeta(type = type, id = id)
-            if (tmdbMeta != null) {
+            val fallbackMeta = tryFetchFallbackMeta(type = type, id = id)
+            if (fallbackMeta != null) {
                 publishLoadedMeta(
                     requestKey = requestKey,
-                    meta = tmdbMeta,
+                    meta = fallbackMeta,
                     fallbackItemId = id,
                     fallbackItemType = type,
                     mdbListSettings = mdbListSettings,
@@ -227,7 +227,7 @@ object MetaDetailsRepository {
             }
         }
 
-        return tryFetchTmdbFallbackMeta(type = type, id = id)?.also { result ->
+        return tryFetchFallbackMeta(type = type, id = id)?.also { result ->
             cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
         }
     }
@@ -235,6 +235,7 @@ object MetaDetailsRepository {
     private const val FETCH_TIMEOUT_MS = 5_000L
     private const val METADATA_PROVIDER_READY_TIMEOUT_MS = 10_000L
     private const val TMDB_ENRICH_TIMEOUT_MS = 12_000L
+    private const val CINEMETA_FALLBACK_TIMEOUT_MS = 8_000L
     private const val MDBLIST_ENRICH_TIMEOUT_MS = 5_000L
 
     private fun loadCloudStream(
@@ -367,6 +368,35 @@ object MetaDetailsRepository {
         }
             ?.takeIf { it.isNotBlank() }
             ?: itemId
+    }
+
+    private suspend fun tryFetchFallbackMeta(type: String, id: String): MetaDetails? =
+        tryFetchCinemetaFallbackMeta(type, id) ?: tryFetchTmdbFallbackMeta(type, id)
+
+    private suspend fun tryFetchCinemetaFallbackMeta(type: String, id: String): MetaDetails? {
+        if (type !in listOf("movie", "series") || !Regex("^tt[0-9]{7,10}$").matches(id)) return null
+        val url = buildAddonResourceUrl(
+            manifestUrl = "https://v3-cinemeta.strem.io/manifest.json",
+            resource = "meta",
+            type = type,
+            id = id,
+        )
+        return withTimeoutOrNull(CINEMETA_FALLBACK_TIMEOUT_MS) {
+            try {
+                val meta = MetaDetailsParser.parse(httpGetText(url))
+                withTimeoutOrNull(5_000L) {
+                    TmdbMetadataService.enrichMeta(
+                        meta = meta,
+                        fallbackItemId = id,
+                        settings = TmdbSettingsRepository.snapshot(),
+                    )
+                } ?: meta
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                log.w(error) { "Built-in Cinemeta details unavailable for $type:$id" }
+                null
+            }
+        }
     }
 
     private suspend fun tryFetchTmdbFallbackMeta(type: String, id: String): MetaDetails? =
