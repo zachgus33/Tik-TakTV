@@ -1161,6 +1161,60 @@ fun MetaDetailsScreen(
                                 )
                             }
 
+                            if (canShowTraktRating) {
+                                item(key = "trakt-user-rating", contentType = "rating") {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(
+                                            horizontal = contentHorizontalPadding,
+                                            vertical = 16.dp,
+                                        ),
+                                    ) {
+                                        Text(
+                                            "Your Trakt rating: ${userTraktRating?.let { "$it/10" } ?: "Not rated"}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        (0..1).forEach { row ->
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                (1..5).forEach { column ->
+                                                    val rating = row * 5 + column
+                                                    Button(
+                                                        onClick = {
+                                                            userTraktRatingBusy = true
+                                                            userTraktRatingError = null
+                                                            detailsScope.launch {
+                                                                runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, rating) }
+                                                                    .onSuccess { userTraktRating = rating }
+                                                                    .onFailure { userTraktRatingError = it.message ?: "Could not save your rating." }
+                                                                userTraktRatingBusy = false
+                                                            }
+                                                        },
+                                                        enabled = !userTraktRatingBusy,
+                                                        modifier = Modifier.tikTakTvFocus(),
+                                                    ) { Text(if (userTraktRating == rating) "★$rating" else "$rating") }
+                                                }
+                                            }
+                                        }
+                                        if (userTraktRating != null) {
+                                            Button(
+                                                onClick = {
+                                                    userTraktRatingBusy = true
+                                                    userTraktRatingError = null
+                                                    detailsScope.launch {
+                                                        runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, null) }
+                                                            .onSuccess { userTraktRating = null }
+                                                            .onFailure { userTraktRatingError = it.message ?: "Could not remove your rating." }
+                                                        userTraktRatingBusy = false
+                                                    }
+                                                },
+                                                enabled = !userTraktRatingBusy,
+                                                modifier = Modifier.tikTakTvFocus(),
+                                            ) { Text("Remove rating") }
+                                        }
+                                        userTraktRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                    }
+                                }
+                            }
+
                             configuredMetaSectionItems(
                                 settings = metaScreenSettingsUiState,
                                 meta = meta,
@@ -1242,60 +1296,6 @@ fun MetaDetailsScreen(
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedVisibilityScope = animatedVisibilityScope,
                             )
-
-                            if (canShowTraktRating) {
-                                item(key = "trakt-user-rating", contentType = "rating") {
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth().padding(
-                                            horizontal = contentHorizontalPadding,
-                                            vertical = 16.dp,
-                                        ),
-                                    ) {
-                                        Text(
-                                            "Your Trakt rating: ${userTraktRating?.let { "$it/10" } ?: "Not rated"}",
-                                            style = MaterialTheme.typography.titleMedium,
-                                        )
-                                        (0..1).forEach { row ->
-                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                (1..5).forEach { column ->
-                                                    val rating = row * 5 + column
-                                                    Button(
-                                                        onClick = {
-                                                            userTraktRatingBusy = true
-                                                            userTraktRatingError = null
-                                                            detailsScope.launch {
-                                                                runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, rating) }
-                                                                    .onSuccess { userTraktRating = rating }
-                                                                    .onFailure { userTraktRatingError = it.message ?: "Could not save your rating." }
-                                                                userTraktRatingBusy = false
-                                                            }
-                                                        },
-                                                        enabled = !userTraktRatingBusy,
-                                                        modifier = Modifier.tikTakTvFocus(),
-                                                    ) { Text(if (userTraktRating == rating) "★$rating" else "$rating") }
-                                                }
-                                            }
-                                        }
-                                        if (userTraktRating != null) {
-                                            Button(
-                                                onClick = {
-                                                    userTraktRatingBusy = true
-                                                    userTraktRatingError = null
-                                                    detailsScope.launch {
-                                                        runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, null) }
-                                                            .onSuccess { userTraktRating = null }
-                                                            .onFailure { userTraktRatingError = it.message ?: "Could not remove your rating." }
-                                                        userTraktRatingBusy = false
-                                                    }
-                                                },
-                                                enabled = !userTraktRatingBusy,
-                                                modifier = Modifier.tikTakTvFocus(),
-                                            ) { Text("Remove rating") }
-                                        }
-                                        userTraktRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                                    }
-                                }
-                            }
 
                             item(
                                 key = "detail-bottom-spacer",
