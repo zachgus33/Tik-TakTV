@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Returning to TikTak TV</title></head>
+  <body>
+    <p>Returning to TikTak TV…</p>
+    <script>
+      const params = new URLSearchParams(location.search);
+      localStorage.setItem("tiktak:simkl-callback", JSON.stringify({
+        code: params.get("code"), state: params.get("state"), iss: params.get("iss"), error: params.get("error")
+      }));
+      location.replace("/#settings");
+    </script>
+  </body>
+</html>

@@ -242,6 +242,17 @@ fun MetaDetailsScreen(
     var userTraktRating by remember(type, id) { mutableStateOf<Int?>(null) }
     var userTraktRatingBusy by remember(type, id) { mutableStateOf(false) }
     var userTraktRatingError by remember(type, id) { mutableStateOf<String?>(null) }
+    var userSimklRating by remember(type, id) { mutableStateOf<Int?>(null) }
+    var userSimklRatingBusy by remember(type, id) { mutableStateOf(false) }
+    var userSimklRatingError by remember(type, id) { mutableStateOf<String?>(null) }
+    var userAniListMedia by remember(type, id) {
+        mutableStateOf<com.nuvio.app.features.tracking.AniListMediaState?>(null)
+    }
+    var userAniListRatingBusy by remember(type, id) { mutableStateOf(false) }
+    var userAniListRatingError by remember(type, id) { mutableStateOf<String?>(null) }
+    com.nuvio.app.features.tracking.ExternalTrackingRepository.ensureLoaded()
+    val externalTrackingState by com.nuvio.app.features.tracking.ExternalTrackingRepository.state.collectAsStateWithLifecycle()
+    val externalTrackingProfileId = com.nuvio.app.features.profiles.ProfileRepository.activeProfileId
     var deferredMetaWorkAllowed by remember(type, id) { mutableStateOf(false) }
     var showAiAssistant by remember(type, id) { mutableStateOf(false) }
 
@@ -260,6 +271,29 @@ fun MetaDetailsScreen(
             runCatching { TraktRatingsRepository.getRating(displayedMeta!!.type, displayedMeta.id) }
                 .onSuccess { userTraktRating = it }
                 .onFailure { userTraktRatingError = it.message ?: "Could not load your Trakt rating." }
+        }
+    }
+    val canShowSimklRating = !offlineDetailsAvailable && externalTrackingState.simklConnected &&
+        displayedMeta?.let { com.nuvio.app.features.tracking.SimklRatingsRepository.canRate(it.type, it.id) } == true
+    LaunchedEffect(displayedMeta?.id, canShowSimklRating, externalTrackingProfileId) {
+        userSimklRating = null
+        userSimklRatingError = null
+        if (canShowSimklRating) {
+            runCatching { com.nuvio.app.features.tracking.SimklRatingsRepository.getRating(displayedMeta!!.type, displayedMeta.id) }
+                .onSuccess { userSimklRating = it }
+                .onFailure { userSimklRatingError = it.message ?: "Could not load your Simkl rating." }
+        }
+    }
+    val canShowAniListRating = !offlineDetailsAvailable && externalTrackingState.anilistConnected &&
+        displayedMeta?.let { com.nuvio.app.features.tracking.AniListRepository.canTrack(it.id) } == true
+    LaunchedEffect(displayedMeta?.id, canShowAniListRating, externalTrackingProfileId) {
+        userAniListMedia = null
+        userAniListRatingError = null
+        if (canShowAniListRating) {
+            runCatching { com.nuvio.app.features.tracking.AniListRepository.getMedia(
+                externalTrackingProfileId, displayedMeta!!.id) }
+                .onSuccess { userAniListMedia = it }
+                .onFailure { userAniListRatingError = it.message ?: "Could not load AniList anime." }
         }
     }
     val supportsAiAssistant = displayedMeta?.type
@@ -1212,6 +1246,98 @@ fun MetaDetailsScreen(
                                             ) { Text("Remove rating") }
                                         }
                                         userTraktRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                    }
+                                }
+                            }
+                            if (canShowSimklRating) {
+                                item(key = "simkl-user-rating", contentType = "rating") {
+                                    Column(modifier = Modifier.fillMaxWidth().padding(
+                                        horizontal = contentHorizontalPadding, vertical = 16.dp)) {
+                                        Text("Your Simkl rating: ${userSimklRating?.let { "$it/10" } ?: "Not rated"}",
+                                            style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                        (0..1).forEach { row ->
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                (1..5).forEach { column ->
+                                                    val rating = row * 5 + column
+                                                    Button(onClick = {
+                                                        userSimklRatingBusy = true
+                                                        userSimklRatingError = null
+                                                        detailsScope.launch {
+                                                            runCatching { com.nuvio.app.features.tracking.SimklRatingsRepository.setRating(meta.type, meta.id, rating) }
+                                                                .onSuccess { userSimklRating = rating }
+                                                                .onFailure { userSimklRatingError = it.message ?: "Could not save your rating." }
+                                                            userSimklRatingBusy = false
+                                                        }
+                                                    }, enabled = !userSimklRatingBusy,
+                                                        modifier = Modifier.tikTakTvFocus()) {
+                                                        Text(if (userSimklRating == rating) "★$rating" else "$rating")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (userSimklRating != null) {
+                                            Button(onClick = {
+                                                userSimklRatingBusy = true
+                                                userSimklRatingError = null
+                                                detailsScope.launch {
+                                                    runCatching { com.nuvio.app.features.tracking.SimklRatingsRepository.setRating(meta.type, meta.id, null) }
+                                                        .onSuccess { userSimklRating = null }
+                                                        .onFailure { userSimklRatingError = it.message ?: "Could not remove your rating." }
+                                                    userSimklRatingBusy = false
+                                                }
+                                            }, enabled = !userSimklRatingBusy,
+                                                modifier = Modifier.tikTakTvFocus()) { Text("Remove Simkl rating") }
+                                        }
+                                        userSimklRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                    }
+                                }
+                            }
+                            if (canShowAniListRating && userAniListMedia != null) {
+                                item(key = "anilist-user-rating", contentType = "rating") {
+                                    Column(modifier = Modifier.fillMaxWidth().padding(
+                                        horizontal = contentHorizontalPadding, vertical = 16.dp)) {
+                                        Text("Your AniList progress: ${userAniListMedia?.progress ?: 0} episodes",
+                                            style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                        Text("Your AniList rating: ${userAniListMedia?.rating?.let { "$it/10" } ?: "Not rated"}",
+                                            style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                        (0..1).forEach { row ->
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                (1..5).forEach { column ->
+                                                    val rating = row * 5 + column
+                                                    Button(onClick = {
+                                                        userAniListRatingBusy = true
+                                                        userAniListRatingError = null
+                                                        detailsScope.launch {
+                                                            runCatching { com.nuvio.app.features.tracking.AniListRepository.rate(
+                                                                com.nuvio.app.features.profiles.ProfileRepository.activeProfileId,
+                                                                meta.id, rating) }
+                                                                .onSuccess { userAniListMedia = userAniListMedia?.copy(rating = rating) }
+                                                                .onFailure { userAniListRatingError = it.message ?: "Could not save your rating." }
+                                                            userAniListRatingBusy = false
+                                                        }
+                                                    }, enabled = !userAniListRatingBusy,
+                                                        modifier = Modifier.tikTakTvFocus()) {
+                                                        Text(if (userAniListMedia?.rating == rating) "★$rating" else "$rating")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (userAniListMedia?.rating != null) {
+                                            Button(onClick = {
+                                                userAniListRatingBusy = true
+                                                userAniListRatingError = null
+                                                detailsScope.launch {
+                                                    runCatching { com.nuvio.app.features.tracking.AniListRepository.rate(
+                                                        com.nuvio.app.features.profiles.ProfileRepository.activeProfileId,
+                                                        meta.id, null) }
+                                                        .onSuccess { userAniListMedia = userAniListMedia?.copy(rating = null) }
+                                                        .onFailure { userAniListRatingError = it.message ?: "Could not remove your rating." }
+                                                    userAniListRatingBusy = false
+                                                }
+                                            }, enabled = !userAniListRatingBusy,
+                                                modifier = Modifier.tikTakTvFocus()) { Text("Remove AniList rating") }
+                                        }
+                                        userAniListRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                                     }
                                 }
                             }

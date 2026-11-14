@@ -21,6 +21,9 @@ import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import { runtimeSeconds, shiftWebVtt } from "./player-utils";
 import { createTraktScrobbler } from "./trakt-scrobble";
+import { createSimklScrobbler } from "./simkl-scrobble";
+import { anilistProgressEnabled } from "./ExternalTrackingSettings";
+import { anilistMediaRef, recordAniListEpisode } from "./anilist-tracking";
 import {
   createParty,
   endParty,
@@ -357,6 +360,7 @@ function VideoPlayer({
     const mediaOffset = playback.mediaOffset ?? 0;
     const absoluteTime = () => mediaOffset + (video.currentTime || 0);
     const scrobbler = createTraktScrobbler(playback.item, playback.episode, traktProfileName);
+    const simklScrobbler = createSimklScrobbler(playback.item, playback.episode, traktProfileName);
     const scrobbleProgress = () => {
       const duration = runtimeSeconds(playback.item.runtime) || mediaOffset + video.duration;
       return Number.isFinite(duration) && duration > 0 ? absoluteTime() / duration * 100 : 0;
@@ -445,6 +449,7 @@ function VideoPlayer({
     const playingStarted = () => {
       setPlaying(true);
       scrobbler.start(scrobbleProgress());
+      simklScrobbler.start(scrobbleProgress());
       reportMediaActivity(playbackMetricId, {
         active: true,
         event: "started",
@@ -453,11 +458,16 @@ function VideoPlayer({
     const playingStopped = () => {
       setPlaying(false);
       if (!video.ended) scrobbler.pause(scrobbleProgress());
+      if (!video.ended) simklScrobbler.pause(scrobbleProgress());
       reportMediaActivity(playbackMetricId, { active: false });
     };
     const playbackEnded = () => {
       setPlaying(false);
       scrobbler.stop(100);
+      simklScrobbler.stop(100);
+      if (traktProfileName && anilistProgressEnabled(traktProfileName) && anilistMediaRef(playback.item.id))
+        void recordAniListEpisode(traktProfileName, playback.item.id, playback.episode?.episode)
+          .catch(() => undefined);
       reportMediaActivity(playbackMetricId, {
         active: false,
         event: "ended",
@@ -578,6 +588,7 @@ function VideoPlayer({
       reportMediaActivity(playbackMetricId, { active: false });
       persist();
       scrobbler.stop(scrobbleProgress());
+      simklScrobbler.stop(scrobbleProgress());
       video.removeEventListener("loadedmetadata", loaded);
       video.removeEventListener("timeupdate", time);
       video.removeEventListener("progress", time);

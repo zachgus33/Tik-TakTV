@@ -135,6 +135,7 @@ open class MainActivity : AppCompatActivity() {
         TmdbEpisodeEnrichmentStorage.initialize(applicationContext)
         MdbListSettingsStorage.initialize(applicationContext)
         TraktAuthStorage.initialize(applicationContext)
+        com.nuvio.app.features.tracking.ExternalTrackingStorage.initialize(applicationContext)
         TraktCommentsStorage.initialize(applicationContext)
         TraktLibraryStorage.initialize(applicationContext)
         TraktSettingsStorage.initialize(applicationContext)

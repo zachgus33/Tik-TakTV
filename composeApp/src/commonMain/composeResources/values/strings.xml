@@ -573,6 +573,8 @@
     <string name="compose_settings_page_supporters_contributors">Supporters &amp; Contributors</string>
     <string name="compose_settings_page_tmdb_enrichment">TMDB Enrichment</string>
     <string name="compose_settings_page_trakt">Trakt</string>
+    <string name="compose_settings_page_simkl">Simkl</string>
+    <string name="compose_settings_page_anilist">AniList</string>
     <string name="compose_settings_page_tracking">Tracking</string>
     <string name="compose_settings_root_about_section">ABOUT</string>
     <string name="compose_settings_root_account_description">Account and sync status</string>

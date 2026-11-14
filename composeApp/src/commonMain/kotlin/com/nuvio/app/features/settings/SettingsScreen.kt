@@ -811,6 +811,8 @@ private fun MobileSettingsScreen(
                 SettingsPage.Integrations -> integrationsContent(
                     isTablet = false,
                     onTraktClick = { onPageChange(SettingsPage.TraktAuthentication) },
+                    onSimklClick = { onPageChange(SettingsPage.Simkl) },
+                    onAniListClick = { onPageChange(SettingsPage.AniList) },
                     onTelegramClick = { onPageChange(SettingsPage.Telegram) },
                     onAiAssistantClick = { onPageChange(SettingsPage.AiAssistant) },
                     onTmdbClick = { onPageChange(SettingsPage.TmdbEnrichment) },
@@ -844,6 +846,8 @@ private fun MobileSettingsScreen(
                     commentsEnabled = traktCommentsEnabled,
                     onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                 )
+                SettingsPage.Simkl -> externalTrackingSettingsContent("simkl", isTablet = false)
+                SettingsPage.AniList -> externalTrackingSettingsContent("anilist", isTablet = false)
             }
         }
     }
@@ -1046,6 +1050,12 @@ private fun TabletSettingsScreen(
                     } }
                     item { SettingsSidebarItem("Trakt", Icons.Rounded.Settings, page == SettingsPage.TraktAuthentication) {
                         openInlinePage(SettingsPage.TraktAuthentication)
+                    } }
+                    item { SettingsSidebarItem("Simkl", Icons.Rounded.Settings, page == SettingsPage.Simkl) {
+                        openInlinePage(SettingsPage.Simkl)
+                    } }
+                    item { SettingsSidebarItem("AniList", Icons.Rounded.Settings, page == SettingsPage.AniList) {
+                        openInlinePage(SettingsPage.AniList)
                     } }
                     item { SettingsSidebarItem("Advanced", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
@@ -1361,6 +1371,8 @@ private fun TabletSettingsScreen(
                     SettingsPage.Integrations -> integrationsContent(
                         isTablet = true,
                         onTraktClick = { openInlinePage(SettingsPage.TraktAuthentication) },
+                        onSimklClick = { openInlinePage(SettingsPage.Simkl) },
+                        onAniListClick = { openInlinePage(SettingsPage.AniList) },
                         onTelegramClick = { openInlinePage(SettingsPage.Telegram) },
                         onAiAssistantClick = { openInlinePage(SettingsPage.AiAssistant) },
                         onTmdbClick = { openInlinePage(SettingsPage.TmdbEnrichment) },
@@ -1394,6 +1406,8 @@ private fun TabletSettingsScreen(
                         commentsEnabled = traktCommentsEnabled,
                         onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                     )
+                    SettingsPage.Simkl -> externalTrackingSettingsContent("simkl", isTablet = true)
+                    SettingsPage.AniList -> externalTrackingSettingsContent("anilist", isTablet = true)
                 }
             }
         }

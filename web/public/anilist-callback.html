@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Returning to TikTak TV</title></head>
+  <body>
+    <p>Returning to TikTak TV…</p>
+    <script>
+      const params = new URLSearchParams(location.hash.slice(1));
+      localStorage.setItem("tiktak:anilist-callback", JSON.stringify({
+        access_token: params.get("access_token"), expires_in: params.get("expires_in"),
+        token_type: params.get("token_type"), state: params.get("state"), error: params.get("error")
+      }));
+      location.replace("/#settings");
+    </script>
+  </body>
+</html>

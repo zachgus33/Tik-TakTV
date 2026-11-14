@@ -24,6 +24,8 @@ import org.jetbrains.compose.resources.stringResource
 internal fun LazyListScope.integrationsContent(
     isTablet: Boolean,
     onTraktClick: () -> Unit,
+    onSimklClick: () -> Unit,
+    onAniListClick: () -> Unit,
     onTelegramClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onTmdbClick: () -> Unit,
@@ -58,6 +60,22 @@ internal fun LazyListScope.integrationsContent(
                     iconPainter = integrationLogoPainter(IntegrationLogo.Trakt),
                     isTablet = isTablet,
                     onClick = onTraktClick,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsNavigationRow(
+                    title = "Simkl",
+                    description = "Your own movie, show and anime tracking",
+                    icon = Icons.Rounded.CloudQueue,
+                    isTablet = isTablet,
+                    onClick = onSimklClick,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsNavigationRow(
+                    title = "AniList",
+                    description = "Your own anime list",
+                    icon = Icons.Rounded.CloudQueue,
+                    isTablet = isTablet,
+                    onClick = onAniListClick,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsNavigationRow(

@@ -96,6 +96,9 @@ import {
 } from "./types";
 import type { Playback } from "./Player";
 import { getTraktRating, setTraktRating, traktRatingIds } from "./trakt-ratings";
+import { getSimklRating, setSimklRating, simklRatingIds } from "./simkl-ratings";
+import { simklAccessToken, anilistAccessToken } from "./ExternalTrackingSettings";
+import { anilistMedia, anilistMediaRef, rateAniList } from "./anilist-tracking";
 import { traktAccessToken } from "./TraktSettings";
 import { migrateLegacyTraktProfile, traktProfileIdentity } from "./trakt-profile";
 import {
@@ -1015,6 +1018,15 @@ function Detail({
   const [traktRating, setTraktRatingValue] = useState<number | null>(null);
   const [traktRatingBusy, setTraktRatingBusy] = useState(false);
   const [traktRatingError, setTraktRatingError] = useState("");
+  const [simklConnected, setSimklConnected] = useState(false);
+  const [simklRating, setSimklRatingValue] = useState<number | null>(null);
+  const [simklRatingBusy, setSimklRatingBusy] = useState(false);
+  const [simklRatingError, setSimklRatingError] = useState("");
+  const [anilistConnected, setAnilistConnected] = useState(false);
+  const [anilistRating, setAnilistRating] = useState<number | null>(null);
+  const [anilistProgress, setAnilistProgress] = useState<number | null>(null);
+  const [anilistRatingBusy, setAnilistRatingBusy] = useState(false);
+  const [anilistRatingError, setAnilistRatingError] = useState("");
   useEffect(() => {
     let live = true;
     setTraktRatingValue(null);
@@ -1044,6 +1056,51 @@ function Detail({
     } finally {
       setTraktRatingBusy(false);
     }
+  }
+  useEffect(() => {
+    let live = true;
+    setSimklRatingValue(null);
+    setSimklRatingError("");
+    if (!traktProfileName || !simklRatingIds(item.id) || item.type === "live") {
+      setSimklConnected(false);
+      return;
+    }
+    void simklAccessToken(traktProfileName).then(async token => {
+      if (!live) return;
+      setSimklConnected(!!token);
+      if (token) {
+        const rating = await getSimklRating(traktProfileName, item);
+        if (live) setSimklRatingValue(rating);
+      }
+    }).catch(error => { if (live) setSimklRatingError(message(error)); });
+    return () => { live = false; };
+  }, [traktProfileName, item.id, item.type]);
+  async function changeSimklRating(value: number | null) {
+    setSimklRatingBusy(true);
+    setSimklRatingError("");
+    try {
+      await setSimklRating(traktProfileName, item, value);
+      setSimklRatingValue(value);
+    } catch (error) { setSimklRatingError(message(error)); }
+    finally { setSimklRatingBusy(false); }
+  }
+  useEffect(() => {
+    let live = true;
+    setAnilistConnected(false); setAnilistRating(null); setAnilistProgress(null); setAnilistRatingError("");
+    if (!traktProfileName || !anilistMediaRef(item.id) || !anilistAccessToken(traktProfileName)) return;
+    void anilistMedia(traktProfileName, item.id).then(media => {
+      if (!live || !media) return;
+      setAnilistConnected(true);
+      setAnilistRating(media.mediaListEntry?.score || null);
+      setAnilistProgress(media.mediaListEntry?.progress ?? 0);
+    }).catch(error => { if (live) setAnilistRatingError(message(error)); });
+    return () => { live = false; };
+  }, [traktProfileName, item.id]);
+  async function changeAnilistRating(value: number | null) {
+    setAnilistRatingBusy(true); setAnilistRatingError("");
+    try { await rateAniList(traktProfileName, item.id, value); setAnilistRating(value); }
+    catch (error) { setAnilistRatingError(message(error)); }
+    finally { setAnilistRatingBusy(false); }
   }
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [season, setSeason] = useState<number | null>(null);
@@ -1596,6 +1653,39 @@ function Detail({
                 onClick={() => void changeTraktRating(null)}>Remove rating</button>}
             </div>
             {traktRatingError && <p role="alert">{traktRatingError}</p>}
+          </div>
+        )}
+        {simklConnected && (
+          <div className="trakt-rating" aria-label="Your Simkl rating">
+            <strong>Your Simkl rating: {simklRating === null ? "Not rated" : `${simklRating}/10`}</strong>
+            <div className="trakt-rating-choices">
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
+                <button key={value} type="button" disabled={simklRatingBusy}
+                  className={simklRating === value ? "selected" : undefined}
+                  aria-label={`Rate ${value} out of 10 on Simkl`}
+                  onClick={() => void changeSimklRating(value)}>{value}</button>
+              ))}
+              {simklRating !== null && <button type="button" disabled={simklRatingBusy}
+                onClick={() => void changeSimklRating(null)}>Remove rating</button>}
+            </div>
+            {simklRatingError && <p role="alert">{simklRatingError}</p>}
+          </div>
+        )}
+        {anilistConnected && (
+          <div className="trakt-rating" aria-label="Your AniList anime progress and rating">
+            <strong>Your AniList progress: {anilistProgress ?? 0} episode{anilistProgress === 1 ? "" : "s"}</strong>
+            <strong>Your AniList rating: {anilistRating === null ? "Not rated" : `${anilistRating}/10`}</strong>
+            <div className="trakt-rating-choices">
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
+                <button key={value} type="button" disabled={anilistRatingBusy}
+                  className={anilistRating === value ? "selected" : undefined}
+                  aria-label={`Rate ${value} out of 10 on AniList`}
+                  onClick={() => void changeAnilistRating(value)}>{value}</button>
+              ))}
+              {anilistRating !== null && <button type="button" disabled={anilistRatingBusy}
+                onClick={() => void changeAnilistRating(null)}>Remove rating</button>}
+            </div>
+            {anilistRatingError && <p role="alert">{anilistRatingError}</p>}
           </div>
         )}
         <p className="description">

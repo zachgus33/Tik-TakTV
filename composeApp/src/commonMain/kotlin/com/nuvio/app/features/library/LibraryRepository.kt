@@ -154,6 +154,7 @@ object LibraryRepository {
         TraktSettingsRepository.onProfileChanged()
         if (!loadFromDisk(profileId)) return
         TraktAuthRepository.onProfileChanged()
+        com.nuvio.app.features.tracking.ExternalTrackingRepository.onProfileChanged()
         TraktLibraryRepository.onProfileChanged()
         if (TraktAuthRepository.isAuthenticated.value) {
             TraktLibraryRepository.preloadListTabsAsync()

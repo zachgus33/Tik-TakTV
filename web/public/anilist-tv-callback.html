@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Returning to TikTak TV</title></head>
+  <body>
+    <p>Returning to TikTak TV on your Fire TV…</p>
+    <script>
+      const params = new URLSearchParams(location.hash.slice(1));
+      const target = new URL("tiktaktv://anilist/auth");
+      for (const name of ["access_token", "expires_in", "token_type", "state", "error"])
+        if (params.has(name)) target.searchParams.set(name, params.get(name));
+      location.replace(target.href);
+    </script>
+  </body>
+</html>

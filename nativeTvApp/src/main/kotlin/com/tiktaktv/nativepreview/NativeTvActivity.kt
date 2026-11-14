@@ -2,6 +2,7 @@ package com.tiktaktv.nativepreview
 
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent
 import android.content.Context
 import android.util.Log
 import android.view.KeyEvent
@@ -21,6 +22,7 @@ import com.nuvio.app.setNativeTvShellPreviewContent
 import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioTheme
 import com.nuvio.app.core.ui.TikTakTvFocusIndication
+import com.nuvio.app.features.tracking.ExternalTrackingRepository
 
 /**
  * Android TV host for the native Compose application.
@@ -42,9 +44,16 @@ open class NativeTvActivity : MainActivity() {
         }
         NativeTvHostMode.enable(isAppStoreBuild = !BuildConfig.ENABLE_SIDELOAD_UPDATES)
         super.onCreate(savedInstanceState)
+        intent?.dataString?.let(ExternalTrackingRepository::onAniListCallback)
         previewUpdater = NativePreviewUpdater(this)
         if (!showShellPreview && BuildConfig.ENABLE_SIDELOAD_UPDATES) previewUpdater.checkForUpdates()
         enterTvFullscreen()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.dataString?.let(ExternalTrackingRepository::onAniListCallback)
     }
 
     @Composable

@@ -59,6 +59,7 @@ import FeedbackCenter from "./FeedbackCenter";
 import SponsorBlockSettings from "./SponsorBlockSettings";
 import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
 import TraktSettings from "./TraktSettings";
+import ExternalTrackingSettings from "./ExternalTrackingSettings";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -111,6 +112,8 @@ type SettingsSection =
   | "downloads"
   | "privacy"
   | "trakt"
+  | "simkl"
+  | "anilist"
   | "feedback"
   | "whatsnew"
   | "general";
@@ -177,6 +180,18 @@ const sections = [
     icon: Activity,
   },
   {
+    id: "simkl",
+    label: "Simkl",
+    description: "Movie and show tracking",
+    icon: Activity,
+  },
+  {
+    id: "anilist",
+    label: "AniList",
+    description: "Anime list tracking",
+    icon: Activity,
+  },
+  {
     id: "privacy",
     label: "Privacy & status",
     description: "Data and services",
@@ -185,7 +200,10 @@ const sections = [
 ] as const;
 export default function Settings(props: Props) {
   const [section, setSection] = useState<SettingsSection>(() =>
-    localStorage.getItem("tiktak:trakt-callback") ? "trakt" : requestedWhatsNewSection() ? "whatsnew" : "addons",
+    localStorage.getItem("tiktak:trakt-callback") ? "trakt" :
+      localStorage.getItem("tiktak:simkl-callback") ? "simkl" :
+        localStorage.getItem("tiktak:anilist-callback") ? "anilist" :
+          requestedWhatsNewSection() ? "whatsnew" : "addons",
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -740,6 +758,8 @@ export default function Settings(props: Props) {
           )}
           {section === "downloads" && <DownloadCenter />}
           {section === "trakt" && <TraktSettings profileName={props.profileName} />}
+          {section === "simkl" && <ExternalTrackingSettings provider="simkl" profileName={props.profileName} />}
+          {section === "anilist" && <ExternalTrackingSettings provider="anilist" profileName={props.profileName} />}
           {section === "privacy" && (
             <PrivacyStatus onOpenFeedback={() => setSection("feedback")} />
           )}

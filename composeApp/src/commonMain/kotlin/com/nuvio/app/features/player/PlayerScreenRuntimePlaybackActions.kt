@@ -149,6 +149,10 @@ internal fun PlayerScreenRuntime.emitTraktScrobbleStart() {
             return@launch
         }
         currentTraktScrobbleItem = item
+        scope.launch {
+            com.nuvio.app.features.tracking.SimklScrobbleRepository.start(
+                profileId, item, currentPlaybackProgressPercent())
+        }
         TraktScrobbleRepository.scrobbleStart(
             profileId = profileId,
             item = item,
@@ -166,7 +170,18 @@ internal fun PlayerScreenRuntime.emitTraktScrobbleStop(progressPercent: Float? =
     val itemSnapshot = currentTraktScrobbleItem
     val inputsSnapshot = snapshotTraktScrobbleItemInputs()
     scope.launch(NonCancellable) {
+        if (percent >= 80f && com.nuvio.app.features.tracking.AniListRepository.canTrack(inputsSnapshot.parentMetaId)) {
+            scope.launch(NonCancellable) {
+                runCatching {
+                    com.nuvio.app.features.tracking.AniListRepository.recordCompleted(
+                        profileId, inputsSnapshot.parentMetaId, inputsSnapshot.episodeNumber)
+                }
+            }
+        }
         val item = itemSnapshot ?: inputsSnapshot.buildItem() ?: return@launch
+        scope.launch(NonCancellable) {
+            com.nuvio.app.features.tracking.SimklScrobbleRepository.stop(profileId, item, percent)
+        }
         TraktScrobbleRepository.scrobbleStop(
             profileId = profileId,
             item = item,
