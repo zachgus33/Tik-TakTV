@@ -5,7 +5,7 @@
     <p>Returning to TikTak TV…</p>
     <script>
       const params = new URLSearchParams(location.search);
-      sessionStorage.setItem("tiktak:trakt-callback", JSON.stringify({
+      localStorage.setItem("tiktak:trakt-callback", JSON.stringify({
         code: params.get("code"), state: params.get("state"), error: params.get("error")
       }));
       location.replace("/#settings");

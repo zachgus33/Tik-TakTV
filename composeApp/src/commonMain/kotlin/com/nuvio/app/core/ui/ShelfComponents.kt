@@ -403,13 +403,16 @@ private fun NuvioViewAllPill(
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
-    val actionSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Space.s32 else NuvioTokens.Space.s40
+    // The compact icon was only 32dp and difficult to reach with a Fire TV
+    // mouse. Keep its visual size while providing a full remote/mouse target.
+    val actionSize = if (LocalTvMode.current) 48.dp else if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Space.s32 else NuvioTokens.Space.s40
     val iconSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Icon.sm else tokens.icons.md
     val viewAllText = stringResource(Res.string.home_view_all)
 
     Box(
         modifier = modifier
             .size(actionSize)
+            .then(if (onClick != null) Modifier.tikTakTvFocus() else Modifier)
             .background(
                 color = tokens.colors.surface,
                 shape = RoundedCornerShape(NuvioTokens.Radius.xl),

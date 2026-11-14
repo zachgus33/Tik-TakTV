@@ -281,6 +281,13 @@ export function youtubeDiscoveryQueries(recentTitles, likedTitles, limit = 3) {
   return queries;
 }
 
+export function youtubePersonalizedQueries(recentTitles, interestTopics) {
+  return [...new Set([
+    ...youtubeDiscoveryQueries(recentTitles, [], 3),
+    ...interestTopics.slice(0, 2),
+  ])];
+}
+
 export function youtubeRecentVideoIds(value) {
   return Array.isArray(value)
     ? [
@@ -2167,16 +2174,14 @@ export function createService({ token, origins, authorizeAccount }) {
         const musicDiscoveryCandidates = musicSearches.flatMap((result) =>
           (result?.items ?? []).map((item) => ({ videoId: String(item?.id?.videoId ?? "") })))
           .filter((item) => youtubeVideoIdPattern.test(item.videoId) && !recentVideoIds.includes(item.videoId));
-        const discoveryQueries = interestTopics.length
-          ? interestTopics
-          : youtubeDiscoveryQueries(
+        const discoveryQueries = youtubePersonalizedQueries(
           recentVideoIds
             .map((id) => recentlyWatchedById.get(id))
             .filter((item) => item && youtubeVideoAllowed(item))
             .slice(0, 12)
             .map((item) => item.snippet?.title),
-          [],
-          );
+          interestTopics,
+        );
         const discoverySearches = await Promise.all(
           discoveryQueries.map(async (query) => {
             const cached = youtubeDiscoveryCache.get(query);
@@ -2528,14 +2533,12 @@ export function createService({ token, origins, authorizeAccount }) {
           channel: channel.items?.[0]?.snippet ?? null,
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
-          videoFeed: (interestTopics.length
-            ? youtubeForYouFeed(decoratedDiscovery, [], [])
-            : youtubeForYouFeed(
+          videoFeed: youtubeForYouFeed(
             decoratedDiscovery,
             decoratedPopular,
             decoratedRecentFeed.filter((item) =>
               !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
-          )).slice(0, 160),
+          ).slice(0, 160),
           musicFeed: youtubeForYouFeed(
             decoratedMusicDiscovery,
             musicFromHistory.length || musicFromOwnPlaylists.length

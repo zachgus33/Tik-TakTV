@@ -65,6 +65,7 @@ fun NuvioDropdownChip(
 
     Row(
         modifier = modifier
+            .then(if (enabled) Modifier.tikTakTvFocus() else Modifier)
             .clip(shape)
             .background(containerColor)
             .then(

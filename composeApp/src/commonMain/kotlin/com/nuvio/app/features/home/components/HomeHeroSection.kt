@@ -547,11 +547,6 @@ internal fun HomeHeroSection(
                                     items.forEachIndexed { index, _ ->
                                         HeroPageIndicator(
                                             activeFraction = if (index == displayPage) 1f else 0f,
-                                            onClick = {
-                                                coroutineScope.launch {
-                                                    pagerState.animateScrollToPage(index)
-                                                }
-                                            },
                                         )
                                     }
                                 }
@@ -1089,8 +1084,6 @@ private fun StreamingShowcaseHeroPage(
             StreamingShowcaseIndicators(
                 itemCount = itemCount,
                 currentPage = currentPage,
-                pagerState = pagerState,
-                coroutineScope = coroutineScope,
                 compact = landscapeCompact,
                 modifier = Modifier
                     .align(if (landscapeCompact) Alignment.BottomStart else Alignment.BottomCenter)
@@ -1710,8 +1703,6 @@ private fun StreamingShowcaseButton(
 private fun StreamingShowcaseIndicators(
     itemCount: Int,
     currentPage: Int,
-    pagerState: PagerState,
-    coroutineScope: CoroutineScope,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -1723,16 +1714,6 @@ private fun StreamingShowcaseIndicators(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(visibleDotCount) { index ->
-            val targetPage = if (visibleDotCount == itemCount) {
-                index
-            } else {
-                val lastIndex = visibleDotCount - 1
-                when (index) {
-                    0 -> 0
-                    lastIndex -> itemCount - 1
-                    else -> ((itemCount - 1) * (index.toFloat() / lastIndex.toFloat())).roundToInt()
-                }
-            }
             val active = if (visibleDotCount == itemCount) {
                 index == currentPage
             } else {
@@ -1749,12 +1730,7 @@ private fun StreamingShowcaseIndicators(
                         } else {
                             Color.White.copy(alpha = 0.68f)
                         },
-                    )
-                    .clickable {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(targetPage)
-                        }
-                    },
+                    ),
             )
         }
     }
@@ -2668,7 +2644,6 @@ private fun HeroCtaButton(
 @Composable
 private fun HeroPageIndicator(
     activeFraction: Float,
-    onClick: () -> Unit,
 ) {
     val progress = activeFraction.coerceIn(0f, 1f)
     val lineBrush = rememberAnimatedLineBrush()
@@ -2677,8 +2652,7 @@ private fun HeroPageIndicator(
             .width(8.dp + (28.dp * progress))
             .height(8.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.26f))
-            .clickable(onClick = onClick),
+            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.26f)),
     ) {
         if (progress > 0.02f) {
             Box(

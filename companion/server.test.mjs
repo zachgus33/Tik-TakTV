@@ -11,6 +11,7 @@ import {
   rotateYoutubeAccount,
   youtubeForYouFeed,
   youtubeDiscoveryQueries,
+  youtubePersonalizedQueries,
   youtubeDiscoveryQuery,
   youtubeLongFormVideo,
   youtubeMusicChartAllowed,
@@ -76,6 +77,16 @@ test("For You prioritizes unsubscribed discovery and derives a topic from watch 
       ["Friends cast reunion interview", "Laptop review 2026"],
     ),
     ["friends cast reunion interview", "minecraft survival house tutorial", "laptop review 2026"],
+  );
+});
+
+test("Show me more about adds interests without replacing recent watches", () => {
+  assert.deepEqual(
+    youtubePersonalizedQueries(
+      ["Minecraft survival house tutorial", "Jazz house music mix", "Apple MacBook review"],
+      ["survival", "camping", "gaming"],
+    ),
+    ["minecraft survival house tutorial", "jazz house music mix", "apple macbook review", "survival", "camping"],
   );
 });
 

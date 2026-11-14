@@ -184,7 +184,7 @@ const sections = [
 ] as const;
 export default function Settings(props: Props) {
   const [section, setSection] = useState<SettingsSection>(() =>
-    sessionStorage.getItem("tiktak:trakt-callback") ? "trakt" : requestedWhatsNewSection() ? "whatsnew" : "addons",
+    localStorage.getItem("tiktak:trakt-callback") ? "trakt" : requestedWhatsNewSection() ? "whatsnew" : "addons",
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
