@@ -40,7 +40,7 @@ internal object SponsorBlockRepository {
     fun ensureLoaded() {
         if (loaded) return
         loaded = true
-        val valid = sponsorBlockCategories.mapTo(setOf()) { it.id }
+        val valid = sponsorBlockCategories.map { it.id }.toSet()
         _state.value = runCatching {
             json.decodeFromString<SponsorBlockPreferences>(SponsorBlockStorage.load().orEmpty())
         }.getOrDefault(SponsorBlockPreferences()).let { it.copy(categories = it.categories.intersect(valid)) }
