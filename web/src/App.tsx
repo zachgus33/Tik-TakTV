@@ -150,8 +150,8 @@ const SetupWizard = lazy(() => import("./SetupWizard"));
 
 const futureAvailability = new Map<string, boolean>();
 
-async function hideUnavailableFutureTitles(
-  rows: { title: string; items: Item[] }[],
+async function hideUnavailableFutureTitles<T extends { title: string; items: Item[] }>(
+  rows: T[],
   addons: Addon[],
   signal: AbortSignal,
 ) {
@@ -2019,7 +2019,7 @@ export default function App() {
   const [region, setRegion] = useState(localLiveRegion);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [homeRows, setHomeRows] = useState<{ title: string; items: Item[] }[]>(
+  const [homeRows, setHomeRows] = useState<{ title: string; items: Item[]; catalogKey: string }[]>(
     [],
   );
   const [heroIndex, setHeroIndex] = useState(0);
@@ -2180,6 +2180,8 @@ export default function App() {
           key: `${a.base}|${c.type}|${c.id}`,
         })),
     );
+  const activeCatalog = catalogs.find((entry) => entry.key === selectedCatalog) ?? catalogs[0];
+  const catalogGenreOptions = activeCatalog?.catalog.extra?.find((extra) => extra.name === "genre")?.options ?? [];
   useEffect(() => {
     if (page !== "home") return;
     const c = new AbortController();
@@ -2195,7 +2197,11 @@ export default function App() {
         if (!items.length && firstOption) {
           items = await catalog(addon, entryCatalog.type, entryCatalog.id, "", c.signal, firstOption);
         }
-        return { title: customTitle || entryCatalog.name || addon.manifest.name, items };
+        return {
+          title: customTitle || entryCatalog.name || addon.manifest.name,
+          items,
+          catalogKey: `${addon.base}|${entryCatalog.type}|${entryCatalog.id}`,
+        };
       }),
     ).then((results) => {
       if (c.signal.aborted) return;
@@ -2408,7 +2414,15 @@ export default function App() {
               chosen.catalog.id,
               "",
               c.signal,
+              category || undefined,
             );
+            if (!result.length && !category) {
+              const firstOption = chosen.catalog.extra?.find((extra) => extra.name === "genre")?.options?.[0];
+              if (firstOption) {
+                result = await catalog(chosen.addon, kind, chosen.catalog.id, "", c.signal, firstOption);
+                if (!c.signal.aborted) setCategory(firstOption);
+              }
+            }
           }
         }
         if (!c.signal.aborted) setItems(result);
@@ -3097,6 +3111,8 @@ export default function App() {
                                   ? "series"
                                   : "movie",
                               );
+                              setSelectedCatalog(row.catalogKey);
+                              setCategory("");
                               navigate("discover");
                             }}
                           >
@@ -3237,12 +3253,27 @@ export default function App() {
                           ? selectedCatalog
                           : (catalogs[0]?.key ?? "")
                       }
-                      onChange={(e) => setSelectedCatalog(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedCatalog(e.target.value);
+                        setCategory("");
+                      }}
                     >
                       {catalogs.map((c) => (
                         <option key={c.key} value={c.key}>
                           {c.catalog.name ?? c.addon.manifest.name}
                         </option>
+                      ))}
+                    </select>
+                  )}
+                  {source === "catalogs" && !query && catalogGenreOptions.length > 0 && (
+                    <select
+                      aria-label="Catalog category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <option value="">Default</option>
+                      {catalogGenreOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
                       ))}
                     </select>
                   )}

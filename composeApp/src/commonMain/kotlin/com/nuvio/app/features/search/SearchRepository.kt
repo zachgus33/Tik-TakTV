@@ -506,16 +506,30 @@ object SearchRepository {
 
         activeDiscoverJob = scope.launch {
             runCatching {
-                fetchCatalogPage(
+                var resolvedGenre = current.selectedGenre
+                var page = fetchCatalogPage(
                     manifestUrl = selectedCatalog.manifestUrl,
                     type = selectedCatalog.type,
                     catalogId = selectedCatalog.catalogId,
-                    genre = current.selectedGenre,
+                    genre = resolvedGenre,
                     skip = requestedSkip.takeIf { it > 0 },
                     forceRefresh = forceRefresh,
                 ).withUnreleasedFilter()
+                if (reset && page.items.isEmpty() && resolvedGenre == null) {
+                    selectedCatalog.genreOptions.firstOrNull()?.let { fallbackGenre ->
+                        resolvedGenre = fallbackGenre
+                        page = fetchCatalogPage(
+                            manifestUrl = selectedCatalog.manifestUrl,
+                            type = selectedCatalog.type,
+                            catalogId = selectedCatalog.catalogId,
+                            genre = fallbackGenre,
+                            forceRefresh = forceRefresh,
+                        ).withUnreleasedFilter()
+                    }
+                }
+                page to resolvedGenre
             }.fold(
-                onSuccess = { page ->
+                onSuccess = { (page, resolvedGenre) ->
                     val latest = _discoverUiState.value
                     if (latest.selectedCatalogKey != selectedCatalog.key || latest.selectedGenre != current.selectedGenre) {
                         return@fold
@@ -540,6 +554,7 @@ object SearchRepository {
                             "sample=${page.items.previewNames()}"
                     }
                     _discoverUiState.value = latest.copy(
+                        selectedGenre = resolvedGenre,
                         items = mergedItems,
                         isLoading = false,
                         nextSkip = paginationState.nextSkip,

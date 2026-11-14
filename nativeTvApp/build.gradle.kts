@@ -22,8 +22,8 @@ android {
         applicationId = "com.tiktaktv.tv.nativepreview"
         minSdk = 24
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 99
-        versionName = "0.3.89"
+        versionCode = 100
+        versionName = "0.3.90"
         buildConfigField("boolean", "ENABLE_SIDELOAD_UPDATES", "true")
         buildConfigField(
             "String",
