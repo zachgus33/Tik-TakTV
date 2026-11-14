@@ -655,6 +655,7 @@ private fun MobileSettingsScreen(
                             onPlaybackClick = { onPageChange(SettingsPage.Playback) },
                             onAppearanceClick = { onPageChange(SettingsPage.Appearance) },
                             onAdvancedClick = { onPageChange(SettingsPage.Advanced) },
+                            onHealthCheckClick = { onPageChange(SettingsPage.HealthCheck) },
                             onNotificationsClick = { onPageChange(SettingsPage.Notifications) },
                             onContentDiscoveryClick = { onPageChange(SettingsPage.ContentDiscovery) },
                             onNuvioEnhancedClick = { onPageChange(SettingsPage.NuvioEnhanced) },
@@ -748,10 +749,11 @@ private fun MobileSettingsScreen(
                     onContinueWatchingClick = onContinueWatchingClick,
                     onPosterCustomizationClick = { onPageChange(SettingsPage.PosterCustomization) },
                 )
-                    SettingsPage.Advanced -> advancedSettingsContent(
+                SettingsPage.Advanced -> advancedSettingsContent(
                     isTablet = false,
                     rememberLastProfileEnabled = rememberLastProfileEnabled,
                 )
+                SettingsPage.HealthCheck -> healthCheckSettingsContent(isTablet = false)
                 SettingsPage.Notifications -> notificationsSettingsContent(
                     isTablet = false,
                     uiState = episodeReleaseNotificationsUiState,
@@ -1048,6 +1050,9 @@ private fun TabletSettingsScreen(
                     item { SettingsSidebarItem("Advanced", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
                     } }
+                    item { SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.HealthCheck) {
+                        openInlinePage(SettingsPage.HealthCheck)
+                    } }
                     item { SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick) }
                     item { SettingsSidebarItem("Feedback", Icons.Rounded.Info, false) {
                         uriHandler.openUri("https://github.com/zachgus33/Tik-TakTV/issues/new/choose")
@@ -1195,6 +1200,7 @@ private fun TabletSettingsScreen(
                                 onPlaybackClick = { openInlinePage(SettingsPage.Playback) },
                                 onAppearanceClick = { openInlinePage(SettingsPage.Appearance) },
                                 onAdvancedClick = { openInlinePage(SettingsPage.Advanced) },
+                                onHealthCheckClick = { openInlinePage(SettingsPage.HealthCheck) },
                                 onNotificationsClick = { openInlinePage(SettingsPage.Notifications) },
                                 onContentDiscoveryClick = { openInlinePage(SettingsPage.ContentDiscovery) },
                                 onNuvioEnhancedClick = { openInlinePage(SettingsPage.NuvioEnhanced) },
@@ -1297,6 +1303,7 @@ private fun TabletSettingsScreen(
                         isTablet = true,
                         rememberLastProfileEnabled = rememberLastProfileEnabled,
                     )
+                    SettingsPage.HealthCheck -> healthCheckSettingsContent(isTablet = true)
                     SettingsPage.Notifications -> notificationsSettingsContent(
                         isTablet = true,
                         uiState = episodeReleaseNotificationsUiState,

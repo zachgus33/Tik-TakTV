@@ -551,6 +551,7 @@
     <string name="compose_settings_page_addons">Addons</string>
     <string name="compose_settings_page_cloudstream">CloudStream / CS3</string>
     <string name="compose_settings_page_advanced">Advanced</string>
+    <string name="compose_settings_page_health_check">Health check</string>
     <string name="compose_settings_page_appearance">Layout</string>
     <string name="compose_settings_page_content_discovery">Content &amp; Discovery</string>
     <string name="compose_settings_page_continue_watching">Continue Watching</string>

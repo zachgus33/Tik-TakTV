@@ -17,6 +17,7 @@ import nuvio.composeapp.generated.resources.compose_settings_page_ai_assistant
 import nuvio.composeapp.generated.resources.compose_settings_page_addons
 import nuvio.composeapp.generated.resources.compose_settings_page_cloudstream
 import nuvio.composeapp.generated.resources.compose_settings_page_advanced
+import nuvio.composeapp.generated.resources.compose_settings_page_health_check
 import nuvio.composeapp.generated.resources.compose_settings_page_appearance
 import nuvio.composeapp.generated.resources.compose_settings_page_content_discovery
 import nuvio.composeapp.generated.resources.compose_settings_page_debrid
@@ -105,6 +106,11 @@ internal enum class SettingsPage(
     ),
     Advanced(
         titleRes = Res.string.compose_settings_page_advanced,
+        category = SettingsCategory.Advanced,
+        parentPage = Root,
+    ),
+    HealthCheck(
+        titleRes = Res.string.compose_settings_page_health_check,
         category = SettingsCategory.Advanced,
         parentPage = Root,
     ),

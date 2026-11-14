@@ -95,6 +95,7 @@ internal fun LazyListScope.settingsRootContent(
     onPlaybackClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onAdvancedClick: () -> Unit,
+    onHealthCheckClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onContentDiscoveryClick: () -> Unit,
     onNuvioEnhancedClick: () -> Unit,
@@ -312,6 +313,13 @@ internal fun LazyListScope.settingsRootContent(
                         icon = Icons.Rounded.Tune,
                         isTablet = isTablet,
                         onClick = onAdvancedClick,
+                    )
+                    SettingsNavigationRow(
+                        title = "Health check",
+                        description = "Check add-ons, playback service, debrid setup, and Live TV guide.",
+                        icon = Icons.Rounded.Tune,
+                        isTablet = isTablet,
+                        onClick = onHealthCheckClick,
                     )
                 }
             }
