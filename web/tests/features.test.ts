@@ -7,6 +7,7 @@ import {
   parseCollections,
   parseTransfer,
   mergeCollections,
+  optionalCollectionGenre,
   sourceCatalog,
 } from "../src/collections";
 
@@ -51,6 +52,11 @@ import { clearAccountStorage } from "../src/storage";
 import { beginProfileSync, profileSyncKey } from "../src/profile-sync";
 
 describe("custom collection catalog resolution", () => {
+  it("treats a saved 'none' genre as an unfiltered catalog", () => {
+    expect(optionalCollectionGenre("none")).toBeUndefined();
+    expect(optionalCollectionGenre(" NONE ")).toBeUndefined();
+    expect(optionalCollectionGenre("comedy")).toBe("comedy");
+  });
   it("keeps a configured catalog when the default add-on is disabled", () => {
     const disabled = {
       base: "https://default.example",

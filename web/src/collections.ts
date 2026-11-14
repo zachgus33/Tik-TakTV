@@ -106,6 +106,12 @@ export function parseCollections(value: unknown): Collection[] {
 export function folderLabel(folder: CollectionFolder, index: number): string {
   return folder.title.trim() || `Folder ${index + 1}`;
 }
+// Native collections save "none" for an unfiltered optional genre. Sending it
+// as genre=none makes add-ons such as ArabCinemeta return an empty catalog.
+export function optionalCollectionGenre(value?: string): string | undefined {
+  const genre = value?.trim();
+  return genre && genre.toLowerCase() !== "none" ? genre : undefined;
+}
 export function mergeCollections(
   current: Collection[],
   incoming: Collection[],

@@ -7,6 +7,7 @@ import {
   type CollectionFolder,
   type CollectionSource,
   folderLabel,
+  optionalCollectionGenre,
   sourceCatalog,
 } from "./collections";
 import { tmdbCollection } from "./tmdb";
@@ -76,7 +77,7 @@ async function resolveSource(
     resolved.catalog.id,
     "",
     signal,
-    source.genre,
+    optionalCollectionGenre(source.genre),
   );
 }
 
