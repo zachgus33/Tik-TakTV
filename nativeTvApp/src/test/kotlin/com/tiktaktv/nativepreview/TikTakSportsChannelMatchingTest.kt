@@ -104,7 +104,11 @@ class TikTakSportsChannelMatchingTest {
     fun broadcasterWithGenericSportGuideCanOpenWhenItIsTheOnlyCandidate() {
         assertEquals(
             espn,
-            findScoreChannel(event("in", "ESPN"), listOf(espn), mapOf("espn.us" to programme("College Football"))),
+            findScoreChannel(
+                event("in", "ESPN").copy(league = "NCAA - Football"),
+                listOf(espn),
+                mapOf("espn.us" to programme("College Football")),
+            ),
         )
     }
 

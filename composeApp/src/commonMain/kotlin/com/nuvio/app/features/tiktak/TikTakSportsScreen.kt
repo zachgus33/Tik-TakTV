@@ -441,9 +441,9 @@ private fun isGenericSportProgramme(title: String, event: NativeScoreEvent): Boo
     }
     if (sportWords.none(words::contains)) return false
     val leagueMarkers = setOf("nfl", "nba", "wnba", "nhl", "mlb", "mls", "ufc", "ncaa", "college")
-    val titleLeague = words.intersect(leagueMarkers)
+    val titleLeague = words.intersect(leagueMarkers).map { if (it == "ncaa") "college" else it }.toSet()
     val eventLeague = normalizeSportsText(event.league).split(' ').toSet()
-        .intersect(leagueMarkers)
+        .intersect(leagueMarkers).map { if (it == "ncaa") "college" else it }.toSet()
     return titleLeague.isEmpty() || titleLeague.any(eventLeague::contains)
 }
 
