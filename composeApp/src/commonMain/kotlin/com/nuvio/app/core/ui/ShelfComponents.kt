@@ -97,6 +97,7 @@ fun <T> NuvioShelfSection(
     itemContent: @Composable (T) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    val isTvMode = LocalTvMode.current
     val rowState = rememberLazyListState()
     val duplicateSafeEntries = remember(entries, key) {
         key?.let { entries.withDuplicateSafeLazyKeys(it) }
@@ -136,7 +137,7 @@ fun <T> NuvioShelfSection(
         if (rowCount <= 1) {
             LazyRow(
                 state = rowState,
-                modifier = rowModifier.focusRestorer().focusGroup(),
+                modifier = rowModifier.then(if (isTvMode) Modifier.focusRestorer() else Modifier).focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {
@@ -175,7 +176,7 @@ fun <T> NuvioShelfSection(
             }
             LazyRow(
                 state = rowState,
-                modifier = rowModifier.focusRestorer().focusGroup(),
+                modifier = rowModifier.then(if (isTvMode) Modifier.focusRestorer() else Modifier).focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {

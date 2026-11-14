@@ -9,6 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -94,13 +95,14 @@ fun NuvioScreen(
     content: LazyListScope.() -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    val isTvMode = LocalTvMode.current
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     LazyColumn(
         state = listState,
         modifier = modifier
             .fillMaxSize()
             .background(backgroundColor)
-            .focusRestorer(),
+            .then(if (isTvMode) Modifier.focusRestorer().focusGroup() else Modifier),
         contentPadding = PaddingValues(
             start = horizontalPadding,
             top = topPadding ?: tokens.spacing.screenTop + statusBarTop + nuvioPlatformExtraTopPadding,
