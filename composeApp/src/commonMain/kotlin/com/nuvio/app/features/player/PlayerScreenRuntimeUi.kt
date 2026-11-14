@@ -125,6 +125,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val tvLowerControlsFocusRequester = remember { FocusRequester() }
     var tvSurfaceIsFocused by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
+    var heldSeekKey by remember { mutableStateOf<Key?>(null) }
+    var heldSeekRepeats by remember { mutableStateOf(0) }
     val playerModalVisible = showAudioModal || showSubtitleModal || showVideoSettingsModal ||
         showQualityPanel || showSourcesPanel || showEpisodesPanel || showLiveTvChannelsPanel ||
         showSubmitIntroModal || pendingP2pSwitch != null
@@ -148,11 +150,28 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                         .focusRequester(tvFocusRequester)
                         .onFocusChanged { tvSurfaceIsFocused = it.isFocused }
                         .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyUp && event.key == heldSeekKey) {
+                                heldSeekKey = null
+                                heldSeekRepeats = 0
+                                return@onPreviewKeyEvent false
+                            }
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             if (playerModalVisible) {
                                 // A panel handles remote navigation. Do not let the player
                                 // consume directions while focus moves into the panel.
                                 return@onPreviewKeyEvent false
+                            }
+                            if (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) {
+                                heldSeekRepeats = if (heldSeekKey == event.key) heldSeekRepeats + 1 else 0
+                                heldSeekKey = event.key
+                                if (heldSeekRepeats >= 2) {
+                                    val stepMs = if (heldSeekRepeats >= 8) 20_000L else 10_000L
+                                    seekBy(if (event.key == Key.DirectionLeft) -stepMs else stepMs)
+                                    return@onPreviewKeyEvent true
+                                }
+                            } else {
+                                heldSeekKey = null
+                                heldSeekRepeats = 0
                             }
                             if (controlsVisible) controlsInteractionEpoch += 1
                             when (event.key) {
