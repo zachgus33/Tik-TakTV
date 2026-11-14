@@ -48,27 +48,41 @@ export async function traktCollection(source: CollectionSource, profile: string,
   const media = ["tv", "series", "show"].includes(String(source.mediaType ?? source.type).toLowerCase()) ? "show" : "movie";
   const query = new URLSearchParams({
     extended: "full,images",
-    page: "1",
     limit: "50",
     sort_by: String(source.sortBy || "rank"),
     sort_how: String(source.sortHow || "asc"),
   });
-  const token = profile ? await traktAccessToken(profile) : null;
-  const response = await fetch(`https://api.trakt.tv/lists/${id}/items/${media}?${query}`, {
-    signal,
-    headers: {
+  const token = profile ? await traktAccessToken(profile).catch(() => null) : null;
+  const headers = {
       Accept: "application/json",
       "trakt-api-version": "2",
       "trakt-api-key": traktClientId,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) {
-    if ([401, 403, 404].includes(response.status)) throw new Error("Trakt list unavailable or private. Connect its owner account in Settings.");
-    if (response.status === 429) throw new Error("Trakt rate limit reached. Try again shortly.");
-    throw new Error(`Trakt returned HTTP ${response.status}.`);
+  };
+  const request = (path: string, page: number) => {
+    const params = new URLSearchParams(query);
+    params.set("page", String(page));
+    return fetch(`https://api.trakt.tv/${path}?${params}`, { signal, headers });
+  };
+  let path = `lists/${id}/items/${media}`;
+  let response = await request(path, 1);
+  if (!response.ok && token && [401, 403, 404].includes(response.status)) {
+    path = `users/me/lists/${id}/items/${media}`;
+    response = await request(path, 1);
   }
-  const entries = await response.json() as TraktListItem[];
-  if (!Array.isArray(entries)) throw new Error("Trakt returned an invalid list response.");
-  return entries.map((entry) => toItem(entry, media)).filter((item): item is Item => item !== null);
+  const items: Item[] = [];
+  for (let page = 1; page <= 4; page += 1) {
+    if (!response.ok) {
+      if ([401, 403, 404].includes(response.status)) throw new Error("Trakt list unavailable or private. Connect its owner account in Settings.");
+      if (response.status === 429) throw new Error("Trakt rate limit reached. Try again shortly.");
+      throw new Error(`Trakt returned HTTP ${response.status}.`);
+    }
+    const entries = await response.json() as TraktListItem[];
+    if (!Array.isArray(entries)) throw new Error("Trakt returned an invalid list response.");
+    items.push(...entries.map((entry) => toItem(entry, media)).filter((item): item is Item => item !== null));
+    const pageCount = Number(response.headers.get("x-pagination-page-count") || 1);
+    if (page >= pageCount || entries.length === 0) break;
+    response = await request(path, page + 1);
+  }
+  return [...new Map(items.map((item) => [`${item.type}:${item.id}`, item])).values()];
 }

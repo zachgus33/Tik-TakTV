@@ -22,9 +22,20 @@ describe("custom Trakt collection sources", () => {
   it("loads shows and reports private lists clearly", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify([
       { show: { title: "Series", ids: { tmdb: 456 } } },
-    ]), { status: 200 })).mockResolvedValueOnce(new Response("", { status: 404 }));
+    ]), { status: 200 })).mockResolvedValueOnce(new Response("", { status: 404 })).mockResolvedValueOnce(new Response("", { status: 404 }));
     const source = { provider: "trakt", traktListId: 456, mediaType: "tv" };
     expect(await traktCollection(source, "Zach")).toMatchObject([{ id: "tmdb:456", type: "series" }]);
     await expect(traktCollection(source, "Zach")).rejects.toThrow("unavailable or private");
+  });
+
+  it("falls back to an owner's private list and loads all reported pages", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ movie: { title: "First", ids: { imdb: "tt1111111" } } }]), { status: 200, headers: { "x-pagination-page-count": "2" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ movie: { title: "Second", ids: { imdb: "tt2222222" } } }]), { status: 200, headers: { "x-pagination-page-count": "2" } }));
+    const items = await traktCollection({ provider: "trakt", traktListId: 789 }, "Zach");
+    expect(items.map((item) => item.name)).toEqual(["First", "Second"]);
+    expect(fetchMock.mock.calls[1][0]).toContain("/users/me/lists/789/items/movie?");
+    expect(fetchMock.mock.calls[2][0]).toContain("page=2");
   });
 });
