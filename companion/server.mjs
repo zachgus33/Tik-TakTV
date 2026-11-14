@@ -326,6 +326,15 @@ export function youtubeLongFormVideo(item) {
   return seconds > 180;
 }
 
+export function youtubeMusicChartAllowed(item) {
+  const snippet = item?.snippet ?? {};
+  const language = String(snippet.defaultAudioLanguage ?? snippet.defaultLanguage ?? "").toLowerCase();
+  if (language && !/^en(?:-|$)/.test(language)) return false;
+  // YouTube's US chart can include music from any country. Avoid filling an
+  // unpersonalized English feed with results the listener did not request.
+  return !/[\u0400-\u052f\u0590-\u08ff\u0900-\u0dff\u1200-\u139f\u2e80-\u9fff\uac00-\ud7af]/u.test(String(snippet.title ?? ""));
+}
+
 const youtubeGenericTitleWords = new Set([
   "about", "after", "again", "best", "first", "from", "full", "latest",
   "more", "most", "official", "part", "shorts", "that", "this", "today",
@@ -2133,17 +2142,14 @@ export function createService({ token, origins, authorizeAccount }) {
         const recentlyWatchedById = new Map(
           (recentlyWatched?.items ?? []).map((item) => [item?.id, item]),
         );
-        const musicQueries = [
-          ...youtubeDiscoveryQueries(
+        const musicQueries = youtubeDiscoveryQueries(
             [...recentlyWatchedById.values()]
               .filter((item) => String(item?.snippet?.categoryId ?? "") === "10")
               .slice(0, 12)
               .map((item) => item?.snippet?.title),
             [],
             2,
-          ),
-          "new music",
-        ];
+          );
         const musicSearches = await Promise.all(musicQueries.map((query) =>
           youtubeApi(userId, "search", {
             part: "snippet",
@@ -2153,6 +2159,8 @@ export function createService({ token, origins, authorizeAccount }) {
             videoCategoryId: "10",
             videoEmbeddable: "true",
             videoDuration: "medium",
+            regionCode: "US",
+            relevanceLanguage: "en",
             order: "relevance",
           }).catch(() => null),
         ));
@@ -2507,7 +2515,13 @@ export function createService({ token, origins, authorizeAccount }) {
           item?.kind === "music" && youtubeLongFormVideo(detailsById.get(item.videoId));
         const decoratedMusicDiscovery = musicDiscoveryCandidates.map(decorate).filter(musicAllowed);
         const decoratedMusicPopular = (popularMusic?.items ?? [])
+          .filter(youtubeMusicChartAllowed)
           .map((item) => decorate({ videoId: item.id })).filter(musicAllowed);
+        const musicFromHistory = decoratedHistory.filter(musicAllowed);
+        const musicFromOwnPlaylists = decoratedPlaylists
+          .filter((item) => item.kind === "music" && !playlistSelections.find(
+            (playlist) => playlist.videoId === item.videoId,
+          )?.discoveredMusic);
         const account = {
           configured: true,
           connected: true,
@@ -2524,7 +2538,9 @@ export function createService({ token, origins, authorizeAccount }) {
           )).slice(0, 160),
           musicFeed: youtubeForYouFeed(
             decoratedMusicDiscovery,
-            decoratedMusicPopular,
+            musicFromHistory.length || musicFromOwnPlaylists.length
+              ? musicFromOwnPlaylists
+              : decoratedMusicPopular,
             decoratedFeed.filter(musicAllowed),
           ).slice(0, 160),
           recentFeed: decoratedRecentFeed,

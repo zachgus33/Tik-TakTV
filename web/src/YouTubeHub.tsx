@@ -792,7 +792,12 @@ export default function YouTubeHub({
       )}
       {!!account?.connected && (
         <section className="youtube-section youtube-for-you">
-          <h2>{kind === "music" ? "Music For You" : "For You"}</h2>
+          <div className="youtube-feed-heading">
+            <h2>{kind === "music" ? "Music For You" : "For You"}</h2>
+            <button disabled={accountBusy} onClick={() => void loadAccount(true)}>
+              {accountBusy ? "Refreshing…" : "Refresh suggestions"}
+            </button>
+          </div>
           {!suggestions.length ? (
             <p className="youtube-feed-empty">
               No suggestions are available yet. Refresh suggestions or search for a video.
@@ -820,9 +825,6 @@ export default function YouTubeHub({
                 Show more videos
               </button>
             )}
-            <button disabled={accountBusy} onClick={() => void loadAccount(true)}>
-              {accountBusy ? "Refreshing…" : "Refresh suggestions"}
-            </button>
           </div>
         </section>
       )}

@@ -6142,12 +6142,24 @@ button.primary:hover,
 .youtube-card small {
   color: var(--muted);
 }
+.youtube-feed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.youtube-feed-heading h2 {
+  margin: 0;
+}
 .youtube-feed-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 20px;
 }
+.youtube-feed-heading button,
 .youtube-feed-actions button {
   min-height: 44px;
   padding: 10px 18px;
@@ -6156,6 +6168,8 @@ button.primary:hover,
   background: var(--surface);
   color: var(--text);
 }
+.youtube-feed-heading button:hover,
+.youtube-feed-heading button:focus-visible,
 .youtube-feed-actions button:hover,
 .youtube-feed-actions button:focus-visible {
   border-color: var(--pink);

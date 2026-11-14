@@ -3767,7 +3767,7 @@ test.describe("authenticated integrations", () => {
       )
       .toBe(true);
     await page.goto("/#account");
-    await page.getByRole("checkbox", { name: "Skip profile selection on launch" }).check();
+    await page.locator(".preference-card .switch-control").click();
     await page.goto("/#home");
     await page
       .getByRole("button", { name: "Open Streaming Services: Folder 1" })

@@ -13,12 +13,19 @@ import {
   youtubeDiscoveryQueries,
   youtubeDiscoveryQuery,
   youtubeLongFormVideo,
+  youtubeMusicChartAllowed,
   youtubeRecentVideoIds,
   youtubeTitlesRelated,
   safeDownloadName,
   sourceHeaders,
   youtubeVideoAllowed,
 } from "./server.mjs";
+
+test("Music chart fallback excludes unrelated language results", () => {
+  assert.equal(youtubeMusicChartAllowed({ snippet: { title: "English pop song", defaultAudioLanguage: "en-US" } }), true);
+  assert.equal(youtubeMusicChartAllowed({ snippet: { title: "Music title", defaultAudioLanguage: "es" } }), false);
+  assert.equal(youtubeMusicChartAllowed({ snippet: { title: "የሙዚቃ ቪዲዮ" } }), false);
+});
 
 test("YouTube account feeds rotate without dropping recommendations", () => {
   const account = {
