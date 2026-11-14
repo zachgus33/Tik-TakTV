@@ -2423,7 +2423,7 @@ export function createService({ token, origins, authorizeAccount }) {
             youtubeApi(userId, "playlistItems", {
               part: "snippet,contentDetails,status",
               playlistId: item?.id ?? "",
-              maxResults: 5,
+              maxResults: item?.discoveredMusic ? 5 : 20,
             }).catch(() => null),
           ),
         );
