@@ -2076,6 +2076,12 @@ export default function App() {
   const [homeRows, setHomeRows] = useState<{ title: string; items: Item[]; catalogKey: string }[]>(
     [],
   );
+  const loadedHomeRef = useRef<{
+    addons: Addon[];
+    homeCatalogs: HomeCatalogSetting[];
+    revision: number;
+    loadedAt: number;
+  } | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>(
     "home-catalogs",
@@ -2238,6 +2244,18 @@ export default function App() {
   const catalogGenreOptions = activeCatalog?.catalog.extra?.find((extra) => extra.name === "genre")?.options ?? [];
   useEffect(() => {
     if (page !== "home") return;
+    const loaded = loadedHomeRef.current;
+    if (
+      loaded &&
+      loaded.addons === addons &&
+      loaded.homeCatalogs === homeCatalogs &&
+      loaded.revision === revision &&
+      Date.now() - loaded.loadedAt < 5 * 60_000 &&
+      homeRows.length
+    ) {
+      setLoading(false);
+      return;
+    }
     const c = new AbortController();
     setLoading(true);
     setError("");
@@ -2263,6 +2281,14 @@ export default function App() {
         r.status === "fulfilled" && r.value.items.length ? [r.value] : [],
       );
       setHomeRows(rows);
+      if (rows.length) {
+        loadedHomeRef.current = {
+          addons,
+          homeCatalogs,
+          revision,
+          loadedAt: Date.now(),
+        };
+      }
       void hideUnavailableFutureTitles(rows, addons, c.signal).then(
         (filtered) => {
           if (!c.signal.aborted) setHomeRows(filtered);
