@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const clientId = "--qC8Ym0uHVAfspvqjhVxFAM72ugEOgPzx68b31BHsY";
-const redirectUri = "https://tiktaktv.me/trakt-callback.html";
+const redirectUri = `${location.origin}/trakt-callback.html`;
 const pendingKey = "tiktak:trakt-pending";
 const callbackKey = "tiktak:trakt-callback";
 
