@@ -267,7 +267,9 @@ actual object LiveTvStorage {
         preferences?.getScopedString(friendXtreamOverrideKey) == "true"
 
     actual fun saveFriendXtreamOverride(enabled: Boolean) {
-        preferences?.edit()?.putScopedString(friendXtreamOverrideKey, if (enabled) "true" else null)?.apply()
+        preferences?.edit()?.apply {
+            putScopedString(friendXtreamOverrideKey, if (enabled) "true" else null)
+        }?.apply()
     }
 
     actual fun loadFavoriteUrls(): Set<String> =
