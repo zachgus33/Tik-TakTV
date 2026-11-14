@@ -97,6 +97,7 @@ import {
 import type { Playback } from "./Player";
 import { getTraktRating, setTraktRating, traktRatingIds } from "./trakt-ratings";
 import { traktAccessToken } from "./TraktSettings";
+import { migrateLegacyTraktProfile, traktProfileIdentity } from "./trakt-profile";
 import {
   normalizeYouTubeProgress,
   resolveYouTubeProgressTitle,
@@ -2819,6 +2820,7 @@ export default function App() {
             });
           }
           markActiveProfile(ownerId, profile.profile_index);
+          migrateLegacyTraktProfile(profile.name);
           setForceProfileSelection(false);
           setActiveProfileView({
             name: profile.name,
@@ -3172,7 +3174,7 @@ export default function App() {
                     collections={collections}
                     addons={addons}
                     library={library}
-                    profileName={activeProfileView?.name ?? ""}
+                    profileName={traktProfileIdentity(activeProfileView?.name ?? "")}
                     onOpen={open}
                     onBrowsingChange={setCollectionBrowsing}
                   />
@@ -3990,7 +3992,7 @@ export default function App() {
             {page === "settings" && (
               <Suspense fallback={<Loading />}>
                 <Settings
-                  profileName={activeProfileView?.name ?? ""}
+                  profileName={traktProfileIdentity(activeProfileView?.name ?? "")}
                   provider={provider}
                   epgUrl={epgUrl}
                   onEpgUrl={setEpgUrl}
@@ -4081,7 +4083,7 @@ export default function App() {
         <Detail
           key={itemKey(detail)}
           initial={detail}
-          traktProfileName={activeProfileView?.name ?? ""}
+          traktProfileName={traktProfileIdentity(activeProfileView?.name ?? "")}
           provider={provider}
           addons={addons}
           torboxKey={torboxKey}
@@ -4109,7 +4111,7 @@ export default function App() {
         >
           <Player
             playback={playback}
-            traktProfileName={activeProfileView?.name ?? ""}
+            traktProfileName={traktProfileIdentity(activeProfileView?.name ?? "")}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,
