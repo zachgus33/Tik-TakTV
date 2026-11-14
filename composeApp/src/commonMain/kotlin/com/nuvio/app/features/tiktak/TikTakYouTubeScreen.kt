@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,8 @@ import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.profiles.ProfileRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -67,7 +70,9 @@ private data class YouTubeSearchResponse(
 
 @Serializable
 private data class YouTubeAccountResponse(
+    val configured: Boolean = true,
     val connected: Boolean = false,
+    val channel: YouTubeChannel? = null,
     val videoFeed: List<TikTakYouTubeItem> = emptyList(),
     val recentFeed: List<TikTakYouTubeItem> = emptyList(),
     val subscriptionFeed: List<TikTakYouTubeItem> = emptyList(),
@@ -76,6 +81,24 @@ private data class YouTubeAccountResponse(
     val activity: List<TikTakYouTubeItem> = emptyList(),
     val playlists: List<TikTakYouTubeItem> = emptyList(),
     val subscriptions: List<TikTakYouTubeSubscription> = emptyList(),
+    val error: String? = null,
+)
+
+@Serializable
+private data class YouTubeChannel(val title: String = "")
+
+@Serializable
+private data class YouTubeDeviceStart(
+    val userCode: String,
+    val verificationUrl: String,
+    val interval: Int = 5,
+    val error: String? = null,
+)
+
+@Serializable
+private data class YouTubeDevicePoll(
+    val connected: Boolean = false,
+    val interval: Int? = null,
     val error: String? = null,
 )
 
@@ -96,6 +119,8 @@ fun TikTakYouTubeScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
+    val profileId = profileState.activeProfile?.profileIndex ?: ProfileRepository.activeProfileId
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("video") }
     var section by rememberSaveable { mutableStateOf("forYou") }
@@ -111,6 +136,11 @@ fun TikTakYouTubeScreen(
     var accountLoading by remember { mutableStateOf(false) }
     var feedVersion by remember { mutableStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
+    var accountConnected by remember { mutableStateOf(false) }
+    var accountConfigured by remember { mutableStateOf(true) }
+    var channelTitle by remember { mutableStateOf("") }
+    var deviceSignIn by remember { mutableStateOf<YouTubeDeviceStart?>(null) }
+    var deviceBusy by remember { mutableStateOf(false) }
 
     fun localHistory(): List<TikTakYouTubeItem> =
         WatchProgressRepository.uiState.value.entries
@@ -144,6 +174,9 @@ fun TikTakYouTubeScreen(
             if (response.status !in 200..299) error(payload.error ?: "YouTube account could not be loaded.")
             payload
         }.onSuccess { payload ->
+            accountConnected = payload.connected
+            accountConfigured = payload.configured
+            channelTitle = payload.channel?.title.orEmpty()
             // Account feeds can repeat the same upload across subscriptions and
             // activity. Duplicate LazyRow keys crash Compose on low-memory TV
             // devices, and unbounded artwork decoding can freeze Fire TV.
@@ -169,6 +202,68 @@ fun TikTakYouTubeScreen(
                 historyItems = localHistory()
             }
         accountLoading = false
+    }
+
+    fun connectAccount() {
+        if (deviceBusy) return
+        scope.launch {
+            deviceBusy = true
+            error = null
+            runCatching {
+                val response = TikTakServiceClient.post("/youtube/device/start", "{}")
+                if (response.status !in 200..299) error("YouTube sign-in could not start (HTTP ${response.status}).")
+                YouTubeJson.decodeFromString<YouTubeDeviceStart>(response.body)
+            }.onSuccess { deviceSignIn = it }.onFailure { error = it.message }
+            deviceBusy = false
+        }
+    }
+
+    fun disconnectAccount() {
+        if (deviceBusy) return
+        scope.launch {
+            deviceBusy = true
+            error = null
+            runCatching {
+                val response = TikTakServiceClient.post("/youtube/disconnect", "{}")
+                if (response.status !in 200..299) error("YouTube could not be disconnected (HTTP ${response.status}).")
+            }.onSuccess {
+                accountConnected = false
+                channelTitle = ""
+                deviceSignIn = null
+                accountItems = emptyList()
+                subscriptionItems = emptyList()
+                playlistItems = emptyList()
+                subscriptions = emptyList()
+                scope.launch { loadAccount() }
+            }.onFailure { error = it.message }
+            deviceBusy = false
+        }
+    }
+
+    LaunchedEffect(deviceSignIn, profileId) {
+        var interval = deviceSignIn?.interval ?: return@LaunchedEffect
+        while (deviceSignIn != null) {
+            delay(interval.coerceAtLeast(5) * 1000L)
+            val result = runCatching {
+                val response = TikTakServiceClient.post("/youtube/device/poll", "{}")
+                response.status to YouTubeJson.decodeFromString<YouTubeDevicePoll>(response.body)
+            }.getOrElse {
+                error = it.message
+                deviceSignIn = null
+                return@LaunchedEffect
+            }
+            if (result.first == 200 && result.second.connected) {
+                deviceSignIn = null
+                loadAccount(true)
+                return@LaunchedEffect
+            }
+            if (result.first != 202) {
+                error = result.second.error ?: "YouTube sign-in expired. Please try again."
+                deviceSignIn = null
+                return@LaunchedEffect
+            }
+            interval = result.second.interval ?: interval
+        }
     }
 
     fun search() {
@@ -215,7 +310,10 @@ fun TikTakYouTubeScreen(
         }
     }
 
-    LaunchedEffect(kind) {
+    LaunchedEffect(kind, profileId) {
+        deviceSignIn = null
+        accountConnected = false
+        channelTitle = ""
         accountItems = emptyList()
         recentItems = emptyList()
         subscriptionItems = emptyList()
@@ -243,6 +341,21 @@ fun TikTakYouTubeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.nuvio.colors.textMuted,
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = if (accountConnected) "Connected: ${channelTitle.ifBlank { "YouTube" }}" else "No YouTube account connected to this profile",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(
+                    onClick = if (accountConnected) ::disconnectAccount else ::connectAccount,
+                    enabled = !deviceBusy && accountConfigured,
+                    modifier = Modifier.tikTakTvFocus(),
+                ) { Text(if (accountConnected) "Disconnect" else "Connect YouTube") }
+            }
+            deviceSignIn?.let { device ->
+                Text("On your phone, visit ${device.verificationUrl} and enter ${device.userCode}")
+                Text("Waiting for YouTube approval…")
+            }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

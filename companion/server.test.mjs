@@ -21,11 +21,19 @@ import {
   youtubeMusicChartAllowed,
   youtubeMusicTrackAllowed,
   youtubeRecentVideoIds,
+  youtubeProfileAccountKey,
   youtubeTitlesRelated,
   safeDownloadName,
   sourceHeaders,
   youtubeVideoAllowed,
 } from "./server.mjs";
+
+test("YouTube connections stay isolated by TikTak profile", () => {
+  assert.equal(youtubeProfileAccountKey("owner", 1), "owner");
+  assert.equal(youtubeProfileAccountKey("owner", 2), "owner:profile:2");
+  assert.notEqual(youtubeProfileAccountKey("owner", 2), youtubeProfileAccountKey("owner", 3));
+  assert.throws(() => youtubeProfileAccountKey("owner", 7), RangeError);
+});
 
 test("Music chart fallback excludes unrelated language results", () => {
   assert.equal(youtubeMusicChartAllowed({ snippet: { title: "English pop song", defaultAudioLanguage: "en-US" } }), true);
@@ -481,6 +489,7 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     collections: [],
     homeCatalogs: [],
     autoplay: true,
+    youtubeAccount: { token: "never-share-this-youtube-token" },
   };
   try {
     const published = await request("owner-one", "/friend/setup", {
@@ -512,6 +521,8 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
       shared.template.addons[0].base,
       "https://addon.example/configured-secret",
     );
+    assert.equal(shared.template.youtubeAccount, undefined);
+    assert.ok(!JSON.stringify(shared).includes("never-share-this-youtube-token"));
     assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
     assert.ok(
       !(await readFile(join(directory, "users.json"), "utf8")).includes(

@@ -348,6 +348,13 @@ export function youtubeInterestMatches(item, topic) {
   return words.length > 0 && words.some((word) => text.toLowerCase().includes(word));
 }
 
+export function youtubeProfileAccountKey(userId, profileId = 1) {
+  if (!Number.isInteger(profileId) || profileId < 1 || profileId > 6)
+    throw new RangeError("Invalid TikTak TV profile.");
+  // Keep the existing primary-profile connection without a forced reconnect.
+  return profileId === 1 ? userId : `${userId}:profile:${profileId}`;
+}
+
 export function youtubeRecentVideoIds(value) {
   return Array.isArray(value)
     ? [
@@ -1996,6 +2003,15 @@ export function createService({ token, origins, authorizeAccount }) {
       if (req.method !== "POST")
         return send(405, { error: "Method not allowed" });
       const body = JSON.parse(await limitedText(req, 1_000_000));
+      let youtubeUserId = userId;
+      if (route.pathname.startsWith("/youtube/")) {
+        const profileId = Number(body.profileId ?? 1);
+        try {
+          youtubeUserId = youtubeProfileAccountKey(userId, profileId);
+        } catch {
+          return send(400, { error: "Invalid TikTak TV profile." });
+        }
+      }
       if (route.pathname === "/analytics/account") {
         if (!(await recordAccountUsage(userId, body)))
           return send(400, { error: "Invalid account usage event" });
@@ -2012,7 +2028,7 @@ export function createService({ token, origins, authorizeAccount }) {
         return send(200, await usageSummary());
       }
       if (route.pathname === "/youtube/device/start") {
-        if (userId === "service")
+        if (youtubeUserId === "service")
           return send(403, { error: "Sign in to TikTak TV first." });
         const config = youtubeOAuthConfig();
         if (!config)
@@ -2034,7 +2050,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.device_code)
           return send(502, { error: "Google sign-in could not start." });
-        youtubeDevices.set(userId, {
+        youtubeDevices.set(youtubeUserId, {
           deviceCode: payload.device_code,
           expires: Date.now() + Number(payload.expires_in ?? 900) * 1000,
           interval: Math.max(5, Number(payload.interval ?? 5)),
@@ -2051,10 +2067,10 @@ export function createService({ token, origins, authorizeAccount }) {
         });
       }
       if (route.pathname === "/youtube/device/poll") {
-        if (userId === "service")
+        if (youtubeUserId === "service")
           return send(403, { error: "Sign in to TikTak TV first." });
         const config = youtubeOAuthConfig();
-        const pending = youtubeDevices.get(userId);
+        const pending = youtubeDevices.get(youtubeUserId);
         if (!config || !pending || pending.expires < Date.now())
           return send(410, { error: "Start YouTube sign-in again." });
         if (Date.now() - pending.lastPoll < pending.interval * 900)
@@ -2081,34 +2097,34 @@ export function createService({ token, origins, authorizeAccount }) {
           return send(202, { pending: true, interval: pending.interval });
         }
         if (!response.ok || !payload.access_token) {
-          youtubeDevices.delete(userId);
+          youtubeDevices.delete(youtubeUserId);
           return send(400, {
             error: "Google sign-in was cancelled or expired.",
           });
         }
         const vault = await readYoutubeVault();
-        vault.accounts[userId] = {
+        vault.accounts[youtubeUserId] = {
           accessToken: payload.access_token,
           refreshToken:
-            payload.refresh_token ?? vault.accounts[userId]?.refreshToken ?? "",
+            payload.refresh_token ?? vault.accounts[youtubeUserId]?.refreshToken ?? "",
           expiresAt: Date.now() + Number(payload.expires_in ?? 3600) * 1000,
           connectedAt: Date.now(),
         };
         await writeYoutubeVault(vault);
-        youtubeDevices.delete(userId);
+        youtubeDevices.delete(youtubeUserId);
         return send(200, { connected: true });
       }
       if (route.pathname === "/youtube/disconnect") {
-        if (userId === "service")
+        if (youtubeUserId === "service")
           return send(403, { error: "Sign in to TikTak TV first." });
         const vault = await readYoutubeVault();
-        delete vault.accounts[userId];
+        delete vault.accounts[youtubeUserId];
         await writeYoutubeVault(vault);
-        youtubeDevices.delete(userId);
+        youtubeDevices.delete(youtubeUserId);
         for (const key of youtubeCache.keys())
-          if (key.startsWith(`account:${userId}:`)) youtubeCache.delete(key);
-        youtubeFeedRotations.delete(userId);
-        youtubeSubscriptionOffsets.delete(userId);
+          if (key.startsWith(`account:${youtubeUserId}:`)) youtubeCache.delete(key);
+        youtubeFeedRotations.delete(youtubeUserId);
+        youtubeSubscriptionOffsets.delete(youtubeUserId);
         return send(200, { connected: false });
       }
       if (route.pathname === "/youtube/playlist") {
@@ -2121,7 +2137,7 @@ export function createService({ token, origins, authorizeAccount }) {
           maxResults: 5,
         };
         const playlist =
-          (await youtubeApi(userId, "playlistItems", playlistParams)) ??
+          (await youtubeApi(youtubeUserId, "playlistItems", playlistParams)) ??
           (await youtubePublicApi("playlistItems", playlistParams));
         const first = playlist?.items?.find(
           (item) =>
@@ -2160,12 +2176,12 @@ export function createService({ token, origins, authorizeAccount }) {
         });
       }
       if (route.pathname === "/youtube/account") {
-        if (userId === "service")
+        if (youtubeUserId === "service")
           return send(200, {
             configured: !!youtubeOAuthConfig(),
             connected: false,
           });
-        const channel = await youtubeApi(userId, "channels", {
+        const channel = await youtubeApi(youtubeUserId, "channels", {
           part: "snippet,contentDetails",
           mine: "true",
         });
@@ -2182,11 +2198,11 @@ export function createService({ token, origins, authorizeAccount }) {
           });
         const recentVideoIds = youtubeRecentVideoIds(body.recentVideoIds);
         const interestTopics = youtubeInterestTopics(body.interestTopics);
-        const accountCacheKey = `account:${userId}:${recentVideoIds.join(",")}:${interestTopics.join("|")}`;
+        const accountCacheKey = `account:${youtubeUserId}:${recentVideoIds.join(",")}:${interestTopics.join("|")}`;
         const cachedAccount = youtubeCache.get(accountCacheKey);
         const rotateAccount = (account) => {
-          const rotation = youtubeFeedRotations.get(userId) ?? 0;
-          youtubeFeedRotations.set(userId, rotation + 1);
+          const rotation = youtubeFeedRotations.get(youtubeUserId) ?? 0;
+          youtubeFeedRotations.set(youtubeUserId, rotation + 1);
           const rotated = rotateYoutubeAccount(account, rotation);
           // Refresh can rotate the broad feed, but explicit interests must
           // remain visible at the top instead of disappearing down the row.
@@ -2205,37 +2221,37 @@ export function createService({ token, origins, authorizeAccount }) {
         )
           return send(200, rotateAccount(cachedAccount.account));
         const [subscriptions, playlists, activities, popular, gaming, entertainment, technology, popularMusic] = await Promise.all([
-          youtubeApi(userId, "subscriptions", {
+          youtubeApi(youtubeUserId, "subscriptions", {
             part: "snippet",
             mine: "true",
             maxResults: 50,
             order: "relevance",
           }).catch(() => null),
-          youtubeApi(userId, "playlists", {
+          youtubeApi(youtubeUserId, "playlists", {
             part: "snippet,contentDetails",
             mine: "true",
             maxResults: 50,
           }).catch(() => null),
-          youtubeApi(userId, "activities", {
+          youtubeApi(youtubeUserId, "activities", {
             part: "snippet,contentDetails",
             mine: "true",
             maxResults: 30,
           }).catch(() => null),
-          youtubeApi(userId, "videos", {
+          youtubeApi(youtubeUserId, "videos", {
             part: "snippet,status,contentDetails",
             chart: "mostPopular",
             maxResults: 50,
             regionCode: "US",
           }),
           ...["20", "24", "28"].map((videoCategoryId) =>
-            youtubeApi(userId, "videos", {
+            youtubeApi(youtubeUserId, "videos", {
               part: "snippet,status,contentDetails",
               chart: "mostPopular",
               maxResults: 30,
               regionCode: "US",
               videoCategoryId,
             }).catch(() => null)),
-          youtubeApi(userId, "videos", {
+          youtubeApi(youtubeUserId, "videos", {
             part: "snippet,status,contentDetails",
             chart: "mostPopular",
             maxResults: 50,
@@ -2269,7 +2285,7 @@ export function createService({ token, origins, authorizeAccount }) {
           .filter((item) => /^[A-Za-z0-9_-]{10,64}$/.test(item.id));
         const subscriptionOffset =
           subscriptionItems.length > 0
-            ? (youtubeSubscriptionOffsets.get(userId) ?? 0) %
+            ? (youtubeSubscriptionOffsets.get(youtubeUserId) ?? 0) %
               subscriptionItems.length
             : 0;
         const subscriptionSample = [
@@ -2278,12 +2294,12 @@ export function createService({ token, origins, authorizeAccount }) {
         ].slice(0, 12);
         if (subscriptionItems.length > 0)
           youtubeSubscriptionOffsets.set(
-            userId,
+            youtubeUserId,
             (subscriptionOffset + subscriptionSample.length) %
               subscriptionItems.length,
           );
         const recentlyWatched = recentVideoIds.length
-          ? await youtubeApi(userId, "videos", {
+          ? await youtubeApi(youtubeUserId, "videos", {
               part: "snippet,contentDetails,status",
               id: recentVideoIds.join(","),
               maxResults: 50,
@@ -2301,7 +2317,7 @@ export function createService({ token, origins, authorizeAccount }) {
             2,
           );
         const musicSearches = await Promise.all(musicQueries.map((query) =>
-          youtubeApi(userId, "search", {
+          youtubeApi(youtubeUserId, "search", {
             part: "snippet",
             type: "video",
             q: query,
@@ -2335,7 +2351,7 @@ export function createService({ token, origins, authorizeAccount }) {
           discoveryQueries.map(async (query) => {
             const cached = youtubeDiscoveryCache.get(query);
             if (cached?.expires > Date.now()) return cached.payload;
-            const payload = await youtubeApi(userId, "search", {
+            const payload = await youtubeApi(youtubeUserId, "search", {
               part: "snippet",
               type: "video",
               q: query,
@@ -2401,7 +2417,7 @@ export function createService({ token, origins, authorizeAccount }) {
           ]),
         ];
         const feedChannels = feedChannelIds.length
-          ? await youtubeApi(userId, "channels", {
+          ? await youtubeApi(youtubeUserId, "channels", {
               part: "contentDetails",
               id: feedChannelIds.join(","),
               maxResults: 16,
@@ -2417,7 +2433,7 @@ export function createService({ token, origins, authorizeAccount }) {
           feedChannelIds.map((channelId) => {
             const playlistId = uploadsByChannel.get(channelId);
             return playlistId
-              ? youtubeApi(userId, "playlistItems", {
+              ? youtubeApi(youtubeUserId, "playlistItems", {
                   part: "snippet,contentDetails,status",
                   playlistId,
                   maxResults: 24,
@@ -2434,7 +2450,7 @@ export function createService({ token, origins, authorizeAccount }) {
               })
               .map(async (channelId) => [
                 channelId,
-                await youtubeApi(userId, "activities", {
+                await youtubeApi(youtubeUserId, "activities", {
                   part: "snippet,contentDetails",
                   channelId,
                   maxResults: 12,
@@ -2506,7 +2522,7 @@ export function createService({ token, origins, authorizeAccount }) {
               },
             ]
           : [];
-        const discoveredMusic = await youtubeApi(userId, "search", {
+        const discoveredMusic = await youtubeApi(youtubeUserId, "search", {
           part: "snippet",
           q: "music playlist",
           type: "playlist",
@@ -2528,7 +2544,7 @@ export function createService({ token, origins, authorizeAccount }) {
         ].slice(0, 59);
         const playlistLeads = await Promise.all(
           playlistItems.map((item) =>
-            youtubeApi(userId, "playlistItems", {
+            youtubeApi(youtubeUserId, "playlistItems", {
               part: "snippet,contentDetails,status",
               playlistId: item?.id ?? "",
               maxResults: item?.discoveredMusic ? 5 : 20,
@@ -2593,7 +2609,7 @@ export function createService({ token, origins, authorizeAccount }) {
           detailBatches.push(detailIds.slice(offset, offset + 50));
         const videoDetails = await Promise.all(
           detailBatches.map((ids) =>
-            youtubeApi(userId, "videos", {
+            youtubeApi(youtubeUserId, "videos", {
               part: "snippet,status,contentDetails",
               id: ids.join(","),
               maxResults: 50,
@@ -2723,7 +2739,7 @@ export function createService({ token, origins, authorizeAccount }) {
           return send(400, { error: "Enter a shorter YouTube search." });
         if (channelId && !/^[A-Za-z0-9_-]{10,64}$/.test(channelId))
           return send(400, { error: "Invalid YouTube channel." });
-        const cacheKey = `${kind}:${channelId}:${query.toLocaleLowerCase()}`;
+        const cacheKey = `${youtubeUserId}:${kind}:${channelId}:${query.toLocaleLowerCase()}`;
         const cached = youtubeCache.get(cacheKey);
         if (cached?.expires > Date.now())
           return send(200, { results: cached.results });
@@ -2737,7 +2753,7 @@ export function createService({ token, origins, authorizeAccount }) {
           ...(channelId ? { channelId, order: "date" } : {}),
           ...(kind === "music" ? { videoCategoryId: "10" } : { videoDuration: "medium" }),
         };
-        const payload = await youtubeApi(userId, "search", searchParams)
+        const payload = await youtubeApi(youtubeUserId, "search", searchParams)
           ?? await youtubePublicApi("search", searchParams);
         if (!payload) {
           const fallback = channelId ? [] : await youtubePageSearch(query, kind);
@@ -2762,7 +2778,7 @@ export function createService({ token, origins, authorizeAccount }) {
             id: results.map((item) => item.videoId).join(","),
             maxResults: 50,
           };
-          const details = await youtubeApi(userId, "videos", videoParams)
+          const details = await youtubeApi(youtubeUserId, "videos", videoParams)
             ?? await youtubePublicApi("videos", videoParams);
           if (!details) {
             const fallback = channelId ? [] : await youtubePageSearch(query, kind);
@@ -3129,6 +3145,13 @@ export function createService({ token, origins, authorizeAccount }) {
           template.homeCatalogs.length > 500
         )
           return send(400, { error: "The shared setup is invalid." });
+        // Friend codes share setup only. Never store unrelated account fields.
+        const sharedTemplate = {
+          addons: template.addons,
+          collections: template.collections,
+          homeCatalogs: template.homeCatalogs,
+          autoplay: template.autoplay === true,
+        };
         const legacyVault = await readFriendVault();
         if (codeMatchesVault(code, legacyVault))
           return send(409, {
@@ -3160,7 +3183,7 @@ export function createService({ token, origins, authorizeAccount }) {
           codeHash: codeHash.toString("base64"),
           torboxKey,
           realDebridKey,
-          template,
+          template: sharedTemplate,
           updated: Date.now(),
         };
         await writeFriendVaults(database);
@@ -3230,7 +3253,12 @@ export function createService({ token, origins, authorizeAccount }) {
           // A friend code is an explicit full-setup share. Preserve each
           // original add-on base exactly so Nuvio and every compatible client
           // receive a portable manifest URL instead of a TikTak-only proxy.
-          template: vault.template,
+          template: {
+            addons: vault.template.addons,
+            collections: vault.template.collections,
+            homeCatalogs: vault.template.homeCatalogs,
+            autoplay: vault.template.autoplay === true,
+          },
           torboxKey: vault.torboxKey ? `friend:${grant}` : "",
           realDebridKey: vault.realDebridKey ? `friend-rd:${grant}` : "",
         });

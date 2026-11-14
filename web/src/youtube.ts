@@ -1,4 +1,5 @@
 import { getService, serviceRequest } from "./connection";
+import { activeProfileIndex } from "./storage";
 
 export type YouTubeKind = "video" | "music";
 
@@ -38,7 +39,7 @@ export type YouTubeAccount = {
 };
 
 async function youtubeAccountRequest<T>(path: string, body: unknown = {}) {
-  const response = await serviceRequest(path, body);
+  const response = await serviceRequest(path, { ...body as object, profileId: activeProfileIndex() });
   const data = (await response.json().catch(() => ({}))) as T & {
     error?: string;
   };
@@ -129,7 +130,7 @@ export async function searchYouTube(
 ): Promise<YouTubeSelection[]> {
   const response = await serviceRequest(
     "/youtube/search",
-    { query: query.trim(), kind, channelId },
+    { query: query.trim(), kind, channelId, profileId: activeProfileIndex() },
     signal,
   );
   const data = (await response.json().catch(() => ({}))) as {
@@ -172,7 +173,7 @@ export async function resolveYouTubePlayback(
 ): Promise<YouTubePlayback> {
   const response = await serviceRequest(
     "/youtube/playback",
-    { videoId, kind },
+    { videoId, kind, profileId: activeProfileIndex() },
     signal,
   );
   const data = (await response.json().catch(() => ({}))) as {

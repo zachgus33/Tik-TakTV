@@ -3,10 +3,14 @@ package com.nuvio.app.features.tiktak
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.addons.RawHttpResponse
 import com.nuvio.app.features.addons.httpRequestRaw
+import com.nuvio.app.features.profiles.ProfileRepository
 import io.github.jan.supabase.auth.auth
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 @Serializable
 private data class FriendAddonRestoreRequest(val urls: List<String>)
@@ -24,6 +28,10 @@ internal object TikTakServiceClient {
         val accessToken = SupabaseProvider.client.auth.currentSessionOrNull()?.accessToken
             ?.takeIf { it.isNotBlank() }
             ?: error("Sign in to use this TikTak TV feature.")
+        val requestBody = if (path.ensureLeadingSlash().startsWith("/youtube/")) {
+            val fields = json.parseToJsonElement(body).jsonObject
+            JsonObject(fields + ("profileId" to JsonPrimitive(ProfileRepository.activeProfileId))).toString()
+        } else body
         return httpRequestRaw(
             method = "POST",
             url = "$BASE_URL${path.ensureLeadingSlash()}",
@@ -32,7 +40,7 @@ internal object TikTakServiceClient {
                 "Content-Type" to "application/json",
                 "Accept" to "application/json",
             ),
-            body = body,
+            body = requestBody,
             maxResponseBodyBytes = 4 * 1024 * 1024,
         )
     }

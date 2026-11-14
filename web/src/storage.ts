@@ -78,6 +78,17 @@ export function profileOwnerKey(ownerId: string, profileIndex: number) {
   return `${ownerId}:${profileIndex}`;
 }
 
+export function activeProfileIndex() {
+  const value = localStorage.getItem("tiktak:active-profile-owner") ?? "";
+  const index = Number(value.slice(value.lastIndexOf(":") + 1));
+  return Number.isInteger(index) && index >= 1 && index <= 6 ? index : 1;
+}
+
+export function activeYouTubeInterestsKey() {
+  const profile = localStorage.getItem("tiktak:active-profile-owner") ?? "default:1";
+  return `tiktak:youtube-interests:${profile}`;
+}
+
 export function activeProfileMatches(ownerId: string, profileIndex: number) {
   return (
     localStorage.getItem("tiktak:active-profile-owner") ===

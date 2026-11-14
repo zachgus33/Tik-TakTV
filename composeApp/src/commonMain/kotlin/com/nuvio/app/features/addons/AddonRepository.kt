@@ -49,6 +49,12 @@ private data class AddonPushItem(
 
 private const val ADDON_PUSH_DEBOUNCE_MS = 500L
 
+data class SharedAddonSetup(
+    val base: String,
+    val manifestJson: String?,
+    val enabled: Boolean = true,
+)
+
 object AddonRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("AddonRepository")
@@ -307,6 +313,55 @@ object AddonRepository {
         persist()
         pushToServer()
         return AddAddonResult.Success(manifest)
+    }
+
+    /** Apply a friend setup as one ordered list, as the web client does. */
+    suspend fun replaceFromFriendSetup(sharedAddons: List<SharedAddonSetup>) {
+        check(!isUsingPrimaryAddonsFromSecondaryProfile()) {
+            "This profile uses the primary profile's add-ons. Change that setting before redeeming a friend code."
+        }
+        initialize()
+        val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
+        val prepared = sharedAddons.mapIndexed { index, shared ->
+            val manifestUrl = normalizeManifestUrl(shared.base)
+            val manifest = runCatching {
+                shared.manifestJson?.let { AddonManifestParser.parse(manifestUrl, it) }
+            }.getOrNull() ?: existingByUrl[manifestUrl]?.manifest ?: try {
+                withContext(Dispatchers.Default) {
+                    AddonManifestParser.parse(manifestUrl, fetchAddonResponseText(manifestUrl))
+                }
+            } catch (error: Throwable) {
+                throw IllegalStateException("Add-on ${index + 1} could not be loaded: ${error.message ?: manifestUrl}", error)
+            }
+            ManagedAddon(
+                manifestUrl = manifestUrl,
+                manifest = manifest,
+                enabled = shared.enabled,
+                isRefreshing = false,
+                errorMessage = null,
+            )
+        }.distinctBy(ManagedAddon::manifestUrl)
+
+        val profileId = currentProfileId
+        val params = buildJsonObject {
+            put("p_profile_id", profileId)
+            put("p_addons", json.encodeToJsonElement(prepared.mapIndexed { index, addon ->
+                AddonPushItem(
+                    url = addon.manifestUrl,
+                    name = addon.manifest?.name.orEmpty(),
+                    enabled = addon.enabled,
+                    sortOrder = index,
+                )
+            }))
+            putSyncOriginClientId()
+        }
+        pushJobsByProfile[profileId]?.cancel()
+        // Wait for server persistence so the UI never reports success for a local-only import.
+        SupabaseProvider.client.postgrest.rpc("sync_push_addons", params)
+        cancelActiveRefreshes()
+        _uiState.value = AddonsUiState(addons = prepared)
+        persist()
+        pulledFromServer = true
     }
 
     fun removeAddon(manifestUrl: String) {

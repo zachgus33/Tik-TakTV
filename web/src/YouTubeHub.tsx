@@ -56,7 +56,7 @@ import {
   type YouTubeResumeRequest,
   youtubeVideoIdFromItem,
 } from "./youtube-progress";
-import { read } from "./storage";
+import { activeYouTubeInterestsKey, read } from "./storage";
 import type { Progress } from "./types";
 
 type Player = {
@@ -130,7 +130,7 @@ export default function YouTubeHub({
   const [kind, setKind] = useState<YouTubeKind>("video");
   const [query, setQuery] = useState("");
   const [interestInput, setInterestInput] = useState(() =>
-    localStorage.getItem("tiktak:youtube-interests") ?? "",
+    localStorage.getItem(activeYouTubeInterestsKey()) ?? "",
   );
   const [results, setResults] = useState<YouTubeSelection[]>([]);
   const [selection, setSelection] = useState<YouTubeSelection | null>(null);
@@ -226,7 +226,7 @@ export default function YouTubeHub({
         .map((item) => item.videoId)
         .filter((id): id is string => !!id)
         .slice(0, 40);
-      const interestTopics = (localStorage.getItem("tiktak:youtube-interests") ?? "")
+      const interestTopics = (localStorage.getItem(activeYouTubeInterestsKey()) ?? "")
         .split(",").map((topic) => topic.trim()).filter(Boolean).slice(0, 4);
       setAccount(await youtubeAccount(false, { refresh, recentVideoIds, interestTopics }));
       if (refresh) setVisibleFeedCount(24);
@@ -907,7 +907,7 @@ export default function YouTubeHub({
           const topics = interestInput.split(",").map((topic) => topic.trim())
             .filter(Boolean).slice(0, 4).join(", ");
           setInterestInput(topics);
-          localStorage.setItem("tiktak:youtube-interests", topics);
+          localStorage.setItem(activeYouTubeInterestsKey(), topics);
           void loadAccount(true);
         }}>
           <label htmlFor="youtube-interests">Show me more about</label>

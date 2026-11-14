@@ -41,11 +41,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.features.addons.SharedAddonSetup
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import com.nuvio.app.features.home.SyncCatalogItem
-import com.nuvio.app.features.home.SyncHomeCatalogPayload
+import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.tiktak.TikTakServiceClient
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
@@ -54,6 +57,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.JsonNull
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_about_version_format
 import nuvio.composeapp.generated.resources.compose_settings_page_account
@@ -394,7 +399,7 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                 androidx.compose.foundation.layout.Column(
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Enter the code shared by the account owner. Add-ons and supported playback access will be installed into this profile.")
+                    Text("Enter the code shared by the account owner. This replaces this profile's add-ons, collections, and home catalogs with their shared setup.")
                     NuvioTvTextField(
                         value = code,
                         onValueChange = { code = it.filter(Char::isDigit).take(12); message = null },
@@ -421,29 +426,43 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                 }
                                 val root = Json.parseToJsonElement(response.body).jsonObject
                                 val template = root["template"]?.jsonObject
-                                val addonBases = template?.get("addons")?.jsonArray.orEmpty().mapNotNull { addon ->
-                                    runCatching { addon.jsonObject["base"]?.jsonPrimitive?.contentOrNull }.getOrNull()
+                                    ?: error("The friend setup response is missing its template.")
+                                val addons = template["addons"]?.jsonArray
+                                    ?: error("The friend setup is missing its add-ons.")
+                                val sharedAddons = addons.mapIndexed { index, addon ->
+                                    val details = addon.jsonObject
+                                    SharedAddonSetup(
+                                        base = details["base"]?.jsonPrimitive?.contentOrNull
+                                            ?.takeIf(String::isNotBlank)
+                                            ?: error("Add-on ${index + 1} is missing its URL."),
+                                        manifestJson = details["manifest"]?.takeUnless { it is JsonNull }?.toString(),
+                                        enabled = details["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                                    )
                                 }
-                                AddonRepository.initialize()
-                                var installed = 0
-                                addonBases.forEach { base ->
-                                    if (AddonRepository.addAddon(base.orEmpty()).let { it is com.nuvio.app.features.addons.AddAddonResult.Success }) installed++
-                                }
-                                val collections = template?.get("collections")?.jsonArray
-                                if (collections != null) {
-                                    CollectionRepository.importFromJson(collections.toString()).getOrThrow()
-                                }
-                                val homeCatalogs = template?.get("homeCatalogs")?.jsonArray
-                                if (homeCatalogs != null) {
-                                    val items = Json { ignoreUnknownKeys = true }
-                                        .decodeFromString<List<SyncCatalogItem>>(homeCatalogs.toString())
-                                    HomeCatalogSettingsRepository.applyFromRemote(
-                                        SyncHomeCatalogPayload(items = items),
+                                val collections = template["collections"]?.jsonArray
+                                    ?: error("The friend setup is missing its collections.")
+                                val collectionValidation = CollectionRepository.validateJson(collections.toString())
+                                if (!collectionValidation.valid) error(collectionValidation.error ?: "Invalid shared collections.")
+                                val homeCatalogs = template["homeCatalogs"]?.jsonArray
+                                    ?: error("The friend setup is missing its home catalogs.")
+                                val catalogItems = Json { ignoreUnknownKeys = true }
+                                    .decodeFromString<List<SyncCatalogItem>>(homeCatalogs.toString())
+                                val autoplay = template["autoplay"]?.jsonPrimitive?.booleanOrNull
+
+                                AddonRepository.replaceFromFriendSetup(sharedAddons)
+                                CollectionRepository.importFromJson(collections.toString()).getOrThrow()
+                                HomeCatalogSettingsRepository.applyFromRemote(
+                                    HomeCatalogSettingsRepository.exportToSyncPayload().copy(items = catalogItems),
+                                )
+                                HomeCatalogSettingsSyncService.triggerPush()
+                                autoplay?.let {
+                                    PlayerSettingsRepository.setStreamAutoPlayMode(
+                                        if (it) StreamAutoPlayMode.FIRST_STREAM else StreamAutoPlayMode.MANUAL,
                                     )
                                 }
                                 root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setTorboxApiKey)
                                 root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setRealDebridApiKey)
-                                "Installed shared setup ($installed add-ons, ${collections?.size ?: 0} collections)."
+                                "Installed shared setup (${sharedAddons.size} add-ons, ${collections.size} collections)."
                             }.onSuccess { summary ->
                                 message = summary
                                 code = ""
