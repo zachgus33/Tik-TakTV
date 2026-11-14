@@ -1526,6 +1526,11 @@ body:not(.show-kofi-widget) .floating-chat-kofi-popup-iframe-mobi,
 .home-content {
   padding: 0 42px;
 }
+.home-content > .home-collection,
+.home-content > .media-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
 .quick-strip {
   border: 1px solid #ffffff0c;
   border-radius: 10px;
