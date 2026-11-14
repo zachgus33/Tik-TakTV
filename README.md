@@ -121,8 +121,8 @@ Trakt is optional. Each person who chooses to connect signs in to their own
 Trakt account; it is disconnected by default. **TikTak TV uses Trakt but is not
 endorsed or certified by Trakt.** The web connection currently displays that
 person's watchlist. TV watch tracking is available to connected users. The
-Trakt integration is in a limited Development tier while Production access is
-under review.
+The Trakt integration uses a public Production app so viewers can opt in with
+their own Trakt accounts.
 
 <details>
 <summary><strong>Movies, shows & discovery</strong></summary>

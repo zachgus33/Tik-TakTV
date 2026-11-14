@@ -96,7 +96,7 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 |package com.nuvio.app.features.trakt
                 |
                 |object TraktConfig {
-                |    const val CLIENT_ID = "${props.getProperty("TRAKT_CLIENT_ID", "Z7PuiJjjUvdC7zerl5u3ni6rqcHQGrfAu2oh2IAnnh8")}"
+                |    const val CLIENT_ID = "${props.getProperty("TRAKT_CLIENT_ID", "--qC8Ym0uHVAfspvqjhVxFAM72ugEOgPzx68b31BHsY")}"
                 |    const val CLIENT_SECRET = "${props.getProperty("TRAKT_CLIENT_SECRET", "")}" 
                 |    const val REDIRECT_URI = "${props.getProperty("TRAKT_REDIRECT_URI", "nuvioenhanced://auth/trakt")}"
                 |}

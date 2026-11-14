@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const clientId = "Z7PuiJjjUvdC7zerl5u3ni6rqcHQGrfAu2oh2IAnnh8";
+const clientId = "--qC8Ym0uHVAfspvqjhVxFAM72ugEOgPzx68b31BHsY";
 const redirectUri = "https://tiktaktv.me/trakt-callback.html";
 const pendingKey = "tiktak:trakt-pending";
 const callbackKey = "tiktak:trakt-callback";
@@ -149,7 +149,7 @@ export default function TraktSettings({ profileName }: { profileName: string }) 
       {watchlistCount !== null && <p>Your Trakt watchlist has {watchlistCount} movies and shows.</p>}
       <button type="button" onClick={() => void disconnect()}>Disconnect Trakt</button>
     </> : <>
-      <p>Connect only if you want to use Trakt. This Development integration is currently limited to invited testers while Trakt reviews Production access.</p>
+      <p>Connect only if you want to use Trakt. You will sign in to your own Trakt account.</p>
       <button type="button" disabled={busy} onClick={() => void connect()}>{busy ? "Connecting…" : "Connect my Trakt"}</button>
     </>}
     {error && <p className="error" role="alert">{error}</p>}
