@@ -3188,7 +3188,9 @@ export function createService({ token, origins, authorizeAccount }) {
           };
         }
         const legacyVault = await readFriendVault();
-        if (codeMatchesVault(code, legacyVault))
+        // Let the legacy owner replace their own code in the account vault.
+        // Everyone else must still be blocked from claiming that code.
+        if (codeMatchesVault(code, legacyVault) && userId !== friendOwner)
           return send(409, {
             error: "That friend code is reserved. Choose another code.",
           });

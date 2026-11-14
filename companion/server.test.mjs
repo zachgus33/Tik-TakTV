@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -460,6 +461,58 @@ test("signed-in users can send private feedback and only the owner can review it
     else process.env.FEEDBACK_ADMIN_USER_ID = previous.admin;
     if (previous.path === undefined) delete process.env.FEEDBACK_PATH;
     else process.env.FEEDBACK_PATH = previous.path;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("legacy friend code can be republished by its owner only", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-legacy-friend-"));
+  const previous = {
+    key: process.env.FRIEND_VAULT_KEY,
+    vault: process.env.FRIEND_VAULT_PATH,
+    vaults: process.env.FRIEND_VAULTS_PATH,
+    owner: process.env.FRIEND_OWNER_USER_ID,
+  };
+  const key = Buffer.alloc(32, 9);
+  process.env.FRIEND_VAULT_KEY = key.toString("base64");
+  process.env.FRIEND_VAULT_PATH = join(directory, "legacy.json");
+  process.env.FRIEND_VAULTS_PATH = join(directory, "users.json");
+  process.env.FRIEND_OWNER_USER_ID = "legacy-owner";
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const legacy = {
+    codeSalt: salt.toString("base64"),
+    codeHash: scryptSync("389853", salt, 32).toString("base64"),
+  };
+  const data = Buffer.concat([cipher.update(JSON.stringify(legacy)), cipher.final()]);
+  await writeFile(process.env.FRIEND_VAULT_PATH, JSON.stringify({
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    data: data.toString("base64"),
+  }));
+  const server = createService({
+    token: "a".repeat(40),
+    origins: ["https://site.example"],
+    authorizeAccount: async (bearer) => bearer,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const request = (user) => fetch(`http://127.0.0.1:${server.address().port}/friend/setup`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${user}`, Origin: "https://site.example", "Content-Type": "application/json" },
+    body: JSON.stringify({ code: "389853", template: { addons: [], collections: [], homeCatalogs: [] } }),
+  });
+  try {
+    assert.equal((await request("someone-else")).status, 409);
+    assert.equal((await request("legacy-owner")).status, 200);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    for (const [name, value] of Object.entries(previous)) {
+      const envName = { key: "FRIEND_VAULT_KEY", vault: "FRIEND_VAULT_PATH", vaults: "FRIEND_VAULTS_PATH", owner: "FRIEND_OWNER_USER_ID" }[name];
+      if (value === undefined) delete process.env[envName];
+      else process.env[envName] = value;
+    }
     await rm(directory, { recursive: true, force: true });
   }
 });
