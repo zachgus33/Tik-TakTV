@@ -245,6 +245,7 @@ object HomeRepository {
                     manifestUrl = definition.manifestUrl,
                     type = definition.type,
                     catalogId = definition.catalogId,
+                    genre = (cachedSection.target as? CatalogTarget.Addon)?.genre,
                     skip = requestedSkip,
                     maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
                 )
@@ -468,7 +469,7 @@ object HomeRepository {
         "${item.stableKey()}:${normalizeTmdbLanguage(settings.language)}"
 
     private suspend fun HomeCatalogDefinition.toSection(): HomeCatalogSection {
-        val page = fetchCatalogPage(
+        var page = fetchCatalogPage(
             manifestUrl = manifestUrl,
             type = type,
             catalogId = catalogId,
@@ -477,6 +478,17 @@ object HomeRepository {
             skip = 0.takeIf { supportsPagination },
             maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
         )
+        val selectedGenre = if (page.items.isEmpty() && !fallbackGenre.isNullOrBlank()) {
+            page = fetchCatalogPage(
+                manifestUrl = manifestUrl,
+                type = type,
+                catalogId = catalogId,
+                genre = fallbackGenre,
+                skip = 0.takeIf { supportsPagination },
+                maxItems = HOME_CATALOG_PREVIEW_FETCH_LIMIT,
+            )
+            fallbackGenre
+        } else null
         val items = page.items
         if (items.isEmpty()) {
             return HomeCatalogSection(
@@ -488,6 +500,7 @@ object HomeRepository {
                     manifestUrl = manifestUrl,
                     contentType = type,
                     catalogId = catalogId,
+                    genre = selectedGenre,
                     supportsPagination = supportsPagination,
                 ),
                 items = emptyList(),
@@ -505,6 +518,7 @@ object HomeRepository {
                 manifestUrl = manifestUrl,
                 contentType = type,
                 catalogId = catalogId,
+                genre = selectedGenre,
                 supportsPagination = supportsPagination,
             ),
             items = items,

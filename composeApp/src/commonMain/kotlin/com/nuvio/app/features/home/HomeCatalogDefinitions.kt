@@ -21,6 +21,7 @@ data class HomeCatalogDefinition(
     val catalogId: String,
     val supportsPagination: Boolean,
     val descriptorSignature: String,
+    val fallbackGenre: String? = null,
 ) {
     val cacheKey: String
         get() = "$key|$descriptorSignature"
@@ -74,6 +75,7 @@ fun buildHomeCatalogDefinitions(addons: List<ManagedAddon>): List<HomeCatalogDef
                     catalogId = catalog.id,
                     supportsPagination = catalog.supportsPagination(),
                     descriptorSignature = buildHomeCatalogDescriptorSignature(addon, manifest, catalog),
+                    fallbackGenre = catalog.extra.firstOrNull { it.name == "genre" }?.options?.firstOrNull(),
                 )
             }
     }.distinctBy(HomeCatalogDefinition::key)

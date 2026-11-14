@@ -2158,20 +2158,20 @@ export default function App() {
     setError("");
     const entries = homeCatalogEntries(addons, homeCatalogs);
     void Promise.allSettled(
-      entries.map(async ({ addon, catalog: entryCatalog, customTitle }) => ({
-        title: customTitle || entryCatalog.name || addon.manifest.name,
-        items: await catalog(
-          addon,
-          entryCatalog.type,
-          entryCatalog.id,
-          "",
-          c.signal,
-        ),
-      })),
+      entries.map(async ({ addon, catalog: entryCatalog, customTitle }) => {
+        let items = await catalog(addon, entryCatalog.type, entryCatalog.id, "", c.signal);
+        // Some catalogs declare optional genre choices but return no default
+        // page. Try their first advertised choice before showing an empty row.
+        const firstOption = entryCatalog.extra?.find((extra) => extra.name === "genre")?.options?.[0];
+        if (!items.length && firstOption) {
+          items = await catalog(addon, entryCatalog.type, entryCatalog.id, "", c.signal, firstOption);
+        }
+        return { title: customTitle || entryCatalog.name || addon.manifest.name, items };
+      }),
     ).then((results) => {
       if (c.signal.aborted) return;
       const rows = results.flatMap((r) =>
-        r.status === "fulfilled" ? [r.value] : [],
+        r.status === "fulfilled" && r.value.items.length ? [r.value] : [],
       );
       setHomeRows(rows);
       void hideUnavailableFutureTitles(rows, addons, c.signal).then(

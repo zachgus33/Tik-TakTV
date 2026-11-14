@@ -75,7 +75,7 @@ export type Manifest = {
     id: string;
     type: string;
     name?: string;
-    extra?: { name: string; isRequired?: boolean }[];
+    extra?: { name: string; isRequired?: boolean; options?: string[] }[];
   }[];
 };
 export type Progress = {
