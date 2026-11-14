@@ -254,13 +254,13 @@ fun TikTakSportsScreen(
     }
 }
 
-internal data class SportsDerivedState(
+data class SportsDerivedState(
     val liveEvents: List<Pair<LiveTvChannel, String?>> = emptyList(),
     val scores: List<NativeScoreEvent> = emptyList(),
     val matchedChannels: Map<String, LiveTvChannel> = emptyMap(),
 )
 
-internal fun deriveSportsState(
+fun deriveSportsState(
     channels: List<LiveTvChannel>,
     programmes: Map<String, LiveTvProgramme>,
     schedules: Map<String, List<LiveTvProgramme>>,
