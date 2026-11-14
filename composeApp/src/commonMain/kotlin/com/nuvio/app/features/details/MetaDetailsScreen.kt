@@ -117,6 +117,7 @@ import com.nuvio.app.features.trakt.TraktCommentsSettings
 import com.nuvio.app.features.trakt.TraktConnectionMode
 import com.nuvio.app.features.trakt.TraktListTab
 import com.nuvio.app.features.trakt.TraktSettingsRepository
+import com.nuvio.app.features.trakt.TraktRatingsRepository
 import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.trailer.TrailerPlaybackSource
 import com.nuvio.app.features.watched.WatchedRepository
@@ -238,6 +239,9 @@ fun MetaDetailsScreen(
     var pickerPending by remember(type, id) { mutableStateOf(false) }
     var pickerError by remember(type, id) { mutableStateOf<String?>(null) }
     var episodeImdbRatings by remember(type, id) { mutableStateOf<Map<Pair<Int, Int>, Double>>(emptyMap()) }
+    var userTraktRating by remember(type, id) { mutableStateOf<Int?>(null) }
+    var userTraktRatingBusy by remember(type, id) { mutableStateOf(false) }
+    var userTraktRatingError by remember(type, id) { mutableStateOf<String?>(null) }
     var deferredMetaWorkAllowed by remember(type, id) { mutableStateOf(false) }
     var showAiAssistant by remember(type, id) { mutableStateOf(false) }
 
@@ -246,6 +250,18 @@ fun MetaDetailsScreen(
         traktAuthUiState.mode == TraktConnectionMode.CONNECTED &&
         displayedMeta != null &&
         displayedMeta.type.lowercase().let { it == "movie" || it == "series" || it == "show" || it == "tv" }
+    val canShowTraktRating = !offlineDetailsAvailable &&
+        traktAuthUiState.mode == TraktConnectionMode.CONNECTED &&
+        displayedMeta?.let { TraktRatingsRepository.canRate(it.type, it.id) } == true
+    LaunchedEffect(displayedMeta?.id, canShowTraktRating) {
+        userTraktRating = null
+        userTraktRatingError = null
+        if (canShowTraktRating) {
+            runCatching { TraktRatingsRepository.getRating(displayedMeta!!.type, displayedMeta.id) }
+                .onSuccess { userTraktRating = it }
+                .onFailure { userTraktRatingError = it.message ?: "Could not load your Trakt rating." }
+        }
+    }
     val supportsAiAssistant = displayedMeta?.type
         ?.lowercase()
         ?.let { it in setOf("movie", "film", "series", "show", "tv", "tvshow") } == true
@@ -1226,6 +1242,60 @@ fun MetaDetailsScreen(
                                 sharedTransitionScope = sharedTransitionScope,
                                 animatedVisibilityScope = animatedVisibilityScope,
                             )
+
+                            if (canShowTraktRating) {
+                                item(key = "trakt-user-rating", contentType = "rating") {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(
+                                            horizontal = contentHorizontalPadding,
+                                            vertical = 16.dp,
+                                        ),
+                                    ) {
+                                        Text(
+                                            "Your Trakt rating: ${userTraktRating?.let { "$it/10" } ?: "Not rated"}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                        (0..1).forEach { row ->
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                (1..5).forEach { column ->
+                                                    val rating = row * 5 + column
+                                                    Button(
+                                                        onClick = {
+                                                            userTraktRatingBusy = true
+                                                            userTraktRatingError = null
+                                                            detailsScope.launch {
+                                                                runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, rating) }
+                                                                    .onSuccess { userTraktRating = rating }
+                                                                    .onFailure { userTraktRatingError = it.message ?: "Could not save your rating." }
+                                                                userTraktRatingBusy = false
+                                                            }
+                                                        },
+                                                        enabled = !userTraktRatingBusy,
+                                                        modifier = Modifier.tikTakTvFocus(),
+                                                    ) { Text(if (userTraktRating == rating) "★$rating" else "$rating") }
+                                                }
+                                            }
+                                        }
+                                        if (userTraktRating != null) {
+                                            Button(
+                                                onClick = {
+                                                    userTraktRatingBusy = true
+                                                    userTraktRatingError = null
+                                                    detailsScope.launch {
+                                                        runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, null) }
+                                                            .onSuccess { userTraktRating = null }
+                                                            .onFailure { userTraktRatingError = it.message ?: "Could not remove your rating." }
+                                                        userTraktRatingBusy = false
+                                                    }
+                                                },
+                                                enabled = !userTraktRatingBusy,
+                                                modifier = Modifier.tikTakTvFocus(),
+                                            ) { Text("Remove rating") }
+                                        }
+                                        userTraktRatingError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                    }
+                                }
+                            }
 
                             item(
                                 key = "detail-bottom-spacer",

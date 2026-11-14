@@ -2983,6 +2983,26 @@ body:has(dialog[open]:not(.mini-live-player)) {
 .detail-content .description {
   font-size: 13px;
 }
+.trakt-rating {
+  margin: 14px 0;
+  display: grid;
+  gap: 10px;
+}
+.trakt-rating-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.trakt-rating-choices button {
+  min-width: 36px;
+  padding: 8px;
+}
+.trakt-rating-choices button.selected {
+  border-color: #ed4fa1;
+  color: #fff;
+  background: #753050;
+}
+.trakt-rating p { color: #ff8b8b; }
 .chips {
   display: flex;
   gap: 8px;

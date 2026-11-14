@@ -95,6 +95,8 @@ import {
   type Stream,
 } from "./types";
 import type { Playback } from "./Player";
+import { getTraktRating, setTraktRating, traktRatingIds } from "./trakt-ratings";
+import { traktAccessToken } from "./TraktSettings";
 import {
   normalizeYouTubeProgress,
   resolveYouTubeProgressTitle,
@@ -977,6 +979,7 @@ function PersonView({
 
 function Detail({
   initial,
+  traktProfileName,
   provider,
   addons,
   saved,
@@ -991,6 +994,7 @@ function Detail({
   autoplay,
 }: {
   initial: Item;
+  traktProfileName: string;
   provider: Provider | null;
   addons: Addon[];
   saved: boolean;
@@ -1006,6 +1010,40 @@ function Detail({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [item, setItem] = useState(initial);
+  const [traktConnected, setTraktConnected] = useState(false);
+  const [traktRating, setTraktRatingValue] = useState<number | null>(null);
+  const [traktRatingBusy, setTraktRatingBusy] = useState(false);
+  const [traktRatingError, setTraktRatingError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setTraktRatingValue(null);
+    setTraktRatingError("");
+    if (!traktProfileName || !traktRatingIds(item.id) || item.type === "live") {
+      setTraktConnected(false);
+      return;
+    }
+    void traktAccessToken(traktProfileName).then(async token => {
+      if (!live) return;
+      setTraktConnected(!!token);
+      if (token) {
+        const rating = await getTraktRating(traktProfileName, item);
+        if (live) setTraktRatingValue(rating);
+      }
+    }).catch(error => { if (live) setTraktRatingError(message(error)); });
+    return () => { live = false; };
+  }, [traktProfileName, item.id, item.type]);
+  async function changeTraktRating(value: number | null) {
+    setTraktRatingBusy(true);
+    setTraktRatingError("");
+    try {
+      await setTraktRating(traktProfileName, item, value);
+      setTraktRatingValue(value);
+    } catch (error) {
+      setTraktRatingError(message(error));
+    } finally {
+      setTraktRatingBusy(false);
+    }
+  }
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [season, setSeason] = useState<number | null>(null);
   const [streams, setStreams] = useState<Stream[]>([]);
@@ -1543,6 +1581,22 @@ function Detail({
           <span>{item.type === "series" ? "Series" : "Movie"}</span>
           <span>{item.runtime}</span>
         </div>
+        {traktConnected && (
+          <div className="trakt-rating" aria-label="Your Trakt rating">
+            <strong>Your Trakt rating: {traktRating === null ? "Not rated" : `${traktRating}/10`}</strong>
+            <div className="trakt-rating-choices">
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
+                <button key={value} type="button" disabled={traktRatingBusy}
+                  className={traktRating === value ? "selected" : undefined}
+                  aria-label={`Rate ${value} out of 10 on Trakt`}
+                  onClick={() => void changeTraktRating(value)}>{value}</button>
+              ))}
+              {traktRating !== null && <button type="button" disabled={traktRatingBusy}
+                onClick={() => void changeTraktRating(null)}>Remove rating</button>}
+            </div>
+            {traktRatingError && <p role="alert">{traktRatingError}</p>}
+          </div>
+        )}
         <p className="description">
           {item.description || "No synopsis is available for this title."}
         </p>
@@ -4001,6 +4055,7 @@ export default function App() {
         <Detail
           key={itemKey(detail)}
           initial={detail}
+          traktProfileName={activeProfileView?.name ?? ""}
           provider={provider}
           addons={addons}
           torboxKey={torboxKey}
