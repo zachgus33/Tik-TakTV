@@ -71,6 +71,7 @@ data class TraktSettingsUiState(
 private data class StoredTraktSettings(
     val scrobblingEnabled: Boolean = false,
     val watchProgressSource: String? = null,
+    val watchProgressSourceSelected: Boolean = false,
     val continueWatchingDaysCap: Int = TRAKT_DEFAULT_CONTINUE_WATCHING_DAYS_CAP,
     val librarySourceMode: String? = null,
     val moreLikeThisSource: String? = null,
@@ -86,6 +87,7 @@ object TraktSettingsRepository {
     val uiState: StateFlow<TraktSettingsUiState> = _uiState.asStateFlow()
 
     private var hasLoaded = false
+    private var watchProgressSourceSelected = false
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -98,6 +100,7 @@ object TraktSettingsRepository {
 
     fun clearLocalState() {
         hasLoaded = false
+        watchProgressSourceSelected = false
         _uiState.value = TraktSettingsUiState()
     }
 
@@ -107,6 +110,7 @@ object TraktSettingsRepository {
     ) {
         ensureLoaded()
         if (_uiState.value.watchProgressSource == source) return
+        watchProgressSourceSelected = true
         val nextState = _uiState.value.copy(watchProgressSource = source)
         persist(nextState)
         val authState = AuthRepository.state.value
@@ -151,6 +155,7 @@ object TraktSettingsRepository {
 
     private fun loadFromDisk() {
         hasLoaded = true
+        watchProgressSourceSelected = false
 
         val payload = TraktSettingsStorage.loadPayload().orEmpty().trim()
         if (payload.isEmpty()) {
@@ -161,11 +166,15 @@ object TraktSettingsRepository {
         val stored = runCatching {
             json.decodeFromString<StoredTraktSettings>(payload)
         }.getOrNull()
+        watchProgressSourceSelected = stored?.watchProgressSourceSelected == true
 
         _uiState.value = if (stored != null) {
             TraktSettingsUiState(
                 scrobblingEnabled = stored.scrobblingEnabled,
-                watchProgressSource = WatchProgressSource.fromStorage(stored.watchProgressSource),
+                watchProgressSource = restoredWatchProgressSource(
+                    stored.watchProgressSource,
+                    stored.watchProgressSourceSelected,
+                ),
                 continueWatchingDaysCap = normalizeTraktContinueWatchingDaysCap(stored.continueWatchingDaysCap),
                 librarySourceMode = librarySourceModeFromStorage(stored.librarySourceMode),
                 moreLikeThisSource = MoreLikeThisSourcePreference.fromStorage(stored.moreLikeThisSource),
@@ -181,6 +190,7 @@ object TraktSettingsRepository {
                 StoredTraktSettings(
                     scrobblingEnabled = state.scrobblingEnabled,
                     watchProgressSource = state.watchProgressSource.name,
+                    watchProgressSourceSelected = watchProgressSourceSelected,
                     continueWatchingDaysCap = state.continueWatchingDaysCap,
                     librarySourceMode = state.librarySourceMode.name,
                     moreLikeThisSource = state.moreLikeThisSource.name,
@@ -189,6 +199,11 @@ object TraktSettingsRepository {
         )
     }
 }
+
+// Old releases serialized their Trakt default even when the user never selected it.
+// Migrate that implicit value to Nuvio Sync; selections made in this release stay explicit.
+internal fun restoredWatchProgressSource(value: String?, selected: Boolean): WatchProgressSource =
+    if (selected) WatchProgressSource.fromStorage(value) else DEFAULT_WATCH_PROGRESS_SOURCE
 
 fun normalizeTraktContinueWatchingDaysCap(days: Int): Int =
     if (days == TRAKT_CONTINUE_WATCHING_DAYS_CAP_ALL) {

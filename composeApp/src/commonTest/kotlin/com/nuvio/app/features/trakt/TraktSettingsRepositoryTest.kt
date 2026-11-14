@@ -36,10 +36,16 @@ class TraktSettingsRepositoryTest {
     }
 
     @Test
-    fun `watch progress source defaults to Trakt for unset or invalid storage`() {
-        assertEquals(WatchProgressSource.TRAKT, WatchProgressSource.fromStorage(null))
-        assertEquals(WatchProgressSource.TRAKT, WatchProgressSource.fromStorage(""))
-        assertEquals(WatchProgressSource.TRAKT, WatchProgressSource.fromStorage("not-a-source"))
+    fun `watch progress source defaults to Nuvio for unset or invalid storage`() {
+        assertEquals(WatchProgressSource.NUVIO_SYNC, WatchProgressSource.fromStorage(null))
+        assertEquals(WatchProgressSource.NUVIO_SYNC, WatchProgressSource.fromStorage(""))
+        assertEquals(WatchProgressSource.NUVIO_SYNC, WatchProgressSource.fromStorage("not-a-source"))
+    }
+
+    @Test
+    fun `legacy implicit Trakt source migrates while an explicit selection remains`() {
+        assertEquals(WatchProgressSource.NUVIO_SYNC, restoredWatchProgressSource("TRAKT", false))
+        assertEquals(WatchProgressSource.TRAKT, restoredWatchProgressSource("TRAKT", true))
     }
 
     @Test
