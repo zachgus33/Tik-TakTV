@@ -3145,6 +3145,13 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
           ],
           collections: [],
           autoplay: false,
+          provider: {
+            server: "https://iptv.example:8080",
+            username: "friend-user",
+            password: "friend-password",
+            scope: "friend-scope",
+            name: "Family IPTV",
+          },
           homeCatalogs: [
             {
               addon_id: "com.linvo.cinemeta",
@@ -3169,11 +3176,15 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
     addons: JSON.parse(localStorage.getItem("nuvio:addons") ?? "[]"),
     catalogs: JSON.parse(localStorage.getItem("nuvio:home-catalogs") ?? "[]"),
     torbox: JSON.parse(localStorage.getItem("nuvio:torbox-key") ?? '""'),
+    provider: JSON.parse(localStorage.getItem("nuvio:provider") ?? "null"),
   }));
   expect(stored.addons[0].manifest.name).toBe("Owner catalog");
   expect(stored.addons[0].base).toBe("https://v3-cinemeta.strem.io");
   expect(stored.catalogs[0].custom_title).toBe("Owner picks");
   expect(stored.torbox).toBe("friend:signed-grant");
+  expect(stored.provider?.server).toBe("https://iptv.example:8080");
+  expect(stored.provider?.username).toBe("friend-user");
+  expect(stored.provider?.password).toBe("friend-password");
 });
 test("a signed-in user can publish and revoke an isolated TorBox and Real-Debrid friend code", async ({
   page,

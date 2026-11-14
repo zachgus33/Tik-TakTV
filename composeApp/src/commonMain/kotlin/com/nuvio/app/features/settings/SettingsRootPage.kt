@@ -399,7 +399,7 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                 androidx.compose.foundation.layout.Column(
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Enter the code shared by the account owner. This replaces this profile's add-ons, collections, and home catalogs with their shared setup.")
+                    Text("Enter the code shared by the account owner. This installs their add-ons, collections, home catalogs, and IPTV connection on this profile. YouTube and Trakt sign-ins stay yours.")
                     NuvioTvTextField(
                         value = code,
                         onValueChange = { code = it.filter(Char::isDigit).take(12); message = null },
@@ -448,6 +448,13 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                 val catalogItems = Json { ignoreUnknownKeys = true }
                                     .decodeFromString<List<SyncCatalogItem>>(homeCatalogs.toString())
                                 val autoplay = template["autoplay"]?.jsonPrimitive?.booleanOrNull
+                                val sharedProvider = template["provider"]?.takeUnless { it is JsonNull }?.jsonObject?.let { provider ->
+                                    com.nuvio.app.features.livetv.LiveTvXtreamSettings(
+                                        serverUrl = provider["server"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                                        username = provider["username"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                                        password = provider["password"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                                    )
+                                }
 
                                 AddonRepository.replaceFromFriendSetup(sharedAddons)
                                 CollectionRepository.importFromJson(collections.toString()).getOrThrow()
@@ -460,6 +467,7 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                         if (it) StreamAutoPlayMode.FIRST_STREAM else StreamAutoPlayMode.MANUAL,
                                     )
                                 }
+                                sharedProvider?.let(com.nuvio.app.features.livetv.LiveTvRepository::installSharedXtreamSettings)
                                 root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setTorboxApiKey)
                                 root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setRealDebridApiKey)
                                 "Installed shared setup (${sharedAddons.size} add-ons, ${collections.size} collections)."

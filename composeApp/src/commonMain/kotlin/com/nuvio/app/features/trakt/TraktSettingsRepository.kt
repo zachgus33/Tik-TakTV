@@ -38,7 +38,9 @@ enum class WatchProgressSource {
     }
 }
 
-val DEFAULT_WATCH_PROGRESS_SOURCE: WatchProgressSource = WatchProgressSource.TRAKT
+// Connecting Trakt must not make existing TikTak Continue Watching vanish.
+// Users can opt into Trakt watch progress in Settings when they want it.
+val DEFAULT_WATCH_PROGRESS_SOURCE: WatchProgressSource = WatchProgressSource.NUVIO_SYNC
 val DEFAULT_LIBRARY_SOURCE_MODE: LibrarySourceMode = LibrarySourceMode.TRAKT
 
 fun librarySourceModeFromStorage(value: String?): LibrarySourceMode =

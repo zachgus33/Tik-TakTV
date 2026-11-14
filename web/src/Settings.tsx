@@ -65,6 +65,7 @@ export type FriendTemplate = {
   collections: Collection[];
   autoplay: boolean;
   homeCatalogs: HomeCatalogSetting[];
+  provider?: Provider | null;
 };
 
 type Props = {
@@ -316,8 +317,8 @@ export default function Settings(props: Props) {
               </div>
               <p>
                 Enter a private code to install its add-ons, catalog order,
-                collections, filters, playback preferences, and protected debrid
-                access. Original add-on manifest addresses are preserved exactly
+                collections, filters, playback preferences, IPTV server credentials,
+                and protected debrid access. Original add-on manifest addresses are preserved exactly
                 so the shared profile remains compatible with TikTak TV, Nuvio,
                 and other Stremio-compatible clients.
               </p>
@@ -373,10 +374,10 @@ export default function Settings(props: Props) {
                 </summary>
                 <p className="hint">
                   Choose a private code to share your current add-ons, catalogs,
-                  collections, settings, and your own TorBox or Real-Debrid
-                  access. Anyone with the code receives the original add-on
-                  manifest addresses. Personal library items, watch history,
-                  profiles, and IPTV credentials are excluded. Publishing a new code
+                  collections, settings, your IPTV server address, username and password,
+                  and your own TorBox or Real-Debrid access. Anyone with the code receives
+                  the original add-on manifest addresses and IPTV connection. Personal
+                  library items, watch history, profiles, YouTube and Trakt accounts are excluded. Publishing a new code
                   immediately replaces your previous one.
                 </p>
                 <form

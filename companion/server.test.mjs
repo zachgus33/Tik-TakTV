@@ -507,7 +507,15 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     collections: [],
     homeCatalogs: [],
     autoplay: true,
+    provider: {
+      server: "https://iptv.example:8080",
+      username: "shared-user",
+      password: "shared-password",
+      scope: "provider-scope",
+      name: "Family IPTV",
+    },
     youtubeAccount: { token: "never-share-this-youtube-token" },
+    traktAccount: { token: "never-share-this-trakt-token" },
   };
   try {
     const published = await request("owner-one", "/friend/setup", {
@@ -540,11 +548,21 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
       "https://addon.example/configured-secret",
     );
     assert.equal(shared.template.youtubeAccount, undefined);
+    assert.equal(shared.template.traktAccount, undefined);
+    assert.equal(shared.template.provider.server, "https://iptv.example:8080");
+    assert.equal(shared.template.provider.username, "shared-user");
+    assert.equal(shared.template.provider.password, "shared-password");
     assert.ok(!JSON.stringify(shared).includes("never-share-this-youtube-token"));
+    assert.ok(!JSON.stringify(shared).includes("never-share-this-trakt-token"));
     assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
     assert.ok(
       !(await readFile(join(directory, "users.json"), "utf8")).includes(
         "owner-one-torbox",
+      ),
+    );
+    assert.ok(
+      !(await readFile(join(directory, "users.json"), "utf8")).includes(
+        "shared-password",
       ),
     );
 

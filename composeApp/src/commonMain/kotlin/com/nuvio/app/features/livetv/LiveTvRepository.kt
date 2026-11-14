@@ -49,6 +49,8 @@ object LiveTvRepository {
 
     private var initialized = false
 
+    fun hasFriendXtreamOverride(): Boolean = LiveTvStorage.hasFriendXtreamOverride()
+
     fun ensureLoaded() {
         if (initialized) return
         initialized = true
@@ -82,7 +84,7 @@ object LiveTvRepository {
                     // cache with the small guide-filtered subset (often only a
                     // few dozen channels), so an EPG-only refresh could never
                     // recover the missing channels.
-                    loadXtream(xtreamSettings)
+                    loadXtream(xtreamSettings, fromFriendSetup = LiveTvStorage.hasFriendXtreamOverride())
                 } else if (sourceType == LiveTvSourceType.M3u && LiveTvStorage.hasStoredLocalPlaylist()) {
                     // The channel cache intentionally avoids reparsing a large playlist on
                     // every launch, but the XMLTV URLs live in the M3U header. Recover just
@@ -98,7 +100,8 @@ object LiveTvRepository {
             }
             mutableUiState.value = mutableUiState.value.copy(isLoading = false)
             when {
-                sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured -> loadXtream(xtreamSettings)
+                sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured ->
+                    loadXtream(xtreamSettings, fromFriendSetup = LiveTvStorage.hasFriendXtreamOverride())
                 sourceType == LiveTvSourceType.Stalker && stalkerSettings.isConfigured -> loadStalker(stalkerSettings)
                 LiveTvStorage.hasStoredLocalPlaylist() -> loadStoredLocalPlaylist()
                 sourceUrl.isNotBlank() -> load(sourceUrl)
@@ -342,6 +345,7 @@ object LiveTvRepository {
     suspend fun loadXtream(
         settings: LiveTvXtreamSettings,
         loadGuide: Boolean = true,
+        fromFriendSetup: Boolean = false,
     ): Result<List<LiveTvChannel>> {
         val normalizedSettings = settings.normalized()
         if (!normalizedSettings.isConfigured) {
@@ -362,6 +366,8 @@ object LiveTvRepository {
                 existing.channels.isNotEmpty()
             ) {
                 LiveTvStorage.saveSourceType(LiveTvSourceType.Xtream)
+                if (!fromFriendSetup && normalizedSettings != LiveTvStorage.loadXtreamSettings().normalized())
+                    LiveTvStorage.saveFriendXtreamOverride(false)
                 LiveTvStorage.saveXtreamSettings(normalizedSettings)
                 return Result.success(existing.channels)
             }
@@ -382,6 +388,8 @@ object LiveTvRepository {
             require(channels.isNotEmpty()) { "No playable channels were found for this Xtream provider." }
             LiveTvStorage.saveLocalPlaylistData("")
             LiveTvStorage.saveSourceType(LiveTvSourceType.Xtream)
+            if (!fromFriendSetup && normalizedSettings != LiveTvStorage.loadXtreamSettings().normalized())
+                LiveTvStorage.saveFriendXtreamOverride(false)
             LiveTvStorage.saveXtreamSettings(normalizedSettings)
             val latest = mutableUiState.value
             if (!loadGuide &&
@@ -420,6 +428,34 @@ object LiveTvRepository {
         }
     }
 
+    /** Save a shared Xtream connection to the active profile before trying its network.
+     * The friend setup remains installed when a provider is temporarily offline.
+     */
+    fun installSharedXtreamSettings(settings: LiveTvXtreamSettings) {
+        val normalized = settings.normalized()
+        require(normalized.isConfigured &&
+            (normalized.serverUrl.startsWith("http://") || normalized.serverUrl.startsWith("https://"))) {
+            "The shared IPTV connection is invalid."
+        }
+        cancelEpgLoad()
+        LiveTvStorage.saveLocalPlaylistData("")
+        LiveTvStorage.saveSourceType(LiveTvSourceType.Xtream)
+        LiveTvStorage.saveXtreamSettings(normalized)
+        LiveTvStorage.saveFriendXtreamOverride(true)
+        mutableUiState.value = LiveTvUiState(
+            sourceType = LiveTvSourceType.Xtream,
+            sourceUrl = normalized.serverUrl,
+            stalkerSettings = mutableUiState.value.stalkerSettings,
+            xtreamSettings = normalized,
+            favoriteUrls = mutableUiState.value.favoriteUrls,
+            recentChannel = mutableUiState.value.recentChannel,
+        )
+        epgScope.launch {
+            LiveTvStorage.saveCachedChannels(emptyList())
+            loadXtream(normalized, loadGuide = false, fromFriendSetup = true)
+        }
+    }
+
     suspend fun prepareForPlayback(channel: LiveTvChannel): LiveTvChannel =
         if (mutableUiState.value.sourceType == LiveTvSourceType.Stalker && !channel.stalkerCommand.isNullOrBlank()) {
             resolveStalkerPlaybackChannel(channel)
@@ -429,6 +465,7 @@ object LiveTvRepository {
 
     fun disconnect() {
         cancelEpgLoad()
+        LiveTvStorage.saveFriendXtreamOverride(false)
         LiveTvStorage.saveSourceUrl("")
         LiveTvStorage.saveLocalPlaylistData("")
         LiveTvStorage.saveSourceType(LiveTvSourceType.M3u)
@@ -711,6 +748,8 @@ internal expect object LiveTvStorage {
     fun saveStalkerSettings(settings: LiveTvStalkerSettings)
     fun loadXtreamSettings(): LiveTvXtreamSettings
     fun saveXtreamSettings(settings: LiveTvXtreamSettings)
+    fun hasFriendXtreamOverride(): Boolean
+    fun saveFriendXtreamOverride(enabled: Boolean)
     fun loadFavoriteUrls(): Set<String>
     fun saveFavoriteUrls(urls: Set<String>)
     fun loadRecentChannel(): LiveTvRecentChannel?

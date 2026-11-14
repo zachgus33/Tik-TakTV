@@ -13,6 +13,7 @@ actual object LiveTvStorage {
     private const val xtreamServerUrlKey = "live_tv_xtream_server_url"
     private const val xtreamUsernameKey = "live_tv_xtream_username"
     private const val xtreamPasswordKey = "live_tv_xtream_password"
+    private const val friendXtreamOverrideKey = "live_tv_friend_xtream_override"
     private const val favoriteUrlsKey = "live_tv_favorite_channel_urls"
     private const val recentChannelUrlKey = "live_tv_recent_channel_url"
     private const val recentChannelNameKey = "live_tv_recent_channel_name"
@@ -105,6 +106,13 @@ actual object LiveTvStorage {
         saveScopedString(xtreamServerUrlKey, settings.serverUrl)
         saveScopedString(xtreamUsernameKey, settings.username)
         saveScopedString(xtreamPasswordKey, settings.password)
+    }
+
+    actual fun hasFriendXtreamOverride(): Boolean =
+        loadScopedString(friendXtreamOverrideKey) == "true"
+
+    actual fun saveFriendXtreamOverride(enabled: Boolean) {
+        saveScopedString(friendXtreamOverrideKey, if (enabled) "true" else "")
     }
 
     actual fun loadFavoriteUrls(): Set<String> =

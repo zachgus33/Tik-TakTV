@@ -3169,6 +3169,24 @@ export function createService({ token, origins, authorizeAccount }) {
           homeCatalogs: template.homeCatalogs,
           autoplay: template.autoplay === true,
         };
+        if (template.provider != null) {
+          const provider = template.provider;
+          const server = String(provider.server ?? "").trim();
+          const username = String(provider.username ?? "").trim();
+          const password = String(provider.password ?? "");
+          if (
+            !/^https?:\/\/[^\s]+$/i.test(server) ||
+            !username || !password ||
+            server.length > 2048 || username.length > 256 || password.length > 256
+          ) return send(400, { error: "The shared IPTV connection is invalid." });
+          sharedTemplate.provider = {
+            server,
+            username,
+            password,
+            scope: String(provider.scope ?? "").slice(0, 64),
+            name: String(provider.name ?? "My IPTV").slice(0, 60),
+          };
+        }
         const legacyVault = await readFriendVault();
         if (codeMatchesVault(code, legacyVault))
           return send(409, {
@@ -3275,6 +3293,7 @@ export function createService({ token, origins, authorizeAccount }) {
             collections: vault.template.collections,
             homeCatalogs: vault.template.homeCatalogs,
             autoplay: vault.template.autoplay === true,
+            ...(vault.template.provider ? { provider: vault.template.provider } : {}),
           },
           torboxKey: vault.torboxKey ? `friend:${grant}` : "",
           realDebridKey: vault.realDebridKey ? `friend-rd:${grant}` : "",

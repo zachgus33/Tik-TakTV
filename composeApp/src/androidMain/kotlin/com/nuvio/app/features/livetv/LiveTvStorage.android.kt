@@ -25,6 +25,7 @@ actual object LiveTvStorage {
     private const val xtreamServerUrlKey = "xtream_server_url"
     private const val xtreamUsernameKey = "xtream_username"
     private const val xtreamPasswordKey = "xtream_password"
+    private const val friendXtreamOverrideKey = "friend_xtream_override"
     private const val favoriteUrlsKey = "favorite_channel_urls"
     private const val recentChannelUrlKey = "recent_channel_url"
     private const val recentChannelNameKey = "recent_channel_name"
@@ -260,6 +261,13 @@ actual object LiveTvStorage {
             putScopedString(xtreamUsernameKey, settings.username)
             putScopedString(xtreamPasswordKey, settings.password)
         }?.apply()
+    }
+
+    actual fun hasFriendXtreamOverride(): Boolean =
+        preferences?.getScopedString(friendXtreamOverrideKey) == "true"
+
+    actual fun saveFriendXtreamOverride(enabled: Boolean) {
+        preferences?.edit()?.putScopedString(friendXtreamOverrideKey, if (enabled) "true" else null)?.apply()
     }
 
     actual fun loadFavoriteUrls(): Set<String> =

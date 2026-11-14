@@ -33,6 +33,7 @@ internal object TikTakWebLiveTvSync {
         val own = pullWebPayload(profileId)
         val primary = if (profileId == PRIMARY_PROFILE_ID) own else pullWebPayload(PRIMARY_PROFILE_ID)
         migrateLegacyWebProgress(profileId = profileId, payload = own)
+        if (LiveTvRepository.hasFriendXtreamOverride()) return own != null
         val provider = listOfNotNull(
             own?.objectValue("provider"),
             own?.objectValue("accountProvider"),

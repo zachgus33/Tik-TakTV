@@ -4036,6 +4036,7 @@ export default function App() {
                     collections,
                     autoplay,
                     homeCatalogs,
+                    provider,
                   }}
                   homeCatalogs={homeCatalogs}
                   onHomeCatalogs={setHomeCatalogs}
@@ -4048,6 +4049,12 @@ export default function App() {
                     setCollections(template.collections);
                     setAutoplay(template.autoplay);
                     setHomeCatalogs(template.homeCatalogs);
+                    if (template.provider) {
+                      storeProvider(template.provider, true);
+                      setProvider(template.provider);
+                      setCategory("");
+                      setActiveChannel(null);
+                    }
                     setTorboxKey(friendTorboxKey);
                     save("torbox-key", friendTorboxKey);
                     sessionStorage.removeItem("nuvio:torbox-key");
