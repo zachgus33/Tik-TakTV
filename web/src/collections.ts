@@ -123,6 +123,7 @@ export function sourceAddon(
 
 export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
   const active = addons.filter((addon) => addon.enabled !== false);
+  const catalogId = source.catalogId?.split(",", 1)[0];
   const matchesCatalog = (addon: Addon) =>
     addon.manifest.catalogs?.find((entry) =>
       entry.type === source.type &&
@@ -138,7 +139,19 @@ export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
     ? declared
     : active.find((item) => !!matchesCatalog(item));
   const catalog = addon && matchesCatalog(addon);
-  return addon && catalog ? { addon, catalog } : undefined;
+  if (addon && catalog) return { addon, catalog };
+  // Saved collection rows can outlive a catalog's presence in a dynamic manifest.
+  // Ask the original add-on for that exact catalog before treating the row as lost.
+  if (declared && catalogId && source.type)
+    return { addon: declared, catalog: { id: catalogId, type: source.type, name: String(source.title || catalogId) } };
+  const arabicId = source.addonId === "community.elcinema.metadata";
+  const arabicCatalog = catalogId?.startsWith("elcinema-") && ["movie", "series"].includes(source.type || "");
+  const arabicDisabled = addons.some((item) => item.manifest.id === "community.elcinema.metadata" && item.enabled === false);
+  if (arabicId && arabicCatalog && !arabicDisabled) {
+    const fallback = { base: "https://arabcinemeta.osamayousry.com", manifest: { id: "community.elcinema.metadata", name: "ArabCinemeta" } } as Addon;
+    return { addon: fallback, catalog: { id: catalogId!, type: source.type!, name: String(source.title || catalogId) } };
+  }
+  return undefined;
 }
 export function addonUrls(text: string): string[] {
   let input: unknown;

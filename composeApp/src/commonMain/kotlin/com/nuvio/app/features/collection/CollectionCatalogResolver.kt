@@ -13,18 +13,39 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
     source: CollectionCatalogSource,
 ): ResolvedCollectionCatalog? {
     val activeAddons = enabledAddons()
-    val declaredAddon = activeAddons.firstOrNull { it.manifest?.id == source.addonId }
+    val declaredAddon = activeAddons.firstOrNull {
+        it.manifest?.id == source.addonId ||
+            it.manifestUrl == source.addonId ||
+            it.manifestUrl.removeSuffix("/manifest.json") == source.addonId
+    }
     val declaredCatalog = declaredAddon?.manifest?.catalogs?.findSourceCatalog(source)
     if (declaredAddon != null && declaredCatalog != null) {
         return ResolvedCollectionCatalog(addon = declaredAddon, catalog = declaredCatalog)
     }
+    if (declaredAddon != null) {
+        return ResolvedCollectionCatalog(
+            addon = declaredAddon,
+            catalog = AddonCatalog(source.type, source.catalogId.substringBefore(","), source.catalogId),
+        )
+    }
 
-    return activeAddons.firstNotNullOfOrNull { addon ->
+    val matching = activeAddons.firstNotNullOfOrNull { addon ->
         val catalog = addon.manifest?.catalogs?.find {
             it.id == source.catalogId && it.type == source.type
         } ?: return@firstNotNullOfOrNull null
         ResolvedCollectionCatalog(addon = addon, catalog = catalog)
     }
+    if (matching != null) return matching
+    val arabicAddonId = source.addonId == "community.elcinema.metadata"
+    val arabicCatalog = source.catalogId.startsWith("elcinema-") && source.type in listOf("movie", "series")
+    val arabicDisabled = any { it.manifest?.id == "community.elcinema.metadata" && !it.enabled }
+    if (arabicAddonId && arabicCatalog && !arabicDisabled) {
+        return ResolvedCollectionCatalog(
+            addon = ManagedAddon(manifestUrl = "https://arabcinemeta.osamayousry.com/manifest.json"),
+            catalog = AddonCatalog(source.type, source.catalogId.substringBefore(","), source.catalogId),
+        )
+    }
+    return null
 }
 
 internal fun List<AvailableCatalog>.findAvailableCatalog(

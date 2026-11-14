@@ -67,6 +67,11 @@ describe("custom collection catalog resolution", () => {
       [disabled, configured],
     )).toEqual({ addon: configured, catalog: configured.manifest.catalogs[0] });
   });
+  it("loads a saved ArabCinemeta row on a new profile without copied add-ons", () => {
+    const resolved = sourceCatalog({ provider: "addon", addonId: "community.elcinema.metadata", type: "series", catalogId: "elcinema-shahid-series" }, []);
+    expect(resolved?.addon.base).toBe("https://arabcinemeta.osamayousry.com");
+    expect(resolved?.catalog.id).toBe("elcinema-shahid-series");
+  });
 });
 
 afterEach(() => {

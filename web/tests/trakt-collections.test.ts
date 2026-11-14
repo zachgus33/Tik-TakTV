@@ -15,7 +15,7 @@ describe("custom Trakt collection sources", () => {
     ]), { status: 200 }));
     const items = await traktCollection({ provider: "trakt", traktListId: 123, mediaType: "movie", sortBy: "rank", sortHow: "asc" }, "Zach");
     expect(items).toMatchObject([{ id: "tt1234567", name: "Example", type: "movie", description: "A film" }]);
-    expect(fetchMock.mock.calls[0][0]).toContain("/lists/123/items/movie?");
+    expect(fetchMock.mock.calls[0][0]).toContain("/lists/123/items/movies?");
     expect((fetchMock.mock.calls[0][1]?.headers as Record<string, string>).Authorization).toBe("Bearer profile-token");
   });
 
@@ -35,7 +35,7 @@ describe("custom Trakt collection sources", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify([{ movie: { title: "Second", ids: { imdb: "tt2222222" } } }]), { status: 200, headers: { "x-pagination-page-count": "2" } }));
     const items = await traktCollection({ provider: "trakt", traktListId: 789 }, "Zach");
     expect(items.map((item) => item.name)).toEqual(["First", "Second"]);
-    expect(fetchMock.mock.calls[1][0]).toContain("/users/me/lists/789/items/movie?");
+    expect(fetchMock.mock.calls[1][0]).toContain("/users/me/lists/789/items/movies?");
     expect(fetchMock.mock.calls[2][0]).toContain("page=2");
   });
 });

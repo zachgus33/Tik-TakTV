@@ -326,7 +326,7 @@ object FolderDetailRepository {
                         page = if (reset) 1 else requestedSkip,
                     )
 
-                    source?.isTrakt == true -> TraktPublicListSourceResolver.resolveOrEmpty(
+                    source?.isTrakt == true -> TraktPublicListSourceResolver.resolve(
                         source = source,
                         page = if (reset) 1 else requestedSkip,
                     )

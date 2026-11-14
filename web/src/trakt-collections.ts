@@ -45,7 +45,8 @@ function toItem(entry: TraktListItem, media: "movie" | "show"): Item | null {
 export async function traktCollection(source: CollectionSource, profile: string, signal?: AbortSignal): Promise<Item[]> {
   const id = Number(source.traktListId);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("This Trakt collection has an invalid list ID.");
-  const media = ["tv", "series", "show"].includes(String(source.mediaType ?? source.type).toLowerCase()) ? "show" : "movie";
+  const media = ["tv", "series", "show", "shows"].includes(String(source.mediaType ?? source.type).toLowerCase()) ? "show" : "movie";
+  const mediaPath = media === "show" ? "shows" : "movies";
   const query = new URLSearchParams({
     extended: "full,images",
     limit: "50",
@@ -64,10 +65,10 @@ export async function traktCollection(source: CollectionSource, profile: string,
     params.set("page", String(page));
     return fetch(`https://api.trakt.tv/${path}?${params}`, { signal, headers });
   };
-  let path = `lists/${id}/items/${media}`;
+  let path = `lists/${id}/items/${mediaPath}`;
   let response = await request(path, 1);
   if (!response.ok && token && [401, 403, 404].includes(response.status)) {
-    path = `users/me/lists/${id}/items/${media}`;
+    path = `users/me/lists/${id}/items/${mediaPath}`;
     response = await request(path, 1);
   }
   const items: Item[] = [];

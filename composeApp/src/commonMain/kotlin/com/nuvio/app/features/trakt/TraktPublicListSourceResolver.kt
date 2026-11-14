@@ -66,16 +66,23 @@ object TraktPublicListSourceResolver {
         val type = mediaType.toTraktType()
         val sortBy = TraktListSort.normalize(source.sortBy)
         val sortHow = TraktSortHow.normalize(source.sortHow)
-        val response = requestRaw(
-            endpoint = "lists/$listId/items/$type",
-            query = mapOf(
-                "extended" to "full,images",
-                "page" to page.toString(),
-                "limit" to PAGE_LIMIT.toString(),
-                "sort_by" to sortBy,
-                "sort_how" to sortHow,
-            ),
+        val query = mapOf(
+            "extended" to "full,images",
+            "page" to page.toString(),
+            "limit" to PAGE_LIMIT.toString(),
+            "sort_by" to sortBy,
+            "sort_how" to sortHow,
         )
+        var response = requestRaw(
+            endpoint = "lists/$listId/items/$type",
+            query = query,
+        )
+        if (response.status in listOf(401, 403, 404)) {
+            val headers = TraktAuthRepository.authorizedHeaders()
+            if (headers != null) {
+                response = requestRaw("users/me/lists/$listId/items/$type", query, headers)
+            }
+        }
         if (response.status !in 200..299) {
             error(errorMessageFor(response.status, getString(Res.string.collections_editor_trakt_load_failed)))
         }
@@ -103,10 +110,16 @@ object TraktPublicListSourceResolver {
 
     suspend fun listImportMetadata(input: String): TraktPublicListImportMetadata = withContext(Dispatchers.Default) {
         val idPath = parseTraktListPath(input) ?: error(getString(Res.string.collections_trakt_invalid_list_id_or_url))
-        val list = requestJson<PublicTraktListSummaryDto>(
-            endpoint = "lists/$idPath",
-            query = mapOf("extended" to "full,images"),
-        )
+        val query = mapOf("extended" to "full,images")
+        var response = requestRaw("lists/$idPath", query)
+        if (response.status in listOf(401, 403, 404)) {
+            val headers = TraktAuthRepository.authorizedHeaders()
+            if (headers != null) response = requestRaw("users/me/lists/$idPath", query, headers)
+        }
+        if (response.status !in 200..299) {
+            error(errorMessageFor(response.status, getString(Res.string.collections_editor_trakt_load_failed)))
+        }
+        val list = json.decodeFromString<PublicTraktListSummaryDto>(response.body)
         val id = list.ids?.trakt ?: idPath.toLongOrNull() ?: error(getString(Res.string.collections_trakt_missing_numeric_id))
         TraktPublicListImportMetadata(
             title = list.name?.takeIf { it.isNotBlank() },
@@ -168,6 +181,7 @@ object TraktPublicListSourceResolver {
     private suspend fun requestRaw(
         endpoint: String,
         query: Map<String, String> = emptyMap(),
+        authorizedHeaders: Map<String, String> = emptyMap(),
     ): RawHttpResponse {
         if (TraktConfig.CLIENT_ID.isBlank()) {
             error(getString(Res.string.collections_trakt_credentials_missing))
@@ -180,7 +194,7 @@ object TraktPublicListSourceResolver {
                 "Accept" to "application/json",
                 "trakt-api-version" to API_VERSION,
                 "trakt-api-key" to TraktConfig.CLIENT_ID,
-            ),
+            ) + authorizedHeaders,
             body = "",
         )
     }
@@ -311,8 +325,8 @@ object TraktPublicListSourceResolver {
 
     private fun TmdbCollectionMediaType.toTraktType(): String =
         when (this) {
-            TmdbCollectionMediaType.MOVIE -> "movie"
-            TmdbCollectionMediaType.TV -> "show"
+            TmdbCollectionMediaType.MOVIE -> "movies"
+            TmdbCollectionMediaType.TV -> "shows"
         }
 
     private fun RawHttpResponse.headerInt(name: String): Int? =
