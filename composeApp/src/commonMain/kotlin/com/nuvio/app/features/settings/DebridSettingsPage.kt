@@ -222,7 +222,9 @@ private val DEVICE_AUTH_MAX_POLL_DURATION = 15.minutes
 internal fun LazyListScope.debridSettingsContent(
     isTablet: Boolean,
     settings: DebridSettings,
+    torboxOnly: Boolean = false,
 ) {
+    if (!torboxOnly) {
     item {
         var showResolverProviderDialog by rememberSaveable { mutableStateOf(false) }
         val resolverProviders = settings.resolverServices.map { it.provider }
@@ -286,11 +288,14 @@ internal fun LazyListScope.debridSettingsContent(
             )
         }
     }
+    }
 
     item {
         var activeApiKeyProviderId by rememberSaveable { mutableStateOf<String?>(null) }
         var activeDeviceAuthProviderId by rememberSaveable { mutableStateOf<String?>(null) }
-        val providers = remember { DebridProviders.visible() }
+        val providers = remember(torboxOnly) {
+            DebridProviders.visible().filter { !torboxOnly || it.id == DebridProviders.TORBOX_ID }
+        }
         val notSetLabel = stringResource(Res.string.settings_debrid_not_set)
         val connectedLabel = stringResource(Res.string.settings_debrid_connected)
 
@@ -355,6 +360,8 @@ internal fun LazyListScope.debridSettingsContent(
                 )
             }
     }
+
+    if (torboxOnly) return
 
     if (!settings.canResolvePlayableLinks) {
         debridLearnMoreFooterItem(isTablet)

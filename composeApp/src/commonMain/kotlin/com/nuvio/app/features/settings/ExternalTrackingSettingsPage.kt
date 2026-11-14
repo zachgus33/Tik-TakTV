@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.nuvio.app.features.tracking.ExternalTrackingRepository
+import com.nuvio.app.core.ui.tikTakTvFocus
 
 internal fun LazyListScope.externalTrackingSettingsContent(provider: String, isTablet: Boolean) {
     item { ExternalTrackingSettingsPage(provider = provider, isTablet = isTablet) }
@@ -61,11 +62,12 @@ private fun ExternalTrackingSettingsPage(provider: String, isTablet: Boolean) {
                             onCheckedChange = ExternalTrackingRepository::setAniListProgress,
                         )
                     }
-                    Button(onClick = { ExternalTrackingRepository.disconnect(provider) }) {
+                    Button(onClick = { ExternalTrackingRepository.disconnect(provider) }, modifier = Modifier.tikTakTvFocus()) {
                         Text("Disconnect $name")
                     }
                 } else if (simkl) {
-                    Button(onClick = ExternalTrackingRepository::connectSimkl, enabled = !state.simklLoading) {
+                    Button(onClick = ExternalTrackingRepository::connectSimkl, enabled = !state.simklLoading,
+                        modifier = Modifier.tikTakTvFocus()) {
                         Text(if (state.simklLoading) "Connecting…" else "Connect Simkl")
                     }
                     if (state.simklCode.isNotBlank()) {
@@ -80,7 +82,7 @@ private fun ExternalTrackingSettingsPage(provider: String, isTablet: Boolean) {
                         browserError = ""
                         runCatching { uriHandler.openUri(ExternalTrackingRepository.anilistAuthorizationUrl()) }
                             .onFailure { browserError = "Could not open a browser on this TV. Install or enable a browser, then try again." }
-                    }) { Text("Connect AniList") }
+                    }, modifier = Modifier.tikTakTvFocus()) { Text("Connect AniList") }
                     Text("No browser on this TV? Open https://www.tiktaktv.me/anilist-tv-pair.html on your phone, approve AniList, then paste the access token here using your Fire TV remote app keyboard.",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 16.dp))
@@ -91,7 +93,7 @@ private fun ExternalTrackingSettingsPage(provider: String, isTablet: Boolean) {
                     Button(onClick = {
                         ExternalTrackingRepository.connectAniListWithToken(pinToken)
                         pinToken = ""
-                    }, enabled = pinToken.isNotBlank(), modifier = Modifier.padding(top = 8.dp)) {
+                    }, enabled = pinToken.isNotBlank(), modifier = Modifier.padding(top = 8.dp).tikTakTvFocus()) {
                         Text("Verify AniList token")
                     }
                 }

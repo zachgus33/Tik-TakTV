@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamRequest
@@ -297,7 +298,9 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
 
 @Composable
 private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
+    val isTvMode = LocalTvMode.current
     LaunchedEffect(
+        isTvMode,
         controlsVisible,
         controlsInteractionEpoch,
         isScrubbingTimeline,
@@ -309,7 +312,7 @@ private fun PlayerScreenRuntime.BindPlayerUiVisibilityEffects() {
         if (
             !controlsVisible ||
             isScrubbingTimeline ||
-            !playbackSnapshot.isPlaying ||
+            (!playbackSnapshot.isPlaying && !isTvMode) ||
             playbackSnapshot.isLoading ||
             showParentalGuide ||
             errorMessage != null

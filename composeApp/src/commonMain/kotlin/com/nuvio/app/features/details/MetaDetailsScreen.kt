@@ -56,8 +56,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -66,6 +73,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -242,6 +250,7 @@ fun MetaDetailsScreen(
     var userTraktRating by remember(type, id) { mutableStateOf<Int?>(null) }
     var userTraktRatingBusy by remember(type, id) { mutableStateOf(false) }
     var userTraktRatingError by remember(type, id) { mutableStateOf<String?>(null) }
+    var traktRatingContentId by remember(type, id) { mutableStateOf<String?>(null) }
     var userSimklRating by remember(type, id) { mutableStateOf<Int?>(null) }
     var userSimklRatingBusy by remember(type, id) { mutableStateOf(false) }
     var userSimklRatingError by remember(type, id) { mutableStateOf<String?>(null) }
@@ -263,14 +272,24 @@ fun MetaDetailsScreen(
         displayedMeta.type.lowercase().let { it == "movie" || it == "series" || it == "show" || it == "tv" }
     val canShowTraktRating = !offlineDetailsAvailable &&
         traktAuthUiState.mode == TraktConnectionMode.CONNECTED &&
-        displayedMeta?.let { TraktRatingsRepository.canRate(it.type, it.id) } == true
-    LaunchedEffect(displayedMeta?.id, canShowTraktRating) {
+        displayedMeta?.type?.lowercase() in setOf("movie", "series", "show", "tv", "tvshow")
+    LaunchedEffect(displayedMeta?.id, canShowTraktRating, id) {
+        traktRatingContentId = null
         userTraktRating = null
         userTraktRatingError = null
         if (canShowTraktRating) {
-            runCatching { TraktRatingsRepository.getRating(displayedMeta!!.type, displayedMeta.id) }
-                .onSuccess { userTraktRating = it }
-                .onFailure { userTraktRatingError = it.message ?: "Could not load your Trakt rating." }
+            val ratingType = displayedMeta!!.type
+            traktRatingContentId = sequenceOf(displayedMeta.id, id)
+                .firstOrNull { TraktRatingsRepository.canRate(ratingType, it) }
+                ?: TmdbService.ensureTmdbId(displayedMeta.id, ratingType)?.let { "tmdb:$it" }
+            val ratingId = traktRatingContentId
+            if (ratingId != null) {
+                runCatching { TraktRatingsRepository.getRating(ratingType, ratingId) }
+                    .onSuccess { userTraktRating = it }
+                    .onFailure { userTraktRatingError = it.message ?: "Could not load your Trakt rating." }
+            } else {
+                userTraktRatingError = "This title has no Trakt-compatible ID."
+            }
         }
     }
     val canShowSimklRating = !offlineDetailsAvailable && externalTrackingState.simklConnected &&
@@ -996,6 +1015,8 @@ fun MetaDetailsScreen(
                     )
                 }
                 val listState = rememberLazyListState()
+                val detailsFocusManager = LocalFocusManager.current
+                val isTvDetails = com.nuvio.app.core.ui.LocalTvMode.current
                 val density = LocalDensity.current
                 val safeAreaTopPx = with(density) {
                     WindowInsets.statusBars
@@ -1217,13 +1238,13 @@ fun MetaDetailsScreen(
                                                             userTraktRatingBusy = true
                                                             userTraktRatingError = null
                                                             detailsScope.launch {
-                                                                runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, rating) }
+                                                                runCatching { TraktRatingsRepository.setRating(meta.type, traktRatingContentId ?: meta.id, rating) }
                                                                     .onSuccess { userTraktRating = rating }
                                                                     .onFailure { userTraktRatingError = it.message ?: "Could not save your rating." }
                                                                 userTraktRatingBusy = false
                                                             }
                                                         },
-                                                        enabled = !userTraktRatingBusy,
+                                                        enabled = !userTraktRatingBusy && traktRatingContentId != null,
                                                         modifier = Modifier.tikTakTvFocus(),
                                                     ) { Text(if (userTraktRating == rating) "★$rating" else "$rating") }
                                                 }
@@ -1235,13 +1256,13 @@ fun MetaDetailsScreen(
                                                     userTraktRatingBusy = true
                                                     userTraktRatingError = null
                                                     detailsScope.launch {
-                                                        runCatching { TraktRatingsRepository.setRating(meta.type, meta.id, null) }
+                                                        runCatching { TraktRatingsRepository.setRating(meta.type, traktRatingContentId ?: meta.id, null) }
                                                             .onSuccess { userTraktRating = null }
                                                             .onFailure { userTraktRatingError = it.message ?: "Could not remove your rating." }
                                                         userTraktRatingBusy = false
                                                     }
                                                 },
-                                                enabled = !userTraktRatingBusy,
+                                                enabled = !userTraktRatingBusy && traktRatingContentId != null,
                                                 modifier = Modifier.tikTakTvFocus(),
                                             ) { Text("Remove rating") }
                                         }
@@ -1462,7 +1483,17 @@ fun MetaDetailsScreen(
                                 modifier = Modifier.padding(
                                     start = 12.dp,
                                     top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                                ).zIndex(2f),
+                                ).zIndex(2f).onPreviewKeyEvent { event ->
+                                    if (isTvDetails && event.type == KeyEventType.KeyDown &&
+                                        event.key == Key.DirectionDown) {
+                                        detailsScope.launch {
+                                            listState.scrollToItem(1)
+                                            withFrameNanos { }
+                                            detailsFocusManager.moveFocus(FocusDirection.Down)
+                                        }
+                                        true
+                                    } else false
+                                },
                                 containerColor = Color.Transparent,
                                 contentColor = MaterialTheme.colorScheme.onBackground,
                             )

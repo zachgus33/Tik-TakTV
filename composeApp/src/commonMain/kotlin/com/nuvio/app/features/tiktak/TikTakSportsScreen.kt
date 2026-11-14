@@ -381,7 +381,7 @@ private fun findScoreChannelFromIndex(
     val teamTokenSets = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
     val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
 
-    return index.asSequence()
+    val candidates = index.asSequence()
         .mapNotNull { entry ->
             val programmeTokens = entry.programmeTokens
             val matchingTeams = teamTokenSets.count { team ->
@@ -389,23 +389,32 @@ private fun findScoreChannelFromIndex(
                 team.count(programmeTokens::contains) >= required
             }
             val programmeOverlap = eventTokens.count(programmeTokens::contains)
+            val allTeamsMatch = teamTokenSets.isNotEmpty() && matchingTeams == teamTokenSets.size
             val channelTokens = entry.channelTokens
             val broadcastOverlap = broadcastTokens.count(channelTokens::contains)
             val broadcastMatch = broadcastTokens.isNotEmpty() && broadcastOverlap == broadcastTokens.size
 
-            // A guide title carrying the teams is the strongest signal. If an
-            // IPTV guide is generic or missing, the score feed's named network
-            // is still a deterministic route to the user's matching channel.
-            if (matchingTeams == 0 && programmeOverlap < 2 && !broadcastMatch) {
+            // A named broadcaster alone cannot prove which feed carries a game.
+            // When guide data names a programme, require the actual matchup;
+            // otherwise a second ABC feed can win despite airing another show.
+            if (entry.hasProgramme && !allTeamsMatch) {
                 return@mapNotNull null
             }
-            val score = matchingTeams * 100 + programmeOverlap * 8 +
+            if (!entry.hasProgramme && !broadcastMatch) {
+                return@mapNotNull null
+            }
+            val score = (if (allTeamsMatch) 300 else 0) + programmeOverlap * 8 +
                 (if (broadcastMatch) 35 + broadcastOverlap * 5 else 0) +
                 (if (entry.hasProgramme) 10 else 0)
-            entry.channel to score
+            Triple(entry.channel, score, allTeamsMatch)
         }
-        .maxByOrNull { it.second }
-        ?.first
+        .sortedByDescending { it.second }
+        .toList()
+    val best = candidates.firstOrNull() ?: return null
+    // Two indistinguishable feeds need a guide-confirmed matchup; picking the
+    // first playlist entry would silently open an unrelated broadcast.
+    if (!best.third && candidates.getOrNull(1)?.second == best.second) return null
+    return best.first
 }
 
 private fun normalizeSportsText(value: String): String = value

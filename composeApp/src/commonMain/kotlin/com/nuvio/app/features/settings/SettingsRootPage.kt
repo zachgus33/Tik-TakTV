@@ -44,6 +44,7 @@ import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.SharedAddonSetup
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.debrid.DebridSettingsRepository
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import com.nuvio.app.features.home.SyncCatalogItem
@@ -228,14 +229,16 @@ internal fun LazyListScope.settingsRootContent(
                         onClick = onPlaybackClick,
                     )
                     SettingsGroupDivider(isTablet = isTablet)
-                    SettingsNavigationRow(
-                        title = stringResource(Res.string.compose_settings_page_integrations),
-                        description = stringResource(Res.string.compose_settings_root_integrations_description),
-                        icon = Icons.Rounded.Link,
-                        isTablet = isTablet,
-                        onClick = onIntegrationsClick,
-                    )
-                    SettingsGroupDivider(isTablet = isTablet)
+                    if (!LocalTvMode.current) {
+                        SettingsNavigationRow(
+                            title = stringResource(Res.string.compose_settings_page_integrations),
+                            description = stringResource(Res.string.compose_settings_root_integrations_description),
+                            icon = Icons.Rounded.Link,
+                            isTablet = isTablet,
+                            onClick = onIntegrationsClick,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                    }
                     SettingsNavigationRow(
                         title = stringResource(Res.string.compose_settings_page_notifications),
                         description = stringResource(Res.string.compose_settings_root_notifications_description),

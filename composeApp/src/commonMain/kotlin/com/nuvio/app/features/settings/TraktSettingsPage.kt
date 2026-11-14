@@ -1,5 +1,7 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -722,6 +724,7 @@ private fun TraktConnectionCard(
                 )
                 Button(
                     onClick = TraktAuthRepository::onDisconnectRequested,
+                    modifier = Modifier.tikTakTvFocus(),
                     enabled = !uiState.isLoading,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -753,6 +756,7 @@ private fun TraktConnectionCard(
                 )
                 Button(
                     onClick = TraktAuthRepository::onCancelAuthorization,
+                    modifier = Modifier.tikTakTvFocus(),
                     enabled = !uiState.isLoading,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -773,6 +777,7 @@ private fun TraktConnectionCard(
                     onClick = {
                         TraktAuthRepository.onConnectRequested()
                     },
+                    modifier = Modifier.tikTakTvFocus(),
                     enabled = uiState.credentialsConfigured && !uiState.isLoading,
                 ) {
                     if (uiState.isLoading) {

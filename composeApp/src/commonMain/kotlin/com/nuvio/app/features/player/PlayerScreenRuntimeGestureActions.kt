@@ -193,10 +193,10 @@ internal fun PlayerScreenRuntime.togglePlaybackFromDoubleTap() {
     controlsVisible = false
 }
 
-internal fun PlayerScreenRuntime.seekBy(offsetMs: Long) {
+internal fun PlayerScreenRuntime.seekBy(offsetMs: Long, showControls: Boolean = true) {
     playerController?.seekBy(offsetMs)
     scheduleProgressSyncAfterSeek()
-    controlsVisible = true
+    if (showControls) controlsVisible = true
     when {
         offsetMs > 0L -> showSeekFeedback(PlayerSeekDirection.Forward, offsetMs)
         offsetMs < 0L -> showSeekFeedback(PlayerSeekDirection.Backward, abs(offsetMs))

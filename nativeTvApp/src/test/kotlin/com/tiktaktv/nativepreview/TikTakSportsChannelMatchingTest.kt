@@ -58,6 +58,34 @@ class TikTakSportsChannelMatchingTest {
         assertNull(findScoreChannel(event("in", "Disney+"), listOf(disneyJunior), emptyMap()))
     }
 
+    @Test
+    fun wrongAbcProgrammeDoesNotOpenThatFeed() {
+        val wrongAbc = espn.copy(id = "abc-east", name = "ABC East", tvgId = "abc.east")
+        val rightAbc = espn.copy(id = "abc-west", name = "ABC West", tvgId = "abc.west")
+        val programmes = mapOf(
+            "abc.east" to programme("Evening News"),
+            "abc.west" to programme("Alabama Crimson Tide vs Georgia Bulldogs"),
+        )
+
+        assertEquals(rightAbc, findScoreChannel(event("in", "ABC"), listOf(wrongAbc, rightAbc), programmes))
+    }
+
+    @Test
+    fun oneMatchingTeamDoesNotProveTheSameGame() {
+        val wrongAbc = espn.copy(id = "abc", name = "ABC", tvgId = "abc.us")
+        val programmes = mapOf("abc.us" to programme("Alabama Crimson Tide vs Auburn Tigers"))
+
+        assertNull(findScoreChannel(event("in", "ABC"), listOf(wrongAbc), programmes))
+    }
+
+    @Test
+    fun ambiguousAbcFeedsWithoutCurrentGuideDoNotAutoLaunch() {
+        val abcEast = espn.copy(id = "abc-east", name = "ABC East")
+        val abcWest = espn.copy(id = "abc-west", name = "ABC West")
+
+        assertNull(findScoreChannel(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()))
+    }
+
     private fun event(state: String, broadcast: String) = NativeScoreEvent(
         id = "game-1",
         sport = "football",

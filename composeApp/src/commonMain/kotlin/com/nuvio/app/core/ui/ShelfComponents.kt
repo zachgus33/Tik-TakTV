@@ -238,6 +238,9 @@ fun NuvioPosterCard(
     val shouldShowTitleBelow = showTitleBelow && !posterCardStyle.hideLabelsEnabled
     val isTvMode = LocalTvMode.current
     var hasTvFocus by remember { mutableStateOf(false) }
+    val posterHoverSource = remember { MutableInteractionSource() }
+    val posterHovered by posterHoverSource.collectIsHoveredAsState()
+    val posterHighlighted = isTvMode && (hasTvFocus || posterHovered)
 
     Column(
         modifier = modifier.width(cardWidth),
@@ -247,15 +250,16 @@ fun NuvioPosterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
+                .then(if (isTvMode) Modifier.hoverable(posterHoverSource) else Modifier)
                 .onFocusChanged { hasTvFocus = it.hasFocus }
-                .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+                .zIndex(if (posterHighlighted) 10f else 0f)
                 .graphicsLayer {
-                    val focusScale = if (isTvMode && hasTvFocus) 1.08f else 1f
+                    val focusScale = if (posterHighlighted) 1.08f else 1f
                     scaleX = focusScale
                     scaleY = focusScale
                 }
                 .shadow(
-                    elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+                    elevation = if (posterHighlighted) 18.dp else 0.dp,
                     shape = cardShape,
                     clip = false,
                 )
@@ -267,7 +271,10 @@ fun NuvioPosterCard(
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
-                ),
+                )
+                .then(if (isTvMode && posterHovered && !hasTvFocus) {
+                    Modifier.border(3.dp, Color(0xFFFF4F9A), cardShape)
+                } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null) {

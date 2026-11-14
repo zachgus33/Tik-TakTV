@@ -39,12 +39,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -268,7 +272,12 @@ fun SettingsScreen(
                 .takeIf { it.isEnabledByPolicy() }
                 ?: SettingsPage.Root
         }
-        val previousPage = page.previousPage()
+        val previousPage = if (tvMode && page in setOf(
+                SettingsPage.TraktAuthentication,
+                SettingsPage.Simkl,
+                SettingsPage.AniList,
+                SettingsPage.Debrid,
+            )) SettingsPage.Root else page.previousPage()
 
         LaunchedEffect(page, currentPage) {
             if (page.name != currentPage) {
@@ -279,7 +288,12 @@ fun SettingsScreen(
         LaunchedEffect(rootActionRequests, rootActionsEnabled, page) {
             rootActionRequests.collect {
                 if (!rootActionsEnabled) return@collect
-                val pageToOpen = page.previousPage()
+                val pageToOpen = if (tvMode && page in setOf(
+                    SettingsPage.TraktAuthentication,
+                    SettingsPage.Simkl,
+                    SettingsPage.AniList,
+                    SettingsPage.Debrid,
+                )) SettingsPage.Root else page.previousPage()
                 if (pageToOpen != null) {
                     currentPage = pageToOpen.name
                 } else {
@@ -971,6 +985,21 @@ private fun TabletSettingsScreen(
     onFavoritePersonClick: ((FavoritePerson) -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
+    val pageFocusRequester = remember { FocusRequester() }
+    var lastInlinePage by remember { mutableStateOf(page) }
+    LaunchedEffect(page, isTvMode) {
+        val returnedToParent = lastInlinePage != page &&
+            (lastInlinePage.previousPage() == page ||
+                (isTvMode && page == SettingsPage.Root && lastInlinePage in setOf(
+                    SettingsPage.TraktAuthentication, SettingsPage.Simkl,
+                    SettingsPage.AniList, SettingsPage.Debrid,
+                )))
+        lastInlinePage = page
+        if (isTvMode && returnedToParent) {
+            withFrameNanos { }
+            pageFocusRequester.requestFocus()
+        }
+    }
     val uriHandler = LocalUriHandler.current
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
@@ -1000,6 +1029,7 @@ private fun TabletSettingsScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusRestorer()
                     .focusGroup()
                     .onKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -1045,9 +1075,6 @@ private fun TabletSettingsScreen(
                     item { SettingsSidebarItem("TikTak TV", Icons.Rounded.Settings, page == SettingsPage.NuvioEnhanced) {
                         openInlinePage(SettingsPage.NuvioEnhanced)
                     } }
-                    item { SettingsSidebarItem("Integrations", Icons.Rounded.Settings, page == SettingsPage.Integrations) {
-                        openInlinePage(SettingsPage.Integrations)
-                    } }
                     item { SettingsSidebarItem("Trakt", Icons.Rounded.Settings, page == SettingsPage.TraktAuthentication) {
                         openInlinePage(SettingsPage.TraktAuthentication)
                     } }
@@ -1056,6 +1083,9 @@ private fun TabletSettingsScreen(
                     } }
                     item { SettingsSidebarItem("AniList", Icons.Rounded.Settings, page == SettingsPage.AniList) {
                         openInlinePage(SettingsPage.AniList)
+                    } }
+                    item { SettingsSidebarItem("TorBox", Icons.Rounded.Settings, page == SettingsPage.Debrid) {
+                        openInlinePage(SettingsPage.Debrid)
                     } }
                     item { SettingsSidebarItem("Advanced", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
@@ -1153,6 +1183,8 @@ private fun TabletSettingsScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusRequester(pageFocusRequester)
+                    .focusRestorer()
                     .focusGroup()
                     .onKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -1178,7 +1210,12 @@ private fun TabletSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 item {
-                    val previousPage = page.previousPage()
+                    val previousPage = if (isTvMode && page in setOf(
+                        SettingsPage.TraktAuthentication,
+                        SettingsPage.Simkl,
+                        SettingsPage.AniList,
+                        SettingsPage.Debrid,
+                    )) SettingsPage.Root else page.previousPage()
                     TabletPageHeader(
                         title = if (page == SettingsPage.Root) {
                             if (settingsSearchQuery.isBlank()) {
@@ -1398,6 +1435,7 @@ private fun TabletSettingsScreen(
                     SettingsPage.Debrid -> debridSettingsContent(
                         isTablet = true,
                         settings = debridSettings,
+                        torboxOnly = isTvMode,
                     )
                     SettingsPage.TraktAuthentication -> traktSettingsContent(
                         isTablet = true,

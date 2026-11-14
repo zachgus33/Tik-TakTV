@@ -14,6 +14,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,6 +71,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -886,9 +890,12 @@ private fun MainAppContent(
         val uriHandler = LocalUriHandler.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+        var previousTvTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
         var tvRailHasFocus by remember { mutableStateOf(false) }
         var tvRailFocusRequestKey by remember { mutableStateOf(0) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
+        var restoreTabFocusRequestCount by remember { mutableStateOf(0) }
+        var leftTabsRoute by remember { mutableStateOf(false) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val libraryScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -896,6 +903,17 @@ private fun MainAppContent(
         val settingsRootActionRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         var nativeProfileSwitcherVisible by remember { mutableStateOf(false) }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        LaunchedEffect(currentBackStackEntry?.destination, isNativeTv) {
+            if (!isNativeTv || currentBackStackEntry == null) return@LaunchedEffect
+            if (currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true) {
+                if (leftTabsRoute) {
+                    leftTabsRoute = false
+                    restoreTabFocusRequestCount++
+                }
+            } else {
+                leftTabsRoute = true
+            }
+        }
         val liquidGlassNativeTabBarEnabled by remember {
             ThemeSettingsRepository.liquidGlassNativeTabBarEnabled
         }.collectAsStateWithLifecycle()
@@ -1035,6 +1053,7 @@ private fun MainAppContent(
         }
         val wasAlreadySelected = selectedTab == tab
         val tabsRouteActive = currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true
+        if (isNativeTv && !wasAlreadySelected) previousTvTab = selectedTab
         selectedTab = tab
 
         if (!tabsRouteActive) {
@@ -2074,8 +2093,11 @@ private fun MainAppContent(
                     PlatformBackHandler(
                         enabled = true,
                         onBack = {
-                            if (isNativeTv && !tvRailHasFocus) {
-                                tvRailFocusRequestKey++
+                            if (isNativeTv && selectedTab != AppScreenTab.Home) {
+                                val destination = previousTvTab.takeIf { it != selectedTab } ?: AppScreenTab.Home
+                                previousTvTab = selectedTab
+                                selectedTab = destination
+                                restoreTabFocusRequestCount++
                             } else if (selectedTab != AppScreenTab.Home) {
                                 selectedTab = AppScreenTab.Home
                             } else {
@@ -2177,6 +2199,7 @@ private fun MainAppContent(
                                 ) {
                                     AppTabHost(
                                         isNativeTv = isNativeTv,
+                                        restoreFocusRequestCount = restoreTabFocusRequestCount,
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(
@@ -4113,6 +4136,7 @@ private fun rememberGuardedPopBackStack(
 private fun AppTabHost(
     selectedTab: AppScreenTab,
     isNativeTv: Boolean = false,
+    restoreFocusRequestCount: Int = 0,
     modifier: Modifier = Modifier,
     searchFocusRequestCount: Int = 0,
     rootActionsEnabled: Boolean = true,
@@ -4160,8 +4184,20 @@ private fun AppTabHost(
     onInitialHomeContentRendered: () -> Unit = {},
 ) {
     val tabStateHolder = rememberSaveableStateHolder()
+    val contentFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(restoreFocusRequestCount) {
+        if (isNativeTv && restoreFocusRequestCount > 0) {
+            withFrameNanos { }
+            contentFocusRequester.requestFocus()
+        }
+    }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier.fillMaxSize().then(
+            if (isNativeTv) Modifier.focusRequester(contentFocusRequester).focusRestorer().focusGroup()
+            else Modifier
+        ),
+    ) {
         tabStateHolder.SaveableStateProvider(selectedTab.name) {
             when (selectedTab) {
                 AppScreenTab.Home -> {

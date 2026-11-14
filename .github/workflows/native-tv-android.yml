@@ -158,10 +158,9 @@ jobs:
             sleep 3
             adb shell dumpsys activity activities > native-tv-activity.txt
             adb exec-out screencap -p > nativeTvApp/build/native-tv-auth-recovered.png
-            # Continue as a guest, prove the main shell receives visible remote
-            # focus, and prove Back hands focus to the rail before it offers to
-            # exit. This covers the transition that previously left the app with
-            # no visible cursor and an apparently inert Back button.
+            # Continue as a guest and prove the main shell receives visible
+            # remote focus. This covers the transition that previously left
+            # the app with no visible cursor.
             adb shell input keyevent 20
             adb shell input keyevent 20
             adb shell input keyevent 23

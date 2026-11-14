@@ -3,6 +3,9 @@ package com.nuvio.app.features.home.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -67,6 +77,8 @@ internal fun PosterGridRow(
     fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    focusRequesters: List<FocusRequester>? = null,
+    onNavigateUp: ((Int) -> Unit)? = null,
 ) {
     val enhancedSettings by remember {
         NuvioEnhancedSettingsRepository.ensureLoaded()
@@ -79,7 +91,7 @@ internal fun PosterGridRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        items.forEach { item ->
+        items.forEachIndexed { columnIndex, item ->
             PosterGridTile(
                 item = item,
                 cornerRadiusDp = posterCardStyle.cornerRadiusDp,
@@ -93,6 +105,8 @@ internal fun PosterGridRow(
                 ),
                 onClick = onPosterClick?.let { { it(item) } },
                 onLongClick = onPosterLongClick?.let { { it(item) } },
+                focusRequester = focusRequesters?.getOrNull(columnIndex),
+                onNavigateUp = onNavigateUp?.let { navigate -> { navigate(columnIndex) } },
             )
         }
         repeat(columns - items.size) {
@@ -135,9 +149,14 @@ private fun PosterGridTile(
     isWatched: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    focusRequester: FocusRequester? = null,
+    onNavigateUp: (() -> Unit)? = null,
 ) {
     val isTvMode = LocalTvMode.current
     var hasTvFocus by remember { mutableStateOf(false) }
+    val posterHoverSource = remember { MutableInteractionSource() }
+    val posterHovered by posterHoverSource.collectIsHoveredAsState()
+    val posterHighlighted = isTvMode && (hasTvFocus || posterHovered)
     val cardShape = RoundedCornerShape(cornerRadiusDp.dp)
     Column(
         modifier = modifier,
@@ -147,15 +166,24 @@ private fun PosterGridTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(item.posterShape.posterGridAspectRatio())
+                .then(if (isTvMode) Modifier.hoverable(posterHoverSource) else Modifier)
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                .onPreviewKeyEvent { event ->
+                    if (isTvMode && event.type == KeyEventType.KeyDown &&
+                        event.key == Key.DirectionUp && onNavigateUp != null) {
+                        onNavigateUp()
+                        true
+                    } else false
+                }
                 .onFocusChanged { hasTvFocus = it.hasFocus }
-                .zIndex(if (isTvMode && hasTvFocus) 10f else 0f)
+                .zIndex(if (posterHighlighted) 10f else 0f)
                 .graphicsLayer {
-                    val focusScale = if (isTvMode && hasTvFocus) 1.08f else 1f
+                    val focusScale = if (posterHighlighted) 1.08f else 1f
                     scaleX = focusScale
                     scaleY = focusScale
                 }
                 .shadow(
-                    elevation = if (isTvMode && hasTvFocus) 18.dp else 0.dp,
+                    elevation = if (posterHighlighted) 18.dp else 0.dp,
                     shape = cardShape,
                     clip = false,
                 )
@@ -171,7 +199,8 @@ private fun PosterGridTile(
                     zoomImageUrl = item.poster,
                     zoomCornerRadius = cornerRadiusDp.dp,
                     focusEffectsEnabled = false,
-                ),
+                )
+                .then(if (posterHighlighted) Modifier.border(3.dp, Color(0xFFFF4F9A), cardShape) else Modifier),
         ) {
             if (item.poster != null) {
                 AsyncImage(
@@ -187,7 +216,7 @@ private fun PosterGridTile(
             Text(
                 text = item.name,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = if (isTvMode && hasTvFocus) Color(0xFFFF4F9A) else MaterialTheme.colorScheme.onBackground,
+                color = if (posterHighlighted) Color(0xFFFF4F9A) else MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )

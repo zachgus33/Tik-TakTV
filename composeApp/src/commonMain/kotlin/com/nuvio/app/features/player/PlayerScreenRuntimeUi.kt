@@ -153,7 +153,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                             if (event.type == KeyEventType.KeyUp && event.key == heldSeekKey) {
                                 heldSeekKey = null
                                 heldSeekRepeats = 0
-                                return@onPreviewKeyEvent false
+                                return@onPreviewKeyEvent true
                             }
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             if (playerModalVisible) {
@@ -161,12 +161,13 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                 // consume directions while focus moves into the panel.
                                 return@onPreviewKeyEvent false
                             }
-                            if (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) {
+                            if ((event.key == Key.DirectionLeft || event.key == Key.DirectionRight) &&
+                                (!controlsVisible || tvSurfaceIsFocused)) {
                                 heldSeekRepeats = if (heldSeekKey == event.key) heldSeekRepeats + 1 else 0
                                 heldSeekKey = event.key
                                 if (heldSeekRepeats >= 2) {
                                     val stepMs = if (heldSeekRepeats >= 8) 20_000L else 10_000L
-                                    seekBy(if (event.key == Key.DirectionLeft) -stepMs else stepMs)
+                                    seekBy(if (event.key == Key.DirectionLeft) -stepMs else stepMs, showControls = false)
                                     return@onPreviewKeyEvent true
                                 }
                             } else {
@@ -177,23 +178,33 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                             when (event.key) {
                                 Key.DirectionLeft -> {
                                     if (!controlsVisible) {
-                                        seekBy(-10_000L)
+                                        seekBy(-10_000L, showControls = false)
                                         true
                                     } else false
                                 }
                                 Key.DirectionRight -> {
                                     if (!controlsVisible) {
-                                        seekBy(10_000L)
+                                        seekBy(10_000L, showControls = false)
                                         true
                                     } else false
                                 }
                                 Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                                    if (!controlsVisible) {
+                                    if (!controlsVisible || tvSurfaceIsFocused) {
                                         togglePlayback()
                                         true
                                     } else {
                                         false
                                     }
+                                }
+                                Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                                    if (event.key == Key.MediaPlayPause ||
+                                        (event.key == Key.MediaPlay && !playbackSnapshot.isPlaying) ||
+                                        (event.key == Key.MediaPause && playbackSnapshot.isPlaying)) {
+                                        togglePlayback()
+                                    } else {
+                                        controlsVisible = true
+                                    }
+                                    true
                                 }
                                 Key.DirectionUp, Key.DirectionDown -> {
                                     if (!controlsVisible) {

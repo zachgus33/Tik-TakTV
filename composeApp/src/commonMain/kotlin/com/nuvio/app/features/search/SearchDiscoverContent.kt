@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -16,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +45,8 @@ internal fun LazyListScope.discoverContent(
     fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    rowFocusRequesters: List<List<FocusRequester>> = emptyList(),
+    onPosterNavigateUp: ((Int, Int) -> Unit)? = null,
 ) {
     item {
         DiscoverSectionHeader(modifier = Modifier.padding(horizontal = 16.dp))
@@ -97,7 +101,7 @@ internal fun LazyListScope.discoverContent(
         }
 
         else -> {
-            items(state.items.chunked(columns)) { rowItems ->
+            itemsIndexed(state.items.chunked(columns)) { rowIndex, rowItems ->
                 PosterGridRow(
                     items = rowItems,
                     columns = columns,
@@ -106,6 +110,10 @@ internal fun LazyListScope.discoverContent(
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                     onPosterClick = onPosterClick,
                     onPosterLongClick = onPosterLongClick,
+                    focusRequesters = rowFocusRequesters.getOrNull(rowIndex),
+                    onNavigateUp = if (rowIndex > 0) {
+                        { columnIndex -> onPosterNavigateUp?.invoke(rowIndex, columnIndex) }
+                    } else null,
                 )
             }
             if (state.isLoading) {

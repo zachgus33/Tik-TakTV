@@ -28,6 +28,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -66,6 +68,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_retry
 import nuvio.composeapp.generated.resources.compose_nav_search
@@ -94,6 +97,7 @@ fun SearchScreen(
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
 ) {
     val focusRequester = remember { FocusRequester() }
+    val navigationScope = rememberCoroutineScope()
 
     LaunchedEffect(searchFocusRequestCount) {
         if (searchFocusRequestCount > 0) {
@@ -220,6 +224,11 @@ fun SearchScreen(
         val discoverColumns = remember(maxWidth, isTvMode) {
             posterGridColumnCountForWidth(maxWidth, isTvMode)
         }
+        val discoverRowFocusRequesters = remember(discoverUiState.items.size, discoverColumns) {
+            List((discoverUiState.items.size + discoverColumns - 1) / discoverColumns) {
+                List(discoverColumns) { FocusRequester() }
+            }
+        }
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
@@ -309,6 +318,21 @@ fun SearchScreen(
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                     onPosterClick = onPosterClick,
                     onPosterLongClick = onPosterLongClick,
+                    rowFocusRequesters = if (isTvMode) discoverRowFocusRequesters else emptyList(),
+                    onPosterNavigateUp = if (isTvMode) { rowIndex, columnIndex ->
+                        val previousRow = rowIndex - 1
+                        val previousRowItemCount = (discoverUiState.items.size - previousRow * discoverColumns)
+                            .coerceIn(0, discoverColumns)
+                        val targetColumn = columnIndex.coerceAtMost(previousRowItemCount - 1)
+                        val gridStart = 3 +
+                            (if (recentSearches.isNotEmpty()) 1 else 0) +
+                            (if (discoverUiState.selectedCatalog != null) 1 else 0)
+                        navigationScope.launch {
+                            listState.scrollToItem(gridStart + previousRow)
+                            withFrameNanos { }
+                            discoverRowFocusRequesters[previousRow][targetColumn].requestFocus()
+                        }
+                    } else null,
                 )
             } else {
                 val normalizedQuery = query.trim()

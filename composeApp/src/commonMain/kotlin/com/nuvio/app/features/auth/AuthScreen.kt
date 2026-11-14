@@ -487,8 +487,10 @@ private fun AuthLargeLayout(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = formHorizontalPadding),
+                verticalArrangement = Arrangement.Center,
             ) {
                 AuthHeading(
                     isSignUp = isSignUp,
@@ -908,6 +910,7 @@ private fun AuthTextField(
                         Modifier
                     },
                 ),
+            enabled = !isTv || editing,
             readOnly = isTv && !editing,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(

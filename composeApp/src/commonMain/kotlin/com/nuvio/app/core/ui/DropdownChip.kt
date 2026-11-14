@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -19,9 +20,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,9 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
 import kotlinx.coroutines.launch
 
 data class NuvioDropdownOption(
@@ -160,6 +168,52 @@ private fun NuvioDropdownOptionsSheet(
     onSelected: (NuvioDropdownOption) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    if (LocalTvMode.current) {
+        val selectedIndex = options.indexOfFirst { it.key == selectedKey }.coerceAtLeast(0)
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+        val initialFocus = remember { FocusRequester() }
+        LaunchedEffect(options, selectedKey) { initialFocus.requestFocus() }
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(
+                modifier = Modifier.padding(24.dp).fillMaxWidth().widthIn(max = 640.dp),
+                shape = tokens.shapes.compactCard,
+                color = tokens.colors.surfaceSheet,
+            ) {
+                Column(modifier = Modifier.padding(vertical = 12.dp)) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = tokens.colors.textPrimary,
+                    )
+                    NuvioBottomSheetDivider()
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    ) {
+                        itemsIndexed(options) { index, option ->
+                            NuvioBottomSheetActionRow(
+                                title = option.label,
+                                onClick = { onSelected(option) },
+                                modifier = if (index == selectedIndex) Modifier.focusRequester(initialFocus) else Modifier,
+                                trailingContent = {
+                                    if (option.key == selectedKey) {
+                                        Icon(Icons.Rounded.Check, contentDescription = null,
+                                            tint = tokens.colors.accent, modifier = Modifier.size(tokens.icons.md))
+                                    }
+                                },
+                            )
+                            if (index < options.lastIndex) NuvioBottomSheetDivider()
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     NuvioModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
