@@ -1,6 +1,8 @@
 package com.nuvio.app.features.tracking
 
 import com.nuvio.app.features.addons.httpRequestRaw
+import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.userId
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import io.ktor.http.Url
@@ -55,6 +57,14 @@ object ExternalTrackingRepository {
     val state = _state.asStateFlow()
     private var generation = 0
     private var loadedProfile = -1
+    private var loadedAccountId: String? = null
+
+    fun clearLocalState() {
+        generation++
+        loadedProfile = -1
+        loadedAccountId = null
+        _state.value = ExternalTrackingUiState()
+    }
 
     private fun load(provider: String, profileId: Int): TrackingAccount =
         runCatching { json.decodeFromString<TrackingAccount>(ExternalTrackingStorage.load(provider, profileId).orEmpty()) }
@@ -65,13 +75,14 @@ object ExternalTrackingRepository {
 
     fun ensureLoaded() {
         val profile = ProfileRepository.activeProfileId
-        if (profile == loadedProfile) return
+        if (profile == loadedProfile && loadedAccountId == AuthRepository.state.value.userId) return
         onProfileChanged()
     }
 
     fun onProfileChanged() {
         generation++
         loadedProfile = ProfileRepository.activeProfileId
+        loadedAccountId = AuthRepository.state.value.userId
         val simkl = load("simkl", loadedProfile)
         val anilist = load("anilist", loadedProfile)
         _state.value = ExternalTrackingUiState(

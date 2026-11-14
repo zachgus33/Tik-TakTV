@@ -140,6 +140,7 @@ fun TikTakYouTubeScreen(
     var accountConfigured by remember { mutableStateOf(true) }
     var channelTitle by remember { mutableStateOf("") }
     var deviceSignIn by remember { mutableStateOf<YouTubeDeviceStart?>(null) }
+    var sponsorSettingsVisible by rememberSaveable { mutableStateOf(false) }
     var deviceBusy by remember { mutableStateOf(false) }
 
     fun localHistory(): List<TikTakYouTubeItem> =
@@ -356,6 +357,13 @@ fun TikTakYouTubeScreen(
                 Text("On your phone, visit ${device.verificationUrl} and enter ${device.userCode}")
                 Text("Waiting for YouTube approval…")
             }
+        }
+        item {
+            Button(
+                onClick = { sponsorSettingsVisible = !sponsorSettingsVisible },
+                modifier = Modifier.tikTakTvFocus(),
+            ) { Text(if (sponsorSettingsVisible) "Hide SponsorBlock settings" else "SponsorBlock settings") }
+            if (sponsorSettingsVisible) SponsorBlockSettingsContent()
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

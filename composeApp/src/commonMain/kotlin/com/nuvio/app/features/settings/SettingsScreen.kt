@@ -277,6 +277,7 @@ fun SettingsScreen(
                 SettingsPage.Simkl,
                 SettingsPage.AniList,
                 SettingsPage.Debrid,
+                SettingsPage.SponsorBlock,
             )) SettingsPage.Root else page.previousPage()
 
         LaunchedEffect(page, currentPage) {
@@ -293,6 +294,7 @@ fun SettingsScreen(
                     SettingsPage.Simkl,
                     SettingsPage.AniList,
                     SettingsPage.Debrid,
+                    SettingsPage.SponsorBlock,
                 )) SettingsPage.Root else page.previousPage()
                 if (pageToOpen != null) {
                     currentPage = pageToOpen.name
@@ -667,6 +669,7 @@ private fun MobileSettingsScreen(
                         settingsRootContent(
                             isTablet = false,
                             onPlaybackClick = { onPageChange(SettingsPage.Playback) },
+                            onSponsorBlockClick = { onPageChange(SettingsPage.SponsorBlock) },
                             onAppearanceClick = { onPageChange(SettingsPage.Appearance) },
                             onAdvancedClick = { onPageChange(SettingsPage.Advanced) },
                             onHealthCheckClick = { onPageChange(SettingsPage.HealthCheck) },
@@ -862,6 +865,7 @@ private fun MobileSettingsScreen(
                 )
                 SettingsPage.Simkl -> externalTrackingSettingsContent("simkl", isTablet = false)
                 SettingsPage.AniList -> externalTrackingSettingsContent("anilist", isTablet = false)
+                SettingsPage.SponsorBlock -> item { com.nuvio.app.features.tiktak.SponsorBlockSettingsContent() }
             }
         }
     }
@@ -993,6 +997,7 @@ private fun TabletSettingsScreen(
                 (isTvMode && page == SettingsPage.Root && lastInlinePage in setOf(
                     SettingsPage.TraktAuthentication, SettingsPage.Simkl,
                     SettingsPage.AniList, SettingsPage.Debrid,
+                    SettingsPage.SponsorBlock,
                 )))
         lastInlinePage = page
         if (isTvMode && returnedToParent) {
@@ -1086,6 +1091,9 @@ private fun TabletSettingsScreen(
                     } }
                     item { SettingsSidebarItem("TorBox", Icons.Rounded.Settings, page == SettingsPage.Debrid) {
                         openInlinePage(SettingsPage.Debrid)
+                    } }
+                    item { SettingsSidebarItem("SponsorBlock", Icons.Rounded.Settings, page == SettingsPage.SponsorBlock) {
+                        openInlinePage(SettingsPage.SponsorBlock)
                     } }
                     item { SettingsSidebarItem("Advanced", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
@@ -1215,6 +1223,7 @@ private fun TabletSettingsScreen(
                         SettingsPage.Simkl,
                         SettingsPage.AniList,
                         SettingsPage.Debrid,
+                        SettingsPage.SponsorBlock,
                     )) SettingsPage.Root else page.previousPage()
                     TabletPageHeader(
                         title = if (page == SettingsPage.Root) {
@@ -1245,6 +1254,7 @@ private fun TabletSettingsScreen(
                             settingsRootContent(
                                 isTablet = true,
                                 onPlaybackClick = { openInlinePage(SettingsPage.Playback) },
+                                onSponsorBlockClick = { openInlinePage(SettingsPage.SponsorBlock) },
                                 onAppearanceClick = { openInlinePage(SettingsPage.Appearance) },
                                 onAdvancedClick = { openInlinePage(SettingsPage.Advanced) },
                                 onHealthCheckClick = { openInlinePage(SettingsPage.HealthCheck) },
@@ -1446,6 +1456,7 @@ private fun TabletSettingsScreen(
                     )
                     SettingsPage.Simkl -> externalTrackingSettingsContent("simkl", isTablet = true)
                     SettingsPage.AniList -> externalTrackingSettingsContent("anilist", isTablet = true)
+                    SettingsPage.SponsorBlock -> item { com.nuvio.app.features.tiktak.SponsorBlockSettingsContent() }
                 }
             }
         }

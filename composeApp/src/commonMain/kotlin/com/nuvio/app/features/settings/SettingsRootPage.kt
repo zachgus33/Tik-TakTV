@@ -99,6 +99,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun LazyListScope.settingsRootContent(
     isTablet: Boolean,
     onPlaybackClick: () -> Unit,
+    onSponsorBlockClick: () -> Unit,
     onAppearanceClick: () -> Unit,
     onAdvancedClick: () -> Unit,
     onHealthCheckClick: () -> Unit,
@@ -227,6 +228,14 @@ internal fun LazyListScope.settingsRootContent(
                         icon = Icons.Rounded.PlayArrow,
                         isTablet = isTablet,
                         onClick = onPlaybackClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = "SponsorBlock",
+                        description = "Choose which YouTube segments to skip",
+                        icon = Icons.Rounded.PlayArrow,
+                        isTablet = isTablet,
+                        onClick = onSponsorBlockClick,
                     )
                     SettingsGroupDivider(isTablet = isTablet)
                     if (!LocalTvMode.current) {

@@ -40,6 +40,7 @@ import nuvio.composeapp.generated.resources.compose_settings_page_telegram
 import nuvio.composeapp.generated.resources.compose_settings_page_trakt
 import nuvio.composeapp.generated.resources.compose_settings_page_simkl
 import nuvio.composeapp.generated.resources.compose_settings_page_anilist
+import nuvio.composeapp.generated.resources.compose_settings_page_sponsorblock
 import nuvio.composeapp.generated.resources.profile_insights_favorite_people_title
 import nuvio.composeapp.generated.resources.settings_account
 import nuvio.composeapp.generated.resources.settings_nuvio_enhanced_title
@@ -210,6 +211,11 @@ internal enum class SettingsPage(
         titleRes = Res.string.compose_settings_page_anilist,
         category = SettingsCategory.Account,
         parentPage = Integrations,
+    ),
+    SponsorBlock(
+        titleRes = Res.string.compose_settings_page_sponsorblock,
+        category = SettingsCategory.General,
+        parentPage = Root,
     ),
 }
 

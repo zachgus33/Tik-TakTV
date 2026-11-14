@@ -1,6 +1,8 @@
 package com.nuvio.app.features.trakt
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.core.auth.AuthRepository
+import com.nuvio.app.core.auth.userId
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpPostJsonWithHeaders
 import com.nuvio.app.features.addons.httpRequestRaw
@@ -49,11 +51,12 @@ object TraktAuthRepository {
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
     private var hasLoaded = false
+    private var loadedAccountId: String? = null
     private var authState = TraktAuthState()
     private var deviceFlowGeneration = 0
 
     fun ensureLoaded() {
-        if (hasLoaded) return
+        if (hasLoaded && loadedAccountId == AuthRepository.state.value.userId) return
         loadFromDisk()
     }
 
@@ -65,6 +68,7 @@ object TraktAuthRepository {
     fun clearLocalState() {
         deviceFlowGeneration++
         hasLoaded = false
+        loadedAccountId = null
         authState = TraktAuthState()
         publish()
     }
@@ -481,6 +485,7 @@ object TraktAuthRepository {
 
     private fun loadFromDisk() {
         hasLoaded = true
+        loadedAccountId = AuthRepository.state.value.userId
         val payload = TraktAuthStorage.loadPayload().orEmpty().trim()
         authState = if (payload.isBlank()) {
             TraktAuthState()

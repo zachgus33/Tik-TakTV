@@ -136,6 +136,7 @@ open class MainActivity : AppCompatActivity() {
         MdbListSettingsStorage.initialize(applicationContext)
         TraktAuthStorage.initialize(applicationContext)
         com.nuvio.app.features.tracking.ExternalTrackingStorage.initialize(applicationContext)
+        com.nuvio.app.features.tiktak.SponsorBlockStorage.initialize(applicationContext)
         TraktCommentsStorage.initialize(applicationContext)
         TraktLibraryStorage.initialize(applicationContext)
         TraktSettingsStorage.initialize(applicationContext)

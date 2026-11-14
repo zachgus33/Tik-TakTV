@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -16,6 +17,8 @@ import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
 import com.nuvio.app.features.player.skip.SkipIntroRepository
+import com.nuvio.app.features.tiktak.SponsorBlockRepository
+import com.nuvio.app.features.tiktak.SponsorBlockSegment
 import com.nuvio.app.features.streams.BingeGroupCacheRepository
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.StreamItem
@@ -29,6 +32,32 @@ import org.jetbrains.compose.resources.getString
 
 @Composable
 internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
+    SponsorBlockRepository.ensureLoaded()
+    val sponsorPreferences by SponsorBlockRepository.state.collectAsState()
+    var sponsorSegments by remember(activeVideoId) { mutableStateOf<List<SponsorBlockSegment>>(emptyList()) }
+    var lastSkippedSponsorSegment by remember(activeVideoId) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(contentType, activeVideoId, sponsorPreferences.enabled) {
+        sponsorSegments = emptyList()
+        val youtubeId = activeVideoId?.takeIf { contentType == "youtube" && sponsorPreferences.enabled }
+            ?: return@LaunchedEffect
+        sponsorSegments = SponsorBlockRepository.segments(youtubeId)
+    }
+
+    LaunchedEffect(playbackSnapshot.positionMs, sponsorSegments, sponsorPreferences) {
+        if (contentType != "youtube" || !sponsorPreferences.enabled || playbackSnapshot.isLoading) return@LaunchedEffect
+        val position = playbackSnapshot.positionMs / 1000.0
+        val segment = sponsorSegments.firstOrNull { segment ->
+            segment.category in sponsorPreferences.categories &&
+                position >= segment.start && position + 0.25 < segment.end
+        } ?: return@LaunchedEffect
+        val key = "${segment.start}:${segment.end}:${segment.category}"
+        if (lastSkippedSponsorSegment == key) return@LaunchedEffect
+        lastSkippedSponsorSegment = key
+        playerController?.seekTo((segment.end * 1000).toLong() + 100L)
+        scheduleProgressSyncAfterSeek()
+    }
+
     val currentFeedback = liveGestureFeedback ?: gestureFeedback
     LaunchedEffect(currentFeedback) {
         if (currentFeedback != null) {

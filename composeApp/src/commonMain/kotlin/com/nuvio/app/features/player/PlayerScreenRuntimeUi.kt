@@ -162,7 +162,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                 return@onPreviewKeyEvent false
                             }
                             if ((event.key == Key.DirectionLeft || event.key == Key.DirectionRight) &&
-                                (!controlsVisible || tvSurfaceIsFocused)) {
+                                !controlsVisible) {
                                 heldSeekRepeats = if (heldSeekKey == event.key) heldSeekRepeats + 1 else 0
                                 heldSeekKey = event.key
                                 if (heldSeekRepeats >= 2) {
@@ -180,11 +180,17 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     if (!controlsVisible) {
                                         seekBy(-10_000L, showControls = false)
                                         true
+                                    } else if (tvSurfaceIsFocused) {
+                                        runCatching { tvControlsFocusRequester.requestFocus() }
+                                        true
                                     } else false
                                 }
                                 Key.DirectionRight -> {
                                     if (!controlsVisible) {
                                         seekBy(10_000L, showControls = false)
+                                        true
+                                    } else if (tvSurfaceIsFocused) {
+                                        runCatching { tvControlsFocusRequester.requestFocus() }
                                         true
                                     } else false
                                 }

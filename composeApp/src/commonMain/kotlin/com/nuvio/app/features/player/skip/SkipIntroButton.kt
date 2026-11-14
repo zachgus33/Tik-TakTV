@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.tikTakTvFocus
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.player_skip
 import nuvio.composeapp.generated.resources.player_skip_intro
@@ -105,6 +106,7 @@ fun SkipIntroButton(
                 .width(IntrinsicSize.Max)
                 .clip(shape)
                 .background(Color(0xFF1E1E1E).copy(alpha = 0.85f))
+                .tikTakTvFocus()
                 .clickable { onSkip() },
         ) {
             Row(

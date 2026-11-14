@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.PlatformBackHandler
+import com.nuvio.app.core.ui.tikTakTvFocus
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_episode_title_format
 import nuvio.composeapp.generated.resources.detail_btn_play
@@ -80,6 +81,7 @@ fun NextEpisodeCard(
                 .clip(shape)
                 .background(Color(0xFF191919).copy(alpha = 0.89f))
                 .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+                .tikTakTvFocus()
                 .clickable { if (isPlayable) onPlayNext() }
                 .padding(horizontal = 9.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

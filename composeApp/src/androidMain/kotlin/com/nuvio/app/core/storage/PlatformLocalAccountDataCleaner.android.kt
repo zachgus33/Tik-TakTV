@@ -18,7 +18,6 @@ internal actual object PlatformLocalAccountDataCleaner {
         "nuvio_debrid_settings",
         "nuvio_mdblist_settings",
         "nuvio_auth",
-        "nuvio_trakt_auth",
         "nuvio_simkl_auth",
         "nuvio_simkl_sync",
         "nuvio_trakt_library",

@@ -49,6 +49,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
@@ -135,7 +136,7 @@ fun <T> NuvioShelfSection(
         if (rowCount <= 1) {
             LazyRow(
                 state = rowState,
-                modifier = rowModifier.focusGroup(),
+                modifier = rowModifier.focusRestorer().focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {
@@ -174,7 +175,7 @@ fun <T> NuvioShelfSection(
             }
             LazyRow(
                 state = rowState,
-                modifier = rowModifier.focusGroup(),
+                modifier = rowModifier.focusRestorer().focusGroup(),
                 contentPadding = rowContentPadding,
                 horizontalArrangement = Arrangement.spacedBy(itemSpacing),
             ) {

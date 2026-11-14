@@ -69,6 +69,7 @@ internal object LocalAccountDataCleaner {
         PosterCardStyleRepository.clearLocalState()
         CardDepthStyleRepository.clearLocalState()
         TraktAuthRepository.clearLocalState()
+        com.nuvio.app.features.tracking.ExternalTrackingRepository.clearLocalState()
         TraktSettingsRepository.clearLocalState()
         PlayerSettingsRepository.clearLocalState()
         StreamBadgeSettingsRepository.clearLocalState()
