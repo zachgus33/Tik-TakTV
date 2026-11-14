@@ -2051,17 +2051,17 @@ export function createService({ token, origins, authorizeAccount }) {
             mine: "true",
             maxResults: 50,
             order: "relevance",
-          }),
+          }).catch(() => null),
           youtubeApi(userId, "playlists", {
             part: "snippet,contentDetails",
             mine: "true",
             maxResults: 50,
-          }),
+          }).catch(() => null),
           youtubeApi(userId, "activities", {
             part: "snippet,contentDetails",
             mine: "true",
             maxResults: 30,
-          }),
+          }).catch(() => null),
           youtubeApi(userId, "videos", {
             part: "snippet,status,contentDetails",
             chart: "mostPopular",
@@ -2350,7 +2350,7 @@ export function createService({ token, origins, authorizeAccount }) {
           type: "playlist",
           maxResults: 12,
           order: "relevance",
-        });
+        }).catch(() => null);
         const publicMusicPlaylists = (discoveredMusic?.items ?? [])
           .map((item) => ({
             id: item?.id?.playlistId,
@@ -2370,7 +2370,7 @@ export function createService({ token, origins, authorizeAccount }) {
               part: "snippet,contentDetails,status",
               playlistId: item?.id ?? "",
               maxResults: 5,
-            }),
+            }).catch(() => null),
           ),
         );
         const playlistSelections = playlistItems.flatMap((item, index) => {
@@ -2430,7 +2430,7 @@ export function createService({ token, origins, authorizeAccount }) {
               part: "snippet,status,contentDetails",
               id: ids.join(","),
               maxResults: 50,
-            }),
+            }).catch(() => null),
           ),
         );
         const detailsById = new Map(
