@@ -5,6 +5,7 @@ import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
+import com.nuvio.app.features.tiktak.deriveSportsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -84,6 +85,35 @@ class TikTakSportsChannelMatchingTest {
         val abcWest = espn.copy(id = "abc-west", name = "ABC West")
 
         assertNull(findScoreChannel(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()))
+    }
+
+    @Test
+    fun scoreMatchesBroadcastChannelEvenWhenOnlyOtherChannelsHaveGuideData() {
+        val state = deriveSportsState(
+            channels = listOf(nfl, espn),
+            programmes = mapOf("nfl.us" to programme("NFL Total Access")),
+            schedules = emptyMap(),
+            scores = listOf(event("in", "ESPN")),
+            sportFilter = "all",
+        )
+
+        assertEquals(espn, state.matchedChannels["game-1"])
+    }
+
+    @Test
+    fun broadcasterWithGenericSportGuideCanOpenWhenItIsTheOnlyCandidate() {
+        assertEquals(
+            espn,
+            findScoreChannel(event("in", "ESPN"), listOf(espn), mapOf("espn.us" to programme("College Football"))),
+        )
+    }
+
+    @Test
+    fun genericSportsGuideDoesNotOverrideAConflictingMatchup() {
+        val wrong = espn.copy(tvgId = "espn.wrong")
+        val programmes = mapOf("espn.wrong" to programme("Alabama Crimson Tide vs Auburn Tigers"))
+
+        assertNull(findScoreChannel(event("in", "ESPN"), listOf(wrong), programmes))
     }
 
     private fun event(state: String, broadcast: String) = NativeScoreEvent(
