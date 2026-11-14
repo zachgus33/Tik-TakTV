@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,6 +109,7 @@ fun TikTakYouTubeScreen(
     var results by remember { mutableStateOf<List<TikTakYouTubeItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var accountLoading by remember { mutableStateOf(false) }
+    var feedVersion by remember { mutableStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun localHistory(): List<TikTakYouTubeItem> =
@@ -148,6 +150,7 @@ fun TikTakYouTubeScreen(
             accountItems = (if (kind == "music") payload.musicFeed else payload.videoFeed)
                 .distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_YOUTUBE_FEED_ITEMS)
+            if (refresh) feedVersion += 1
             recentItems = if (kind == "video") payload.recentFeed
                 .distinctBy(TikTakYouTubeItem::stableKey)
                 .take(MAX_VISIBLE_YOUTUBE_ITEMS) else emptyList()
@@ -325,7 +328,14 @@ fun TikTakYouTubeScreen(
             item { YouTubeRow("Search results", results, onPlay) }
         }
         if ((kind == "music" || section == "forYou") && accountItems.isNotEmpty()) {
-            item { YouTubeRow(if (kind == "music") "Music For You" else "For You", accountItems, onPlay) }
+            item {
+                // LazyRow keeps its first visible card anchored by stable key
+                // when the server rotates suggestions. Start at the new first
+                // card after refresh so the change is visible immediately.
+                key(kind, feedVersion) {
+                    YouTubeRow(if (kind == "music") "Music For You" else "For You", accountItems, onPlay)
+                }
+            }
         } else if (kind == "video" && section == "forYou" && !accountLoading) {
             item {
                 Text("For You", style = MaterialTheme.typography.titleLarge)
