@@ -143,7 +143,13 @@ object TraktAuthRepository {
                 httpRequestRaw(
                     method = "POST",
                     url = "$BASE_URL/oauth/device/token",
-                    body = json.encodeToString(TraktDeviceTokenRequest(device.deviceCode, TraktConfig.CLIENT_ID)),
+                    body = json.encodeToString(
+                        TraktDeviceTokenRequest(
+                            code = device.deviceCode,
+                            clientId = TraktConfig.CLIENT_ID,
+                            clientSecret = TraktConfig.CLIENT_SECRET,
+                        ),
+                    ),
                     headers = mapOf("Accept" to "application/json", "Content-Type" to "application/json"),
                 )
             }.getOrNull() ?: continue
@@ -164,8 +170,11 @@ object TraktAuthRepository {
                     return
                 }
             }
-            if (poll.status == 409 || poll.status == 429) intervalMs += 5_000L
-            if (poll.status in listOf(400, 403, 404, 410)) break
+            when (traktDevicePollAction(poll.status)) {
+                TraktDevicePollAction.WAIT -> continue
+                TraktDevicePollAction.SLOW_DOWN -> intervalMs += 5_000L
+                TraktDevicePollAction.STOP -> break
+            }
         }
         if (generation == deviceFlowGeneration) {
             clearPendingAuthorization()
@@ -607,9 +616,19 @@ private data class TraktDeviceCodeResponse(
 
 @Serializable
 private data class TraktDeviceTokenRequest(
-    @SerialName("device_code") val deviceCode: String,
+    @SerialName("code") val code: String,
     @SerialName("client_id") val clientId: String,
+    @SerialName("client_secret") val clientSecret: String,
 )
+
+internal enum class TraktDevicePollAction { WAIT, SLOW_DOWN, STOP }
+
+internal fun traktDevicePollAction(status: Int): TraktDevicePollAction = when (status) {
+    400 -> TraktDevicePollAction.WAIT
+    429 -> TraktDevicePollAction.SLOW_DOWN
+    404, 409, 410, 418 -> TraktDevicePollAction.STOP
+    else -> TraktDevicePollAction.WAIT
+}
 
 @Serializable
 private data class TraktTokenResponse(

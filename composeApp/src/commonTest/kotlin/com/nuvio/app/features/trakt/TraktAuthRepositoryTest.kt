@@ -6,6 +6,19 @@ import kotlin.test.assertEquals
 class TraktAuthRepositoryTest {
 
     @Test
+    fun `device sign-in keeps polling while Trakt awaits approval`() {
+        assertEquals(TraktDevicePollAction.WAIT, traktDevicePollAction(400))
+        assertEquals(TraktDevicePollAction.SLOW_DOWN, traktDevicePollAction(429))
+    }
+
+    @Test
+    fun `device sign-in stops for invalid used expired or denied codes`() {
+        listOf(404, 409, 410, 418).forEach { status ->
+            assertEquals(TraktDevicePollAction.STOP, traktDevicePollAction(status))
+        }
+    }
+
+    @Test
     fun `HTTP 400 permanently invalidates a rejected refresh token`() {
         assertEquals(
             TraktTokenRefreshResponseAction.INVALIDATE,
