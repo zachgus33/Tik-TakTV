@@ -58,6 +58,7 @@ enum class MoreLikeThisSourcePreference {
 val DEFAULT_MORE_LIKE_THIS_SOURCE: MoreLikeThisSourcePreference = MoreLikeThisSourcePreference.TRAKT
 
 data class TraktSettingsUiState(
+    val scrobblingEnabled: Boolean = false,
     val watchProgressSource: WatchProgressSource = DEFAULT_WATCH_PROGRESS_SOURCE,
     val continueWatchingDaysCap: Int = TRAKT_DEFAULT_CONTINUE_WATCHING_DAYS_CAP,
     val librarySourceMode: LibrarySourceMode = DEFAULT_LIBRARY_SOURCE_MODE,
@@ -66,6 +67,7 @@ data class TraktSettingsUiState(
 
 @Serializable
 private data class StoredTraktSettings(
+    val scrobblingEnabled: Boolean = false,
     val watchProgressSource: String? = null,
     val continueWatchingDaysCap: Int = TRAKT_DEFAULT_CONTINUE_WATCHING_DAYS_CAP,
     val librarySourceMode: String? = null,
@@ -124,6 +126,13 @@ object TraktSettingsRepository {
         persist()
     }
 
+    fun setScrobblingEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.scrobblingEnabled == enabled) return
+        _uiState.value = _uiState.value.copy(scrobblingEnabled = enabled)
+        persist()
+    }
+
     fun setLibrarySourceMode(mode: LibrarySourceMode) {
         ensureLoaded()
         if (_uiState.value.librarySourceMode == mode) return
@@ -153,6 +162,7 @@ object TraktSettingsRepository {
 
         _uiState.value = if (stored != null) {
             TraktSettingsUiState(
+                scrobblingEnabled = stored.scrobblingEnabled,
                 watchProgressSource = WatchProgressSource.fromStorage(stored.watchProgressSource),
                 continueWatchingDaysCap = normalizeTraktContinueWatchingDaysCap(stored.continueWatchingDaysCap),
                 librarySourceMode = librarySourceModeFromStorage(stored.librarySourceMode),
@@ -167,6 +177,7 @@ object TraktSettingsRepository {
         TraktSettingsStorage.savePayload(
             json.encodeToString(
                 StoredTraktSettings(
+                    scrobblingEnabled = state.scrobblingEnabled,
                     watchProgressSource = state.watchProgressSource.name,
                     continueWatchingDaysCap = state.continueWatchingDaysCap,
                     librarySourceMode = state.librarySourceMode.name,

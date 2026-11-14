@@ -20,6 +20,7 @@ import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import { runtimeSeconds, shiftWebVtt } from "./player-utils";
+import { createTraktScrobbler } from "./trakt-scrobble";
 import {
   createParty,
   endParty,
@@ -92,6 +93,7 @@ function VideoPlayer({
   onFailure,
   onChooseSource,
   partyIdentity,
+  traktProfileName,
   onSeek,
 }: {
   playback: Playback;
@@ -102,6 +104,7 @@ function VideoPlayer({
   onFailure?: () => boolean;
   onChooseSource?: () => void;
   partyIdentity: PartyIdentity;
+  traktProfileName: string;
   onSeek?: (seconds: number) => void;
 }) {
   const tvMode =
@@ -353,6 +356,11 @@ function VideoPlayer({
     }
     const mediaOffset = playback.mediaOffset ?? 0;
     const absoluteTime = () => mediaOffset + (video.currentTime || 0);
+    const scrobbler = createTraktScrobbler(playback.item, playback.episode, traktProfileName);
+    const scrobbleProgress = () => {
+      const duration = runtimeSeconds(playback.item.runtime) || mediaOffset + video.duration;
+      return Number.isFinite(duration) && duration > 0 ? absoluteTime() / duration * 100 : 0;
+    };
     const persist = () =>
       storeProgress(
         playback.item,
@@ -436,6 +444,7 @@ function VideoPlayer({
     };
     const playingStarted = () => {
       setPlaying(true);
+      scrobbler.start(scrobbleProgress());
       reportMediaActivity(playbackMetricId, {
         active: true,
         event: "started",
@@ -443,10 +452,12 @@ function VideoPlayer({
     };
     const playingStopped = () => {
       setPlaying(false);
+      if (!video.ended) scrobbler.pause(scrobbleProgress());
       reportMediaActivity(playbackMetricId, { active: false });
     };
     const playbackEnded = () => {
       setPlaying(false);
+      scrobbler.stop(100);
       reportMediaActivity(playbackMetricId, {
         active: false,
         event: "ended",
@@ -566,6 +577,7 @@ function VideoPlayer({
       disposed = true;
       reportMediaActivity(playbackMetricId, { active: false });
       persist();
+      scrobbler.stop(scrobbleProgress());
       video.removeEventListener("loadedmetadata", loaded);
       video.removeEventListener("timeupdate", time);
       video.removeEventListener("progress", time);
@@ -583,7 +595,7 @@ function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [playback, retry]);
+  }, [playback, retry, traktProfileName]);
   useEffect(() => {
     if (!party) return;
     let disposed = false;
@@ -1221,10 +1233,12 @@ export default function Player({
   playback,
   onClose,
   partyIdentity,
+  traktProfileName,
 }: {
   playback: Playback;
   onClose: () => void;
   partyIdentity: PartyIdentity;
+  traktProfileName: string;
 }) {
   // Keep window state inside the player. Lifting this into App made every
   // minimize/restore rerender the complete guide or Sports tree, which can
@@ -1518,6 +1532,7 @@ export default function Player({
               : undefined
           }
           partyIdentity={partyIdentity}
+          traktProfileName={traktProfileName}
           onSeek={seekConversion}
         />
         {sourcePicker}

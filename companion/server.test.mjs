@@ -10,6 +10,7 @@ import {
   rewritePlaylist,
   rotateYoutubeAccount,
   youtubeForYouFeed,
+  youtubeMusicForYouFeed,
   youtubeDiscoveryQueries,
   youtubePersonalizedQueries,
   youtubeDiscoveryQuery,
@@ -62,6 +63,21 @@ test("For You blends interest discovery with popular videos, never subscription 
     ["interest-1", "popular-1", "related-1", "interest-2", "popular-2"],
   );
   assert.deepEqual(youtubeForYouFeed([], popular, []).map((item) => item.videoId), ["popular-1", "popular-2"]);
+});
+
+test("Music For You mixes recent interests with charts and caps repeat artists", () => {
+  const personal = Array.from({ length: 8 }, (_, index) => ({ videoId: `edward-${index}`, title: `Edward Maya - Song ${index}`, channel: "Edward Maya" }));
+  const chart = ["Artist A", "Artist B", "Artist C", "Artist D"].map((artist, index) => ({ videoId: `chart-${index}`, title: `${artist} - New song`, channel: artist }));
+  const feed = youtubeMusicForYouFeed(personal, chart, [], ["chart-0"]);
+  assert.equal(feed.filter((item) => item.channel === "Edward Maya").length, 2);
+  assert.deepEqual(feed.slice(0, 4).map((item) => item.videoId), ["edward-0", "edward-1", "chart-1", "chart-2"]);
+  assert.ok(feed.some((item) => item.channel === "Artist D"));
+  const covers = [
+    { videoId: "original", title: "Randomantic - James Reid (Lyrics)", channel: "Vibe Vault" },
+    { videoId: "live", title: "Randomantic (Live at the Dome)", channel: "Concerts" },
+    { videoId: "cover", title: "James Reid - Randomantic (Cover)", channel: "Covers" },
+  ];
+  assert.equal(youtubeMusicForYouFeed(covers, [], []).length, 2);
 });
 
 test("For You prioritizes unsubscribed discovery and derives a topic from watch history", () => {

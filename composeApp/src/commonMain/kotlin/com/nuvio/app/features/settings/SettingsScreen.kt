@@ -1036,7 +1036,16 @@ private fun TabletSettingsScreen(
                         selectedCategory = SettingsCategory.General.name
                         onPageChange(SettingsPage.Root)
                     } }
-                    item { SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
+                    item { SettingsSidebarItem("TikTak TV", Icons.Rounded.Settings, page == SettingsPage.NuvioEnhanced) {
+                        openInlinePage(SettingsPage.NuvioEnhanced)
+                    } }
+                    item { SettingsSidebarItem("Integrations", Icons.Rounded.Settings, page == SettingsPage.Integrations) {
+                        openInlinePage(SettingsPage.Integrations)
+                    } }
+                    item { SettingsSidebarItem("Trakt", Icons.Rounded.Settings, page == SettingsPage.TraktAuthentication) {
+                        openInlinePage(SettingsPage.TraktAuthentication)
+                    } }
+                    item { SettingsSidebarItem("Advanced", Icons.Rounded.Tune, page == SettingsPage.Advanced) {
                         openInlinePage(SettingsPage.Advanced)
                     } }
                     item { SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick) }

@@ -3967,6 +3967,7 @@ export default function App() {
         >
           <Player
             playback={playback}
+            traktProfileName={activeProfileView?.name ?? ""}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,

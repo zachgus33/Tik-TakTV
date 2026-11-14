@@ -132,6 +132,8 @@ internal object TraktScrobbleRepository {
         item: TraktScrobbleItem,
         progressPercent: Float,
     ) {
+        TraktSettingsRepository.ensureLoaded()
+        if (!TraktSettingsRepository.uiState.value.scrobblingEnabled) return
         if (ProfileRepository.activeProfileId != profileId) return
         val headers = TraktAuthRepository.authorizedHeaders() ?: return
         if (ProfileRepository.activeProfileId != profileId) return

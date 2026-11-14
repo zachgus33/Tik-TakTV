@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-const clientId = "--qC8Ym0uHVAfspvqjhVxFAM72ugEOgPzx68b31BHsY";
+export const traktClientId = "--qC8Ym0uHVAfspvqjhVxFAM72ugEOgPzx68b31BHsY";
+const clientId = traktClientId;
 const redirectUri = "https://www.tiktaktv.me/trakt-callback.html";
 const pendingKey = "tiktak:trakt-pending";
 const callbackKey = "tiktak:trakt-callback";
@@ -14,6 +15,9 @@ type Token = {
 type DeviceCode = { device_code: string; user_code: string; verification_url: string; expires_in: number; interval: number };
 
 const tokenKey = (profile: string) => `tiktak:trakt:${encodeURIComponent(profile)}`;
+const scrobbleKey = (profile: string) => `tiktak:trakt-scrobble:${encodeURIComponent(profile)}`;
+export const traktScrobblingEnabled = (profile: string): boolean =>
+  localStorage.getItem(scrobbleKey(profile)) === "1";
 const loadToken = (profile: string): Token | null => {
   try {
     const value = localStorage.getItem(tokenKey(profile));
@@ -45,19 +49,28 @@ async function validToken(profile: string, current: Token): Promise<Token> {
   return refreshed;
 }
 
+export async function traktAccessToken(profile: string): Promise<string | null> {
+  const current = loadToken(profile);
+  return current ? (await validToken(profile, current)).access_token : null;
+}
+
 function base64Url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export default function TraktSettings({ profileName }: { profileName: string }) {
   const [token, setToken] = useState<Token | null>(() => loadToken(profileName));
+  const [scrobblingEnabled, setScrobblingEnabled] = useState(() => traktScrobblingEnabled(profileName));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [username, setUsername] = useState("");
   const [watchlistCount, setWatchlistCount] = useState<number | null>(null);
   const [device, setDevice] = useState<(DeviceCode & { expiresAt: number }) | null>(null);
 
-  useEffect(() => { setToken(loadToken(profileName)); }, [profileName]);
+  useEffect(() => {
+    setToken(loadToken(profileName));
+    setScrobblingEnabled(traktScrobblingEnabled(profileName));
+  }, [profileName]);
 
   useEffect(() => {
     if (!device || token) return;
@@ -196,6 +209,8 @@ export default function TraktSettings({ profileName }: { profileName: string }) 
   async function disconnect() {
     const current = token;
     localStorage.removeItem(tokenKey(profileName));
+    localStorage.removeItem(scrobbleKey(profileName));
+    setScrobblingEnabled(false);
     setToken(null);
     setError("");
     if (current) {
@@ -213,6 +228,13 @@ export default function TraktSettings({ profileName }: { profileName: string }) 
     {token ? <>
       <p>Connected as <strong>{username || "your Trakt account"}</strong>.</p>
       {watchlistCount !== null && <p>Your Trakt watchlist has {watchlistCount} movies and shows.</p>}
+      <label className="check"><input type="checkbox" checked={scrobblingEnabled} onChange={(event) => {
+        const enabled = event.target.checked;
+        setScrobblingEnabled(enabled);
+        if (enabled) localStorage.setItem(scrobbleKey(profileName), "1");
+        else localStorage.removeItem(scrobbleKey(profileName));
+      }} /> Scrobble movies and episodes to my Trakt account</label>
+      <p className="hint">Off until you enable it. Collection visibility is controlled separately.</p>
       <button type="button" onClick={() => void disconnect()}>Disconnect Trakt</button>
     </> : <>
       <p>Connect only if you want to use Trakt. You will sign in to your own Trakt account.</p>

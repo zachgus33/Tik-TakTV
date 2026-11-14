@@ -61,6 +61,8 @@ import nuvio.composeapp.generated.resources.settings_trakt_approval_redirect
 import nuvio.composeapp.generated.resources.settings_trakt_authentication
 import nuvio.composeapp.generated.resources.settings_trakt_comments
 import nuvio.composeapp.generated.resources.settings_trakt_comments_description
+import nuvio.composeapp.generated.resources.settings_trakt_scrobbling
+import nuvio.composeapp.generated.resources.settings_trakt_scrobbling_description
 import nuvio.composeapp.generated.resources.settings_trakt_connect
 import nuvio.composeapp.generated.resources.settings_trakt_connected_as
 import nuvio.composeapp.generated.resources.settings_trakt_default_user
@@ -171,6 +173,15 @@ private fun TraktFeatureRows(
     val nuvioProgressSelectedMessage = stringResource(Res.string.trakt_watch_progress_nuvio_selected)
     val traktLibrarySelectedMessage = stringResource(Res.string.trakt_library_source_trakt_selected)
     val nuvioLibrarySelectedMessage = stringResource(Res.string.trakt_library_source_nuvio_selected)
+
+    SettingsSwitchRow(
+        title = stringResource(Res.string.settings_trakt_scrobbling),
+        description = stringResource(Res.string.settings_trakt_scrobbling_description),
+        checked = settingsUiState.scrobblingEnabled,
+        isTablet = isTablet,
+        onCheckedChange = TraktSettingsRepository::setScrobblingEnabled,
+    )
+    SettingsGroupDivider(isTablet = isTablet)
 
     TraktSettingsActionRow(
         title = stringResource(Res.string.trakt_library_source_title),

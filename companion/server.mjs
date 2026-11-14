@@ -249,6 +249,40 @@ export function youtubeForYouFeed(discoveryVideos, popularVideos, relatedVideos)
   return blended;
 }
 
+export function youtubeMusicForYouFeed(discoveryVideos, popularVideos, relatedVideos, watchedVideoIds = []) {
+  const watched = new Set(watchedVideoIds);
+  const seen = new Set();
+  const topics = new Map();
+  const channels = new Map();
+  const output = [];
+  const titleTopics = (title) => String(title || "")
+    .toLowerCase()
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+    .split(/\s[-–—|]\s/)
+    .map((part) => part.replace(/\b(official|music|video|lyrics?|audio|live|cover|remix|new|song|track|hd|4k)\b/g, " ").replace(/[^\p{L}\p{N}]+/gu, " ").trim())
+    .filter((part) => part.length >= 4 && part.length <= 45)
+    .slice(0, 2);
+  const add = (item) => {
+    if (!item?.videoId || watched.has(item.videoId) || seen.has(item.videoId)) return;
+    const channel = String(item.channelId || item.channel || "").toLowerCase();
+    const itemTopics = titleTopics(item.title);
+    if (itemTopics.some((topic) => (topics.get(topic) ?? 0) >= 2)) return;
+    if (channel && (channels.get(channel) ?? 0) >= 2) return;
+    seen.add(item.videoId);
+    for (const topic of itemTopics) topics.set(topic, (topics.get(topic) ?? 0) + 1);
+    if (channel) channels.set(channel, (channels.get(channel) ?? 0) + 1);
+    output.push(item);
+  };
+  // Mix personal discoveries with the wider chart on every page. A single
+  // recent artist or playlist must never take over the entire first screen.
+  for (let index = 0; index < Math.max(discoveryVideos.length, popularVideos.length, relatedVideos.length); index += 1) {
+    add(discoveryVideos[index]);
+    add(popularVideos[index]);
+    add(relatedVideos[index]);
+  }
+  return output;
+}
+
 export function youtubeDiscoveryQuery(title) {
   const words = String(title ?? "")
     .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
@@ -2522,7 +2556,6 @@ export function createService({ token, origins, authorizeAccount }) {
         const decoratedMusicPopular = (popularMusic?.items ?? [])
           .filter(youtubeMusicChartAllowed)
           .map((item) => decorate({ videoId: item.id })).filter(musicAllowed);
-        const musicFromHistory = decoratedHistory.filter(musicAllowed);
         const musicFromOwnPlaylists = decoratedPlaylists
           .filter((item) => item.kind === "music" && !playlistSelections.find(
             (playlist) => playlist.videoId === item.videoId,
@@ -2539,12 +2572,11 @@ export function createService({ token, origins, authorizeAccount }) {
             decoratedRecentFeed.filter((item) =>
               !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
           ).slice(0, 160),
-          musicFeed: youtubeForYouFeed(
+          musicFeed: youtubeMusicForYouFeed(
             decoratedMusicDiscovery,
-            musicFromHistory.length || musicFromOwnPlaylists.length
-              ? musicFromOwnPlaylists
-              : decoratedMusicPopular,
-            decoratedFeed.filter(musicAllowed),
+            decoratedMusicPopular,
+            [...musicFromOwnPlaylists, ...decoratedFeed.filter(musicAllowed)],
+            recentVideoIds,
           ).slice(0, 160),
           recentFeed: decoratedRecentFeed,
           subscriptionFeed: decoratedFeed.filter((item) => item.kind === "video"),
