@@ -295,6 +295,7 @@ export default function AccountPanel({
         <label className="switch-control">
           <input
             type="checkbox"
+            aria-label="Skip profile selection on launch"
             checked={skipProfileSelection}
             onChange={(event) => onSkipProfileSelection(event.target.checked)}
           />
