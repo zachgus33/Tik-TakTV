@@ -13,6 +13,9 @@ import {
   youtubeMusicForYouFeed,
   youtubeDiscoveryQueries,
   youtubePersonalizedQueries,
+  youtubeInterestQuery,
+  youtubeInterestMatches,
+  parseYoutubeSearchPage,
   youtubeDiscoveryQuery,
   youtubeLongFormVideo,
   youtubeMusicChartAllowed,
@@ -113,8 +116,26 @@ test("Show me more about adds interests without replacing recent watches", () =>
       ["Minecraft survival house tutorial", "Jazz house music mix", "Apple MacBook review"],
       ["survival", "camping", "gaming"],
     ),
-    ["minecraft survival house tutorial", "jazz house music mix", "apple macbook review", "survival", "camping"],
+    ["minecraft survival house tutorial", "jazz house music mix", "apple macbook review", "outdoor survival camping bushcraft -minecraft -roblox", "gaming"],
   );
+  assert.equal(youtubeInterestQuery("surviving"), youtubeInterestQuery("outdoors"));
+  assert.equal(youtubeInterestMatches({ title: "Solo bushcraft camping in the forest" }, "surviving"), true);
+  assert.equal(youtubeInterestMatches({ title: "Roblox survival camping simulator" }, "surviving"), false);
+  assert.equal(youtubeInterestMatches({ title: "Fable gameplay trailer" }, "camping"), false);
+});
+
+test("YouTube page fallback keeps long videos and filters Shorts", () => {
+  const video = (videoId, title, length) => ({ videoRenderer: {
+    videoId, title: { runs: [{ text: title }] }, ownerText: { runs: [{ text: "Outdoor channel" }] },
+    lengthText: { simpleText: length },
+  } });
+  const html = `var ytInitialData = ${JSON.stringify({ contents: [
+    video("dQw4w9WgXcQ", "Solo camping in the forest", "18:20"),
+    video("M7lc1UVf-VE", "Camping short", "0:58"),
+    video("jNQXAC9IVRw", "Minecraft survival gameplay", "12:04"),
+  ] })};`;
+  assert.deepEqual(parseYoutubeSearchPage(html).map((item) => item.videoId), ["dQw4w9WgXcQ", "jNQXAC9IVRw"]);
+  assert.deepEqual(parseYoutubeSearchPage("not a result"), []);
 });
 
 test("YouTube recent-video seeds are validated and bounded", () => {
@@ -709,8 +730,12 @@ test("auth and origin gates, bounded paths and SSRF prevention apply to API and 
       headers,
       body: JSON.stringify({ query: "Nuvio", kind: "video" }),
     });
-    if (!process.env.YOUTUBE_API_KEY)
-      assert.equal(missingYouTubeKey.status, 503);
+    if (!process.env.YOUTUBE_API_KEY) {
+      // Public page search may recover a query after the Data API quota ends.
+      assert.ok([200, 503].includes(missingYouTubeKey.status));
+      if (missingYouTubeKey.status === 200)
+        assert.ok((await missingYouTubeKey.json()).results.length > 0);
+    }
     const youtubeAccount = await fetch(base + "/youtube/account", {
       method: "POST",
       headers,

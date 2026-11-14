@@ -325,8 +325,27 @@ export function youtubeDiscoveryQueries(recentTitles, likedTitles, limit = 3) {
 export function youtubePersonalizedQueries(recentTitles, interestTopics) {
   return [...new Set([
     ...youtubeDiscoveryQueries(recentTitles, [], 3),
-    ...interestTopics.slice(0, 2),
+    ...interestTopics.slice(0, 4).map(youtubeInterestQuery),
   ])];
+}
+
+const outdoorInterest = /\b(surviv(?:e|al|ing)|camp(?:ing)?|outdoors?|hiking|bushcraft|wilderness|backpacking)\b/i;
+const outdoorVideo = /\b(camp(?:ing)?|outdoors?|hiking|bushcraft|wilderness|backpacking|shelter|forest|mountain|island|off.grid|surviv(?:e|al|ing))\b/i;
+const fictionalSurvival = /\b(minecraft|roblox|fortnite|fable|xbox|playstation|gaming|gameplay|trailer|animation|cartoon|simulator)\b/i;
+
+export function youtubeInterestQuery(topic) {
+  const value = String(topic ?? "").trim();
+  return outdoorInterest.test(value)
+    ? "outdoor survival camping bushcraft -minecraft -roblox"
+    : value;
+}
+
+export function youtubeInterestMatches(item, topic) {
+  const text = `${item.title ?? ""} ${item.channel ?? ""}`;
+  if (outdoorInterest.test(topic))
+    return outdoorVideo.test(text) && !fictionalSurvival.test(text);
+  const words = youtubeDiscoveryQuery(topic).split(" ").filter((word) => word.length >= 4);
+  return words.length > 0 && words.some((word) => text.toLowerCase().includes(word));
 }
 
 export function youtubeRecentVideoIds(value) {
@@ -409,6 +428,58 @@ export function youtubeTitlesRelated(watchedTitle, candidateTitle) {
 }
 
 const youtubeVideoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+
+// Public search remains usable when the Data API search quota is exhausted.
+// Only read YouTube's initial search results; never accept URLs from the page.
+export function parseYoutubeSearchPage(html, kind = "video") {
+  const marker = "var ytInitialData = ";
+  const start = html.indexOf(marker);
+  if (start < 0) return [];
+  const jsonStart = start + marker.length;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  let end = -1;
+  for (let i = jsonStart; i < html.length; i += 1) {
+    const char = html[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') quoted = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}" && --depth === 0) { end = i + 1; break; }
+  }
+  if (end < 0) return [];
+  let data;
+  try { data = JSON.parse(html.slice(jsonStart, end)); }
+  catch { return []; }
+  const results = [];
+  const seen = new Set();
+  const walk = (node) => {
+    if (!node || typeof node !== "object" || results.length >= 40) return;
+    const video = node.videoRenderer;
+    if (video && youtubeVideoIdPattern.test(video.videoId) && !seen.has(video.videoId)) {
+      const title = String(video.title?.runs?.map((run) => run.text).join("") ?? video.title?.simpleText ?? "").trim();
+      const channel = String(video.ownerText?.runs?.map((run) => run.text).join("") ?? video.longBylineText?.runs?.map((run) => run.text).join("") ?? "").trim();
+      const duration = String(video.lengthText?.simpleText ?? video.lengthText?.runs?.map((run) => run.text).join("") ?? "");
+      const seconds = duration.split(":").reduce((total, part) => total * 60 + Number(part), 0);
+      const isMusic = /(?:official (?:music )?video|official audio|lyrics?|visualizer|\btopic\b)/i.test(title) || /(?: - Topic|VEVO)$/i.test(channel);
+      if (title && channel && Number.isFinite(seconds) &&
+          (kind === "music" ? seconds > 30 && isMusic : seconds > 180 && !isMusic)) {
+        seen.add(video.videoId);
+        results.push({ videoId: video.videoId, title: title.slice(0, 300), channel: channel.slice(0, 200),
+          thumbnail: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`, kind });
+      }
+    }
+    for (const value of Object.values(node)) if (value && typeof value === "object") {
+      if (Array.isArray(value)) value.forEach(walk);
+      else walk(value);
+    }
+  };
+  walk(data?.contents);
+  return results.slice(0, 24);
+}
 const youtubePlaybackClients = [
   {
     name: "ANDROID",
@@ -1333,6 +1404,19 @@ export function createService({ token, origins, authorizeAccount }) {
     if (!response.ok) return null;
     return response.json();
   }
+  async function youtubePageSearch(query, kind) {
+    try {
+      const target = new URL("https://www.youtube.com/results");
+      target.searchParams.set("search_query", kind === "music" ? `${query} official music` : query);
+      target.searchParams.set("hl", "en");
+      const response = await upstreamFetch(target, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9" },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!response.ok) return [];
+      return parseYoutubeSearchPage(await response.text(), kind);
+    } catch { return []; }
+  }
   function friendCodeId(code) {
     return createHmac("sha256", friendKey)
       .update(`friend-code:${code}`)
@@ -2103,7 +2187,17 @@ export function createService({ token, origins, authorizeAccount }) {
         const rotateAccount = (account) => {
           const rotation = youtubeFeedRotations.get(userId) ?? 0;
           youtubeFeedRotations.set(userId, rotation + 1);
-          return rotateYoutubeAccount(account, rotation);
+          const rotated = rotateYoutubeAccount(account, rotation);
+          // Refresh can rotate the broad feed, but explicit interests must
+          // remain visible at the top instead of disappearing down the row.
+          if (interestTopics.length && account.featuredInterestCount) {
+            const count = account.featuredInterestCount;
+            rotated.videoFeed = [
+              ...account.videoFeed.slice(0, count),
+              ...rotateYoutubeItems(account.videoFeed.slice(count), rotation),
+            ];
+          }
+          return rotated;
         };
         if (
           cachedAccount?.expires > Date.now() &&
@@ -2231,6 +2325,12 @@ export function createService({ token, origins, authorizeAccount }) {
             .map((item) => item.snippet?.title),
           interestTopics,
         );
+        const interestQueries = [...new Set(interestTopics.map(youtubeInterestQuery))];
+        const interestPages = await Promise.all(interestQueries.map((query) => youtubePageSearch(query, "video")));
+        const interestSuggestions = interestPages.flatMap((items, index) =>
+          items.filter((item) => interestTopics.some((topic) =>
+            youtubeInterestQuery(topic) === interestQueries[index] && youtubeInterestMatches(item, topic),
+          )).slice(0, 12));
         const discoverySearches = await Promise.all(
           discoveryQueries.map(async (query) => {
             const cached = youtubeDiscoveryCache.get(query);
@@ -2580,18 +2680,22 @@ export function createService({ token, origins, authorizeAccount }) {
           .map((item) => decorate({ videoId: item.id })).filter(musicAllowed);
         const musicFromOwnPlaylists = ownedPlaylistTrackIds
           .map((videoId) => decorate({ videoId })).filter(musicAllowed);
+        const featuredInterests = interestSuggestions.slice(0, 4);
+        const featuredIds = new Set(featuredInterests.map((item) => item.videoId));
+        const personalizedVideos = youtubeForYouFeed(
+          [...interestSuggestions.slice(4), ...decoratedDiscovery],
+          decoratedPopular,
+          decoratedRecentFeed.filter((item) =>
+            !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
+        ).filter((item) => !featuredIds.has(item.videoId));
         const account = {
           configured: true,
           connected: true,
+          featuredInterestCount: featuredInterests.length,
           channel: channel.items?.[0]?.snippet ?? null,
           subscriptions: subscriptionItems,
           playlists: decoratedPlaylists,
-          videoFeed: youtubeForYouFeed(
-            decoratedDiscovery,
-            decoratedPopular,
-            decoratedRecentFeed.filter((item) =>
-              !subscribedChannelIds.has(detailsById.get(item.videoId)?.snippet?.channelId)),
-          ).slice(0, 160),
+          videoFeed: [...featuredInterests, ...personalizedVideos].slice(0, 160),
           musicFeed: youtubeMusicForYouFeed(
             decoratedMusicDiscovery,
             decoratedMusicPopular,
@@ -2635,10 +2739,14 @@ export function createService({ token, origins, authorizeAccount }) {
         };
         const payload = await youtubeApi(userId, "search", searchParams)
           ?? await youtubePublicApi("search", searchParams);
-        if (!payload)
-          return send(503, {
-            error: "YouTube search is temporarily unavailable. Connect your YouTube account or try again later.",
-          });
+        if (!payload) {
+          const fallback = channelId ? [] : await youtubePageSearch(query, kind);
+          if (fallback.length) {
+            youtubeCache.set(cacheKey, { results: fallback, expires: Date.now() + 15 * 60_000 });
+            return send(200, { results: fallback });
+          }
+          return send(503, { error: "YouTube search is temporarily unavailable. Please try again later." });
+        }
         let results = (Array.isArray(payload.items) ? payload.items : [])
           .map((item) => ({
             videoId: String(item?.id?.videoId ?? ""),
@@ -2656,8 +2764,14 @@ export function createService({ token, origins, authorizeAccount }) {
           };
           const details = await youtubeApi(userId, "videos", videoParams)
             ?? await youtubePublicApi("videos", videoParams);
-          if (!details)
-            return send(502, { error: "YouTube search is temporarily unavailable." });
+          if (!details) {
+            const fallback = channelId ? [] : await youtubePageSearch(query, kind);
+            if (fallback.length) {
+              youtubeCache.set(cacheKey, { results: fallback, expires: Date.now() + 15 * 60_000 });
+              return send(200, { results: fallback });
+            }
+            return send(502, { error: "YouTube search is temporarily unavailable. Please try again later." });
+          }
           const allowed = new Set(
             (details.items ?? [])
               .filter((item) => youtubeVideoAllowed(item, kind))
