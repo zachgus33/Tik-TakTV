@@ -1,5 +1,5 @@
 import { safeUrl } from "./api";
-import { manifestUrl } from "./addon-urls";
+import { baseFromManifest, manifestUrl } from "./addon-urls";
 import { itemKey, type Item, type Addon, type Progress } from "./types";
 
 export type CollectionSource = {
@@ -124,6 +124,7 @@ export function sourceAddon(
 export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
   const active = addons.filter((addon) => addon.enabled !== false);
   const catalogId = source.catalogId?.split(",", 1)[0];
+  if (!catalogId || !source.type) return undefined;
   const matchesCatalog = (addon: Addon) =>
     addon.manifest.catalogs?.find((entry) =>
       entry.type === source.type &&
@@ -135,15 +136,24 @@ export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
     manifestUrl(addon.base) === source.addonId ||
     addon.manifest.id === source.addonId,
   );
-  const addon = declared && matchesCatalog(declared)
-    ? declared
-    : active.find((item) => !!matchesCatalog(item));
+  // A saved row names its provider. Another add-on can reuse the same catalog ID.
+  const addon = declared ?? (!source.addonId ? active.find((item) => !!matchesCatalog(item)) : undefined);
   const catalog = addon && matchesCatalog(addon);
   if (addon && catalog) return { addon, catalog };
   // Saved collection rows can outlive a catalog's presence in a dynamic manifest.
   // Ask the original add-on for that exact catalog before treating the row as lost.
   if (declared && catalogId && source.type)
     return { addon: declared, catalog: { id: catalogId, type: source.type, name: String(source.title || catalogId) } };
+  // New rows keep the configured URL, so they survive a profile sync even if
+  // the add-on list has not yet been restored on the receiving device.
+  if (source.addonId && /^https:\/\//i.test(source.addonId)) {
+    try {
+      const base = baseFromManifest(manifestUrl(source.addonId));
+      if (addons.some((item) => item.enabled === false && item.base === base)) return undefined;
+      const fallback = { base, manifest: { id: source.addonId, name: source.addonId } } as Addon;
+      return { addon: fallback, catalog: { id: catalogId, type: source.type, name: String(source.title || catalogId) } };
+    } catch { return undefined; }
+  }
   const arabicId = source.addonId === "community.elcinema.metadata";
   const arabicCatalog = catalogId?.startsWith("elcinema-") && ["movie", "series"].includes(source.type || "");
   const arabicDisabled = addons.some((item) => item.manifest.id === "community.elcinema.metadata" && item.enabled === false);

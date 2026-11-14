@@ -1460,17 +1460,17 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
             val start = buffer.indexOf("<programme", ignoreCase = true)
             if (start < 0) {
                 if (buffer.length > XMLTV_STREAM_TAIL_CHARS) {
-                    buffer.delete(0, buffer.length - XMLTV_STREAM_TAIL_CHARS)
+                    buffer.deleteRange(0, buffer.length - XMLTV_STREAM_TAIL_CHARS)
                 }
                 break
             }
-            if (start > 0) buffer.delete(0, start)
+            if (start > 0) buffer.deleteRange(0, start)
             val end = buffer.indexOf("</programme>", ignoreCase = true)
             if (end < 0) break
             val blockEnd = end + "</programme>".length
             val openTagEnd = buffer.indexOf('>')
             if (openTagEnd < 0 || openTagEnd >= blockEnd) {
-                buffer.delete(0, blockEnd)
+                buffer.deleteRange(0, blockEnd)
                 continue
             }
             // Read only the small opening tag before allocating the complete programme block.
@@ -1485,11 +1485,11 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
                 ?.let(::normalizeGuideChannelId)
                 ?.let(canonicalTargetIds::get)
             if (channelId == null) {
-                buffer.delete(0, blockEnd)
+                buffer.deleteRange(0, blockEnd)
                 continue
             }
             val block = buffer.substring(0, blockEnd)
-            buffer.delete(0, blockEnd)
+            buffer.deleteRange(0, blockEnd)
             val parsed = parseXmlTvProgrammeSchedules(block, now).values.firstOrNull().orEmpty()
             if (parsed.isEmpty()) continue
             val channelEntries = accumulated.getOrPut(channelId) { mutableListOf() }

@@ -29,12 +29,23 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
         )
     }
 
-    val matching = activeAddons.firstNotNullOfOrNull { addon ->
+    if (source.addonId.startsWith("https://", ignoreCase = true)) {
+        val path = source.addonId.substringBefore('?').trimEnd('/')
+        val query = source.addonId.substringAfter('?', "").let { if (it.isBlank()) "" else "?$it" }
+        val url = (if (path.endsWith("/manifest.json")) path else "$path/manifest.json") + query
+        if (any { !it.enabled && it.manifestUrl == url }) return null
+        return ResolvedCollectionCatalog(
+            addon = ManagedAddon(manifestUrl = url),
+            catalog = AddonCatalog(source.type, source.catalogId.substringBefore(","), source.catalogId),
+        )
+    }
+
+    val matching = if (source.addonId.isBlank()) activeAddons.firstNotNullOfOrNull { addon ->
         val catalog = addon.manifest?.catalogs?.find {
             it.id == source.catalogId && it.type == source.type
         } ?: return@firstNotNullOfOrNull null
         ResolvedCollectionCatalog(addon = addon, catalog = catalog)
-    }
+    } else null
     if (matching != null) return matching
     val arabicAddonId = source.addonId == "community.elcinema.metadata"
     val arabicCatalog = source.catalogId.startsWith("elcinema-") && source.type in listOf("movie", "series")

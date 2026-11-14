@@ -189,7 +189,7 @@ object CollectionRepository {
                 .map { catalog ->
                     val genreExtra = catalog.extra.firstOrNull { it.name == "genre" }
                     AvailableCatalog(
-                        addonId = manifest.id,
+                        addonId = addon.manifestUrl,
                         addonName = addon.displayTitle,
                         type = catalog.type,
                         catalogId = catalog.id,

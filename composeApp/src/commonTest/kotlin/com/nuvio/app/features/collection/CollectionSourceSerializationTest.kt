@@ -1,5 +1,6 @@
 package com.nuvio.app.features.collection
 
+import com.nuvio.app.features.addons.ManagedAddon
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -11,6 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CollectionSourceSerializationTest {
@@ -18,6 +20,19 @@ class CollectionSourceSerializationTest {
         ignoreUnknownKeys = true
         encodeDefaults = true
         prettyPrint = false
+    }
+
+    @Test
+    fun configuredCatalogUrlSurvivesWithoutInstalledAddon() {
+        val source = CollectionCatalogSource(
+            addonId = "https://example.com/config?token=abc",
+            type = "movie",
+            catalogId = "curated",
+        )
+        val resolved = emptyList<ManagedAddon>().findCollectionCatalog(source)
+        assertEquals("https://example.com/config/manifest.json?token=abc", resolved?.addon?.manifestUrl)
+        assertEquals("curated", resolved?.catalog?.id)
+        assertNull(listOf(ManagedAddon(manifestUrl = resolved!!.addon.manifestUrl, enabled = false)).findCollectionCatalog(source))
     }
 
     @Test

@@ -72,6 +72,17 @@ describe("custom collection catalog resolution", () => {
     expect(resolved?.addon.base).toBe("https://arabcinemeta.osamayousry.com");
     expect(resolved?.catalog.id).toBe("elcinema-shahid-series");
   });
+  it("restores any configured add-on URL without a copied manifest", () => {
+    const resolved = sourceCatalog({ provider: "addon", addonId: "https://example.com/private/config?token=abc", type: "movie", catalogId: "curated" }, []);
+    expect(resolved?.addon.base).toBe("https://example.com/private/config?token=abc");
+    expect(resolved?.catalog.id).toBe("curated");
+  });
+  it("uses the named add-on when another add-on has the same catalog ID", () => {
+    const named = { base: "https://named.example", manifest: { id: "named", name: "Named", catalogs: [] } };
+    const other = { base: "https://other.example", manifest: { id: "other", name: "Other", catalogs: [{ type: "movie", id: "curated" }] } };
+    const resolved = sourceCatalog({ provider: "addon", addonId: "named", type: "movie", catalogId: "curated" }, [named, other]);
+    expect(resolved?.addon).toBe(named);
+  });
 });
 
 afterEach(() => {

@@ -38,12 +38,14 @@ export default function CollectionManager(props: {
   const choices = useMemo<CatalogChoice[]>(
     () =>
       props.addons.flatMap((addon) =>
-        (addon.manifest.catalogs ?? []).map((catalog) => ({
-          addonId: addon.manifest.id,
+        (addon.manifest.catalogs ?? [])
+          .filter((catalog) => !(catalog.extra ?? []).some((entry) => entry.isRequired && entry.name !== "genre"))
+          .map((catalog) => ({
+          addonId: addon.base,
           catalogId: catalog.id,
           type: catalog.type,
           label: `${addon.manifest.name} · ${catalog.name ?? catalog.id}`,
-        })),
+          })),
       ),
     [props.addons],
   );
