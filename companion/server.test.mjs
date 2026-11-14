@@ -118,6 +118,24 @@ test("For You prioritizes unsubscribed discovery and derives a topic from watch 
   );
 });
 
+test("For You keeps broad discovery without repeating a weak title topic", () => {
+  assert.deepEqual(
+    youtubeDiscoveryQueries(["Why you're not qualified", "Minecraft survival house tutorial"], []),
+    ["minecraft survival house tutorial"],
+  );
+  const subjects = ["Career", "School", "Interview", "College", "Recruitment", "Promotion", "Business", "Training"];
+  const narrow = subjects.map((subject, index) => ({
+    videoId: `qualified-${index}`,
+    title: `${subject} advice for people who are not qualified`,
+    channel: `Creator ${index}`,
+  }));
+  const broad = ["Camping in the mountains", "New gaming releases", "Fishing on the river"]
+    .map((title, index) => ({ videoId: `broad-${index}`, title, channel: `Other ${index}` }));
+  const feed = youtubeForYouFeed(narrow, broad, []);
+  assert.equal(feed.filter((item) => item.videoId.startsWith("qualified-")).length, 3);
+  assert.equal(feed.filter((item) => item.videoId.startsWith("broad-")).length, 3);
+});
+
 test("Show me more about adds interests without replacing recent watches", () => {
   assert.deepEqual(
     youtubePersonalizedQueries(

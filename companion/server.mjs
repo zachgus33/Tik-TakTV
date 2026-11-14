@@ -232,6 +232,7 @@ export function youtubeForYouFeed(discoveryVideos, popularVideos, relatedVideos)
   const seenVideos = new Set();
   const channelCounts = new Map();
   const titleCounts = new Map();
+  const topicCounts = new Map();
   const add = (item) => {
     if (!item?.videoId || seenVideos.has(item.videoId)) return;
     const channel = item.channelId || item.channel;
@@ -241,9 +242,14 @@ export function youtubeForYouFeed(discoveryVideos, popularVideos, relatedVideos)
       .match(/[\p{L}\p{N}]{4,}/gu)?.filter((word) => !youtubeGenericTitleWords.has(word))
       .slice(0, 3).join(" ") ?? "";
     if (titleKey && (titleCounts.get(titleKey) ?? 0) >= 2) return;
+    const topics = [...new Set(String(item.title || "").toLowerCase()
+      .match(/[\p{L}]{6,}/gu)?.filter((word) => !youtubeGenericTitleWords.has(word)))]
+      .slice(0, 4);
+    if (topics.some((word) => (topicCounts.get(word) ?? 0) >= 3)) return;
     seenVideos.add(item.videoId);
     if (channel) channelCounts.set(channel, (channelCounts.get(channel) ?? 0) + 1);
     if (titleKey) titleCounts.set(titleKey, (titleCounts.get(titleKey) ?? 0) + 1);
+    for (const word of topics) topicCounts.set(word, (topicCounts.get(word) ?? 0) + 1);
     blended.push(item);
   };
   // Keep fresh, broad discovery visible on the first screen. Uploads from
@@ -295,7 +301,10 @@ export function youtubeDiscoveryQuery(title) {
     .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
     .toLowerCase()
     .match(/[\p{L}\p{N}]{3,}/gu) ?? [];
-  return [...new Set(words.filter((word) => !youtubeGenericTitleWords.has(word)))]
+  return [...new Set(words.filter((word) =>
+    !youtubeGenericTitleWords.has(word) &&
+    !youtubeWeakDiscoveryWords.has(word),
+  ))]
     .slice(0, 5)
     .join(" ");
 }
@@ -309,7 +318,7 @@ export function youtubeDiscoveryQueries(recentTitles, likedTitles, limit = 3) {
   const queries = [];
   for (const title of candidates) {
     const query = youtubeDiscoveryQuery(title);
-    if (query.length < 5) continue;
+    if (query.split(" ").length < 2) continue;
     const words = new Set(query.split(" "));
     if (queries.some((existing) => {
       const existingWords = new Set(existing.split(" "));
@@ -421,6 +430,14 @@ const youtubeGenericTitleWords = new Set([
   "about", "after", "again", "best", "first", "from", "full", "latest",
   "more", "most", "official", "part", "shorts", "that", "this", "today",
   "video", "watch", "with", "your",
+]);
+
+// These phrases describe a video without saying what subject to discover.
+// Searching for them pulls unrelated uploads into the broad For You feed.
+const youtubeWeakDiscoveryWords = new Set([
+  "can", "could", "did", "does", "get", "getting", "how", "job", "know",
+  "need", "not", "qualified", "really", "should", "think", "was", "what",
+  "when", "where", "which", "who", "why", "will", "would",
 ]);
 
 export function youtubeTitlesRelated(watchedTitle, candidateTitle) {
