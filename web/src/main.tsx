@@ -41,7 +41,11 @@ class ErrorBoundary extends React.Component<
   }
   componentDidCatch(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    if (/dynamically imported module|loading chunk|importing a module/i.test(message))
+    if (
+      /dynamically imported module|loading chunk|importing a module/i.test(
+        message,
+      )
+    )
       recoverFromReplacedBuild();
   }
   render() {
@@ -56,13 +60,29 @@ class ErrorBoundary extends React.Component<
     );
   }
 }
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>,
-);
+// Older service workers may still serve the app shell for this path. Handle
+// the authorization result here too so an existing PWA can finish sign-in.
+const isTraktCallback = location.pathname === "/trakt-callback.html";
+if (isTraktCallback) {
+  const params = new URLSearchParams(location.search);
+  localStorage.setItem(
+    "tiktak:trakt-callback",
+    JSON.stringify({
+      code: params.get("code"),
+      state: params.get("state"),
+      error: params.get("error"),
+    }),
+  );
+  location.replace("/#settings");
+} else {
+  createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>,
+  );
+}
 
 declare global {
   interface Window {
@@ -84,7 +104,12 @@ const isTvShell =
   new URLSearchParams(location.search).get("tv") === "1" ||
   /TikTakTV-AndroidTV/i.test(navigator.userAgent);
 
-if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
+if (
+  "serviceWorker" in navigator &&
+  import.meta.env.PROD &&
+  !isTvShell &&
+  !isTraktCallback
+) {
   const registerServiceWorker = () => {
     let refreshing = false;
     let replacingExistingWorker = !!navigator.serviceWorker.controller;
@@ -96,7 +121,8 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && !isTvShell) {
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`)
       .then((registration) => {
-        replacingExistingWorker = replacingExistingWorker || !!registration.active;
+        replacingExistingWorker =
+          replacingExistingWorker || !!registration.active;
         const activate = () =>
           registration.waiting?.postMessage({ type: "SKIP_WAITING" });
         (

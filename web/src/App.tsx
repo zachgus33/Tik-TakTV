@@ -476,7 +476,13 @@ function ProfileGate({
         </aside>
       )}
       <section>
-        <h1>{pinProfile ? `Unlock ${pinProfile.name}` : email ? "Who's watching?" : "Your entertainment, your way"}</h1>
+        <h1>
+          {pinProfile
+            ? `Unlock ${pinProfile.name}`
+            : email
+              ? "Who's watching?"
+              : "Your entertainment, your way"}
+        </h1>
         {!email && (
           <p className="profile-gate-intro">
             Sign in to restore your profiles and add-ons, or create a free Nuvio
@@ -497,31 +503,33 @@ function ProfileGate({
           <Loading />
         ) : email ? (
           <>
-            {!pinProfile && <div className="profile-choices">
-              {list.map((profile, index) => (
-                <button
-                  key={profile.profile_index}
-                  onClick={() =>
-                    profile.pin_enabled
-                      ? setPinProfile(profile)
-                      : void enter(profile)
-                  }
-                  disabled={busy}
-                >
-                  <span
-                    style={
-                      {
-                        "--profile-hue": `${(index * 83 + 275) % 360}`,
-                      } as React.CSSProperties
+            {!pinProfile && (
+              <div className="profile-choices">
+                {list.map((profile, index) => (
+                  <button
+                    key={profile.profile_index}
+                    onClick={() =>
+                      profile.pin_enabled
+                        ? setPinProfile(profile)
+                        : void enter(profile)
                     }
+                    disabled={busy}
                   >
-                    {profile.name.trim().slice(0, 1).toUpperCase()}
-                  </span>
-                  <strong>{profile.name}</strong>
-                  {profile.pin_enabled && <small>PIN required</small>}
-                </button>
-              ))}
-            </div>}
+                    <span
+                      style={
+                        {
+                          "--profile-hue": `${(index * 83 + 275) % 360}`,
+                        } as React.CSSProperties
+                      }
+                    >
+                      {profile.name.trim().slice(0, 1).toUpperCase()}
+                    </span>
+                    <strong>{profile.name}</strong>
+                    {profile.pin_enabled && <small>PIN required</small>}
+                  </button>
+                ))}
+              </div>
+            )}
             {pinProfile && (
               <form
                 className="profile-pin"
@@ -709,19 +717,25 @@ function Art({
   const [failed, setFailed] = useState(false);
   const src = wide ? (item.background ?? item.poster) : item.poster;
   const [displaySrc, setDisplaySrc] = useState(
-    src?.startsWith("http:") ? "" : src ?? "",
+    src?.startsWith("http:") ? "" : (src ?? ""),
   );
   useEffect(() => {
     if (item.type === "live") return;
     let cancelled = false;
     setFailed(false);
-    setDisplaySrc(src?.startsWith("http:") ? "" : src ?? "");
+    setDisplaySrc(src?.startsWith("http:") ? "" : (src ?? ""));
     if (src?.startsWith("http:"))
       void relayedArtwork(src).then(
-        (url) => { if (!cancelled) setDisplaySrc(url); },
-        () => { if (!cancelled) setFailed(true); },
+        (url) => {
+          if (!cancelled) setDisplaySrc(url);
+        },
+        () => {
+          if (!cancelled) setFailed(true);
+        },
       );
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [src, item.type]);
   if (item.type === "live")
     return <ChannelArt channel={item} guideArtwork={guideArtwork} />;
@@ -1675,7 +1689,7 @@ function Detail({
                           ? `${source.streams} stream${source.streams === 1 ? "" : "s"}`
                           : source.status === "paused"
                             ? "Temporarily paused"
-                            : source.reason ?? "Request failed"}
+                            : (source.reason ?? "Request failed")}
                       </span>
                     </li>
                   ))}
@@ -2294,7 +2308,10 @@ export default function App() {
                   : [],
               ),
             ];
-            const hasExactQueryResults = hasRelevantTitle(deferredQuery, originalCandidates);
+            const hasExactQueryResults = hasRelevantTitle(
+              deferredQuery,
+              originalCandidates,
+            );
             let suggestion = exactSearch
               ? searchSuggestion
               : hasExactQueryResults
@@ -2685,8 +2702,11 @@ export default function App() {
             image: profile.avatar_url ?? undefined,
             color: profile.avatar_color_hex,
           });
-          location.hash = "home";
-          setPage("home");
+          const landingPage = localStorage.getItem("tiktak:trakt-callback")
+            ? "settings"
+            : "home";
+          location.hash = landingPage;
+          setPage(landingPage);
           setProfileReady(true);
           setProfileSyncing(true);
         }}
@@ -3728,13 +3748,17 @@ export default function App() {
                         ? remaining
                         : [
                             {
-                              item: youtubeProgressItem(next.videoId, undefined, [
-                                {
-                                  videoId: next.videoId,
-                                  title: next.title,
-                                  thumbnail: next.thumbnail,
-                                },
-                              ]),
+                              item: youtubeProgressItem(
+                                next.videoId,
+                                undefined,
+                                [
+                                  {
+                                    videoId: next.videoId,
+                                    title: next.title,
+                                    thumbnail: next.thumbnail,
+                                  },
+                                ],
+                              ),
                               seconds: next.seconds,
                               duration: next.duration,
                               at: Date.now(),

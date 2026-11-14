@@ -34,6 +34,8 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
         globIgnores: ["**/hls-*.js"],
         navigateFallback: "index.html",
+        // OAuth must load its real callback document, even under an installed PWA.
+        navigateFallbackDenylist: [/^\/trakt-callback\.html$/],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         // Claim existing PWA windows so controllerchange can reload stale
