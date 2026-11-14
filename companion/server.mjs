@@ -2463,6 +2463,10 @@ export function createService({ token, origins, authorizeAccount }) {
             },
           ];
         });
+        const ownedPlaylistTrackIds = playlistItems.flatMap((playlist, index) =>
+          playlist.discoveredMusic ? [] : (playlistLeads[index]?.items ?? [])
+            .map((entry) => String(entry?.contentDetails?.videoId ?? entry?.snippet?.resourceId?.videoId ?? ""))
+            .filter((id) => youtubeVideoIdPattern.test(id)));
         const detailIds = [
           ...new Set([
             ...discoveryCandidates.map((item) => item.videoId),
@@ -2470,6 +2474,7 @@ export function createService({ token, origins, authorizeAccount }) {
             ...uniqueFeed.map((item) => item.videoId),
             ...uniqueRecentFeed.map((item) => item.videoId),
             ...playlistSelections.map((item) => item.videoId),
+            ...ownedPlaylistTrackIds,
             ...musicDiscoveryCandidates.map((item) => item.videoId),
             ...(popularMusic?.items ?? []).map((item) => item.id),
             ...recentVideoIds,
@@ -2563,10 +2568,8 @@ export function createService({ token, origins, authorizeAccount }) {
         const decoratedMusicPopular = (popularMusic?.items ?? [])
           .filter(youtubeMusicChartAllowed)
           .map((item) => decorate({ videoId: item.id })).filter(musicAllowed);
-        const musicFromOwnPlaylists = decoratedPlaylists
-          .filter((item) => item.kind === "music" && !playlistSelections.find(
-            (playlist) => playlist.videoId === item.videoId,
-          )?.discoveredMusic);
+        const musicFromOwnPlaylists = ownedPlaylistTrackIds
+          .map((videoId) => decorate({ videoId })).filter(musicAllowed);
         const account = {
           configured: true,
           connected: true,
