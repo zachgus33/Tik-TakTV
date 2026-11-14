@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -408,6 +411,8 @@ private fun NuvioViewAllPill(
     val actionSize = if (LocalTvMode.current) 48.dp else if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Space.s32 else NuvioTokens.Space.s40
     val iconSize = if (size == NuvioViewAllPillSize.Compact) NuvioTokens.Icon.sm else tokens.icons.md
     val viewAllText = stringResource(Res.string.home_view_all)
+    val hoverInteraction = remember { MutableInteractionSource() }
+    val hovered by hoverInteraction.collectIsHoveredAsState()
 
     Box(
         modifier = modifier
@@ -415,6 +420,12 @@ private fun NuvioViewAllPill(
             .then(if (onClick != null) Modifier.tikTakTvFocus() else Modifier)
             .background(
                 color = tokens.colors.surface,
+                shape = RoundedCornerShape(NuvioTokens.Radius.xl),
+            )
+            .hoverable(hoverInteraction, enabled = onClick != null && LocalTvMode.current)
+            .border(
+                width = if (hovered && LocalTvMode.current) 2.dp else 0.dp,
+                color = tokens.colors.accent,
                 shape = RoundedCornerShape(NuvioTokens.Radius.xl),
             )
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
