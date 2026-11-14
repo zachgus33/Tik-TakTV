@@ -47,11 +47,6 @@ open class NativeTvActivity : MainActivity() {
         enterTvFullscreen()
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (BuildConfig.ENABLE_SIDELOAD_UPDATES && ::previewUpdater.isInitialized) previewUpdater.resumePendingInstall()
-    }
-
     @Composable
     override fun AppContent() {
         CompositionLocalProvider(

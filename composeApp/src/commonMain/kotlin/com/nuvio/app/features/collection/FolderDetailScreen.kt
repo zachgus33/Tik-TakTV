@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.NuvioPosterCard
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioPosterShape
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
@@ -91,13 +92,14 @@ fun FolderDetailScreen(
         NuvioEnhancedSettingsRepository.uiState
     }.collectAsState()
     val folder = uiState.folder
+    val isTvMode = LocalTvMode.current
     val coverImageUrl = folder?.coverImageUrl?.takeIf { it.isNotBlank() }
     val heroImageUrl = folder?.heroBackdropUrl?.takeIf { it.isNotBlank() } ?: coverImageUrl
     val titleLogoUrl = folder?.titleLogoUrl?.takeIf { it.isNotBlank() }
     val hasHeroBanner = heroImageUrl != null || titleLogoUrl != null
     val density = LocalDensity.current
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val maxHeroHeightPx = with(density) { FolderCoverHeight.toPx() }
+    val maxHeroHeightPx = with(density) { (if (isTvMode) 112.dp else FolderCoverHeight).toPx() }
     var heroHeightPx by remember(hasHeroBanner, maxHeroHeightPx) {
         mutableFloatStateOf(if (hasHeroBanner) maxHeroHeightPx else 0f)
     }
@@ -296,7 +298,8 @@ private fun TabbedGridContent(
         if (selectedTab == null) return
 
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val columns = remember(maxWidth) { folderDetailGridColumnsForWidth(maxWidth) }
+            val isTvMode = LocalTvMode.current
+            val columns = remember(maxWidth, isTvMode) { folderDetailGridColumnsForWidth(maxWidth, isTvMode) }
 
             when {
                 selectedTab.isLoading && selectedTab.items.isEmpty() -> LoadingIndicator()
@@ -407,8 +410,12 @@ private fun PaginationLoadingFooter() {
     }
 }
 
-private fun folderDetailGridColumnsForWidth(screenWidth: Dp): Int =
+private fun folderDetailGridColumnsForWidth(screenWidth: Dp, isTvMode: Boolean): Int =
     when {
+        isTvMode && screenWidth >= 1400.dp -> 9
+        isTvMode && screenWidth >= 1000.dp -> 7
+        isTvMode && screenWidth >= 840.dp -> 6
+        isTvMode && screenWidth >= 600.dp -> 5
         screenWidth >= 1400.dp -> 7
         screenWidth >= 1200.dp -> 6
         screenWidth >= 1000.dp -> 5

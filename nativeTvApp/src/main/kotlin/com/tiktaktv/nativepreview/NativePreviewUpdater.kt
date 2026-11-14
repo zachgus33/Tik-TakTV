@@ -26,7 +26,10 @@ internal class NativePreviewUpdater(private val activity: Activity) {
             runCatching {
                 val metadata = readJson(BuildConfig.UPDATE_METADATA_URL)
                 val versionCode = metadata.getLong("versionCode")
-                if (versionCode <= BuildConfig.VERSION_CODE) return@runCatching
+                if (versionCode <= BuildConfig.VERSION_CODE) {
+                    clearPendingApk()
+                    return@runCatching
+                }
                 val versionName = metadata.optString("versionName", "new preview")
                 val apkUrl = metadata.getString("apkUrl")
                 val expectedSha256 = metadata.getString("sha256")
@@ -45,11 +48,6 @@ internal class NativePreviewUpdater(private val activity: Activity) {
             isDaemon = true
             start()
         }
-    }
-
-    fun resumePendingInstall() {
-        val apk = pendingApk() ?: return
-        if (canInstallPackages()) install(apk)
     }
 
     private fun showReadyDialog(versionName: String) {
@@ -78,12 +76,19 @@ internal class NativePreviewUpdater(private val activity: Activity) {
         ?.let(::File)
         ?.takeIf(File::exists)
 
+    private fun clearPendingApk() {
+        val staleApk = pendingApk()
+        preferences.edit().remove(PENDING_APK).apply()
+        staleApk?.delete()
+    }
+
     private fun canInstallPackages(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || activity.packageManager.canRequestPackageInstalls()
 
     private fun install(apk: File) {
         if (installLaunched) return
         installLaunched = true
+        preferences.edit().remove(PENDING_APK).apply()
         val uri = FileProvider.getUriForFile(
             activity,
             "${activity.packageName}.fileprovider",

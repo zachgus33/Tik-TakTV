@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
+import com.nuvio.app.core.ui.LocalTvMode
+import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
 import com.nuvio.app.core.ui.landscapePosterWidth
@@ -109,6 +115,9 @@ private fun CollectionFolderCard(
     onClick: (() -> Unit)? = null,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
+    val isTvMode = LocalTvMode.current
+    val hoverInteraction = remember { MutableInteractionSource() }
+    val isHovered by hoverInteraction.collectIsHoveredAsState()
     val isLandscapeMode = posterCardStyle.catalogLandscapeModeEnabled
     val shape = if (isLandscapeMode) PosterShape.Landscape else folder.posterShape
     val cardWidth: Dp
@@ -116,15 +125,15 @@ private fun CollectionFolderCard(
 
     when (shape) {
         PosterShape.Poster -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = if (isTvMode) minOf(posterCardStyle.widthDp.dp, 156.dp) else posterCardStyle.widthDp.dp
             aspectRatio = 0.675f
         }
         PosterShape.Landscape -> {
-            cardWidth = landscapePosterWidth(posterCardStyle.widthDp)
+            cardWidth = if (isTvMode) minOf(landscapePosterWidth(posterCardStyle.widthDp), 224.dp) else landscapePosterWidth(posterCardStyle.widthDp)
             aspectRatio = PosterLandscapeAspectRatio
         }
         PosterShape.Square -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = if (isTvMode) minOf(posterCardStyle.widthDp.dp, 156.dp) else posterCardStyle.widthDp.dp
             aspectRatio = 1f
         }
     }
@@ -139,6 +148,12 @@ private fun CollectionFolderCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(aspectRatio)
+                .then(if (isTvMode) Modifier.hoverable(hoverInteraction) else Modifier)
+                .border(
+                    width = if (isTvMode && isHovered) 3.dp else 0.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = shapeCorner,
+                )
                 .nuvioCardDepth(
                     shape = shapeCorner,
                     surface = NuvioCardDepthSurface.Posters,
@@ -185,6 +200,7 @@ private fun CollectionFolderCard(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .tikTakTvFocus()
                             .posterCardClickable(onClick = onClick, onLongClick = null),
                     )
                 }
