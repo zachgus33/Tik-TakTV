@@ -2171,7 +2171,7 @@ export default function App() {
       (a.manifest.catalogs ?? [])
         .filter(
           (c) =>
-            (c.type === kind || c.type === "trakt") &&
+            (c.type === kind || c.type === "trakt" || c.type === "all") &&
             !c.extra?.some((e) => e.isRequired && e.name !== "search"),
         )
         .map((c) => ({
@@ -2319,7 +2319,7 @@ export default function App() {
               (addon.manifest.catalogs ?? [])
                 .filter(
                   (entry) =>
-                    (scopes.includes(entry.type as Kind) || entry.type === "trakt") &&
+                    (scopes.includes(entry.type as Kind) || entry.type === "trakt" || entry.type === "all") &&
                     entry.extra?.some((extra) => extra.name === "search"),
                 )
                 .map((entry) => ({ addon, catalog: entry })),

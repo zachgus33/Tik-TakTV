@@ -13,7 +13,7 @@ export type CatalogChoice = {
 // Some add-ons expose movie and series items through a shared catalog type.
 // Keep the manifest's type for requests; the returned metas carry their own type.
 export function isMediaCatalogType(type: string): boolean {
-  return ["movie", "series", "trakt"].includes(type);
+  return ["movie", "series", "trakt", "all"].includes(type);
 }
 
 export function catalogChoices(addons: Addon[]): CatalogChoice[] {

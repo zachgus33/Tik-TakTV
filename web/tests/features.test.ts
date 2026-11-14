@@ -440,6 +440,17 @@ describe("home catalog management", () => {
     expect(homeCatalogEntries([traktAddon], []).map((entry) => entry.catalog.id)).toEqual(["trakt_trending_movies"]);
   });
 
+  it("includes AIO Metadata catalogs with the shared all type", () => {
+    const addon = {
+      base: "https://metadata.example/config",
+      manifest: { id: "aio-metadata", name: "AIO Metadata", catalogs: [
+        { id: "trakt.list.30828647", type: "all", name: "Trending Movies" },
+      ] },
+    };
+    expect(catalogChoices([addon]).map((choice) => choice.catalogId)).toEqual(["trakt.list.30828647"]);
+    expect(homeCatalogEntries([addon], []).map((entry) => entry.catalog.type)).toEqual(["all"]);
+  });
+
   it("keeps separately configured copies of the same add-on distinct", () => {
     const choices = catalogChoices(addons);
     expect(choices).toHaveLength(2);
