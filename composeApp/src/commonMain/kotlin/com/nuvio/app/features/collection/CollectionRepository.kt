@@ -298,9 +298,9 @@ internal fun validateImportModel(collections: List<Collection>): CollectionImpor
             if (!folderIds.add(f.id)) {
                 return CollectionImportModelError.DuplicateFolderId(f.id, c.title)
             }
-            if (f.title.isBlank()) {
-                return CollectionImportModelError.BlankFolderTitle(f.id, c.title)
-            }
+            // The web client accepts folders with empty titles (for example,
+            // image-only Network tiles) and supplies a fallback label. Preserve
+            // the same collection data when importing a friend setup on TV.
             f.resolvedSources.forEachIndexed { si, s ->
                 if (s.hasInvalidTraktListId()) {
                     return CollectionImportModelError.InvalidTraktListId(si + 1, f.title)

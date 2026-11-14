@@ -380,6 +380,7 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var importSucceeded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     SettingsSection(title = "TikTak TV", isTablet = isTablet) {
@@ -389,7 +390,11 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                 description = "Install a shared TikTak TV setup on this profile",
                 icon = Icons.Rounded.Security,
                 isTablet = isTablet,
-                onClick = { dialogVisible = true },
+                onClick = {
+                    message = null
+                    importSucceeded = false
+                    dialogVisible = true
+                },
             )
         }
     }
@@ -409,7 +414,7 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                         enabled = !busy,
                         label = { Text("Friend code") },
                     )
-                    message?.let { Text(it, color = if (it.startsWith("Installed")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                    message?.let { Text(it, color = if (importSucceeded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
                 }
             },
             confirmButton = {
@@ -419,6 +424,10 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                         scope.launch {
                             busy = true
                             message = null
+                            importSucceeded = false
+                            val installed = mutableListOf<String>()
+                            var planned = emptyList<String>()
+                            var currentStep = "reading the friend setup"
                             runCatching {
                                 val response = TikTakServiceClient.post("/friend/redeem", "{\"code\":\"$code\"}")
                                 if (response.status !in 200..299) {
@@ -458,27 +467,65 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                         password = provider["password"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                                     )
                                 }
+                                val torboxKey = root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+                                val realDebridKey = root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+                                planned = buildList {
+                                    add("${sharedAddons.size} add-ons")
+                                    add("${collections.size} collections")
+                                    add("${catalogItems.size} home catalogs")
+                                    if (autoplay != null) add("playback preferences")
+                                    if (sharedProvider != null) add("IPTV connection")
+                                    if (torboxKey != null) add("TorBox access")
+                                    if (realDebridKey != null) add("Real-Debrid access")
+                                }
 
+                                currentStep = "add-ons"
                                 AddonRepository.replaceFromFriendSetup(sharedAddons)
+                                installed += "${sharedAddons.size} add-ons"
+                                currentStep = "collections"
                                 CollectionRepository.importFromJson(collections.toString()).getOrThrow()
+                                installed += "${collections.size} collections"
+                                currentStep = "home catalogs"
                                 HomeCatalogSettingsRepository.applyFromRemote(
                                     HomeCatalogSettingsRepository.exportToSyncPayload().copy(items = catalogItems),
                                 )
+                                installed += "${catalogItems.size} home catalogs"
+                                currentStep = "home catalog sync"
                                 HomeCatalogSettingsSyncService.triggerPush()
+                                currentStep = "playback preferences"
                                 autoplay?.let {
                                     PlayerSettingsRepository.setStreamAutoPlayMode(
                                         if (it) StreamAutoPlayMode.FIRST_STREAM else StreamAutoPlayMode.MANUAL,
                                     )
+                                    installed += "playback preferences"
                                 }
-                                sharedProvider?.let(com.nuvio.app.features.livetv.LiveTvRepository::installSharedXtreamSettings)
-                                root["torboxKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setTorboxApiKey)
-                                root["realDebridKey"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)?.let(DebridSettingsRepository::setRealDebridApiKey)
-                                "Installed shared setup (${sharedAddons.size} add-ons, ${collections.size} collections)."
+                                currentStep = "IPTV connection"
+                                sharedProvider?.let {
+                                    com.nuvio.app.features.livetv.LiveTvRepository.installSharedXtreamSettings(it)
+                                    installed += "IPTV connection"
+                                }
+                                currentStep = "TorBox access"
+                                torboxKey?.let {
+                                    DebridSettingsRepository.setTorboxApiKey(it)
+                                    installed += "TorBox access"
+                                }
+                                currentStep = "Real-Debrid access"
+                                realDebridKey?.let {
+                                    DebridSettingsRepository.setRealDebridApiKey(it)
+                                    installed += "Real-Debrid access"
+                                }
+                                "Installed: ${installed.joinToString()}."
                             }.onSuccess { summary ->
                                 message = summary
+                                importSucceeded = true
                                 code = ""
                             }.onFailure { error ->
-                                message = error.message ?: "Friend setup could not be installed."
+                                val reason = error.message ?: "Unknown error."
+                                message = if (installed.isEmpty()) {
+                                    "Nothing was installed. $reason"
+                                } else {
+                                    "Installed: ${installed.joinToString()}. Not installed: ${planned.drop(installed.size).joinToString()}. $currentStep failed: $reason Retry the code."
+                                }
                             }
                             busy = false
                         }

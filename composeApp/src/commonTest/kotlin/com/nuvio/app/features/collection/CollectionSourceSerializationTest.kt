@@ -224,6 +224,29 @@ class CollectionSourceSerializationTest {
     }
 
     @Test
+    fun importModelAcceptsNetworkFolderWithBlankTitle() {
+        val collections = listOf(
+            Collection(
+                id = "network",
+                title = "Network",
+                folders = listOf(
+                    CollectionFolder(
+                        id = "folder-a638b0b6",
+                        title = "",
+                        hideTitle = false,
+                        coverImageUrl = "https://images.example/netflix-card.png",
+                    ),
+                ),
+            ),
+        )
+
+        assertNull(validateImportModel(collections))
+        val decoded = json.decodeFromString<List<Collection>>(json.encodeToString(collections))
+        assertEquals("", decoded.single().folders.single().title)
+        assertFalse(decoded.single().folders.single().hideTitle)
+    }
+
+    @Test
     fun legacyAddonCatalogSourcesRemainCompatible() {
         val payload = """
             [
