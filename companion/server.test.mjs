@@ -63,6 +63,8 @@ test("For You blends interest discovery with popular videos, never subscription 
     ["interest-1", "popular-1", "related-1", "interest-2", "popular-2"],
   );
   assert.deepEqual(youtubeForYouFeed([], popular, []).map((item) => item.videoId), ["popular-1", "popular-2"]);
+  const repeats = Array.from({ length: 6 }, (_, index) => ({ videoId: `repeat-${index}`, title: `Survival camping guide part ${index}`, channel: `Creator ${index}` }));
+  assert.equal(youtubeForYouFeed(repeats, [], []).length, 2);
 });
 
 test("Music For You mixes recent interests with charts and caps repeat artists", () => {

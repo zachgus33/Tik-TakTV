@@ -231,12 +231,19 @@ export function youtubeForYouFeed(discoveryVideos, popularVideos, relatedVideos)
   const blended = [];
   const seenVideos = new Set();
   const channelCounts = new Map();
+  const titleCounts = new Map();
   const add = (item) => {
     if (!item?.videoId || seenVideos.has(item.videoId)) return;
     const channel = item.channelId || item.channel;
     if (channel && (channelCounts.get(channel) ?? 0) >= 2) return;
+    const titleKey = String(item.title || "").toLowerCase()
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
+      .match(/[\p{L}\p{N}]{4,}/gu)?.filter((word) => !youtubeGenericTitleWords.has(word))
+      .slice(0, 3).join(" ") ?? "";
+    if (titleKey && (titleCounts.get(titleKey) ?? 0) >= 2) return;
     seenVideos.add(item.videoId);
     if (channel) channelCounts.set(channel, (channelCounts.get(channel) ?? 0) + 1);
+    if (titleKey) titleCounts.set(titleKey, (titleCounts.get(titleKey) ?? 0) + 1);
     blended.push(item);
   };
   // Keep fresh, broad discovery visible on the first screen. Uploads from
@@ -2242,7 +2249,7 @@ export function createService({ token, origins, authorizeAccount }) {
         const subscribedChannelIds = new Set(
           (subscriptions?.items ?? []).map((item) => item?.snippet?.resourceId?.channelId),
         );
-        const discoveryLists = discoverySearches.map((result) => result?.items ?? []);
+        const discoveryLists = discoverySearches.map((result) => (result?.items ?? []).slice(0, 12));
         const discoveryCandidates = Array.from(
           { length: Math.max(0, ...discoveryLists.map((items) => items.length)) },
           (_, index) => discoveryLists.map((items) => items[index]).filter(Boolean),
