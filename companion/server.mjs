@@ -353,10 +353,18 @@ export function youtubeInterestTopics(value) {
 export function youtubeVideoAllowed(item, kind = "video") {
   return (
     item?.status?.embeddable !== false &&
-    (kind === "music" ||
+    (kind === "music" ? youtubeMusicTrackAllowed(item) :
       (String(item?.snippet?.categoryId ?? "") !== "10" &&
         youtubeLongFormVideo(item)))
   );
+}
+
+export function youtubeMusicTrackAllowed(item) {
+  if (String(item?.snippet?.categoryId ?? "") !== "10") return false;
+  const title = String(item?.snippet?.title ?? "").toLowerCase();
+  // Music is a broad YouTube category: interviews, reactions, and commentary
+  // can be tagged as music even though they are not tracks or performances.
+  return !/\b(?:reaction|reacts?|reacting|review|interview|explained|analysis|shocked|documentary|podcast|tutorial|news|livestream|ranking)\b|\b(?:after watching|behind the scenes|what happened|how to|top \d+)\b/i.test(title);
 }
 
 export function youtubeLongFormVideo(item) {
@@ -2563,7 +2571,9 @@ export function createService({ token, origins, authorizeAccount }) {
             kind: item.discoveredMusic ? "music" : item.kind,
           }));
         const musicAllowed = (item) =>
-          item?.kind === "music" && youtubeLongFormVideo(detailsById.get(item.videoId));
+          item?.kind === "music" &&
+          youtubeMusicTrackAllowed(detailsById.get(item.videoId)) &&
+          youtubeLongFormVideo(detailsById.get(item.videoId));
         const decoratedMusicDiscovery = musicDiscoveryCandidates.map(decorate).filter(musicAllowed);
         const decoratedMusicPopular = (popularMusic?.items ?? [])
           .filter(youtubeMusicChartAllowed)

@@ -16,6 +16,7 @@ import {
   youtubeDiscoveryQuery,
   youtubeLongFormVideo,
   youtubeMusicChartAllowed,
+  youtubeMusicTrackAllowed,
   youtubeRecentVideoIds,
   youtubeTitlesRelated,
   safeDownloadName,
@@ -27,6 +28,14 @@ test("Music chart fallback excludes unrelated language results", () => {
   assert.equal(youtubeMusicChartAllowed({ snippet: { title: "English pop song", defaultAudioLanguage: "en-US" } }), true);
   assert.equal(youtubeMusicChartAllowed({ snippet: { title: "Music title", defaultAudioLanguage: "es" } }), false);
   assert.equal(youtubeMusicChartAllowed({ snippet: { title: "የሙዚቃ ቪዲዮ" } }), false);
+});
+
+test("Music recommendations exclude commentary tagged as music", () => {
+  const track = { snippet: { categoryId: "10", title: "James Reid - Randomantic (Official Music Video)" } };
+  const commentary = { snippet: { categoryId: "10", title: "The reason why a K-pop singer was shocked after watching a Filipino artist's stage" } };
+  assert.equal(youtubeMusicTrackAllowed(track), true);
+  assert.equal(youtubeMusicTrackAllowed(commentary), false);
+  assert.equal(youtubeVideoAllowed(commentary, "music"), false);
 });
 
 test("YouTube account feeds rotate without dropping recommendations", () => {
