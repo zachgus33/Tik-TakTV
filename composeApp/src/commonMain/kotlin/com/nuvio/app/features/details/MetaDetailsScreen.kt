@@ -1172,6 +1172,7 @@ fun MetaDetailsScreen(
                                         Text(
                                             "Your Trakt rating: ${userTraktRating?.let { "$it/10" } ?: "Not rated"}",
                                             style = MaterialTheme.typography.titleMedium,
+                                            color = Color.White,
                                         )
                                         (0..1).forEach { row ->
                                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
