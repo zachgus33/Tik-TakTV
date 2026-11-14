@@ -84,3 +84,36 @@ export function normalizeYouTubeProgress(
       : entry;
   });
 }
+
+const metadataRequests = new Map<string, Promise<{ title: string; thumbnail?: string } | null>>();
+
+export function youtubeProgressNeedsTitle(entry: Progress): boolean {
+  return !!youtubeVideoIdFromItem(entry.item) && entry.item.name === "YouTube video";
+}
+
+export async function resolveYouTubeProgressTitle(
+  videoId: string,
+): Promise<{ title: string; thumbnail?: string } | null> {
+  const existing = metadataRequests.get(videoId);
+  if (existing) return existing;
+  const request = (async () => {
+    try {
+      const url = new URL("https://www.youtube.com/oembed");
+      url.searchParams.set("url", `https://www.youtube.com/watch?v=${videoId}`);
+      url.searchParams.set("format", "json");
+      const response = await fetch(url, { credentials: "omit" });
+      if (!response.ok) return null;
+      const data = (await response.json()) as { title?: unknown; thumbnail_url?: unknown };
+      const title = typeof data.title === "string" ? data.title.trim() : "";
+      if (!title) return null;
+      return {
+        title,
+        thumbnail: typeof data.thumbnail_url === "string" ? data.thumbnail_url : undefined,
+      };
+    } catch {
+      return null;
+    }
+  })();
+  metadataRequests.set(videoId, request);
+  return request;
+}

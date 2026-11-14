@@ -97,7 +97,9 @@ import {
 import type { Playback } from "./Player";
 import {
   normalizeYouTubeProgress,
+  resolveYouTubeProgressTitle,
   youtubeProgressItem,
+  youtubeProgressNeedsTitle,
   youtubeVideoIdFromItem,
   type YouTubePlaybackProgress,
   type YouTubeResumeRequest,
@@ -1927,6 +1929,33 @@ export default function App() {
   const [progress, setProgress] = useState<Progress[]>(() =>
     normalizeYouTubeProgress(read("progress", [])),
   );
+  useEffect(() => {
+    if (!profileReady) return;
+    const missing = progress.filter(youtubeProgressNeedsTitle).slice(0, 30);
+    if (!missing.length) return;
+    let cancelled = false;
+    void Promise.all(missing.map(async (entry) => {
+      const videoId = youtubeVideoIdFromItem(entry.item)!;
+      return { videoId, metadata: await resolveYouTubeProgressTitle(videoId) };
+    })).then((resolved) => {
+      if (cancelled) return;
+      const byId = new Map(resolved.filter((entry) => entry.metadata).map((entry) => [entry.videoId, entry.metadata!]));
+      if (!byId.size) return;
+      setProgress((current) => {
+        const updated = current.map((entry) => {
+          if (!youtubeProgressNeedsTitle(entry)) return entry;
+          const metadata = byId.get(youtubeVideoIdFromItem(entry.item)!);
+          return metadata ? {
+            ...entry,
+            item: { ...entry.item, name: metadata.title, poster: metadata.thumbnail || entry.item.poster },
+          } : entry;
+        });
+        save("progress", updated);
+        return updated;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [profileReady, progress]);
   function loadAccountSetup(s: Setup) {
     // Failure history belongs to the previous browser profile and must never
     // suppress an add-on for a different Nuvio user.

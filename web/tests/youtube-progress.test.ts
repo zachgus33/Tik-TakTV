@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   normalizeYouTubeProgress,
+  resolveYouTubeProgressTitle,
   youtubeProgressItem,
+  youtubeProgressNeedsTitle,
   youtubeVideoIdFromItem,
   youtubeVideoIdFromProgressRow,
 } from "../src/youtube-progress";
 
 describe("YouTube progress from TV", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("recognizes a YouTube ID even when sync labels it as a movie", () => {
     expect(
       youtubeVideoIdFromProgressRow({
@@ -59,5 +62,25 @@ describe("YouTube progress from TV", () => {
     expect(entry.item.name).toBe("YouTube video");
     expect(entry.seconds).toBe(47);
     expect(entry.at).toBe(123);
+  });
+
+  it("recovers the real title for a synced YouTube card", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ title: "Seven days off grid in Alaska", thumbnail_url: "https://example.com/thumb.jpg" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const entry = {
+      item: youtubeProgressItem("dQw4w9WgXcQ"),
+      seconds: 30,
+      duration: 120,
+      at: 123,
+    };
+    expect(youtubeProgressNeedsTitle(entry)).toBe(true);
+    expect(await resolveYouTubeProgressTitle("dQw4w9WgXcQ")).toEqual({
+      title: "Seven days off grid in Alaska",
+      thumbnail: "https://example.com/thumb.jpg",
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain("dQw4w9WgXcQ");
   });
 });
