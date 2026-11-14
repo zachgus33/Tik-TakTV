@@ -10,6 +10,12 @@ export type CatalogChoice = {
   type: string;
 };
 
+// Some add-ons expose movie and series items through a shared catalog type.
+// Keep the manifest's type for requests; the returned metas carry their own type.
+export function isMediaCatalogType(type: string): boolean {
+  return ["movie", "series", "trakt"].includes(type);
+}
+
 export function catalogChoices(addons: Addon[]): CatalogChoice[] {
   return addons
     .filter((addon) => addon.enabled !== false)
@@ -17,7 +23,7 @@ export function catalogChoices(addons: Addon[]): CatalogChoice[] {
       (addon.manifest.catalogs ?? [])
         .filter(
           (catalog) =>
-            ["movie", "series"].includes(catalog.type) &&
+            isMediaCatalogType(catalog.type) &&
             !catalog.extra?.some((extra) => extra.isRequired),
         )
         .map((catalog) => ({
@@ -105,7 +111,7 @@ export function homeCatalogEntries(
       (addon.manifest.catalogs ?? [])
         .filter(
           (catalog) =>
-            ["movie", "series"].includes(catalog.type) &&
+            isMediaCatalogType(catalog.type) &&
             !catalog.extra?.some((extra) => extra.isRequired),
         )
         .map((catalog) => ({

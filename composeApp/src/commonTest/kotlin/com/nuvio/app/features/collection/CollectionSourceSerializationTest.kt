@@ -1,6 +1,8 @@
 package com.nuvio.app.features.collection
 
 import com.nuvio.app.features.addons.ManagedAddon
+import com.nuvio.app.features.addons.AddonManifest
+import com.nuvio.app.features.addons.AddonCatalog
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -33,6 +35,22 @@ class CollectionSourceSerializationTest {
         assertEquals("https://example.com/config/manifest.json?token=abc", resolved?.addon?.manifestUrl)
         assertEquals("curated", resolved?.catalog?.id)
         assertNull(listOf(ManagedAddon(manifestUrl = resolved!!.addon.manifestUrl, enabled = false)).findCollectionCatalog(source))
+    }
+
+    @Test
+    fun savedCollectionFindsUniqueCatalogAfterManifestIdChanges() {
+        val addon = ManagedAddon(
+            manifestUrl = "https://arabic.example/manifest.json",
+            manifest = AddonManifest(
+                id = "new-id", name = "Arabic", description = "", version = "1",
+                resources = emptyList(), types = listOf("series"),
+                catalogs = listOf(AddonCatalog("series", "shahid", "Shahid")),
+                transportUrl = "https://arabic.example/manifest.json",
+            ),
+        )
+        val source = CollectionCatalogSource(addonId = "old-id", type = "series", catalogId = "shahid")
+        assertEquals(addon, listOf(addon).findCollectionCatalog(source)?.addon)
+        assertNull(listOf(addon, addon.copy(manifestUrl = "https://other.example/manifest.json")).findCollectionCatalog(source))
     }
 
     @Test

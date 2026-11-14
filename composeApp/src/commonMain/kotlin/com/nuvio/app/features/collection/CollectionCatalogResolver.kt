@@ -18,6 +18,7 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
             it.manifestUrl == source.addonId ||
             it.manifestUrl.removeSuffix("/manifest.json") == source.addonId
     }
+    if (declaredAddon == null && any { !it.enabled && (it.manifest?.id == source.addonId || it.manifestUrl == source.addonId || it.manifestUrl.removeSuffix("/manifest.json") == source.addonId) }) return null
     val declaredCatalog = declaredAddon?.manifest?.catalogs?.findSourceCatalog(source)
     if (declaredAddon != null && declaredCatalog != null) {
         return ResolvedCollectionCatalog(addon = declaredAddon, catalog = declaredCatalog)
@@ -28,6 +29,15 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
             catalog = AddonCatalog(source.type, source.catalogId.substringBefore(","), source.catalogId),
         )
     }
+
+    // Imported profiles can retain an older manifest ID or configured URL.
+    // An exact catalog shared by only one enabled add-on is safe to recover.
+    val matchingCatalogs = activeAddons.mapNotNull { addon ->
+        addon.manifest?.catalogs?.findSourceCatalog(source)?.let { catalog ->
+            ResolvedCollectionCatalog(addon = addon, catalog = catalog)
+        }
+    }
+    if (matchingCatalogs.size == 1) return matchingCatalogs.single()
 
     if (source.addonId.startsWith("https://", ignoreCase = true)) {
         val path = source.addonId.substringBefore('?').trimEnd('/')
@@ -40,13 +50,6 @@ internal fun List<ManagedAddon>.findCollectionCatalog(
         )
     }
 
-    val matching = if (source.addonId.isBlank()) activeAddons.firstNotNullOfOrNull { addon ->
-        val catalog = addon.manifest?.catalogs?.find {
-            it.id == source.catalogId && it.type == source.type
-        } ?: return@firstNotNullOfOrNull null
-        ResolvedCollectionCatalog(addon = addon, catalog = catalog)
-    } else null
-    if (matching != null) return matching
     val arabicAddonId = source.addonId == "community.elcinema.metadata"
     val arabicCatalog = source.catalogId.startsWith("elcinema-") && source.type in listOf("movie", "series")
     val arabicDisabled = any { it.manifest?.id == "community.elcinema.metadata" && !it.enabled }

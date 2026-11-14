@@ -136,8 +136,16 @@ export function sourceCatalog(source: CollectionSource, addons: Addon[]) {
     manifestUrl(addon.base) === source.addonId ||
     addon.manifest.id === source.addonId,
   );
+  if (!declared && addons.some((addon) => addon.enabled === false && (
+    addon.base === source.addonId ||
+    manifestUrl(addon.base) === source.addonId ||
+    addon.manifest.id === source.addonId
+  ))) return undefined;
   // A saved row names its provider. Another add-on can reuse the same catalog ID.
-  const addon = declared ?? (!source.addonId ? active.find((item) => !!matchesCatalog(item)) : undefined);
+  // A profile may still hold a former manifest ID. Recover the source only
+  // when one enabled installation advertises this exact catalog.
+  const candidates = active.filter((item) => !!matchesCatalog(item));
+  const addon = declared ?? (candidates.length === 1 ? candidates[0] : undefined);
   const catalog = addon && matchesCatalog(addon);
   if (addon && catalog) return { addon, catalog };
   // Saved collection rows can outlive a catalog's presence in a dynamic manifest.

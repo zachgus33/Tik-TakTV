@@ -2171,7 +2171,7 @@ export default function App() {
       (a.manifest.catalogs ?? [])
         .filter(
           (c) =>
-            c.type === kind &&
+            (c.type === kind || c.type === "trakt") &&
             !c.extra?.some((e) => e.isRequired && e.name !== "search"),
         )
         .map((c) => ({
@@ -2319,7 +2319,7 @@ export default function App() {
               (addon.manifest.catalogs ?? [])
                 .filter(
                   (entry) =>
-                    scopes.includes(entry.type as Kind) &&
+                    (scopes.includes(entry.type as Kind) || entry.type === "trakt") &&
                     entry.extra?.some((extra) => extra.name === "search"),
                 )
                 .map((entry) => ({ addon, catalog: entry })),
@@ -2328,7 +2328,7 @@ export default function App() {
               searchable.map((entry) =>
                 catalog(
                   entry.addon,
-                  entry.catalog.type as Kind,
+                  entry.catalog.type,
                   entry.catalog.id,
                   deferredQuery,
                   c.signal,
@@ -2380,7 +2380,7 @@ export default function App() {
                 ...searchable.map((entry) =>
                   catalog(
                     entry.addon,
-                    entry.catalog.type as Kind,
+                    entry.catalog.type,
                     entry.catalog.id,
                     searchTerm,
                     c.signal,
@@ -2395,7 +2395,7 @@ export default function App() {
             result = rankExactTitleFirst(
               [
                 ...catalogMatches.flatMap((match) =>
-                  match.status === "fulfilled" ? match.value : [],
+                  match.status === "fulfilled" ? match.value.filter((item) => scopes.includes(item.type)) : [],
                 ),
                 ...tmdbMatches.filter((item) => scopes.includes(item.type)),
               ].filter((item) => {
@@ -2410,7 +2410,7 @@ export default function App() {
             setSearchSuggestion("");
             result = await catalog(
               chosen.addon,
-              kind,
+              chosen.catalog.type,
               chosen.catalog.id,
               "",
               c.signal,
@@ -2419,13 +2419,13 @@ export default function App() {
             if (!result.length && !category) {
               const firstOption = chosen.catalog.extra?.find((extra) => extra.name === "genre")?.options?.[0];
               if (firstOption) {
-                result = await catalog(chosen.addon, kind, chosen.catalog.id, "", c.signal, firstOption);
+                result = await catalog(chosen.addon, chosen.catalog.type, chosen.catalog.id, "", c.signal, firstOption);
                 if (!c.signal.aborted) setCategory(firstOption);
               }
             }
           }
         }
-        if (!c.signal.aborted) setItems(result);
+        if (!c.signal.aborted) setItems(source === "catalogs" && page === "discover" && !deferredQuery ? result.filter((item) => item.type === kind) : result);
       } catch (e) {
         if (!c.signal.aborted && !restored) setError(message(e));
       } finally {

@@ -83,6 +83,15 @@ describe("custom collection catalog resolution", () => {
     const resolved = sourceCatalog({ provider: "addon", addonId: "named", type: "movie", catalogId: "curated" }, [named, other]);
     expect(resolved?.addon).toBe(named);
   });
+  it("recovers a saved collection when its add-on manifest ID changed", () => {
+    const addon = { base: "https://arabic.example", manifest: { id: "new-id", name: "Arabic", catalogs: [{ type: "series", id: "shahid" }] } };
+    const resolved = sourceCatalog({ provider: "addon", addonId: "old-id", type: "series", catalogId: "shahid" }, [addon]);
+    expect(resolved?.addon).toBe(addon);
+  });
+  it("does not guess between two add-ons with the same catalog", () => {
+    const addons = ["one", "two"].map((id) => ({ base: `https://${id}.example`, manifest: { id, name: id, catalogs: [{ type: "movie", id: "popular" }] } }));
+    expect(sourceCatalog({ provider: "addon", addonId: "old-id", type: "movie", catalogId: "popular" }, addons)).toBeUndefined();
+  });
 });
 
 afterEach(() => {
@@ -418,6 +427,18 @@ describe("home catalog management", () => {
       },
     },
   ];
+
+  it("shows Trakt add-on catalogs while keeping search-only catalogs off Home", () => {
+    const traktAddon = {
+      base: "https://trakt.example/config",
+      manifest: { id: "trakt-addon", name: "Trakt", catalogs: [
+        { id: "trakt_trending_movies", type: "trakt", name: "Trending movies" },
+        { id: "trakt_search_movies", type: "trakt", name: "Search", extra: [{ name: "search", isRequired: true }] },
+      ] },
+    };
+    expect(catalogChoices([traktAddon]).map((choice) => choice.catalogId)).toEqual(["trakt_trending_movies"]);
+    expect(homeCatalogEntries([traktAddon], []).map((entry) => entry.catalog.id)).toEqual(["trakt_trending_movies"]);
+  });
 
   it("keeps separately configured copies of the same add-on distinct", () => {
     const choices = catalogChoices(addons);
