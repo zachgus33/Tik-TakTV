@@ -420,7 +420,12 @@ export default function YouTubeHub({
     void loadPlayerApi()
       .then(() => {
         if (cancelled || !hostRef.current || !window.YT?.Player) return;
-        player = new window.YT.Player(hostRef.current, {
+        // The iframe API replaces its target node. Keep that node outside
+        // React's managed tree so switching to direct playback cannot make
+        // React remove a child that YouTube has already replaced.
+        const mount = document.createElement("div");
+        hostRef.current.replaceChildren(mount);
+        player = new window.YT.Player(mount, {
           videoId: selection.videoId,
           width: "100%",
           height: "100%",
@@ -583,6 +588,7 @@ export default function YouTubeHub({
       );
       playerRef.current = null;
       player?.destroy();
+      hostRef.current?.replaceChildren();
     };
   }, [directPlayback, kind, selection, tvMode]);
 

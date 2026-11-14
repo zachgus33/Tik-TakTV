@@ -180,14 +180,17 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       private playing = false;
       private options: any;
       private videoId: string;
-      constructor(_target: HTMLElement, options: any) {
+      private iframe: HTMLIFrameElement;
+      constructor(target: HTMLElement, options: any) {
         this.options = options;
         this.videoId = options.videoId;
+        this.iframe = document.createElement("iframe");
+        target.replaceWith(this.iframe);
         (window as any).__playedYouTubeVideoId = options.videoId;
         ((window as any).__youtubePlayers ??= []).push(this);
         queueMicrotask(() => options.events.onReady({ target: this }));
       }
-      destroy() {}
+      destroy() { this.iframe.remove(); }
       getCurrentTime() {
         return this.time;
       }
@@ -195,7 +198,7 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
         return 300;
       }
       getIframe() {
-        return document.createElement("iframe");
+        return this.iframe;
       }
       getPlayerState() {
         return this.playing ? 1 : 2;
@@ -367,6 +370,11 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       },
     }),
   );
+  await page.route("https://playback.example/youtube/playback", (route) =>
+    route.request().postDataJSON()?.kind === "video"
+      ? route.fulfill({ json: { playback: { type: "progressive", url: "/media/test/stream", mimeType: "video/mp4" } } })
+      : route.fulfill({ status: 404, json: { error: "No compatible stream" } }),
+  );
   await page.route("https://playback.example/sponsorblock", (route) =>
     route.fulfill({ json: { segments: [] } }),
   );
@@ -437,6 +445,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
       .locator(".youtube-player-card")
       .getByText("Video result", { exact: true }),
   ).toBeVisible();
+  await page.evaluate(() => {
+    const players = (window as any).__youtubePlayers;
+    players[players.length - 1].fail(150);
+  });
+  await expect(page.locator(".youtube-direct-player")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s try that again." })).toBeHidden();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
