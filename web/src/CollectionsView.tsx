@@ -10,6 +10,7 @@ import {
   sourceCatalog,
 } from "./collections";
 import { tmdbCollection } from "./tmdb";
+import { traktCollection } from "./trakt-collections";
 import { itemKey, type Addon, type Item } from "./types";
 
 type SourceRow = {
@@ -57,9 +58,12 @@ async function resolveSource(
   source: CollectionSource,
   addons: Addon[],
   signal: AbortSignal,
+  profileName: string,
 ) {
   if (source.provider?.toLowerCase() === "tmdb")
     return tmdbCollection(source, signal);
+  if (source.provider?.toLowerCase() === "trakt")
+    return traktCollection(source, profileName, signal);
   if (source.provider && source.provider !== "addon")
     throw new Error(`${source.provider} is not available in the web app.`);
   const resolved = sourceCatalog(source, addons);
@@ -136,6 +140,7 @@ export default function CollectionsView({
   folderIndex,
   addons,
   library,
+  profileName,
   onOpen,
   onBack,
 }: {
@@ -144,6 +149,7 @@ export default function CollectionsView({
   folderIndex: number;
   addons: Addon[];
   library: Item[];
+  profileName: string;
   onOpen: (item: Item) => void;
   onBack: () => void;
 }) {
@@ -184,7 +190,7 @@ export default function CollectionsView({
     setRows(initial);
     folderSources.forEach((source, sourceIndex) => {
       const key = `${sourceIndex}:${source.provider ?? "addon"}:${source.catalogId ?? "catalog"}`;
-      void resolveSource(source, addons, controller.signal).then(
+      void resolveSource(source, addons, controller.signal, profileName).then(
         (items) => {
           if (controller.signal.aborted) return;
           setRows((current) =>
@@ -223,7 +229,7 @@ export default function CollectionsView({
       );
     });
     return () => controller.abort();
-  }, [addons, folder, folderIndex, folderSources, library]);
+  }, [addons, folder, folderIndex, folderSources, library, profileName]);
 
   const allItems = rows.flatMap((row) => row.items);
   const featured =

@@ -3049,6 +3049,7 @@ export default function App() {
                     collections={collections}
                     addons={addons}
                     library={library}
+                    profileName={activeProfileView?.name ?? ""}
                     onOpen={open}
                     onBrowsingChange={setCollectionBrowsing}
                   />

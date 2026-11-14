@@ -37,6 +37,7 @@ export default function HomeCollections(props: {
   collections: Collection[];
   addons: Addon[];
   library: Item[];
+  profileName: string;
   onOpen: (i: Item) => void;
   onBrowsingChange?: (browsing: boolean) => void;
 }) {
@@ -61,6 +62,7 @@ export default function HomeCollections(props: {
           folderIndex={folderIndex}
           addons={props.addons}
           library={props.library}
+          profileName={props.profileName}
           onOpen={props.onOpen}
           onBack={() => {
             setSelected(null);
