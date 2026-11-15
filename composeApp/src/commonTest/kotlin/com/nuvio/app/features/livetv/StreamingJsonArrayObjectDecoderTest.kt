@@ -33,4 +33,18 @@ class StreamingJsonArrayObjectDecoderTest {
         assertEquals("channel 1", names.first())
         assertEquals("channel 250", names.last())
     }
+
+    @Test
+    fun skipsUnneededEntriesWithoutLosingTheNextObjectAcrossChunks() {
+        val names = mutableListOf<String>()
+        val decoder = StreamingJsonArrayObjectDecoder(
+            shouldParse = { raw -> raw.contains("\"epg_channel_id\":\"sports\"") },
+        ) { item ->
+            names += item["name"].toString().trim('"')
+        }
+        val payload = """[{"name":"ignore","epg_channel_id":""},{"name":"keep","epg_channel_id":"sports"},{"name":"also ignore"}]"""
+        payload.chunked(13).forEach(decoder::accept)
+
+        assertEquals(listOf("keep"), names)
+    }
 }

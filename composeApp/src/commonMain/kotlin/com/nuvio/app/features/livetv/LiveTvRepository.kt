@@ -832,10 +832,19 @@ private object LiveTvRepositoryXtream {
         val seenUrls = HashSet<String>(LiveTvInMemoryChannelLimit * 2)
         var index = 0
         val loadContext = currentCoroutineContext()
-        streamJsonArrayObjects(
-            url = requestUrl(settings, action = "get_live_streams"),
-            headers = M3U_PLAYLIST_REQUEST_HEADERS,
-        ) { obj ->
+        try {
+            streamJsonArrayObjects(
+                url = requestUrl(settings, action = "get_live_streams"),
+                headers = M3U_PLAYLIST_REQUEST_HEADERS,
+                shouldParse = { raw ->
+                    if (guideCandidates.size >= LiveTvInMemoryChannelLimit &&
+                        fallbackChannels.size >= XTREAM_SHORT_EPG_CHANNEL_LIMIT
+                    ) throw XtreamChannelIndexComplete
+                    fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT ||
+                        raw.hasNonBlankJsonStringField("epg_channel_id") ||
+                        raw.hasNonBlankJsonStringField("tvg_id")
+                },
+            ) { obj ->
             loadContext.ensureActive()
             val currentIndex = index++
             val name = obj.stringValue("name") ?: return@streamJsonArrayObjects
@@ -872,6 +881,10 @@ private object LiveTvRepositoryXtream {
                 tvgId != null && guideCandidates.size < LiveTvInMemoryChannelLimit -> guideCandidates += channel
                 tvgId == null && fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT -> fallbackChannels += channel
             }
+            }
+        } catch (_: XtreamChannelIndexComplete) {
+            // The bounded TV index is full. Closing the response here avoids
+            // decoding thousands of additional provider rows we cannot retain.
         }
         // Providers can contain tens of thousands of raw/PPV rows before the
         // channels that actually carry EPG identifiers. Taking the first 5k
@@ -929,12 +942,25 @@ private object LiveTvRepositoryXtream {
     }
 }
 
+private object XtreamChannelIndexComplete : RuntimeException()
+
+private fun String.hasNonBlankJsonStringField(field: String): Boolean {
+    val keyAt = indexOf("\"$field\"")
+    if (keyAt < 0) return false
+    var valueAt = indexOf(':', keyAt + field.length + 2)
+    if (valueAt < 0) return false
+    valueAt++
+    while (valueAt < length && this[valueAt].isWhitespace()) valueAt++
+    return valueAt + 1 < length && this[valueAt] == '"' && this[valueAt + 1] != '"'
+}
+
 /**
  * Incrementally decodes the top-level objects in a JSON array. Xtream providers can return
  * tens of thousands of streams; parsing that response as one JsonArray temporarily consumed
  * the entire 192 MB heap on older Fire TV devices.
  */
 internal class StreamingJsonArrayObjectDecoder(
+    private val shouldParse: (String) -> Boolean = { true },
     private val onObject: (JsonObject) -> Unit,
 ) {
     private var arrayStarted = false
@@ -978,12 +1004,15 @@ internal class StreamingJsonArrayObjectDecoder(
                     objectDepth -= 1
                     if (objectDepth == 0) {
                         buffer.append(chunk, appendFrom, index + 1)
-                        val parsed = runCatching {
-                            stalkerJson.parseToJsonElement(buffer.toString()) as? JsonObject
-                        }.getOrNull()
+                        val raw = buffer.toString()
                         objectBuffer = null
                         appendFrom = -1
-                        parsed?.let(onObject)
+                        if (shouldParse(raw)) {
+                            val parsed = runCatching {
+                                stalkerJson.parseToJsonElement(raw) as? JsonObject
+                            }.getOrNull()
+                            parsed?.let(onObject)
+                        }
                     }
                 }
             }
@@ -997,9 +1026,10 @@ internal class StreamingJsonArrayObjectDecoder(
 private suspend fun streamJsonArrayObjects(
     url: String,
     headers: Map<String, String>,
+    shouldParse: (String) -> Boolean = { true },
     onObject: (JsonObject) -> Unit,
 ) {
-    val decoder = StreamingJsonArrayObjectDecoder(onObject)
+    val decoder = StreamingJsonArrayObjectDecoder(shouldParse, onObject)
     httpStreamTextWithHeaders(url, headers, decoder::accept)
 }
 
