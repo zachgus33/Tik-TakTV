@@ -4,6 +4,7 @@ export const SUBREDDIT = "TikTakTV";
 export const sources = [
   {
     key: "web",
+    branch: "web-enhanced-pages",
     workflow: "web-pages.yml",
     product: "Web/PWA",
     versionFile: "web/src/WhatsNew.tsx",
@@ -11,6 +12,7 @@ export const sources = [
   },
   {
     key: "native-tv",
+    branch: "tv-stable",
     workflow: "native-tv-android.yml",
     product: "Android TV / Fire TV",
     versionFile: "nativeTvApp/build.gradle.kts",
@@ -18,6 +20,7 @@ export const sources = [
   },
   {
     key: "legacy-tv",
+    branch: "web-enhanced-pages",
     workflow: "tv-android-release.yml",
     product: "Android TV / Fire TV",
     versionFile: "tvApp/build.gradle.kts",
@@ -43,7 +46,7 @@ export type ReleaseNotes = { version: string | null; title: string | null; chang
 export function validRun(run: WorkflowRun, source: Source): boolean {
   return (
     run.conclusion === "success" &&
-    run.head_branch === "web-enhanced-pages" &&
+    run.head_branch === source.branch &&
     (run.event === "push" || (source.key !== "native-tv" && run.event === "workflow_dispatch"))
   );
 }
