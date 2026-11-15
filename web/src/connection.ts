@@ -184,13 +184,19 @@ export async function sourceFetch(
     if (error instanceof Error && error.message.includes("playback service"))
       throw error;
   }
-  const relay = (signal = options.signal ?? undefined) =>
-    serviceRequest(
+  const addonJson = parsed &&
+    (/(?:^|\/)manifest\.json$/i.test(parsed.pathname) ||
+      /\/(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json$/i.test(parsed.pathname));
+  const relay = (signal = options.signal ?? undefined) => {
+    const headers = new Headers(options.headers);
+    if (addonJson && !headers.has("accept"))
+      headers.set("accept", "application/json");
+    return serviceRequest(
       "/request",
       {
         url,
         method: options.method ?? "GET",
-        headers: Object.fromEntries(new Headers(options.headers)),
+        headers: Object.fromEntries(headers),
         form:
           options.body instanceof FormData
             ? Object.fromEntries(options.body)
@@ -199,6 +205,7 @@ export async function sourceFetch(
       signal,
       config,
     );
+  };
   if (parsed?.protocol === "http:") {
     if (!config)
       throw new Error(
@@ -213,12 +220,13 @@ export async function sourceFetch(
   // companion even when the provider itself uses HTTPS.
   if (providerApi && config) return relay();
   if (forceService && config) return relay();
-  const addonPayload = parsed && /\/(?:stream|subtitles)\//i.test(parsed.pathname);
+  const addonPayload = addonJson && (options.method ?? "GET") === "GET";
   let relayResponse: Response | undefined;
   let relayError: unknown;
   if (addonPayload && config) {
-    // A stalled relay must leave enough of the stream-search deadline for a
-    // browser-accessible add-on to answer directly.
+    // Nuvio Web requests add-on JSON from its server. Use the same route first
+    // for signed-in TikTak users: configured add-ons commonly reject browser
+    // CORS requests. Keep a bounded direct fallback for browser-accessible ones.
     const attempt = new AbortController();
     const cancel = () => attempt.abort();
     options.signal?.addEventListener("abort", cancel, { once: true });
