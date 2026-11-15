@@ -37,7 +37,7 @@ async function reachable(url: string, signal?: AbortSignal) {
     credentials: "omit",
     referrerPolicy: "no-referrer",
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
 export async function runHealthChecks(input: {
@@ -55,8 +55,18 @@ export async function runHealthChecks(input: {
     ),
   );
   const online = manifestChecks.filter(
-    (result) => result.status === "fulfilled" && result.value,
+    (result) => result.status === "fulfilled" && result.value.ok,
   ).length;
+  const unreachable = manifestChecks.flatMap((result, index) =>
+    result.status === "fulfilled" && result.value.ok
+      ? []
+      : [{
+          name: input.addons[index].manifest.name || "Unnamed add-on",
+          status: result.status === "fulfilled" ? result.value.status : null,
+        }],
+  );
+  const failedNames = unreachable.map((item) => item.name).join(", ");
+  const forbidden = unreachable.filter((item) => item.status === 403).length;
   let debridReady = false;
   let debridError = "";
   try {
@@ -127,10 +137,12 @@ export async function runHealthChecks(input: {
           : online
             ? "warning"
             : "error",
-      detail: `${online} of ${input.addons.length} installed manifests responded.`,
+      detail: `${online} of ${input.addons.length} installed manifests responded.${failedNames ? ` Not responding: ${failedNames}.` : ""}`,
       fix:
         online < input.addons.length
-          ? "Refresh unreachable manifests or verify their configured HTTPS URLs."
+          ? forbidden
+            ? `${forbidden} add-on${forbidden === 1 ? "" : "s"} returned HTTP 403. Check whether their shared access or source permissions changed; then retry from Add-ons.`
+            : "Refresh unreachable manifests or verify their configured HTTPS URLs."
           : undefined,
     },
     {
