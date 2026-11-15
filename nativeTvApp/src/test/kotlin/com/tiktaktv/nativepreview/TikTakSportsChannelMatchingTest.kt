@@ -197,6 +197,36 @@ class TikTakSportsChannelMatchingTest {
 
         assertEquals(fs1, findScoreChannel(score, listOf(fs2, fs1), programmes))
         assertNull(findScoreChannel(score, listOf(fs2), programmes))
+        assertEquals(fs1, findScoreChannel(score.copy(broadcast = "FOX Sports 1"), listOf(fs2, fs1), programmes))
+    }
+
+    @Test
+    fun abbreviatedNetworksMatchTheirFullChannelNames() {
+        val score = event("in", "CBSSN").copy(league = "NCAA - Football")
+        val cbsSports = espn.copy(id = "cbssn", name = "CBS Sports Network HD", tvgId = "cbssn.us")
+        val cbsLocal = espn.copy(id = "cbs", name = "CBS HD", tvgId = "cbs.us")
+        val programmes = mapOf(
+            "cbssn.us" to programme("College Football"),
+            "cbs.us" to programme("College Football"),
+        )
+
+        assertEquals(cbsSports, findScoreChannel(score, listOf(cbsLocal, cbsSports), programmes))
+        assertEquals(cbsSports, findScoreChannel(score.copy(broadcast = "CBS Sports Network"), listOf(cbsLocal, cbsSports), programmes))
+        assertNull(findScoreChannel(score, listOf(cbsLocal), programmes))
+        assertEquals(cbsLocal, findScoreChannel(score.copy(broadcast = "CBS"), listOf(cbsSports, cbsLocal), programmes))
+    }
+
+    @Test
+    fun espnuAndEspnDoNotShareGenericGuideMatches() {
+        val espnu = espn.copy(id = "espnu", name = "ESPN U HD", tvgId = "espnu.us")
+        val programmes = mapOf(
+            "espn.us" to programme("College Football"),
+            "espnu.us" to programme("College Football"),
+        )
+
+        assertEquals(espnu, findScoreChannel(event("in", "ESPNU"), listOf(espn, espnu), programmes))
+        assertNull(findScoreChannel(event("in", "ESPNU"), listOf(espn), programmes))
+        assertEquals(espn, findScoreChannel(event("in", "ESPN"), listOf(espnu, espn), programmes))
     }
 
     @Test

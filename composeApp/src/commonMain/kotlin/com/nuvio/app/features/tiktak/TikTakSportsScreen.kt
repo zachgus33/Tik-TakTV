@@ -621,17 +621,46 @@ private fun normalizedSportsTokens(value: String): Set<String> = normalizeSports
 
 private fun sportsChannelBroadcastTokens(channel: LiveTvChannel): Set<String> {
     val identity = "${channel.name} ${channel.tvgId.orEmpty()}"
-    val normalized = normalizeSportsText(identity)
-    return normalizedSportsTokens(identity) + buildSet {
-        // Score feeds abbreviate Fox Sports 1/2 as FS1/FS2. Keep the number in
-        // the alias so a generic "College Football" guide cannot pick FS2.
-        if (Regex("\\bfox sports (?:1|one)\\b").containsMatchIn(normalized)) add("fs1")
-        if (Regex("\\bfox sports (?:2|two)\\b").containsMatchIn(normalized)) add("fs2")
+    val aliases = broadcastAliases(identity)
+    val broadBrandTokens = buildSet {
+        if ("fs1" in aliases || "fs2" in aliases) add("fox")
+        if ("cbssn" in aliases) add("cbs")
+        if ("nbcsn" in aliases) add("nbc")
+        if ("espnu" in aliases) add("espn")
+        if ("nfln" in aliases) add("nfl")
+        if ("mlbn" in aliases) add("mlb")
+        if ("nhln" in aliases) add("nhl")
+        if ("nbatv" in aliases) add("nba")
     }
+    return (normalizedSportsTokens(identity) - broadBrandTokens) + aliases
 }
+
+// ESPN scorecards often use short network names while IPTV playlists spell
+// them out. Preserve channel numbers and network suffixes to avoid selecting
+// a different feed merely because its generic sports programme also matches.
+private fun broadcastAliases(value: String): Set<String> {
+    val normalized = normalizeSportsText(value)
+    return BroadcastAliasPatterns.mapNotNull { (pattern, alias) ->
+        alias.takeIf { pattern.containsMatchIn(normalized) }
+    }.toSet()
+}
+
+private val BroadcastAliasPatterns = listOf(
+    Regex("\\b(?:fox sports (?:1|one)|fs1)\\b") to "fs1",
+    Regex("\\b(?:fox sports (?:2|two)|fs2)\\b") to "fs2",
+    Regex("\\b(?:cbs sports network|cbssn)\\b") to "cbssn",
+    Regex("\\b(?:nbc sports network|nbcsn)\\b") to "nbcsn",
+    Regex("\\b(?:espn u|espnu)\\b") to "espnu",
+    Regex("\\b(?:nfl network|nfln)\\b") to "nfln",
+    Regex("\\b(?:mlb network|mlbn)\\b") to "mlbn",
+    Regex("\\b(?:nhl network|nhln)\\b") to "nhln",
+    Regex("\\b(?:nba tv|nbatv)\\b") to "nbatv",
+)
 
 private fun normalizedBroadcastTokens(value: String): Set<String> {
     if ('+' in value) return emptySet()
+    val aliases = broadcastAliases(value)
+    if (aliases.isNotEmpty()) return aliases
     return normalizedSportsTokens(value)
         .map { if (it == "net") "network" else it }
         .filterNot { it in BroadcastMatchStopWords }
