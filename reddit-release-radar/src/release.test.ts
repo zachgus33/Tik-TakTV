@@ -21,6 +21,8 @@ test("only completed production releases qualify", () => {
   assert.equal(validRun({ ...run, event: "pull_request" }, sources[0]), false);
   assert.equal(validRun({ ...run, event: "workflow_dispatch" }, sources[0]), true);
   assert.equal(validRun({ ...run, event: "workflow_dispatch" }, sources[1]), false);
+  assert.equal(validRun({ ...run, head_branch: "tv-stable" }, sources[1]), true);
+  assert.equal(validRun(run, sources[1]), false);
 });
 
 test("website post uses curated What’s New only when its version advances", () => {

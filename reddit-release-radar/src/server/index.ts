@@ -33,7 +33,7 @@ async function github<T>(path: string): Promise<T> {
 
 async function runsFor(source: Source): Promise<WorkflowRun[]> {
   const result = await github<{ workflow_runs: WorkflowRun[] }>(
-    `/actions/workflows/${source.workflow}/runs?branch=web-enhanced-pages&status=success&per_page=20`,
+    `/actions/workflows/${source.workflow}/runs?branch=${encodeURIComponent(source.branch)}&status=success&per_page=20`,
   );
   return result.workflow_runs.filter((run) => validRun(run, source)).sort((a, b) => a.id - b.id);
 }

@@ -7,7 +7,7 @@ Reddit Developer Platform app for `r/TikTakTV`. Every 15 minutes it checks the o
 | Product | Successful workflow | Post link |
 | --- | --- | --- |
 | Web/PWA | `web-pages.yml` | https://www.tiktaktv.me/ |
-| Native Android TV / Fire TV | `native-tv-android.yml` | https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest |
+| Native Android TV / Fire TV (`tv-stable` branch) | `native-tv-android.yml` | https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest |
 | Manually published Android TV APK | `tv-android-release.yml` | https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest |
 
 The first scheduled check records the latest successful run for each source without reposting old releases. Later successful runs are posted in order. The website post uses the first entry in `web/src/WhatsNew.tsx` when its version advances; otherwise the bot summarizes commit subjects. TV posts use the built app version from the relevant Gradle file and summarize commit subjects. Every post includes the workflow run link for traceability, and the app checks recent subreddit posts before retrying a run if Redis was not updated after submission.
