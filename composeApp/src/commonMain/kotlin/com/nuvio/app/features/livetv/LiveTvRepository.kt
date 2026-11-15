@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -43,6 +44,7 @@ object LiveTvRepository {
     private val epgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val epgLoadLock = SynchronizedObject()
     private var activeEpgLoad: Job? = null
+    private val xtreamLoadMutex = Mutex()
     private val shortGuideLock = SynchronizedObject()
     private var shortGuideSettings: LiveTvXtreamSettings? = null
     private val requestedShortGuideIds = mutableSetOf<String>()
@@ -346,6 +348,30 @@ object LiveTvRepository {
         settings: LiveTvXtreamSettings,
         loadGuide: Boolean = true,
         fromFriendSetup: Boolean = false,
+    ): Result<List<LiveTvChannel>> {
+        val joinedExistingLoad = xtreamLoadMutex.isLocked
+        xtreamLoadMutex.lock()
+        try {
+            if (joinedExistingLoad) {
+                val current = mutableUiState.value
+                if (current.sourceType == LiveTvSourceType.Xtream &&
+                    current.xtreamSettings.normalized() == settings.normalized() &&
+                    current.channels.isNotEmpty()
+                ) {
+                    if (loadGuide) ensureGuideLoaded()
+                    return Result.success(current.channels)
+                }
+            }
+            return loadXtreamUnlocked(settings, loadGuide, fromFriendSetup)
+        } finally {
+            xtreamLoadMutex.unlock()
+        }
+    }
+
+    private suspend fun loadXtreamUnlocked(
+        settings: LiveTvXtreamSettings,
+        loadGuide: Boolean,
+        fromFriendSetup: Boolean,
     ): Result<List<LiveTvChannel>> {
         val normalizedSettings = settings.normalized()
         if (!normalizedSettings.isConfigured) {
