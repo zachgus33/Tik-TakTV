@@ -918,28 +918,32 @@ internal class StreamingJsonArrayObjectDecoder(
     private var escaped = false
 
     fun accept(chunk: String) {
-        chunk.forEach { character ->
+        // Scan each character for JSON structure, but append whole slices to
+        // the buffer. Appending every character separately kept old Fire TV
+        // CPUs busy for minutes on large Xtream channel responses.
+        var appendFrom = if (objectBuffer != null) 0 else -1
+        chunk.forEachIndexed { index, character ->
             val buffer = objectBuffer
             if (buffer == null) {
                 if (!arrayStarted) {
                     if (character == '[') arrayStarted = true
                 } else if (character == '{') {
-                    objectBuffer = StringBuilder().append(character)
+                    objectBuffer = StringBuilder()
+                    appendFrom = index
                     objectDepth = 1
                     inString = false
                     escaped = false
                 }
-                return@forEach
+                return@forEachIndexed
             }
 
-            buffer.append(character)
             if (inString) {
                 when {
                     escaped -> escaped = false
                     character == '\\' -> escaped = true
                     character == '"' -> inString = false
                 }
-                return@forEach
+                return@forEachIndexed
             }
             when (character) {
                 '"' -> inString = true
@@ -947,14 +951,19 @@ internal class StreamingJsonArrayObjectDecoder(
                 '}' -> {
                     objectDepth -= 1
                     if (objectDepth == 0) {
+                        buffer.append(chunk, appendFrom, index + 1)
                         val parsed = runCatching {
                             stalkerJson.parseToJsonElement(buffer.toString()) as? JsonObject
                         }.getOrNull()
                         objectBuffer = null
+                        appendFrom = -1
                         parsed?.let(onObject)
                     }
                 }
             }
+        }
+        objectBuffer?.let { buffer ->
+            if (appendFrom >= 0) buffer.append(chunk, appendFrom, chunk.length)
         }
     }
 }

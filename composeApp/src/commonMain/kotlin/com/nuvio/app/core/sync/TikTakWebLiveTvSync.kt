@@ -3,6 +3,7 @@ package com.nuvio.app.core.sync
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.livetv.LiveTvRepository
+import com.nuvio.app.features.livetv.LiveTvSourceType
 import com.nuvio.app.features.livetv.LiveTvXtreamSettings
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
@@ -59,6 +60,12 @@ internal object TikTakWebLiveTvSync {
             username = provider.stringValue("username").orEmpty(),
             password = provider.stringValue("password").orEmpty(),
         )
+        val active = LiveTvRepository.uiState.value
+        if (active.isLoading && active.sourceType == LiveTvSourceType.Xtream &&
+            active.xtreamSettings.serverUrl.trimEnd('/') == settings.serverUrl.trimEnd('/') &&
+            active.xtreamSettings.username == settings.username &&
+            active.xtreamSettings.password == settings.password
+        ) return true
         // Restore credentials and the bounded channel index during account sync, but leave
         // the multi-megabyte XMLTV guide until the user opens Live TV or Sports. Running the
         // guide parse alongside home catalogs, library, collections, and hero video startup
