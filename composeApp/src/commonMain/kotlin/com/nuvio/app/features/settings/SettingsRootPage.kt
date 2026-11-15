@@ -42,18 +42,25 @@ import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.SharedAddonSetup
+import com.nuvio.app.features.addons.fetchAddonResponseText
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.HomeCatalogSettingsSyncService
 import com.nuvio.app.features.home.SyncCatalogItem
+import com.nuvio.app.features.livetv.LiveTvRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.tiktak.TikTakServiceClient
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToJsonElement
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -386,6 +393,9 @@ internal fun LazyListScope.settingsRootContent(
 @Composable
 private fun FriendAccessSettingsCard(isTablet: Boolean) {
     var dialogVisible by remember { mutableStateOf(false) }
+    var createVisible by remember { mutableStateOf(false) }
+    var createCode by remember { mutableStateOf("") }
+    var createMessage by remember { mutableStateOf<String?>(null) }
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -405,7 +415,99 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                     dialogVisible = true
                 },
             )
+            SettingsNavigationRow(
+                title = "Create friend code",
+                description = "Share this profile's add-ons, collections, catalogs, IPTV, and optional debrid access",
+                icon = Icons.Rounded.People,
+                isTablet = isTablet,
+                onClick = {
+                    createMessage = null
+                    createVisible = true
+                },
+            )
         }
+    }
+
+    if (createVisible) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) createVisible = false },
+            title = { Text("Create friend code") },
+            text = {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                ) {
+                    Text("Choose a private 6 to 12 digit code. Anyone with it can install this profile's add-ons, collections, home catalogs, IPTV connection, and TorBox or Real-Debrid access. Watch history, profiles, YouTube, Trakt, Simkl, and AniList accounts are not shared. Creating another code replaces your previous code.")
+                    NuvioTvTextField(
+                        value = createCode,
+                        onValueChange = { createCode = it.filter(Char::isDigit).take(12); createMessage = null },
+                        enabled = !busy,
+                        label = { Text("Your new friend code") },
+                    )
+                    createMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy && createCode.length in 6..12,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            createMessage = null
+                            runCatching {
+                                AddonRepository.initialize()
+                                PlayerSettingsRepository.ensureLoaded()
+                                DebridSettingsRepository.ensureLoaded()
+                                val addons = AddonRepository.uiState.value.addons
+                                val template = buildJsonObject {
+                                    put("addons", buildJsonArray {
+                                        addons.forEach { addon ->
+                                            val manifest = Json.parseToJsonElement(fetchAddonResponseText(addon.manifestUrl))
+                                            val base = addon.manifestUrl.substringBefore('?').removeSuffix("/manifest.json") +
+                                                addon.manifestUrl.substringAfter('?', "").let { if (it.isEmpty()) "" else "?$it" }
+                                            add(buildJsonObject {
+                                                put("base", base)
+                                                put("manifest", manifest)
+                                                put("enabled", addon.enabled)
+                                            })
+                                        }
+                                    })
+                                    put("collections", Json.parseToJsonElement(CollectionRepository.exportToJson()))
+                                    put("homeCatalogs", Json.encodeToJsonElement(HomeCatalogSettingsRepository.exportToSyncPayload().items))
+                                    put("autoplay", PlayerSettingsRepository.uiState.value.streamAutoPlayMode == StreamAutoPlayMode.FIRST_STREAM)
+                                    LiveTvRepository.uiState.value.xtreamSettings.takeIf { it.isConfigured }?.let { provider ->
+                                        put("provider", buildJsonObject {
+                                            put("server", provider.serverUrl)
+                                            put("username", provider.username)
+                                            put("password", provider.password)
+                                            put("scope", "profile")
+                                            put("name", "My IPTV")
+                                        })
+                                    }
+                                }
+                                val debrid = DebridSettingsRepository.snapshot()
+                                val request = buildJsonObject {
+                                    put("code", createCode)
+                                    put("template", template)
+                                    put("torboxKey", debrid.torboxApiKey)
+                                    put("realDebridKey", debrid.realDebridApiKey)
+                                }
+                                val response = TikTakServiceClient.post("/friend/setup", request.toString())
+                                if (response.status !in 200..299) {
+                                    val reason = runCatching {
+                                        Json.parseToJsonElement(response.body).jsonObject["error"]?.jsonPrimitive?.contentOrNull
+                                    }.getOrNull()
+                                    error(reason ?: "Could not create the code (HTTP ${response.status}).")
+                                }
+                                "Your friend code $createCode is active. Share it only with people you trust."
+                            }.onSuccess { createMessage = it }
+                                .onFailure { createMessage = it.message ?: "Could not create the friend code." }
+                            busy = false
+                        }
+                    },
+                ) { Text(if (busy) "Creating…" else "Create") }
+            },
+            dismissButton = { TextButton(enabled = !busy, onClick = { createVisible = false }) { Text("Close") } },
+        )
     }
 
     if (dialogVisible) {
