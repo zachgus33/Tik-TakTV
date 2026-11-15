@@ -37,10 +37,13 @@ import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.tikTakTvFocus
+import com.nuvio.app.core.sync.TikTakWebLiveTvSync
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.livetv.LiveTvRepository
+import com.nuvio.app.features.profiles.ProfileRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -108,6 +111,25 @@ fun TikTakSportsScreen(
         LiveTvRepository.uiState
     }.collectAsState()
     LaunchedEffect(Unit) { LiveTvRepository.ensureGuideLoaded() }
+    // The full profile pull can fail before reaching the web IPTV payload. A
+    // direct visit to Sports must recover the account provider independently
+    // when this profile has no local Live TV connection at all.
+    val activeProfileId = ProfileRepository.activeProfileId
+    LaunchedEffect(activeProfileId) {
+        val state = LiveTvRepository.uiState.value
+        if (state.channels.isEmpty() && !state.isLoading &&
+            !state.xtreamSettings.isConfigured && !state.stalkerSettings.isConfigured &&
+            state.sourceUrl.isBlank()
+        ) {
+            try {
+                TikTakWebLiveTvSync.pull(activeProfileId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Sports scores remain available even when the provider is offline.
+            }
+        }
+    }
     // Keep the last successful scoreboard visible while its feeds refresh.
     var scores by remember { mutableStateOf(scoreCache) }
     var loading by remember { mutableStateOf(false) }
@@ -184,7 +206,13 @@ fun TikTakSportsScreen(
             val channel = withContext(Dispatchers.Default) {
                 findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
             }
-            openScoreEvent(event, channel, liveState.channels.isEmpty() || liveState.isEpgLoading, onChannelClick)
+            openScoreEvent(
+                event,
+                channel,
+                channelsAvailable = liveState.channels.isNotEmpty(),
+                channelsStillLoading = liveState.isLoading || liveState.isEpgLoading,
+                onChannelClick = onChannelClick,
+            )
         }
     }
 
@@ -571,6 +599,7 @@ private fun SectionTitle(text: String, description: String? = null) {
 private fun openScoreEvent(
     event: NativeScoreEvent,
     matchedChannel: LiveTvChannel?,
+    channelsAvailable: Boolean,
     channelsStillLoading: Boolean,
     onChannelClick: (LiveTvChannel) -> Unit,
 ) {
@@ -578,7 +607,9 @@ private fun openScoreEvent(
         onChannelClick(matchedChannel)
     } else {
         NuvioToastController.show(
-            if (channelsStillLoading) {
+            if (!channelsAvailable && !channelsStillLoading) {
+                "No Live TV channels are loaded on this profile. Check your IPTV connection in Live TV."
+            } else if (channelsStillLoading) {
                 "Live TV is still syncing. Try this game again when your channels are ready."
             } else {
                 "No guide-confirmed channel for ${event.name} was found in your IPTV lineup."

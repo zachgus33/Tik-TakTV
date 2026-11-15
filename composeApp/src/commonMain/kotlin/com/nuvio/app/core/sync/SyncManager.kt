@@ -212,8 +212,13 @@ object SyncManager {
         pullAddons = { profileId -> AddonRepository.pullFromServer(profileId) },
         pullPlugins = { profileId -> PluginRepository.pullFromServer(profileId) },
         pullProfileSettings = { profileId ->
-            ProfileSettingsSync.pull(profileId)
-            TikTakWebLiveTvSync.pull(profileId)
+            // Provider restore must still run if an unrelated native setting
+            // fails to sync; otherwise Sports can show scores with no TV lineup.
+            try {
+                ProfileSettingsSync.pull(profileId)
+            } finally {
+                TikTakWebLiveTvSync.pull(profileId)
+            }
         },
         pullLibrary = { profileId -> LibraryRepository.pullFromServer(profileId) },
         refreshActiveWatchSource = { profileId ->
