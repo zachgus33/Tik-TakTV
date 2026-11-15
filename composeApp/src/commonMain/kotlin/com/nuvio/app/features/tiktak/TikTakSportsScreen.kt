@@ -52,6 +52,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -227,6 +228,30 @@ fun TikTakSportsScreen(
                 // rendered. Recheck once, with visible feedback meanwhile.
                 val channel = withContext(Dispatchers.Default) {
                     findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
+                } ?: run {
+                    // A direct visit to Sports may precede the full XML guide.
+                    // Fetch the small guide only for channels named by this
+                    // game's broadcaster, then retry once with fresh data.
+                    val candidates = broadcastGuideCandidates(event, liveState.channels)
+                    val missing = candidates.filter { candidate ->
+                        val key = candidate.tvgId?.takeIf(String::isNotBlank) ?: candidate.id
+                        key !in liveState.currentProgrammes && key !in liveState.programmeSchedules
+                    }
+                    if (missing.isNotEmpty()) {
+                        LiveTvRepository.loadXtreamGuideForChannels(missing)
+                        withTimeoutOrNull(3_000L) {
+                            LiveTvRepository.uiState.first { state ->
+                                missing.any { candidate ->
+                                    val key = candidate.tvgId?.takeIf(String::isNotBlank) ?: candidate.id
+                                    key in state.currentProgrammes || key in state.programmeSchedules
+                                }
+                            }
+                        }
+                    }
+                    val latest = LiveTvRepository.uiState.value
+                    withContext(Dispatchers.Default) {
+                        findScoreChannel(event, latest.channels, latest.currentProgrammes, latest.programmeSchedules)
+                    }
                 }
                 openScoreEvent(
                     event,
@@ -614,6 +639,15 @@ private fun eventBroadcastTokens(event: NativeScoreEvent): List<Set<String>> =
         .map(::normalizedBroadcastTokens)
         .filter(Set<String>::isNotEmpty)
         .distinct()
+
+private fun broadcastGuideCandidates(event: NativeScoreEvent, channels: List<LiveTvChannel>): List<LiveTvChannel> {
+    val broadcasts = eventBroadcastTokens(event)
+    if (broadcasts.isEmpty()) return emptyList()
+    return channels.asSequence().filter { channel ->
+        val tokens = normalizedSportsTokens("${channel.name} ${channel.tvgId.orEmpty()}")
+        broadcasts.any { option -> option.all(tokens::contains) }
+    }.take(24).toList()
+}
 
 private val SportsMatchStopWords = setOf(
     "the", "and", "for", "game", "live", "college", "football", "basketball", "baseball", "hockey", "soccer",
