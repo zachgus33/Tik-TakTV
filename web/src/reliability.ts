@@ -37,7 +37,14 @@ async function reachable(url: string, signal?: AbortSignal) {
     credentials: "omit",
     referrerPolicy: "no-referrer",
   });
-  return { ok: response.ok, status: response.status };
+  const problem = response.status === 403 && new URL(url).hostname === "friend.tiktaktv.invalid"
+    ? (await response.clone().json().catch(() => null)) as { error?: unknown } | null
+    : null;
+  return {
+    ok: response.ok,
+    status: response.status,
+    sharedExpired: problem?.error === "Shared add-on access expired.",
+  };
 }
 
 export async function runHealthChecks(input: {
@@ -67,6 +74,9 @@ export async function runHealthChecks(input: {
   );
   const failedNames = unreachable.map((item) => item.name).join(", ");
   const forbidden = unreachable.filter((item) => item.status === 403).length;
+  const sharedExpired = manifestChecks.filter(
+    (result) => result.status === "fulfilled" && result.value.sharedExpired,
+  ).length;
   let debridReady = false;
   let debridError = "";
   try {
@@ -140,8 +150,10 @@ export async function runHealthChecks(input: {
       detail: `${online} of ${input.addons.length} installed manifests responded.${failedNames ? ` Not responding: ${failedNames}.` : ""}`,
       fix:
         online < input.addons.length
-          ? forbidden
-            ? `${forbidden} add-on${forbidden === 1 ? "" : "s"} returned HTTP 403. Check whether their shared access or source permissions changed; then retry from Add-ons.`
+          ? sharedExpired
+            ? `${sharedExpired} add-on${sharedExpired === 1 ? " has" : "s have"} expired friend-code access. Re-enter the code in Settings → Playback → Friend setup to refresh the shared setup.`
+            : forbidden
+              ? `${forbidden} add-on${forbidden === 1 ? "" : "s"} returned HTTP 403. Check their source permissions in Add-ons.`
             : "Refresh unreachable manifests or verify their configured HTTPS URLs."
           : undefined,
     },

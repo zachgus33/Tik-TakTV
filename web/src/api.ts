@@ -93,10 +93,18 @@ export async function json<T>(
       referrerPolicy: "no-referrer",
       cache: "no-store",
     });
-    if (!r.ok)
+    if (!r.ok) {
+      if (r.status === 403 && new URL(url).hostname === "friend.tiktaktv.invalid") {
+        const problem = (await r.clone().json().catch(() => null)) as { error?: unknown } | null;
+        if (problem?.error === "Shared add-on access expired.")
+          throw new Error(
+            "Shared add-on access expired. Re-enter the friend code in Settings → Playback → Friend setup to refresh the shared setup.",
+          );
+      }
       throw new Error(
-        `The source returned HTTP ${r.status}. Check your account and try again.`,
+        `The add-on source returned HTTP ${r.status}. Check its connection in Settings → Add-ons and try again.`,
       );
+    }
     const value = (await r.json()) as T;
     if (cacheEnabled)
       responseCache.set(url, { expires: Date.now() + 120_000, value });
