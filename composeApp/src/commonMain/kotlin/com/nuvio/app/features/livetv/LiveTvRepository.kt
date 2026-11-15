@@ -1,7 +1,10 @@
 package com.nuvio.app.features.livetv
 
+import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
+import com.nuvio.app.features.addons.httpStreamPostTextWithHeaders
 import com.nuvio.app.features.addons.httpStreamTextWithHeaders
+import io.github.jan.supabase.auth.auth
 import io.ktor.http.encodeURLParameter
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
@@ -35,9 +38,32 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-// Fire TV devices have a small app heap. Keeping ten thousand channel/logo
-// records live caused input-dispatch ANRs while Compose indexed the guide.
-internal const val LiveTvInMemoryChannelLimit = 5_000
+// The guide must retain provider channels across regions. Parsing and TV
+// filtering run off the UI thread so this bounded index can exceed 50,000.
+internal const val LiveTvInMemoryChannelLimit = 70_000
+
+internal fun balancedGuideWarmupChannels(
+    channels: List<LiveTvChannel>,
+    limit: Int,
+): List<LiveTvChannel> {
+    if (limit <= 0) return emptyList()
+    val groups = channels.groupBy { it.group.ifBlank { "Other" } }.values
+    val result = ArrayList<LiveTvChannel>(minOf(limit, channels.size))
+    var offset = 0
+    while (result.size < limit) {
+        var added = false
+        for (group in groups) {
+            if (offset < group.size) {
+                result += group[offset]
+                added = true
+                if (result.size == limit) break
+            }
+        }
+        if (!added) break
+        offset += 1
+    }
+    return result
+}
 
 object LiveTvRepository {
     private val mutableUiState = MutableStateFlow(LiveTvUiState())
@@ -45,6 +71,8 @@ object LiveTvRepository {
     private val epgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val epgLoadLock = SynchronizedObject()
     private var activeEpgLoad: Job? = null
+    private var requestedFullGuideSettings: LiveTvXtreamSettings? = null
+    private var awaitingFullXtreamLineup = false
     private val xtreamLoadMutex = Mutex()
     private val shortGuideLock = SynchronizedObject()
     private var shortGuideSettings: LiveTvXtreamSettings? = null
@@ -75,6 +103,8 @@ object LiveTvRepository {
                 .getOrDefault(emptyList())
                 .take(LiveTvInMemoryChannelLimit)
             if (cachedChannels.isNotEmpty()) {
+                awaitingFullXtreamLineup = sourceType == LiveTvSourceType.Xtream &&
+                    cachedChannels.size < XTREAM_COMPLETE_CACHE_MIN_CHANNELS
                 mutableUiState.value = mutableUiState.value.copy(
                     channels = cachedChannels,
                     isLoading = false,
@@ -82,12 +112,17 @@ object LiveTvRepository {
                     errorMessage = null,
                 )
                 if (sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured) {
-                    // Keep the cached guide visible, then refresh the complete
-                    // provider lineup. Older builds accidentally replaced this
-                    // cache with the small guide-filtered subset (often only a
-                    // few dozen channels), so an EPG-only refresh could never
-                    // recover the missing channels.
-                    loadXtream(xtreamSettings, fromFriendSetup = LiveTvStorage.hasFriendXtreamOverride())
+                    runCatching { LiveTvStorage.loadCachedGuide(xtreamSettings) }
+                        .getOrNull()?.takeIf { it.isNotEmpty() }
+                        ?.let { publishGuideSchedules(it, loading = false) }
+                    // A complete cached lineup is ready for guide matching now.
+                    // Fetching every provider stream again at startup delayed
+                    // XMLTV and temporarily replaced the cache with sports.
+                    if (awaitingFullXtreamLineup) {
+                        loadXtream(xtreamSettings, fromFriendSetup = LiveTvStorage.hasFriendXtreamOverride())
+                    } else {
+                        ensureGuideLoaded()
+                    }
                 } else if (sourceType == LiveTvSourceType.M3u && LiveTvStorage.hasStoredLocalPlaylist()) {
                     // The channel cache intentionally avoids reparsing a large playlist on
                     // every launch, but the XMLTV URLs live in the M3U header. Recover just
@@ -103,8 +138,10 @@ object LiveTvRepository {
             }
             mutableUiState.value = mutableUiState.value.copy(isLoading = false)
             when {
-                sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured ->
+                sourceType == LiveTvSourceType.Xtream && xtreamSettings.isConfigured -> {
+                    awaitingFullXtreamLineup = true
                     loadXtream(xtreamSettings, fromFriendSetup = LiveTvStorage.hasFriendXtreamOverride())
+                }
                 sourceType == LiveTvSourceType.Stalker && stalkerSettings.isConfigured -> loadStalker(stalkerSettings)
                 LiveTvStorage.hasStoredLocalPlaylist() -> loadStoredLocalPlaylist()
                 sourceUrl.isNotBlank() -> load(sourceUrl)
@@ -119,11 +156,16 @@ object LiveTvRepository {
                 state.channels.isNotEmpty() || state.errorMessage != null || state.isLoaded
             }
             val state = mutableUiState.value
+            if (awaitingFullXtreamLineup) return@launch
             val guideAlreadyLoading = synchronized(epgLoadLock) { activeEpgLoad?.isActive == true }
+            if (state.channels.isEmpty() || guideAlreadyLoading) return@launch
+            if (state.sourceType == LiveTvSourceType.Xtream &&
+                requestedFullGuideSettings == state.xtreamSettings.normalized()
+            ) return@launch
             val hasGuideBackedChannel = state.channels.any { channel ->
                 channelHasGuideData(channel, state.currentProgrammes, state.programmeSchedules)
             }
-            if (state.channels.isEmpty() || hasGuideBackedChannel || guideAlreadyLoading) return@launch
+            if (state.sourceType != LiveTvSourceType.Xtream && hasGuideBackedChannel) return@launch
 
             when {
                 state.sourceType == LiveTvSourceType.Xtream && state.xtreamSettings.isConfigured -> {
@@ -143,6 +185,8 @@ object LiveTvRepository {
 
     fun onProfileChanged() {
         cancelEpgLoad()
+        requestedFullGuideSettings = null
+        awaitingFullXtreamLineup = false
         synchronized(shortGuideLock) {
             shortGuideSettings = null
             requestedShortGuideIds.clear()
@@ -400,6 +444,7 @@ object LiveTvRepository {
             }
         }
 
+        awaitingFullXtreamLineup = true
         mutableUiState.value = mutableUiState.value.copy(
             sourceType = LiveTvSourceType.Xtream,
             sourceUrl = normalizedSettings.serverUrl,
@@ -409,12 +454,13 @@ object LiveTvRepository {
         )
 
         return runCatching {
+            val hadCachedLineup = mutableUiState.value.channels.size >= XTREAM_COMPLETE_CACHE_MIN_CHANNELS
             val channels = withContext(Dispatchers.Default) {
                 fetchXtreamChannels(normalizedSettings) { sportsChannels ->
                     // A full Xtream lineup can take minutes on Fire TV. Publish
                     // the provider's sports category first so scorecards can
                     // start matching against its guide while the rest loads.
-                    if (sportsChannels.isNotEmpty()) {
+                    if (sportsChannels.isNotEmpty() && !hadCachedLineup) {
                         mutableUiState.value = mutableUiState.value.copy(
                             channels = sportsChannels,
                             isLoading = false,
@@ -422,7 +468,7 @@ object LiveTvRepository {
                         )
                         if (loadGuide) {
                             mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
-                            loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
+                            loadXtreamGuideForChannels(sportsChannels)
                         }
                     }
                 }
@@ -433,35 +479,33 @@ object LiveTvRepository {
             if (!fromFriendSetup && normalizedSettings != LiveTvStorage.loadXtreamSettings().normalized())
                 LiveTvStorage.saveFriendXtreamOverride(false)
             LiveTvStorage.saveXtreamSettings(normalizedSettings)
-            val latest = mutableUiState.value
-            if (!loadGuide &&
-                latest.sourceType == LiveTvSourceType.Xtream &&
-                latest.xtreamSettings.normalized() == normalizedSettings &&
-                latest.channels.isNotEmpty()
-            ) {
-                return@runCatching latest.channels
-            }
+            // The early sports-category callback publishes a partial lineup.
+            // Always install the complete result after the provider's all-
+            // streams response, including account syncs that defer guide load.
             synchronized(shortGuideLock) {
                 shortGuideSettings = normalizedSettings
                 requestedShortGuideIds.clear()
             }
-            mutableUiState.value = LiveTvUiState(
+            // Keep guide rows already discovered during the early category
+            // preview. Replacing the whole state made them vanish until a
+            // second XMLTV download completed.
+            mutableUiState.value = mutableUiState.value.copy(
                 sourceType = LiveTvSourceType.Xtream,
                 sourceUrl = normalizedSettings.serverUrl,
-                stalkerSettings = mutableUiState.value.stalkerSettings,
                 xtreamSettings = normalizedSettings,
                 channels = channels,
-                favoriteUrls = mutableUiState.value.favoriteUrls,
-                recentChannel = mutableUiState.value.recentChannel,
+                isLoading = false,
                 isLoaded = true,
             )
             cacheChannels(channels)
+            awaitingFullXtreamLineup = false
             if (loadGuide) {
                 mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
                 loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
             }
             channels
         }.onFailure { error ->
+            awaitingFullXtreamLineup = false
             mutableUiState.value = mutableUiState.value.copy(
                 isLoading = false,
                 isLoaded = mutableUiState.value.channels.isNotEmpty(),
@@ -613,11 +657,7 @@ object LiveTvRepository {
     private fun loadEpgInBackground(sourceUrl: String, epgUrls: List<String>) {
         if (epgUrls.isEmpty()) return
         replaceEpgLoad {
-            val targetChannelIds = mutableUiState.value.channels
-                .asSequence()
-                .flatMap { channel -> sequenceOf(channel.tvgId, channel.id) }
-                .mapNotNull { it?.takeIf(String::isNotBlank) }
-                .toSet()
+            val targetChannels = mutableUiState.value.channels
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
             val matchedChannelIds = mutableSetOf<String>()
             val loadContext = currentCoroutineContext()
@@ -625,7 +665,7 @@ object LiveTvRepository {
                 runCatching {
                     streamTargetedXmlTvProgrammeSchedules(
                         url = epgUrl,
-                        targetChannelIds = targetChannelIds,
+                        targetChannels = targetChannels,
                     ) { channelId, entries ->
                         loadContext.ensureActive()
                         schedules[channelId] = entries
@@ -654,6 +694,7 @@ object LiveTvRepository {
      * slower per-channel endpoint is only a bounded fallback.
      */
     private fun loadXtreamEpgInBackground(sourceUrl: String, settings: LiveTvXtreamSettings) {
+        requestedFullGuideSettings = settings.normalized()
         replaceEpgLoad {
             val channels = mutableUiState.value.channels
             val schedules = linkedMapOf<String, List<LiveTvProgramme>>()
@@ -662,7 +703,7 @@ object LiveTvRepository {
             // guide rows in parallel while the complete XML guide streams.
             val fastGuide = async {
                 val warmed = linkedMapOf<String, List<LiveTvProgramme>>()
-                channels.take(XTREAM_FAST_EPG_CHANNEL_LIMIT)
+                balancedGuideWarmupChannels(channels, XTREAM_FAST_EPG_CHANNEL_LIMIT)
                     .chunked(XTREAM_SHORT_EPG_BATCH_SIZE)
                     .forEach { batch ->
                         val entries = coroutineScope {
@@ -683,14 +724,11 @@ object LiveTvRepository {
                     }
                 warmed
             }
-            val targetIds = channels.mapNotNull { it.tvgId?.takeIf(String::isNotBlank) }.toSet()
+            val guideChannels = channels.filter { !it.tvgId.isNullOrBlank() }
             val matchedChannelIds = mutableSetOf<String>()
+            var cachedFirstThousand = false
             val loadContext = currentCoroutineContext()
-            runCatching {
-                streamTargetedXmlTvProgrammeSchedules(
-                    url = settings.xmlTvEndpoint(),
-                    targetChannelIds = targetIds,
-                ) { channelId, entries ->
+            val onSchedule: (String, List<LiveTvProgramme>) -> Unit = { channelId, entries ->
                     loadContext.ensureActive()
                     schedules[channelId] = entries
                     if (matchedChannelIds.add(channelId) &&
@@ -698,15 +736,53 @@ object LiveTvRepository {
                     ) {
                         publishGuideSchedules(schedules)
                     }
+                    if (!cachedFirstThousand && matchedChannelIds.size >= 1000) {
+                        cachedFirstThousand = true
+                        val snapshot = schedules.toMap()
+                        epgScope.launch { runCatching { LiveTvStorage.saveCachedGuide(settings, snapshot) } }
+                    }
+            }
+            val guideUrl = settings.xmlTvEndpoint()
+            val accountToken = SupabaseProvider.client.auth.currentSessionOrNull()?.accessToken
+                ?.takeIf(String::isNotBlank)
+            var xmlLoaded = false
+            if (accountToken != null) {
+                try {
+                    // The website uses this authenticated relay before trying
+                    // the provider directly. Fire TV needs the same path when
+                    // its direct XMLTV endpoint is unavailable.
+                    streamTargetedXmlTvProgrammeSchedules(
+                        url = guideUrl,
+                        targetChannels = guideChannels,
+                        relayToken = accountToken,
+                        onSchedule = onSchedule,
+                    )
+                    xmlLoaded = true
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    // Direct provider access is still useful for friend-code
+                    // IPTV and when the account relay is offline.
                 }
-            }.onFailure { error ->
-                if (error is CancellationException) throw error
+            }
+            if (!xmlLoaded) {
+                try {
+                    streamTargetedXmlTvProgrammeSchedules(
+                        url = guideUrl,
+                        targetChannels = guideChannels,
+                        onSchedule = onSchedule,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    // Keep the progressively discovered short EPG entries.
+                }
             }
             schedules.putAll(fastGuide.await())
             if (schedules.isNotEmpty()) publishGuideSchedules(schedules)
 
             if (schedules.isEmpty()) {
-                val fallbackChannels = channels.take(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
+                val fallbackChannels = balancedGuideWarmupChannels(channels, XTREAM_SHORT_EPG_CHANNEL_LIMIT)
                 for (batch in fallbackChannels.chunked(XTREAM_SHORT_EPG_BATCH_SIZE)) {
                     val entries = coroutineScope {
                         batch.map { channel ->
@@ -727,6 +803,9 @@ object LiveTvRepository {
             }
             if (mutableUiState.value.sourceUrl == sourceUrl) {
                 publishGuideSchedules(schedules, loading = false)
+                if (schedules.isNotEmpty()) {
+                    runCatching { LiveTvStorage.saveCachedGuide(settings, schedules) }
+                }
             }
         }
     }
@@ -798,6 +877,8 @@ internal expect object LiveTvStorage {
     fun saveRecentChannel(channel: LiveTvRecentChannel?)
     suspend fun loadCachedChannels(): List<LiveTvChannel>
     suspend fun saveCachedChannels(channels: List<LiveTvChannel>)
+    suspend fun loadCachedGuide(settings: LiveTvXtreamSettings): Map<String, List<LiveTvProgramme>>
+    suspend fun saveCachedGuide(settings: LiveTvXtreamSettings, schedules: Map<String, List<LiveTvProgramme>>)
 }
 
 private data class StalkerSession(
@@ -846,10 +927,9 @@ private suspend fun fetchXtreamChannels(
     }.orEmpty()
     if (sportsChannels.isNotEmpty()) onSportsChannels(sportsChannels)
     val allChannels = LiveTvRepositoryXtream.getLiveStreams(settings, categories)
-    if (sportsChannels.isEmpty()) return allChannels
-    val seenUrls = sportsChannels.mapTo(HashSet()) { it.streamUrl }
-    return (sportsChannels + allChannels.filter { seenUrls.add(it.streamUrl) })
-        .take(LiveTvInMemoryChannelLimit)
+    // The sports category is only an early preview for scorecards. Once the
+    // provider's full response arrives, use its original order for Live TV.
+    return allChannels.ifEmpty { sportsChannels }
 }
 
 private object LiveTvRepositoryXtream {
@@ -1122,6 +1202,7 @@ private fun LiveTvChannel.xtreamStreamId(): String? =
 private const val XTREAM_SHORT_EPG_CHANNEL_LIMIT = 60
 private const val XTREAM_SHORT_EPG_BATCH_SIZE = 12
 private const val XTREAM_FAST_EPG_CHANNEL_LIMIT = 400
+private const val XTREAM_COMPLETE_CACHE_MIN_CHANNELS = 600
 // Publishing a new StateFlow snapshot makes both the guide and Sports rebuild
 // their derived indexes. Fire TV hardware cannot keep up when a large XMLTV
 // document publishes every handful of channels. Publish the first match so the
@@ -1577,7 +1658,7 @@ internal fun parseXmlTvProgrammeSchedules(
     content: String,
     nowEpochMs: Long = LiveTvClock.nowEpochMs(),
 ): Map<String, List<LiveTvProgramme>> {
-    val endEpochMs = nowEpochMs + 3 * 60 * 60 * 1000L
+    val endEpochMs = nowEpochMs + 24 * 60 * 60 * 1000L
     val programmes = mutableMapOf<String, MutableList<LiveTvProgramme>>()
     xmlTvProgrammeRegex.findAll(content).forEach { match ->
         val attributes = xmlAttributeRegex.findAll(match.groupValues[1])
@@ -1607,18 +1688,37 @@ internal fun parseXmlTvProgrammeSchedules(
 
 private suspend fun streamTargetedXmlTvProgrammeSchedules(
     url: String,
-    targetChannelIds: Set<String>,
+    targetChannels: List<LiveTvChannel>,
+    relayToken: String? = null,
     onSchedule: (String, List<LiveTvProgramme>) -> Unit,
 ) {
-    if (targetChannelIds.isEmpty()) return
-    val canonicalTargetIds = targetChannelIds.associateBy(::normalizeGuideChannelId)
+    if (targetChannels.isEmpty()) return
+    val canonicalTargetIds = targetChannels.flatMap { channel ->
+        listOfNotNull(channel.tvgId, channel.id).map { guideId ->
+            normalizeGuideChannelId(guideId) to (channel.tvgId ?: channel.id)
+        }
+    }.groupBy({ it.first }, { it.second })
+    val targetNames = targetChannels.groupBy(
+        keySelector = { normalizeGuideChannelId(it.name) },
+        valueTransform = { it.tvgId ?: it.id },
+    )
+    val channelAliases = mutableMapOf<String, List<String>>()
+    val resolvedProgrammeChannels = mutableMapOf<String, List<String>>()
     val buffer = StringBuilder()
     val accumulated = mutableMapOf<String, MutableList<LiveTvProgramme>>()
     val now = LiveTvClock.nowEpochMs()
-    httpStreamTextWithHeaders(url, M3U_PLAYLIST_REQUEST_HEADERS) { chunk ->
+    var programmeSectionStarted = false
+    val consumeChunk: (String) -> Unit = { chunk ->
         buffer.append(chunk)
         while (true) {
-            val start = buffer.indexOf("<programme", ignoreCase = true)
+            val programmeStart = buffer.indexOf("<programme")
+            // XMLTV lists channel definitions before programmes. Searching the
+            // remaining 32 KB buffer for <channel> at every programme turned a
+            // large guide into billions of redundant character comparisons.
+            val channelStart = if (programmeSectionStarted) -1 else
+                buffer.indexOf("<channel")
+            val readingChannel = channelStart >= 0 && (programmeStart < 0 || channelStart < programmeStart)
+            val start = if (readingChannel) channelStart else programmeStart
             if (start < 0) {
                 if (buffer.length > XMLTV_STREAM_TAIL_CHARS) {
                     buffer.deleteRange(0, buffer.length - XMLTV_STREAM_TAIL_CHARS)
@@ -1626,7 +1726,29 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
                 break
             }
             if (start > 0) buffer.deleteRange(0, start)
-            val end = buffer.indexOf("</programme>", ignoreCase = true)
+            if (readingChannel) {
+                val channelEnd = buffer.indexOf("</channel>")
+                if (channelEnd < 0) break
+                val blockEnd = channelEnd + "</channel>".length
+                val openingTagEnd = buffer.indexOf('>')
+                if (openingTagEnd in 0 until blockEnd) {
+                    val guideId = findXmlAttribute(
+                        buffer.substring(0, openingTagEnd + 1), "id",
+                    )?.let(::normalizeGuideChannelId)
+                    if (guideId != null) {
+                        val block = buffer.substring(openingTagEnd + 1, blockEnd)
+                        val names = xmlTvDisplayNameRegex.findAll(block)
+                            .flatMap { match -> targetNames[normalizeGuideChannelId(match.groupValues[1])] .orEmpty() }
+                            .distinct()
+                            .toList()
+                        if (names.isNotEmpty()) channelAliases[guideId] = names
+                    }
+                }
+                buffer.deleteRange(0, blockEnd)
+                continue
+            }
+            programmeSectionStarted = true
+            val end = buffer.indexOf("</programme>")
             if (end < 0) break
             val blockEnd = end + "</programme>".length
             val openTagEnd = buffer.indexOf('>')
@@ -1642,10 +1764,13 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
                 tag = buffer.substring(0, openTagEnd + 1),
                 attributeName = "channel",
             )?.decodeXmlEntities()?.trim()?.takeIf(String::isNotBlank)
-            val channelId = rawChannelId
-                ?.let(::normalizeGuideChannelId)
-                ?.let(canonicalTargetIds::get)
-            if (channelId == null) {
+            val channelIds = rawChannelId?.let { rawId ->
+                resolvedProgrammeChannels.getOrPut(rawId) {
+                    val id = normalizeGuideChannelId(rawId)
+                    (canonicalTargetIds[id].orEmpty() + channelAliases[id].orEmpty()).distinct()
+                }
+            }.orEmpty()
+            if (channelIds.isEmpty() || channelIds.all { accumulated[it]?.size == 6 }) {
                 buffer.deleteRange(0, blockEnd)
                 continue
             }
@@ -1653,18 +1778,34 @@ private suspend fun streamTargetedXmlTvProgrammeSchedules(
             buffer.deleteRange(0, blockEnd)
             val parsed = parseXmlTvProgrammeSchedules(block, now).values.firstOrNull().orEmpty()
             if (parsed.isEmpty()) continue
-            val channelEntries = accumulated.getOrPut(channelId) { mutableListOf() }
-            val before = channelEntries.size
-            parsed.forEach { programme ->
-                if (channelEntries.size < 6 && channelEntries.none { it.startEpochMs == programme.startEpochMs }) {
-                    channelEntries += programme
+            channelIds.forEach { channelId ->
+                val channelEntries = accumulated.getOrPut(channelId) { mutableListOf() }
+                val before = channelEntries.size
+                parsed.forEach { programme ->
+                    if (channelEntries.size < 6 && channelEntries.none { it.startEpochMs == programme.startEpochMs }) {
+                        channelEntries += programme
+                    }
+                }
+                if (channelEntries.size != before) {
+                    channelEntries.sortBy(LiveTvProgramme::startEpochMs)
+                    onSchedule(channelId, channelEntries.toList())
                 }
             }
-            if (channelEntries.size != before) {
-                channelEntries.sortBy(LiveTvProgramme::startEpochMs)
-                onSchedule(channelId, channelEntries.toList())
-            }
         }
+    }
+    if (relayToken != null) {
+        httpStreamPostTextWithHeaders(
+            url = "https://api.tiktaktv.me/guide",
+            body = JsonObject(mapOf("url" to JsonPrimitive(url))).toString(),
+            headers = mapOf(
+                "Authorization" to "Bearer $relayToken",
+                "Content-Type" to "application/json",
+                "Accept" to "application/xml, text/xml, */*",
+            ),
+            onChunk = consumeChunk,
+        )
+    } else {
+        httpStreamTextWithHeaders(url, M3U_PLAYLIST_REQUEST_HEADERS, consumeChunk)
     }
 }
 
@@ -1699,8 +1840,16 @@ private fun findXmlAttribute(tag: String, attributeName: String): String? {
     return null
 }
 
-private fun normalizeGuideChannelId(value: String): String =
+private val guideCountryPrefixRegex = Regex("^\\s*[a-z]{2,3}\\s*[|:\\-]\\s*", RegexOption.IGNORE_CASE)
+private val guideQualityRegex = Regex("\\b(?:uhd|fhd|hd|sd|4k|1080p|720p|raw)\\b", RegexOption.IGNORE_CASE)
+private val guideNonAlphanumericRegex = Regex("[^a-z0-9]+")
+private val xmlTvDisplayNameRegex = Regex("<display-name[^>]*>(.*?)</display-name>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+
+internal fun normalizeGuideChannelId(value: String): String =
     value.decodeXmlEntities().trim().lowercase()
+        .replace(guideCountryPrefixRegex, "")
+        .replace(guideQualityRegex, "")
+        .replace(guideNonAlphanumericRegex, "")
 
 private fun String.xmlTvTimePart(): String {
     val digits = takeWhile(Char::isDigit)

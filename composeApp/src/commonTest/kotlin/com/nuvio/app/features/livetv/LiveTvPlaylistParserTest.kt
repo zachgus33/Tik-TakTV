@@ -73,6 +73,29 @@ class LiveTvPlaylistParserTest {
     }
 
     @Test
+    fun guideWarmupIncludesNonSportsCategories() {
+        val channels = (1..100).map { index ->
+            LiveTvChannel("sport-$index", "Sports $index", "https://stream.test/sport/$index", group = "Sports")
+        } + listOf(
+            LiveTvChannel("news", "World News", "https://stream.test/news", group = "News"),
+            LiveTvChannel("movies", "Movie Channel", "https://stream.test/movies", group = "Movies"),
+        )
+
+        assertEquals(
+            listOf("Sports 1", "World News", "Movie Channel", "Sports 2"),
+            balancedGuideWarmupChannels(channels, 4).map(LiveTvChannel::name),
+        )
+    }
+
+    @Test
+    fun guideIdsMatchWebsiteAcrossQualityAndCountryLabels() {
+        assertEquals(
+            normalizeGuideChannelId("ESPN.US"),
+            normalizeGuideChannelId("US | ESPN HD.US"),
+        )
+    }
+
+    @Test
     fun liveTvShowsPlayableChannelsWithoutGuideData() {
         val channels = listOf(
             LiveTvChannel("one", "CBS", "https://stream.test/one"),

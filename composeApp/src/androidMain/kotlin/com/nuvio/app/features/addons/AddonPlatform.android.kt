@@ -263,6 +263,29 @@ actual suspend fun httpStreamTextWithHeaders(
     }
 }
 
+actual suspend fun httpStreamPostTextWithHeaders(
+    url: String,
+    body: String,
+    headers: Map<String, String>,
+    onChunk: (String) -> Unit,
+): Unit = withContext(Dispatchers.IO) {
+    val builder = Request.Builder().url(url)
+    headers.withoutAcceptEncoding().forEach { (key, value) -> builder.header(key, value) }
+    val requestBody = body.toRequestBody("application/json".toMediaType())
+    addonHttpClient().newCall(builder.post(requestBody).build()).execute().use { response ->
+        if (!response.isSuccessful) error("Guide relay returned HTTP ${response.code}")
+        val responseBody = response.body ?: error("Guide relay returned an empty response")
+        responseBody.charStream().use { reader ->
+            val buffer = CharArray(32 * 1024)
+            while (true) {
+                val count = reader.read(buffer)
+                if (count < 0) break
+                if (count > 0) onChunk(String(buffer, 0, count))
+            }
+        }
+    }
+}
+
 actual suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String>,

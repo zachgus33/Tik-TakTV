@@ -34,6 +34,14 @@ expect suspend fun httpStreamTextWithHeaders(
     onChunk: (String) -> Unit,
 )
 
+/** Streams a JSON POST response, used by the authenticated XMLTV relay. */
+expect suspend fun httpStreamPostTextWithHeaders(
+    url: String,
+    body: String,
+    headers: Map<String, String> = emptyMap(),
+    onChunk: (String) -> Unit,
+)
+
 expect suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String> = emptyMap(),

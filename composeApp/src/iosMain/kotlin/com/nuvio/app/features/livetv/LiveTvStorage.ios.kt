@@ -153,4 +153,13 @@ actual object LiveTvStorage {
     actual suspend fun loadCachedChannels(): List<LiveTvChannel> = emptyList()
 
     actual suspend fun saveCachedChannels(channels: List<LiveTvChannel>) = Unit
+
+    actual suspend fun loadCachedGuide(
+        settings: LiveTvXtreamSettings,
+    ): Map<String, List<LiveTvProgramme>> = emptyMap()
+
+    actual suspend fun saveCachedGuide(
+        settings: LiveTvXtreamSettings,
+        schedules: Map<String, List<LiveTvProgramme>>,
+    ) = Unit
 }

@@ -6,6 +6,7 @@ import android.util.Xml
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
@@ -14,6 +15,12 @@ import java.io.Writer
 import javax.xml.parsers.SAXParserFactory
 
 actual object LiveTvStorage {
+    @Serializable
+    private data class GuideCacheRow(
+        val channelId: String,
+        val programmes: List<LiveTvProgramme>,
+    )
+
     private const val preferencesName = "nuvio_live_tv"
     private const val sourceTypeKey = "source_type"
     private const val sourceUrlKey = "m3u_source_url"
@@ -67,6 +74,51 @@ actual object LiveTvStorage {
 
     private fun cacheFile(): File? = appContext?.let { context ->
         File(context.filesDir, "live-tv-channels-${resolvedProfileId()}.jsonl")
+    }
+
+    private fun guideCacheFile(): File? = appContext?.let { context ->
+        File(context.filesDir, "live-tv-guide-${resolvedProfileId()}.jsonl")
+    }
+
+    actual suspend fun loadCachedGuide(
+        settings: LiveTvXtreamSettings,
+    ): Map<String, List<LiveTvProgramme>> = withContext(Dispatchers.IO) {
+        val file = guideCacheFile()?.takeIf(File::isFile) ?: return@withContext emptyMap()
+        if (System.currentTimeMillis() - file.lastModified() > 12 * 60 * 60 * 1000L) {
+            return@withContext emptyMap()
+        }
+        file.useLines { lines ->
+            val rows = lines.iterator()
+            if (!rows.hasNext() || rows.next() != settings.hashCode().toString()) {
+                return@useLines emptyMap()
+            }
+            val now = System.currentTimeMillis()
+            rows.asSequence().mapNotNull { line ->
+                runCatching { cacheJson.decodeFromString<GuideCacheRow>(line) }.getOrNull()
+            }.mapNotNull { row ->
+                row.programmes.filter { it.stopEpochMs > now }
+                    .takeIf(List<LiveTvProgramme>::isNotEmpty)
+                    ?.let { row.channelId to it }
+            }.toMap()
+        }
+    }
+
+    actual suspend fun saveCachedGuide(
+        settings: LiveTvXtreamSettings,
+        schedules: Map<String, List<LiveTvProgramme>>,
+    ) = withContext(Dispatchers.IO) {
+        val target = guideCacheFile() ?: return@withContext
+        val temporary = File(target.parentFile, "${target.name}.tmp")
+        temporary.bufferedWriter().use { writer ->
+            writer.appendLine(settings.hashCode().toString())
+            schedules.forEach { (channelId, programmes) ->
+                writer.appendLine(cacheJson.encodeToString(GuideCacheRow(channelId, programmes)))
+            }
+        }
+        if (!temporary.renameTo(target)) {
+            temporary.copyTo(target, overwrite = true)
+            temporary.delete()
+        }
     }
 
     private fun localPlaylistFile(profileId: Int = resolvedProfileId()): File? =

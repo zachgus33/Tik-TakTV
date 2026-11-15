@@ -26,6 +26,7 @@ data class LiveTvRecentChannel(
     val tvgId: String? = null,
 )
 
+@Serializable
 data class LiveTvProgramme(
     val title: String,
     val startEpochMs: Long,

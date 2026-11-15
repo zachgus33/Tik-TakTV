@@ -1,8 +1,8 @@
-name: Native Android TV preview
+name: Stable Android TV release
 
 on:
   push:
-    branches: [web-enhanced-pages]
+    branches: [tv-stable]
     paths:
       - "nativeTvApp/**"
       - "composeApp/**"
@@ -31,9 +31,10 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v5
-      - name: Test, lint, and build native TV preview
-        run: ./gradlew :nativeTvApp:testDebugUnitTest :nativeTvApp:lintDebug :nativeTvApp:assembleDebug -Pnuvio.android.distribution=full --stacktrace
+      - name: Test native TV app
+        run: ./gradlew :nativeTvApp:testDebugUnitTest -Pnuvio.android.distribution=full -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768m" -Pkotlin.daemon.jvmargs=-Xmx2g --max-workers=2 --stacktrace
       - name: Upload side-by-side preview APK
+        if: github.ref != 'refs/heads/tv-stable'
         uses: actions/upload-artifact@v7
         with:
           name: TikTak-TV-Native-Preview
@@ -42,6 +43,7 @@ jobs:
           retention-days: 14
 
   tv-emulator-smoke:
+    if: github.ref != 'refs/heads/tv-stable'
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -196,8 +198,8 @@ jobs:
           retention-days: 14
 
   publish-signed-preview:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages')
-    needs: [build, tv-emulator-smoke]
+    if: github.ref == 'refs/heads/tv-stable' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: build
     runs-on: ubuntu-latest
     env:
       TIKTAK_TV_STORE_PASSWORD: ${{ secrets.TIKTAK_TV_STORE_PASSWORD }}
@@ -222,7 +224,7 @@ jobs:
           printf '%s' "${TIKTAK_TV_KEYSTORE_BASE64}" | base64 --decode > "${TIKTAK_TV_KEYSTORE_FILE}"
           echo "TIKTAK_TV_KEYSTORE_FILE=${TIKTAK_TV_KEYSTORE_FILE}" >> "${GITHUB_ENV}"
       - name: Build signed native preview
-        run: ./gradlew :nativeTvApp:assembleRelease -Pnuvio.android.distribution=full --stacktrace
+        run: ./gradlew :nativeTvApp:assembleRelease -Pnuvio.android.distribution=full -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768m" -Pkotlin.daemon.jvmargs=-Xmx2g --max-workers=2 --stacktrace
       - name: Verify and prepare updater metadata
         run: |
           apk="nativeTvApp/build/outputs/apk/release/nativeTvApp-release.apk"
@@ -253,7 +255,7 @@ jobs:
           {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk","sha256":"${sha256}"}
           JSON
       - name: Publish stable native-preview update assets
-        if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
+        if: github.ref == 'refs/heads/tv-stable' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -276,7 +278,7 @@ jobs:
             --title "TikTak TV compatibility update feed (v${version_name})" \
             --notes "This compatibility feed serves existing native TV installations. It contains the same signed app as the current Fire TV and Android TV release, version ${version_name} (${version_code}). For new installs use https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest or Downloader code 2564237."
       - name: Replace Downloader release with native TV app
-        if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
+        if: github.ref == 'refs/heads/tv-stable' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -235,8 +235,8 @@ fun LiveTvScreen(
             derivedChannels.visible
         }
     }
-    val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
-        visibleChannels.take(visibleChannelLimit)
+    val renderedChannels = remember(isTv, visibleChannels, visibleChannelLimit) {
+        if (isTv) visibleChannels else visibleChannels.take(visibleChannelLimit)
     }
     LaunchedEffect(isTv, uiState.sourceType, uiState.xtreamSettings, derivedChannels.visible, visibleChannelLimit) {
         // Probe the filtered lineup, not the currently rendered guide rows.
@@ -657,14 +657,10 @@ fun selectGuideBackedChannels(
     schedules: Map<String, List<LiveTvProgramme>>,
     nowEpochMs: Long = LiveTvClock.nowEpochMs(),
 ): List<LiveTvChannel> {
-    // The TV grid starts at "Now". A channel with only a later programme
-    // would render an empty "No guide data" cell at the start of its row.
+    // Match the website: keep every channel with a future guide row, even
+    // when its current programme has a gap before the next listing.
     return channels.filter { channel ->
-        val keys = listOfNotNull(channel.tvgId?.takeIf(String::isNotBlank), channel.id)
-        keys.any { key ->
-            currentProgrammes[key]?.let { nowEpochMs >= it.startEpochMs && nowEpochMs < it.stopEpochMs } == true ||
-                schedules[key]?.any { nowEpochMs >= it.startEpochMs && nowEpochMs < it.stopEpochMs } == true
-        }
+        channelHasUpcomingGuideData(channel, currentProgrammes, schedules, nowEpochMs)
     }
 }
 

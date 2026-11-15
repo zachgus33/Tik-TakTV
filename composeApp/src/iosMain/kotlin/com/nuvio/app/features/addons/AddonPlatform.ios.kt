@@ -145,6 +145,15 @@ actual suspend fun httpStreamTextWithHeaders(
     onChunk(httpGetTextWithHeaders(url, headers))
 }
 
+actual suspend fun httpStreamPostTextWithHeaders(
+    url: String,
+    body: String,
+    headers: Map<String, String>,
+    onChunk: (String) -> Unit,
+) {
+    onChunk(httpPostJsonWithHeaders(url, body, headers))
+}
+
 actual suspend fun httpGetBytesWithHeaders(
     url: String,
     headers: Map<String, String>,
