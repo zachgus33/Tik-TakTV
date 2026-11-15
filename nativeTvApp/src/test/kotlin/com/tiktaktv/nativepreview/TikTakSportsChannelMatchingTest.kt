@@ -308,6 +308,36 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun websiteBtnScoreFindsBigTenNetworkWithoutMatchingEspn() {
+        val btn = espn.copy(id = "btn", name = "US| BIG TEN NETWORK HD", tvgId = "btn.us")
+        val score = event("in", "BTN").copy(
+            sport = "basketball",
+            league = "NCAA Men's Basketball",
+            teams = listOf(NativeScoreTeam("Boise State Broncos", "12"), NativeScoreTeam("Nebraska Cornhuskers", "18")),
+        )
+        val current = mapOf(
+            "btn.us" to programme("Live: College Basketball"),
+            "espn.us" to programme("SportsCenter"),
+        )
+
+        assertEquals(btn, findScoreChannel(score, listOf(espn, btn), current))
+        assertEquals(listOf(btn), guidedScoreChannelChoices(score, listOf(espn, btn), current, emptyMap()))
+    }
+
+    @Test
+    fun abbreviatedSecAndAccBroadcastsMatchTheirFullNetworkNames() {
+        val sec = espn.copy(id = "sec", name = "US| SEC NETWORK HD", tvgId = "sec.us")
+        val acc = espn.copy(id = "acc", name = "US| ACC NETWORK HD", tvgId = "acc.us")
+        val current = mapOf(
+            "sec.us" to programme("College Football"),
+            "acc.us" to programme("College Football"),
+        )
+
+        assertEquals(sec, findScoreChannel(event("in", "SECN"), listOf(acc, sec), current))
+        assertEquals(acc, findScoreChannel(event("in", "ACCN"), listOf(sec, acc), current))
+    }
+
+    @Test
     fun fs1ScoreMatchesFoxSportsOneButNotFoxSportsTwo() {
         val fs1 = espn.copy(id = "fs1", name = "US| FOX SPORTS 1 HD", tvgId = "fox-sports-1.us")
         val fs2 = espn.copy(id = "fs2", name = "US| FOX SPORTS 2 HD", tvgId = "fox-sports-2.us")

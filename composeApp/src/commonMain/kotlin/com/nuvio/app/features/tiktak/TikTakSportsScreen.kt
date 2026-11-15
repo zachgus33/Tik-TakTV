@@ -764,6 +764,9 @@ private val BroadcastAliasPatterns = listOf(
     Regex("\\b(?:mlb network|mlbn)\\b") to "mlbn",
     Regex("\\b(?:nhl network|nhln)\\b") to "nhln",
     Regex("\\b(?:nba tv|nbatv)\\b") to "nbatv",
+    Regex("\\b(?:big ten network|b1g network|btn)\\b") to "btn",
+    Regex("\\b(?:sec network|secn)\\b") to "secn",
+    Regex("\\b(?:acc network|accn)\\b") to "accn",
 )
 
 private fun normalizedBroadcastTokens(value: String): Set<String> {
