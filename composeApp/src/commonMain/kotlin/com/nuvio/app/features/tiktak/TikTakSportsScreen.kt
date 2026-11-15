@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -19,11 +18,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -65,6 +62,8 @@ data class NativeScoreTeam(
     val score: String,
     val logoUrl: String? = null,
     val record: String? = null,
+    val shortName: String? = null,
+    val abbreviation: String? = null,
 )
 
 data class NativeScoreEvent(
@@ -77,6 +76,7 @@ data class NativeScoreEvent(
     val teams: List<NativeScoreTeam>,
     val venue: String? = null,
     val broadcast: String? = null,
+    val broadcasts: List<String> = emptyList(),
 )
 
 private val SportsJson = Json { ignoreUnknownKeys = true }
@@ -113,7 +113,6 @@ fun TikTakSportsScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var sportFilter by remember { mutableStateOf("all") }
-    var channelChoices by remember { mutableStateOf<Pair<NativeScoreEvent, List<LiveTvChannel>>?>(null) }
 
     // Indexing thousands of IPTV channels and matching every score used to run
     // during composition. On Fire TV that blocked input dispatch long enough to
@@ -180,14 +179,12 @@ fun TikTakSportsScreen(
             return
         }
         scope.launch {
-            val choices = withContext(Dispatchers.Default) {
-                findScoreChannelCandidates(event, liveState.channels, liveState.currentProgrammes)
+            // The guide may have finished loading after the score card rendered.
+            // Recheck it, but never launch an unrelated generic sports channel.
+            val channel = withContext(Dispatchers.Default) {
+                findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
             }
-            when (choices.size) {
-                0 -> openScoreEvent(event, null, liveState.channels.isEmpty(), onChannelClick)
-                1 -> onChannelClick(choices.first())
-                else -> channelChoices = event to choices
-            }
+            openScoreEvent(event, channel, liveState.channels.isEmpty() || liveState.isEpgLoading, onChannelClick)
         }
     }
 
@@ -293,33 +290,6 @@ fun TikTakSportsScreen(
             }
         }
     }
-    channelChoices?.let { (event, channels) ->
-        AlertDialog(
-            onDismissRequest = { channelChoices = null },
-            title = { Text("Choose a channel for ${event.name}") },
-            text = {
-                LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
-                    item {
-                        Text("The guide could not confirm this game. Pick a channel to check its stream.")
-                    }
-                    items(channels, key = LiveTvChannel::id) { channel ->
-                        TextButton(
-                            onClick = {
-                                channelChoices = null
-                                onChannelClick(channel)
-                            },
-                            modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
-                        ) { Text(channel.name) }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { channelChoices = null }, modifier = Modifier.tikTakTvFocus()) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
 }
 
 data class SportsDerivedState(
@@ -337,7 +307,7 @@ fun deriveSportsState(
 ): SportsDerivedState {
     // A provider can have a guide for some channels but not for the channel
     // named by ESPN's broadcast. Keep those playable channels searchable.
-    val channelSearchIndex = buildSportsChannelSearchIndex(channels, programmes)
+    val channelSearchIndex = buildSportsChannelSearchIndex(channels, programmes, schedules)
     val liveEvents = channels.mapNotNull { channel ->
         val programme = channel.tvgId?.let(programmes::get) ?: programmes[channel.id]
         val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
@@ -425,50 +395,9 @@ fun findScoreChannel(
     event: NativeScoreEvent,
     channels: List<LiveTvChannel>,
     currentProgrammes: Map<String, LiveTvProgramme>,
+    schedules: Map<String, List<LiveTvProgramme>> = emptyMap(),
 ): LiveTvChannel? {
-    return findScoreChannelFromIndex(event, buildSportsChannelSearchIndex(channels, currentProgrammes))
-}
-
-/** Plausible streams for a game when the guide cannot identify one safely. */
-fun findScoreChannelCandidates(
-    event: NativeScoreEvent,
-    channels: List<LiveTvChannel>,
-    currentProgrammes: Map<String, LiveTvProgramme>,
-): List<LiveTvChannel> {
-    val teamTokens = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
-    val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
-    val matched = buildSportsChannelSearchIndex(channels, currentProgrammes).asSequence()
-        .mapNotNull { entry ->
-            val allTeamsMatch = teamTokens.isNotEmpty() && teamTokens.all { team ->
-                team.count(entry.programmeTokens::contains) >= if (team.size <= 1) 1 else 2
-            }
-            val broadcasterMatches = broadcastTokens.isNotEmpty() &&
-                broadcastTokens.all(entry.channelTokens::contains)
-            val genericSport = entry.hasProgramme && isGenericSportProgramme(entry.programmeTitle, event)
-            if (!allTeamsMatch && (!broadcasterMatches || (entry.hasProgramme && !genericSport))) {
-                null
-            } else {
-                entry.channel to (if (allTeamsMatch) 2 else if (entry.hasProgramme) 1 else 0)
-            }
-        }
-        .sortedByDescending { it.second }
-        .map { it.first }
-        .distinctBy(LiveTvChannel::streamUrl)
-        .take(12)
-        .toList()
-    if (matched.isNotEmpty()) return matched
-
-    // Some providers expose sports channels before their EPG has loaded, and
-    // some score feeds omit a broadcaster. Let the viewer choose a stream;
-    // never auto-launch a guessed channel.
-    return channels.asSequence()
-        .filter { channel ->
-            val label = "${channel.name} ${channel.group}".lowercase()
-            "sport" in label || "espn" in label || event.sport in label
-        }
-        .distinctBy(LiveTvChannel::streamUrl)
-        .take(12)
-        .toList()
+    return findScoreChannelFromIndex(event, buildSportsChannelSearchIndex(channels, currentProgrammes, schedules))
 }
 
 private data class SportsChannelSearchEntry(
@@ -482,15 +411,23 @@ private data class SportsChannelSearchEntry(
 private fun buildSportsChannelSearchIndex(
     channels: List<LiveTvChannel>,
     currentProgrammes: Map<String, LiveTvProgramme>,
-): List<SportsChannelSearchEntry> = channels.map { channel ->
-    val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
-    SportsChannelSearchEntry(
-        channel = channel,
-        programmeTokens = normalizedSportsTokens(programme?.title.orEmpty()),
-        programmeTitle = programme?.title.orEmpty(),
-        channelTokens = normalizedSportsTokens("${channel.name} ${channel.group}"),
-        hasProgramme = programme != null,
-    )
+    schedules: Map<String, List<LiveTvProgramme>> = emptyMap(),
+): List<SportsChannelSearchEntry> {
+    val now = GMTDate().timestamp
+    return channels.map { channel ->
+        val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
+            ?: (channel.tvgId?.let(schedules::get) ?: schedules[channel.id])
+                ?.firstOrNull { now in it.startEpochMs until it.stopEpochMs }
+        SportsChannelSearchEntry(
+            channel = channel,
+            programmeTokens = normalizedSportsTokens(programme?.title.orEmpty()),
+            programmeTitle = programme?.title.orEmpty(),
+            // A broad group such as "USA Sports" is not proof that every channel
+            // in it is the USA Network broadcast named on a score card.
+            channelTokens = normalizedSportsTokens("${channel.name} ${channel.tvgId.orEmpty()}"),
+            hasProgramme = programme != null,
+        )
+    }
 }
 
 private fun findScoreChannelFromIndex(
@@ -499,21 +436,18 @@ private fun findScoreChannelFromIndex(
 ): LiveTvChannel? {
     if (index.isEmpty()) return null
     val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
-    val teamTokenSets = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
-    val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
+    val teams = event.teams.filter { normalizedSportsTokens(it.name).isNotEmpty() }
+    val broadcastOptions = eventBroadcastTokens(event)
 
     val candidates = index.asSequence()
         .mapNotNull { entry ->
             val programmeTokens = entry.programmeTokens
-            val matchingTeams = teamTokenSets.count { team ->
-                val required = if (team.size <= 1) 1 else 2
-                team.count(programmeTokens::contains) >= required
-            }
+            val matchingTeams = teams.count { team -> teamMatchesProgramme(team, programmeTokens) }
             val programmeOverlap = eventTokens.count(programmeTokens::contains)
-            val allTeamsMatch = teamTokenSets.isNotEmpty() && matchingTeams == teamTokenSets.size
+            val allTeamsMatch = teams.isNotEmpty() && matchingTeams == teams.size
             val channelTokens = entry.channelTokens
-            val broadcastOverlap = broadcastTokens.count(channelTokens::contains)
-            val broadcastMatch = broadcastTokens.isNotEmpty() && broadcastOverlap == broadcastTokens.size
+            val broadcastOverlap = broadcastOptions.maxOfOrNull { tokens -> tokens.count(channelTokens::contains) } ?: 0
+            val broadcastMatch = broadcastOptions.any { tokens -> tokens.all(channelTokens::contains) }
             val genericSportProgramme = broadcastMatch && entry.hasProgramme &&
                 isGenericSportProgramme(entry.programmeTitle, event)
 
@@ -523,7 +457,10 @@ private fun findScoreChannelFromIndex(
             if (entry.hasProgramme && !allTeamsMatch && !genericSportProgramme) {
                 return@mapNotNull null
             }
-            if (!entry.hasProgramme && !broadcastMatch) {
+            // A channel's name is not evidence that it is carrying this game.
+            // With no current guide entry, ABC/ESPN regional feeds can show a
+            // different programme despite matching the broadcast label.
+            if (!entry.hasProgramme) {
                 return@mapNotNull null
             }
             val score = (if (allTeamsMatch) 300 else 0) + programmeOverlap * 8 +
@@ -567,6 +504,7 @@ private fun isGenericSportProgramme(title: String, event: NativeScoreEvent): Boo
 private fun normalizeSportsText(value: String): String = value
     .lowercase()
     .replace(Regex("[^a-z0-9]+"), " ")
+    .replace(Regex("\\bst\\b"), "state")
     .trim()
 
 private fun normalizedSportsTokens(value: String): Set<String> = normalizeSportsText(value)
@@ -575,9 +513,26 @@ private fun normalizedSportsTokens(value: String): Set<String> = normalizeSports
     .filter { it.length >= 3 && it !in SportsMatchStopWords }
     .toSet()
 
-private fun normalizedBroadcastTokens(value: String): Set<String> = normalizedSportsTokens(value)
-    .filterNot { it in BroadcastMatchStopWords }
-    .toSet()
+private fun normalizedBroadcastTokens(value: String): Set<String> {
+    if ('+' in value) return emptySet()
+    return normalizedSportsTokens(value)
+        .map { if (it == "net") "network" else it }
+        .filterNot { it in BroadcastMatchStopWords }
+        .toSet()
+}
+
+private fun teamMatchesProgramme(team: NativeScoreTeam, programmeTokens: Set<String>): Boolean =
+    listOfNotNull(team.name, team.shortName, team.abbreviation).any { alias ->
+        val tokens = normalizedSportsTokens(alias)
+        tokens.isNotEmpty() && tokens.count(programmeTokens::contains) >=
+            if (tokens.size <= 1) 1 else 2
+    }
+
+private fun eventBroadcastTokens(event: NativeScoreEvent): List<Set<String>> =
+    (event.broadcasts + listOfNotNull(event.broadcast))
+        .map(::normalizedBroadcastTokens)
+        .filter(Set<String>::isNotEmpty)
+        .distinct()
 
 private val SportsMatchStopWords = setOf(
     "the", "and", "for", "game", "live", "college", "football", "basketball", "baseball", "hockey", "soccer",
@@ -626,7 +581,7 @@ private fun openScoreEvent(
             if (channelsStillLoading) {
                 "Live TV is still syncing. Try this game again when your channels are ready."
             } else {
-                "No live channel carrying ${event.name} was found in your IPTV guide."
+                "No guide-confirmed channel for ${event.name} was found in your IPTV lineup."
             },
         )
     }
@@ -685,8 +640,15 @@ private fun parseScoreEvents(raw: String, sport: String, fallbackLeague: String)
                 score = side.string("score").orEmpty(),
                 logoUrl = team.string("logo"),
                 record = side.array("records").firstObject()?.string("summary"),
+                shortName = team.string("shortDisplayName"),
+                abbreviation = team.string("abbreviation"),
             )
         }
+        val broadcasts = competition.array("broadcasts").flatMap { item ->
+            runCatching { item.jsonObject.array("names") }.getOrNull().orEmpty().mapNotNull { name ->
+                runCatching { name.jsonPrimitive.contentOrNull }.getOrNull()
+            }
+        }.distinct()
         NativeScoreEvent(
             id = event.string("id") ?: return@mapNotNull null,
             sport = sport,
@@ -696,10 +658,8 @@ private fun parseScoreEvents(raw: String, sport: String, fallbackLeague: String)
             state = type?.string("state") ?: "pre",
             teams = teams,
             venue = competition.objectValue("venue")?.string("fullName"),
-            broadcast = competition.array("broadcasts").firstObject()
-                ?.array("names")
-                ?.firstOrNull()
-                ?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() },
+            broadcast = broadcasts.firstOrNull(),
+            broadcasts = broadcasts,
         )
     }
 }

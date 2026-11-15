@@ -5,7 +5,6 @@ import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
-import com.nuvio.app.features.tiktak.findScoreChannelCandidates
 import com.nuvio.app.features.tiktak.deriveSportsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -39,13 +38,13 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
-    fun liveEventCanUseNamedBroadcasterWhenGuideTitleIsGeneric() {
-        assertEquals(espn, findScoreChannel(event("in", "ESPN"), listOf(nfl, espn), emptyMap()))
+    fun channelNameAloneDoesNotProveItCarriesTheGame() {
+        assertNull(findScoreChannel(event("in", "ESPN"), listOf(nfl, espn), emptyMap()))
     }
 
     @Test
-    fun scoreCanUseNamedBroadcasterWhenGuideDataIsMissing() {
-        assertEquals(espn, findScoreChannel(event("post", "ESPN Network HD"), listOf(espn), emptyMap()))
+    fun finishedScoreDoesNotLaunchUnguidedChannel() {
+        assertNull(findScoreChannel(event("post", "ESPN Network HD"), listOf(espn), emptyMap()))
     }
 
     @Test
@@ -85,38 +84,11 @@ class TikTakSportsChannelMatchingTest {
     fun ambiguousAbcFeedsWithoutCurrentGuideDoNotAutoLaunch() {
         val abcEast = espn.copy(id = "abc-east", name = "ABC East", streamUrl = "https://example.com/abc-east.m3u8")
         val abcWest = espn.copy(id = "abc-west", name = "ABC West", streamUrl = "https://example.com/abc-west.m3u8")
-
         assertNull(findScoreChannel(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()))
-        assertEquals(
-            listOf(abcEast, abcWest),
-            findScoreChannelCandidates(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()),
-        )
     }
 
     @Test
-    fun channelChooserExcludesAbcFeedWithConflictingGuide() {
-        val wrongAbc = espn.copy(id = "abc-news", name = "ABC News", tvgId = "abc.news")
-        val rightAbc = espn.copy(id = "abc-sports", name = "ABC Sports", tvgId = "abc.sports")
-        assertEquals(
-            listOf(rightAbc),
-            findScoreChannelCandidates(
-                event("in", "ABC"),
-                listOf(wrongAbc, rightAbc),
-                mapOf("abc.news" to programme("Evening News")),
-            ),
-        )
-    }
-
-    @Test
-    fun sportsChannelCanBeChosenWhenScoreHasNoBroadcasterOrGuide() {
-        assertEquals(
-            listOf(espn),
-            findScoreChannelCandidates(event("in", ""), listOf(espn), emptyMap()),
-        )
-    }
-
-    @Test
-    fun scoreMatchesBroadcastChannelEvenWhenOnlyOtherChannelsHaveGuideData() {
+    fun scoreWaitsForItsOwnGuideData() {
         val state = deriveSportsState(
             channels = listOf(nfl, espn),
             programmes = mapOf("nfl.us" to programme("NFL Total Access")),
@@ -125,7 +97,56 @@ class TikTakSportsChannelMatchingTest {
             sportFilter = "all",
         )
 
-        assertEquals(espn, state.matchedChannels["game-1"])
+        assertNull(state.matchedChannels["game-1"])
+    }
+
+    @Test
+    fun abbreviatedMatchupAndUsaNetBroadcastFindTheRightChannel() {
+        val usa = espn.copy(id = "usa", name = "USA Network HD", tvgId = "usa.network")
+        val wrong = espn.copy(id = "sky", name = "Sky Sports", tvgId = "sky.sports")
+        val score = event("in", "USA Net").copy(
+            name = "ORST @ BOIS",
+            teams = listOf(
+                NativeScoreTeam("Oregon State Beavers", "14", shortName = "Oregon State", abbreviation = "ORST"),
+                NativeScoreTeam("Boise State Broncos", "10", shortName = "Boise State", abbreviation = "BOIS"),
+            ),
+        )
+        val programmes = mapOf(
+            "usa.network" to programme("College Football: Oregon St vs Boise St"),
+            "sky.sports" to programme("English Premier League Football"),
+        )
+        assertEquals(usa, findScoreChannel(score, listOf(wrong, usa), programmes))
+    }
+
+    @Test
+    fun allEspnBroadcastNamesAreCheckedAgainstTheGuide() {
+        val abc = espn.copy(id = "abc", name = "ABC HD", tvgId = "abc.us")
+        val score = event("in", "ESPN+").copy(broadcasts = listOf("ESPN+", "ABC"))
+        assertEquals(abc, findScoreChannel(score, listOf(espn, abc), mapOf(
+            "espn.us" to programme("SportsCenter"),
+            "abc.us" to programme("Alabama Crimson Tide vs Georgia Bulldogs"),
+        )))
+    }
+
+    @Test
+    fun currentScheduleCanMatchBeforeCurrentProgrammeIndexUpdates() {
+        val now = System.currentTimeMillis()
+        val scheduled = programme("Alabama Crimson Tide vs Georgia Bulldogs").copy(
+            startEpochMs = now - 60_000L,
+            stopEpochMs = now + 60_000L,
+        )
+        assertEquals(espn, findScoreChannel(
+            event("in", "ESPN"), listOf(espn), emptyMap(),
+            mapOf("espn.us" to listOf(scheduled)),
+        ))
+    }
+
+    @Test
+    fun broadGroupNameDoesNotImpersonateTheBroadcaster() {
+        val wrong = espn.copy(id = "sky", name = "Sky Sports", group = "USA Sports", tvgId = "sky.us")
+        assertNull(findScoreChannel(event("in", "USA Net"), listOf(wrong), mapOf(
+            "sky.us" to programme("College Football"),
+        )))
     }
 
     @Test
