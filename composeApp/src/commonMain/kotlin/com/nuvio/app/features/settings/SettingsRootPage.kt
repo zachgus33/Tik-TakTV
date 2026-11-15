@@ -55,7 +55,7 @@ import com.nuvio.app.features.streams.StreamAutoPlayMode
 import com.nuvio.app.features.tiktak.TikTakServiceClient
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToJsonElement
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -472,7 +472,10 @@ private fun FriendAccessSettingsCard(isTablet: Boolean) {
                                         }
                                     })
                                     put("collections", Json.parseToJsonElement(CollectionRepository.exportToJson()))
-                                    put("homeCatalogs", Json.encodeToJsonElement(HomeCatalogSettingsRepository.exportToSyncPayload().items))
+                                    put("homeCatalogs", Json.encodeToJsonElement(
+                                        ListSerializer(SyncCatalogItem.serializer()),
+                                        HomeCatalogSettingsRepository.exportToSyncPayload().items,
+                                    ))
                                     put("autoplay", PlayerSettingsRepository.uiState.value.streamAutoPlayMode == StreamAutoPlayMode.FIRST_STREAM)
                                     LiveTvRepository.uiState.value.xtreamSettings.takeIf { it.isConfigured }?.let { provider ->
                                         put("provider", buildJsonObject {
