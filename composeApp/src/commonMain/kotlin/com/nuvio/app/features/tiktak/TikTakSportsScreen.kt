@@ -113,13 +113,12 @@ fun TikTakSportsScreen(
     LaunchedEffect(Unit) { LiveTvRepository.ensureGuideLoaded() }
     // The full profile pull can fail before reaching the web IPTV payload. A
     // direct visit to Sports must recover the account provider independently
-    // when this profile has no local Live TV connection at all.
+    // when the profile has no loaded channels. Friend-code IPTV takes priority.
     val activeProfileId = ProfileRepository.activeProfileId
     LaunchedEffect(activeProfileId) {
         val state = LiveTvRepository.uiState.value
         if (state.channels.isEmpty() && !state.isLoading &&
-            !state.xtreamSettings.isConfigured && !state.stalkerSettings.isConfigured &&
-            state.sourceUrl.isBlank()
+            !LiveTvRepository.hasFriendXtreamOverride()
         ) {
             try {
                 TikTakWebLiveTvSync.pull(activeProfileId)
