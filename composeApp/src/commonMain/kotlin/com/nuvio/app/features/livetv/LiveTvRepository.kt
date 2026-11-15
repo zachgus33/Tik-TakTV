@@ -840,9 +840,10 @@ private object LiveTvRepositoryXtream {
                     if (guideCandidates.size >= LiveTvInMemoryChannelLimit &&
                         fallbackChannels.size >= XTREAM_SHORT_EPG_CHANNEL_LIMIT
                     ) throw XtreamChannelIndexComplete
-                    fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT ||
-                        raw.hasNonBlankJsonStringField("epg_channel_id") ||
+                    val hasGuideId = raw.hasNonBlankJsonStringField("epg_channel_id") ||
                         raw.hasNonBlankJsonStringField("tvg_id")
+                    if (hasGuideId) guideCandidates.size < LiveTvInMemoryChannelLimit
+                    else fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT
                 },
             ) { obj ->
             loadContext.ensureActive()
