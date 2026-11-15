@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -297,7 +298,7 @@ fun TikTakSportsScreen(
             onDismissRequest = { channelChoices = null },
             title = { Text("Choose a channel for ${event.name}") },
             text = {
-                LazyColumn {
+                LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
                     item {
                         Text("The guide could not confirm this game. Pick a channel to check its stream.")
                     }
