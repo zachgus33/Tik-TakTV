@@ -11,6 +11,7 @@ import {
 import { cleanItem, read } from "./storage";
 import type { Addon, Item, Progress, Provider } from "./types";
 import type { HomeCatalogSetting } from "./account";
+import { manifestUrl } from "./addon-urls";
 import {
   decryptSetup,
   encryptSetup,
@@ -41,7 +42,7 @@ export default function DataTools(props: {
   const transfer = (): Transfer => ({
     format: "nuvio-enhanced-web",
     version: 1,
-    addons: props.addons.map((addon) => `${addon.base}/manifest.json`),
+    addons: props.addons.map((addon) => manifestUrl(addon.base)),
     collections: props.collections,
     library: props.library.map(cleanItem),
     progress: read<Progress[]>("progress", []),

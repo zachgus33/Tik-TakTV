@@ -184,21 +184,13 @@ export async function sourceFetch(
     if (error instanceof Error && error.message.includes("playback service"))
       throw error;
   }
-  const addonApi = parsed &&
-    /\/(?:manifest\.json$|(?:catalog|meta|stream|subtitles)\/)/i.test(parsed.pathname);
-  const forwardedHeaders = new Headers(options.headers);
-  // Some add-on hosts reject the companion's default server user agent even
-  // though the same configured URL works in a browser. Forward the user's
-  // browser identity when a CORS-blocked add-on needs the authenticated relay.
-  if (addonApi && !forwardedHeaders.has("user-agent"))
-    forwardedHeaders.set("user-agent", navigator.userAgent);
   const relay = (signal = options.signal ?? undefined) =>
     serviceRequest(
       "/request",
       {
         url,
         method: options.method ?? "GET",
-        headers: Object.fromEntries(forwardedHeaders),
+        headers: Object.fromEntries(new Headers(options.headers)),
         form:
           options.body instanceof FormData
             ? Object.fromEntries(options.body)

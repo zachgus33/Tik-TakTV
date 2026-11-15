@@ -2521,6 +2521,35 @@ test("configured add-on streams retain query settings and recover from relay fai
   await expect.poll(() => requested.some((url) => url.includes("/stream/movie/tt-test.json?token=private"))).toBe(true);
   await expect(page.locator("video")).toBeVisible();
 });
+
+test("refresh and test preserve a configured add-on manifest URL", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nuvio:addons", JSON.stringify([{
+    base: "https://configured.example/account?token=private",
+    manifest: {
+      id: "configured.example", name: "Configured streams",
+      types: ["movie"], resources: ["catalog", "stream"], catalogs: [],
+    },
+  }])));
+  const requested: string[] = [];
+  await page.route("https://configured.example/**", (route) => {
+    requested.push(route.request().url());
+    return route.fulfill({ json: {
+      id: "configured.example", name: "Configured streams",
+      types: ["movie"], resources: ["catalog", "stream"], catalogs: [],
+    } });
+  });
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Add-ons/ }).click();
+  await page.getByRole("button", { name: "Test Configured streams" }).click();
+  await expect(page.getByText("Configured streams is reachable.")).toBeVisible();
+  await page.getByRole("button", { name: "Refresh installed manifests" }).click();
+  await expect(page.getByText("All add-on manifests refreshed.")).toBeVisible();
+  // The second action may reuse the short-lived manifest cache.
+  expect(requested.length).toBeGreaterThan(0);
+  expect(requested.every((url) =>
+    url === "https://configured.example/account/manifest.json?token=private",
+  )).toBe(true);
+});
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {

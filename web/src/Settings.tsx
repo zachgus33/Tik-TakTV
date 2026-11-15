@@ -33,6 +33,7 @@ import { storeProvider, save } from "./storage";
 import type { Addon, Item, Provider } from "./types";
 import { type Collection, type Transfer, addonUrls } from "./collections";
 import { installMany, mergeAddons } from "./addon-import";
+import { manifestUrl } from "./addon-urls";
 import { validateTorboxKey } from "./torbox";
 import { validateRealDebridKey } from "./realdebrid";
 import DataTools from "./DataTools";
@@ -977,7 +978,7 @@ export default function Settings(props: Props) {
                 onClick={() =>
                   void run("refresh", async () => {
                     const result = await installMany(
-                      props.addons.map((a) => a.base + "/manifest.json"),
+                      props.addons.map((a) => manifestUrl(a.base)),
                     );
                     props.onAddons(mergeAddons(props.addons, result.addons));
                     setSuccess(
@@ -1089,7 +1090,7 @@ export default function Settings(props: Props) {
                       aria-label={`Test ${a.manifest.name}`}
                       onClick={() =>
                         void run(`test-${index}`, async () => {
-                          await installAddon(`${a.base}/manifest.json`);
+                          await installAddon(manifestUrl(a.base));
                           setSuccess(`${a.manifest.name} is reachable.`);
                         })
                       }
