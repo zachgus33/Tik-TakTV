@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.SurfaceHolder
+import android.view.LayoutInflater
 import android.util.AttributeSet
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -962,7 +963,15 @@ private fun ExoPlayerSurface(
     AndroidView(
         modifier = modifier,
         factory = { viewContext ->
-            PlayerView(viewContext).apply {
+            // Fire TV's SurfaceView can decode frames while its video layer
+            // remains black beneath the Compose player UI. TextureView stays
+            // in the same composited layer as the controls on the TV app.
+            val view = if (viewContext.packageName == "com.tiktaktv.tv.nativepreview") {
+                LayoutInflater.from(viewContext).inflate(R.layout.nuvio_tv_player_texture_view, null) as PlayerView
+            } else {
+                PlayerView(viewContext)
+            }
+            view.apply {
                 useController = useNativeController
                 layoutParams = android.view.ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
                 player = exoPlayer

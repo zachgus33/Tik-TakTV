@@ -112,6 +112,9 @@ fun TikTakSportsScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val playChannel: (LiveTvChannel) -> Unit = { channel ->
+        scope.launch { onChannelClick(LiveTvRepository.prepareForPlayback(channel)) }
+    }
     val liveState by remember {
         // Sports depends on the same guide-backed channel index as Live TV. Loading it here
         // keeps the expensive guide work off Home startup while still making a direct visit
@@ -210,7 +213,7 @@ fun TikTakSportsScreen(
     fun openScore(event: NativeScoreEvent, matched: LiveTvChannel?) {
         if (matched != null) {
             unmatchedScoreId = null
-            onChannelClick(matched)
+            playChannel(matched)
             return
         }
         if (searchingScoreId != null) return
@@ -238,7 +241,7 @@ fun TikTakSportsScreen(
                     }
                 }
                 if (channel != null) {
-                    onChannelClick(channel)
+                    playChannel(channel)
                 } else {
                     val latest = LiveTvRepository.uiState.value
                     val choices = withContext(Dispatchers.Default) {
@@ -254,7 +257,7 @@ fun TikTakSportsScreen(
                             null,
                             channelsAvailable = latest.channels.isNotEmpty(),
                             channelsStillLoading = latest.isLoading || latest.isEpgLoading,
-                            onChannelClick = onChannelClick,
+                            onChannelClick = playChannel,
                         )
                         unmatchedScoreId = event.id
                     }
@@ -284,7 +287,7 @@ fun TikTakSportsScreen(
                             TextButton(
                                 onClick = {
                                     channelChoices = null
-                                    onChannelClick(channel)
+                                    playChannel(channel)
                                 },
                                 modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
                             ) {
@@ -355,7 +358,7 @@ fun TikTakSportsScreen(
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
-                    onChannelClick = onChannelClick,
+                    onChannelClick = playChannel,
                 )
             }
         }
@@ -372,7 +375,7 @@ fun TikTakSportsScreen(
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
-                    onChannelClick = onChannelClick,
+                    onChannelClick = playChannel,
                 )
             }
         }
@@ -391,7 +394,7 @@ fun TikTakSportsScreen(
             }
         } else {
             items(visibleLiveEvents, key = { "channel:${it.first.id}:${it.second}" }) { (channel, title) ->
-                FocusCard(onClick = { onChannelClick(channel) }) {
+                FocusCard(onClick = { playChannel(channel) }) {
                     Text(
                         text = title ?: channel.name,
                         style = MaterialTheme.typography.titleLarge,
@@ -420,7 +423,7 @@ fun TikTakSportsScreen(
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
-                    onChannelClick = onChannelClick,
+                    onChannelClick = playChannel,
                 )
             }
         }
