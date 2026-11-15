@@ -591,15 +591,19 @@ private fun findScoreChannelsFromIndex(
     val candidates = index.asSequence()
         .mapNotNull { entry ->
             val eventStart = event.startEpochMs
-            if (eventStart != null && !(event.state == "in" && entry.isCurrentProgramme) &&
-                (eventStart < entry.startEpochMs - 2 * 60 * 60_000L ||
-                    eventStart > entry.stopEpochMs + 2 * 60 * 60_000L)
+            // The web Sports matcher accepts guide events within eight hours
+            // of the score. IPTV guide times can drift by several hours, so
+            // the TV must search the same window instead of discarding the
+            // broadcaster before it can be ranked.
+            if (eventStart != null &&
+                (eventStart < entry.startEpochMs - 8 * 60 * 60_000L ||
+                    eventStart > entry.stopEpochMs + 8 * 60 * 60_000L)
             ) return@mapNotNull null
-            // The provider's current-programme index can lag the video feed,
-            // but a future schedule alone must not launch a live score.
-            if (event.state == "in" &&
-                !entry.isCurrentProgramme &&
-                (now < entry.startEpochMs || now >= entry.stopEpochMs)
+            // A recent guide event may be the broadcaster's best evidence for
+            // a live score while its current-programme index has moved on.
+            if (event.state == "in" && !entry.isCurrentProgramme &&
+                (entry.stopEpochMs <= now - 2 * 60 * 60_000L ||
+                    entry.startEpochMs > now)
             ) return@mapNotNull null
             val programmeTokens = entry.programmeTokens
             val matchingTeams = teamSignatures.count { tokens -> tokens.any(programmeTokens::contains) }
@@ -639,7 +643,39 @@ private fun findScoreChannelsFromIndex(
         .distinctBy { it.first.id }
         .map { it.first }
         .toList()
-    return candidates
+    if (candidates.isNotEmpty()) return candidates
+
+    // The website can still surface the named sports network when its EPG
+    // labels the current slot as another generic sports show. Keep this
+    // fallback limited to guide-backed sports networks so local affiliates,
+    // news feeds, and channels with no EPG cannot impersonate the broadcast.
+    if (event.state != "in" || broadcastOptions.isEmpty()) return emptyList()
+    return index.asSequence()
+        .filter { entry ->
+            val current = entry.isCurrentProgramme ||
+                (entry.startEpochMs <= now && now < entry.stopEpochMs)
+            val titleWords = normalizeSportsText(entry.programmeTitle).split(' ').toSet()
+            current &&
+                isDedicatedSportsChannel(entry.channel.name) &&
+                !isUnrelatedNewsChannel(entry.channel, broadcastOptions) &&
+                titleWords.none { it == "vs" || it == "versus" || it == "at" } &&
+                SportsKeywords.any { word -> entry.programmeTitle.lowercase().contains(word) } &&
+                broadcastOptions.any { option -> option.all(entry.channelTokens::contains) }
+        }
+        .map(SportsChannelSearchEntry::channel)
+        .distinctBy(LiveTvChannel::id)
+        .sortedByDescending { canonicalBroadcastScore(event, it) }
+        .toList()
+}
+
+private fun isDedicatedSportsChannel(name: String): Boolean {
+    val normalized = normalizeSportsText(name)
+    return listOf(
+        "sec network", "big ten network", "espn", "fox sports", "cbs sports",
+        "nbc sports", "nfl network", "nba tv", "mlb network", "nhl network",
+        "tennis channel", "golf channel", "bein sports", "sky sports",
+        "sportsnet", "dazn", "tnt sports", "tsn",
+    ).any(normalized::contains)
 }
 
 private fun canonicalBroadcastScore(event: NativeScoreEvent, channel: LiveTvChannel): Int {

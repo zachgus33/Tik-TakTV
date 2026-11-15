@@ -258,6 +258,56 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun websiteSecNetworkScoreFindsEarlierFootballGuideDespiteCurrentBasketball() {
+        val now = System.currentTimeMillis()
+        val sec = espn.copy(id = "sec", name = "US| SEC NETWORK HD", tvgId = "sec.us")
+        val secSixty = espn.copy(id = "sec-60", name = "US| SEC NETWORK ᴴᴰ ⁶⁰ᶠᵖˢ", tvgId = "sec60.us")
+        val score = event("in", "SEC Network").copy(
+            league = "NCAA - Football",
+            startEpochMs = now - 90 * 60_000L,
+        )
+        val basketball = programme("Live: Women's College Basketball").copy(
+            startEpochMs = now - 20 * 60_000L,
+            stopEpochMs = now + 100 * 60_000L,
+        )
+        val football = programme("Live: College Football").copy(
+            startEpochMs = now - 3 * 60 * 60_000L,
+            stopEpochMs = now - 50 * 60_000L,
+        )
+
+        assertEquals(sec, findScoreChannel(
+            score,
+            listOf(sec, secSixty),
+            mapOf("sec.us" to basketball, "sec60.us" to basketball),
+            mapOf("sec.us" to listOf(football, basketball), "sec60.us" to listOf(football, basketball)),
+        ))
+        assertEquals(listOf(sec, secSixty), guidedScoreChannelChoices(
+            score,
+            listOf(sec, secSixty),
+            mapOf("sec.us" to basketball, "sec60.us" to basketball),
+            mapOf("sec.us" to listOf(football, basketball), "sec60.us" to listOf(football, basketball)),
+        ))
+    }
+
+    @Test
+    fun websiteSecNetworkChoiceSurvivesGenericCurrentGuideWhenEarlierSlotIsUnavailable() {
+        val sec = espn.copy(id = "sec", name = "US| SEC NETWORK HD", tvgId = "sec.us")
+        val secSixty = espn.copy(id = "sec-60", name = "US| SEC NETWORK ᴴᴰ ⁶⁰ᶠᵖˢ", tvgId = "sec60.us")
+        val unrelated = espn.copy(id = "yes", name = "US| YES NETWORK HD", tvgId = "yes.us")
+        val score = event("in", "SEC Network").copy(league = "NCAA - Football")
+        val current = mapOf(
+            "sec.us" to programme("Live: Women's College Basketball"),
+            "sec60.us" to programme("Live: Women's College Basketball"),
+            "yes.us" to programme("Live: Women's College Basketball"),
+        )
+
+        assertEquals(sec, findScoreChannel(score, listOf(unrelated, sec, secSixty), current))
+        assertEquals(listOf(sec, secSixty), guidedScoreChannelChoices(
+            score, listOf(unrelated, sec, secSixty), current, emptyMap(),
+        ))
+    }
+
+    @Test
     fun fs1ScoreMatchesFoxSportsOneButNotFoxSportsTwo() {
         val fs1 = espn.copy(id = "fs1", name = "US| FOX SPORTS 1 HD", tvgId = "fox-sports-1.us")
         val fs2 = espn.copy(id = "fs2", name = "US| FOX SPORTS 2 HD", tvgId = "fox-sports-2.us")
