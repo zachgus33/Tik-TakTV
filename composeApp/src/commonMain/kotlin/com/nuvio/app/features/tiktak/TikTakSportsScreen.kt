@@ -235,6 +235,21 @@ fun TikTakSportsScreen(
                     withContext(Dispatchers.Default) {
                         findScoreChannel(event, latest.channels, latest.currentProgrammes, latest.programmeSchedules)
                     }
+                } ?: withTimeoutOrNull(20_000L) {
+                    // On Fire TV the full provider guide is streamed into the
+                    // index. A scorecard can be pressed before the relevant
+                    // channel's EPG batch arrives; keep checking that same
+                    // guide instead of declaring the game unmatched early.
+                    var found: LiveTvChannel? = null
+                    while (found == null) {
+                        val latest = LiveTvRepository.uiState.value
+                        found = withContext(Dispatchers.Default) {
+                            findScoreChannel(event, latest.channels, latest.currentProgrammes, latest.programmeSchedules)
+                        }
+                        if (found == null && !latest.isLoading && !latest.isEpgLoading) break
+                        if (found == null) delay(1_000L)
+                    }
+                    found
                 }
                 if (channel != null) {
                     playChannel(channel)
@@ -646,7 +661,7 @@ private fun findScoreChannelsFromIndex(
     if (candidates.isNotEmpty()) return candidates
 
     // The website can still surface the named sports network when its EPG
-    // labels the current slot as another generic sports show. Keep this
+    // labels the current slot as a generic network show. Keep this
     // fallback limited to guide-backed sports networks so local affiliates,
     // news feeds, and channels with no EPG cannot impersonate the broadcast.
     if (event.state != "in" || broadcastOptions.isEmpty()) return emptyList()
@@ -659,13 +674,18 @@ private fun findScoreChannelsFromIndex(
                 isDedicatedSportsChannel(entry.channel.name) &&
                 !isUnrelatedNewsChannel(entry.channel, broadcastOptions) &&
                 titleWords.none { it == "vs" || it == "versus" || it == "at" } &&
-                SportsKeywords.any { word -> entry.programmeTitle.lowercase().contains(word) } &&
+                !isClearlyUnrelatedProgramme(entry.programmeTitle) &&
                 broadcastOptions.any { option -> option.all(entry.channelTokens::contains) }
         }
         .map(SportsChannelSearchEntry::channel)
         .distinctBy(LiveTvChannel::id)
         .sortedByDescending { canonicalBroadcastScore(event, it) }
         .toList()
+}
+
+private fun isClearlyUnrelatedProgramme(title: String): Boolean {
+    val words = normalizeSportsText(title).split(' ').toSet()
+    return words.any { it in setOf("news", "newscast", "weather", "movie", "shopping", "cartoon") }
 }
 
 private fun isDedicatedSportsChannel(name: String): Boolean {

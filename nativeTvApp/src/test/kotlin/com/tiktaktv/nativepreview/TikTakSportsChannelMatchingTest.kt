@@ -296,8 +296,8 @@ class TikTakSportsChannelMatchingTest {
         val unrelated = espn.copy(id = "yes", name = "US| YES NETWORK HD", tvgId = "yes.us")
         val score = event("in", "SEC Network").copy(league = "NCAA - Football")
         val current = mapOf(
-            "sec.us" to programme("Live: Women's College Basketball"),
-            "sec60.us" to programme("Live: Women's College Basketball"),
+            "sec.us" to programme("SEC Inside"),
+            "sec60.us" to programme("SEC Inside"),
             "yes.us" to programme("Live: Women's College Basketball"),
         )
 
