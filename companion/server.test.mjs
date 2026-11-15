@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createServer } from "node:http";
 import {
   createService,
   publicAddress,
@@ -26,8 +27,32 @@ import {
   youtubeTitlesRelated,
   safeDownloadName,
   sourceHeaders,
+  nativeAddonFetch,
   youtubeVideoAllowed,
 } from "./server.mjs";
+
+test("add-on JSON uses Nuvio-style HTTP headers and preserves source 403", async () => {
+  const seen = [];
+  const server = createServer((req, res) => {
+    seen.push({ url: req.url, headers: req.headers });
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end('{"error":"source denied"}');
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = new URL(`http://127.0.0.1:${server.address().port}/key/manifest.json?setup=1`);
+    const response = await nativeAddonFetch(url, { Accept: "application/json" });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: "source denied" });
+    assert.equal(seen[0].url, "/key/manifest.json?setup=1");
+    assert.equal(seen[0].headers.accept, "application/json");
+    assert.equal(seen[0].headers["user-agent"], undefined);
+    assert.equal(seen[0].headers["accept-encoding"], undefined);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test("YouTube connections stay isolated by TikTak profile", () => {
   assert.equal(youtubeProfileAccountKey("owner", 1), "owner");

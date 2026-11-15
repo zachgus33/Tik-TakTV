@@ -111,36 +111,68 @@ export async function resolveTarget(input) {
     throw new Error("Private destinations are not allowed");
   return { u, found };
 }
+export function nativeAddonFetch(url, headers, signal, lookup) {
+  return new Promise((resolve, reject) => {
+    const transport = url.protocol === "https:" ? https : http;
+    const request = transport.request(
+      url,
+      { method: "GET", headers, signal, lookup },
+      (incoming) => {
+        const status = incoming.statusCode ?? 502;
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (value !== undefined)
+            responseHeaders.set(
+              name,
+              Array.isArray(value) ? value.join(", ") : value,
+            );
+        }
+        resolve(
+          new Response(
+            [204, 205, 304].includes(status)
+              ? null
+              : Readable.toWeb(incoming),
+            { status, headers: responseHeaders },
+          ),
+        );
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
+}
 export async function fetchSafe(input, options = {}) {
+  const { nativeHttp = false, ...requestOptions } = options;
   let current = input;
   let headers = { ...(options.headers ?? {}) };
   for (let hop = 0; hop < 6; hop++) {
     const { u, found } = await resolveTarget(current);
-    const agent = new Agent({
-      connect: {
-        lookup(_host, opts, cb) {
-          const a = found[0];
-          if (opts?.all) cb(null, found);
-          else cb(null, a.address, a.family);
-        },
-      },
-    });
+    const lookup = (_host, opts, cb) => {
+      const a = found[0];
+      if (opts?.all) cb(null, found);
+      else cb(null, a.address, a.family);
+    };
+    const agent = nativeHttp
+      ? null
+      : new Agent({ connect: { lookup } });
     let response;
     try {
-      response = await upstreamFetch(u, {
-        ...options,
-        headers,
-        redirect: "manual",
-        dispatcher: agent,
-      });
+      response = nativeHttp
+        ? await nativeAddonFetch(u, headers, requestOptions.signal, lookup)
+        : await upstreamFetch(u, {
+            ...requestOptions,
+            headers,
+            redirect: "manual",
+            dispatcher: agent,
+          });
     } catch (e) {
-      await agent.close();
+      await agent?.close();
       throw e;
     }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const loc = response.headers.get("location");
       await response.body?.cancel();
-      await agent.close();
+      await agent?.close();
       if (!loc) throw new Error("Invalid source redirect");
       const next = new URL(loc, u);
       if (next.origin !== u.origin) {
@@ -152,7 +184,7 @@ export async function fetchSafe(input, options = {}) {
       current = next.href;
       continue;
     }
-    return { response, url: u.href, close: () => agent.close() };
+    return { response, url: u.href, close: () => agent?.close() };
   }
   throw new Error("Too many source redirects");
 }
@@ -3804,7 +3836,7 @@ export function createService({ token, origins, authorizeAccount }) {
           !isTorbox &&
           !isRealDebrid &&
           !isArtwork &&
-          !/\/(manifest\.json|(?:catalog|meta|stream)\/.*\.json|(?:player_api|xmltv|get)\.php|[^/]+\.m3u8?)$/.test(
+          !/\/(manifest\.json|(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json|(?:player_api|xmltv|get)\.php|[^/]+\.m3u8?)$/.test(
             url.pathname,
           )
         )
@@ -3865,6 +3897,13 @@ export function createService({ token, origins, authorizeAccount }) {
           headers,
           method,
           body: data,
+          // Match Nuvio Web's native Node HTTP transport for add-on JSON.
+          // It does not add undici's User-Agent or Accept-Encoding headers.
+          nativeHttp:
+            method === "GET" &&
+            /\/(?:manifest\.json|(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json)$/.test(
+              url.pathname,
+            ),
           signal: AbortSignal.any([
             controller.signal,
             AbortSignal.timeout(30000),
