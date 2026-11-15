@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -409,7 +410,22 @@ object LiveTvRepository {
 
         return runCatching {
             val channels = withContext(Dispatchers.Default) {
-                fetchXtreamChannels(normalizedSettings)
+                fetchXtreamChannels(normalizedSettings) { sportsChannels ->
+                    // A full Xtream lineup can take minutes on Fire TV. Publish
+                    // the provider's sports category first so scorecards can
+                    // start matching against its guide while the rest loads.
+                    if (sportsChannels.isNotEmpty()) {
+                        mutableUiState.value = mutableUiState.value.copy(
+                            channels = sportsChannels,
+                            isLoading = false,
+                            isLoaded = true,
+                        )
+                        if (loadGuide) {
+                            mutableUiState.value = mutableUiState.value.copy(isEpgLoading = true)
+                            loadXtreamEpgInBackground(normalizedSettings.serverUrl, normalizedSettings)
+                        }
+                    }
+                }
             }
             require(channels.isNotEmpty()) { "No playable channels were found for this Xtream provider." }
             LiveTvStorage.saveLocalPlaylistData("")
@@ -807,9 +823,33 @@ private suspend fun resolveStalkerPlaybackChannel(channel: LiveTvChannel): LiveT
     )
 }
 
-private suspend fun fetchXtreamChannels(settings: LiveTvXtreamSettings): List<LiveTvChannel> {
+private suspend fun fetchXtreamChannels(
+    settings: LiveTvXtreamSettings,
+    onSportsChannels: (List<LiveTvChannel>) -> Unit = {},
+): List<LiveTvChannel> {
     val categories = LiveTvRepositoryXtream.getLiveCategories(settings)
-    return LiveTvRepositoryXtream.getLiveStreams(settings, categories)
+    val sportsCategory = categories.entries
+        .filter { (_, name) -> name.contains("sport", ignoreCase = true) }
+        .maxByOrNull { (_, name) ->
+            if (name.contains("US", ignoreCase = true)) 2 else 1
+        }?.key
+    val sportsChannels = sportsCategory?.let { categoryId ->
+        withTimeoutOrNull(8_000L) {
+            try {
+                LiveTvRepositoryXtream.getLiveStreams(settings, categories, categoryId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }.orEmpty()
+    }.orEmpty()
+    if (sportsChannels.isNotEmpty()) onSportsChannels(sportsChannels)
+    val allChannels = LiveTvRepositoryXtream.getLiveStreams(settings, categories)
+    if (sportsChannels.isEmpty()) return allChannels
+    val seenUrls = sportsChannels.mapTo(HashSet()) { it.streamUrl }
+    return (sportsChannels + allChannels.filter { seenUrls.add(it.streamUrl) })
+        .take(LiveTvInMemoryChannelLimit)
 }
 
 private object LiveTvRepositoryXtream {
@@ -826,6 +866,7 @@ private object LiveTvRepositoryXtream {
     suspend fun getLiveStreams(
         settings: LiveTvXtreamSettings,
         categories: Map<String, String>,
+        requestedCategoryId: String? = null,
     ): List<LiveTvChannel> {
         val guideCandidates = ArrayList<LiveTvChannel>(LiveTvInMemoryChannelLimit)
         val fallbackChannels = ArrayList<LiveTvChannel>(XTREAM_SHORT_EPG_CHANNEL_LIMIT)
@@ -834,15 +875,19 @@ private object LiveTvRepositoryXtream {
         val loadContext = currentCoroutineContext()
         try {
             streamJsonArrayObjects(
-                url = requestUrl(settings, action = "get_live_streams"),
+                url = requestUrl(
+                    settings,
+                    action = "get_live_streams",
+                    extraParameters = requestedCategoryId?.let { mapOf("category_id" to it) }.orEmpty(),
+                ),
                 headers = M3U_PLAYLIST_REQUEST_HEADERS,
                 shouldParse = { raw ->
-                    if (guideCandidates.size >= LiveTvInMemoryChannelLimit &&
+                    if (guideCandidates.size >= (if (requestedCategoryId == null) LiveTvInMemoryChannelLimit else 600) &&
                         fallbackChannels.size >= XTREAM_SHORT_EPG_CHANNEL_LIMIT
                     ) throw XtreamChannelIndexComplete
                     val hasGuideId = raw.hasNonBlankJsonStringField("epg_channel_id") ||
                         raw.hasNonBlankJsonStringField("tvg_id")
-                    if (hasGuideId) guideCandidates.size < LiveTvInMemoryChannelLimit
+                    if (hasGuideId) guideCandidates.size < (if (requestedCategoryId == null) LiveTvInMemoryChannelLimit else 600)
                     else fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT
                 },
             ) { obj ->
@@ -860,11 +905,12 @@ private object LiveTvRepositoryXtream {
                 ?: "ts"
             val streamUrl = directSource ?: settings.liveStreamUrl(streamId, extension)
             val categoryId = obj.stringValue("category_id")
+            if (requestedCategoryId != null && categoryId != requestedCategoryId) return@streamJsonArrayObjects
             val tvgId = obj.stringValue("epg_channel_id")
                 ?.takeIf(String::isNotBlank)
                 ?: obj.stringValue("tvg_id")?.takeIf(String::isNotBlank)
             val hasCapacity = if (tvgId != null) {
-                guideCandidates.size < LiveTvInMemoryChannelLimit
+                guideCandidates.size < (if (requestedCategoryId == null) LiveTvInMemoryChannelLimit else 600)
             } else {
                 fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT
             }
@@ -879,7 +925,7 @@ private object LiveTvRepositoryXtream {
                 headers = M3U_STREAM_REQUEST_HEADERS,
             )
             when {
-                tvgId != null && guideCandidates.size < LiveTvInMemoryChannelLimit -> guideCandidates += channel
+                tvgId != null && guideCandidates.size < (if (requestedCategoryId == null) LiveTvInMemoryChannelLimit else 600) -> guideCandidates += channel
                 tvgId == null && fallbackChannels.size < XTREAM_SHORT_EPG_CHANNEL_LIMIT -> fallbackChannels += channel
             }
             }
