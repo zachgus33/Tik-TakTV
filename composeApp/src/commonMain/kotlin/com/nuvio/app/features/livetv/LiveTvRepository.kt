@@ -572,9 +572,9 @@ object LiveTvRepository {
         }
     }
 
-    fun loadXtreamGuideForChannels(channels: List<LiveTvChannel>) {
+    fun loadXtreamGuideForChannels(channels: List<LiveTvChannel>, force: Boolean = false): Job? {
         val state = mutableUiState.value
-        if (state.sourceType != LiveTvSourceType.Xtream || !state.xtreamSettings.isConfigured) return
+        if (state.sourceType != LiveTvSourceType.Xtream || !state.xtreamSettings.isConfigured) return null
         val settings = state.xtreamSettings
         val pending = synchronized(shortGuideLock) {
             if (shortGuideSettings != settings) {
@@ -583,12 +583,12 @@ object LiveTvRepository {
             }
             channels.filter { channel ->
                 channel.xtreamStreamId() != null &&
-                    !channelHasGuideData(channel, state.currentProgrammes, state.programmeSchedules) &&
-                    requestedShortGuideIds.add(channel.id)
+                    (force || !channelHasGuideData(channel, state.currentProgrammes, state.programmeSchedules)) &&
+                    (requestedShortGuideIds.add(channel.id) || force)
             }
         }
-        if (pending.isEmpty()) return
-        epgScope.launch {
+        if (pending.isEmpty()) return null
+        return epgScope.launch {
             pending.chunked(XTREAM_SHORT_EPG_BATCH_SIZE).forEach { batch ->
                 val results = coroutineScope {
                     batch.map { channel ->

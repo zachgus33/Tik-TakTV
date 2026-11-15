@@ -6,6 +6,7 @@ import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
 import com.nuvio.app.features.tiktak.deriveSportsState
+import com.nuvio.app.features.tiktak.guidedScoreChannelChoices
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -81,6 +82,33 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun shortenedGuideMatchupMatchesBothDistinctiveTeamNames() {
+        assertEquals(
+            espn,
+            findScoreChannel(
+                event("in", "ESPN"),
+                listOf(espn),
+                mapOf("espn.us" to programme("Alabama vs Georgia")),
+            ),
+        )
+    }
+
+    @Test
+    fun sharedCityWordsDoNotMatchTwoDifferentTeams() {
+        val score = event("in", "ESPN").copy(
+            teams = listOf(
+                NativeScoreTeam("New York Knicks", "90"),
+                NativeScoreTeam("New York Nets", "88"),
+            ),
+        )
+        assertNull(findScoreChannel(
+            score,
+            listOf(espn),
+            mapOf("espn.us" to programme("New York vs Boston")),
+        ))
+    }
+
+    @Test
     fun ambiguousAbcFeedsWithoutCurrentGuideDoNotAutoLaunch() {
         val abcEast = espn.copy(id = "abc-east", name = "ABC East", streamUrl = "https://example.com/abc-east.m3u8")
         val abcWest = espn.copy(id = "abc-west", name = "ABC West", streamUrl = "https://example.com/abc-west.m3u8")
@@ -142,6 +170,50 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun upcomingScoreMatchesItsScheduledGameInsteadOfCurrentShow() {
+        val start = System.currentTimeMillis() + 3 * 60 * 60_000L
+        val current = programme("SportsCenter").copy(
+            startEpochMs = start - 4 * 60 * 60_000L,
+            stopEpochMs = start - 2 * 60 * 60_000L,
+        )
+        val upcoming = programme("Alabama Crimson Tide vs Georgia Bulldogs").copy(
+            startEpochMs = start,
+            stopEpochMs = start + 3 * 60 * 60_000L,
+        )
+        assertEquals(espn, findScoreChannel(
+            event("pre", "ESPN").copy(startEpochMs = start),
+            listOf(espn),
+            mapOf("espn.us" to current),
+            mapOf("espn.us" to listOf(current, upcoming)),
+        ))
+        assertNull(findScoreChannel(
+            event("pre", "ESPN").copy(startEpochMs = start + 12 * 60 * 60_000L),
+            listOf(espn),
+            mapOf("espn.us" to current),
+            mapOf("espn.us" to listOf(current, upcoming)),
+        ))
+    }
+
+    @Test
+    fun unconfirmedScoreOffersOnlyBroadcasterChannelsWithGuideData() {
+        val now = System.currentTimeMillis()
+        val guided = programme("College Football").copy(
+            startEpochMs = now - 60_000L,
+            stopEpochMs = now + 60_000L,
+        )
+        val unguidedEspn = espn.copy(id = "espn-no-guide", tvgId = "espn.no-guide")
+        assertEquals(
+            listOf(espn),
+            guidedScoreChannelChoices(
+                event("in", "ESPN"),
+                listOf(unguidedEspn, nfl, espn),
+                mapOf("espn.us" to guided),
+                emptyMap(),
+            ),
+        )
+    }
+
+    @Test
     fun broadGroupNameDoesNotImpersonateTheBroadcaster() {
         val wrong = espn.copy(id = "sky", name = "Sky Sports", group = "USA Sports", tvgId = "sky.us")
         assertNull(findScoreChannel(event("in", "USA Net"), listOf(wrong), mapOf(
@@ -150,7 +222,7 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
-    fun sportsChannelsStayVisibleWhileGuideLoads() {
+    fun sportsChannelsWithoutGuideStayHiddenWhileGuideLoads() {
         val state = deriveSportsState(
             channels = listOf(espn),
             programmes = emptyMap(),
@@ -158,7 +230,7 @@ class TikTakSportsChannelMatchingTest {
             scores = emptyList(),
             sportFilter = "all",
         )
-        assertEquals(listOf(espn to null), state.liveEvents)
+        assertTrue(state.liveEvents.isEmpty())
     }
 
     @Test
@@ -253,8 +325,8 @@ class TikTakSportsChannelMatchingTest {
 
     private fun programme(title: String) = LiveTvProgramme(
         title = title,
-        startEpochMs = 1L,
-        stopEpochMs = 2L,
+        startEpochMs = System.currentTimeMillis() - 60_000L,
+        stopEpochMs = System.currentTimeMillis() + 60 * 60_000L,
         timeLabel = "Now",
     )
 }
