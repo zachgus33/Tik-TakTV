@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.features.details.MetaDetailsRepository
+import com.nuvio.app.features.livetv.LiveTvRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamRequest
 import com.nuvio.app.features.p2p.P2pStreamingEngine
@@ -602,6 +603,37 @@ internal fun PlayerScreenRuntime.removeFailedStreamFromCache() {
         episode = activeEpisodeNumber,
     )
     StreamLinkCacheRepository.remove(cacheKey)
+}
+
+private fun liveTvFeedIdentity(name: String): String = name.lowercase()
+    .replace(Regex("[^a-z0-9]+"), " ")
+    .split(' ')
+    .filter { it.isNotBlank() && it !in setOf("hd", "fhd", "sd", "uhd", "4k", "60fps", "50fps", "raw") }
+    .joinToString(" ")
+
+internal fun PlayerScreenRuntime.tryNextLiveTvFeedAfterHttpError(message: String): Boolean {
+    if (contentType != "live-tv" || !message.startsWith("HTTP ")) return false
+    val channels = LiveTvRepository.uiState.value.channels
+    val current = channels.firstOrNull { it.streamUrl == activeSourceUrl } ?: return false
+    failedLiveTvUrls += activeSourceUrl
+    val identity = liveTvFeedIdentity(current.name)
+    val next = channels.firstOrNull { channel ->
+        channel.streamUrl !in failedLiveTvUrls &&
+            channel.streamUrl != activeSourceUrl &&
+            liveTvFeedIdentity(channel.name) == identity
+    } ?: return false
+    failedLiveTvUrls += next.streamUrl
+    errorMessage = null
+    scope.launch {
+        val prepared = LiveTvRepository.prepareForPlayback(next)
+        activeSourceUrl = prepared.streamUrl
+        activeSourceAudioUrl = null
+        activeSourceHeaders = sanitizePlaybackHeaders(prepared.headers)
+        activeSourceResponseHeaders = emptyMap()
+        activeStreamType = prepared.streamType
+        activeStreamTitle = prepared.name
+    }
+    return true
 }
 
 internal fun PlayerScreenRuntime.tryRefreshCredentialedSourceAfterError(message: String?): Boolean {

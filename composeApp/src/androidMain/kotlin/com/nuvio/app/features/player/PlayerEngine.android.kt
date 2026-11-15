@@ -49,6 +49,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -157,7 +158,9 @@ actual fun PlatformPlayerSurface(
             onControllerReady = onControllerReady,
             onSnapshot = onSnapshot,
             onError = { message ->
-                if (message != null && playerSettings.androidPlaybackEngine == AndroidPlaybackEngine.Auto) {
+                if (message != null && !message.startsWith("HTTP ") &&
+                    playerSettings.androidPlaybackEngine == AndroidPlaybackEngine.Auto
+                ) {
                     Log.w(TAG, "ExoPlayer failed; falling back to libmpv: $message")
                     initialPositionRequestKey?.let { key ->
                         onInitialPositionHandled(key, false)
@@ -558,7 +561,15 @@ private fun ExoPlayerSurface(
                 latestOnError.value(null)
                 return
             }
-            latestOnError.value(error.localizedMessage ?: runBlocking { getString(Res.string.player_unable_to_play_stream) })
+            var cause: Throwable? = error
+            var httpStatus: Int? = null
+            while (cause != null && httpStatus == null) {
+                if (cause is HttpDataSource.InvalidResponseCodeException) httpStatus = cause.responseCode
+                cause = cause.cause
+            }
+            latestOnError.value(httpStatus?.let { "HTTP $it" }
+                ?: error.localizedMessage
+                ?: runBlocking { getString(Res.string.player_unable_to_play_stream) })
         }
 
         val listener = object : Player.Listener {

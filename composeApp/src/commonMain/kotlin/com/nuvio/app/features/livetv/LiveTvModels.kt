@@ -31,6 +31,7 @@ data class LiveTvProgramme(
     val startEpochMs: Long,
     val stopEpochMs: Long,
     val timeLabel: String,
+    val description: String = "",
 )
 
 data class LiveTvUiState(

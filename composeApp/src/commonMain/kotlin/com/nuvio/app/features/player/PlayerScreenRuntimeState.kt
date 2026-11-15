@@ -107,6 +107,7 @@ internal class PlayerScreenRuntime(
     var controlsInteractionEpoch by mutableStateOf(0)
     var playerControlsLocked by mutableStateOf(false)
     var activeSourceUrl by mutableStateOf(sourceUrl)
+    val failedLiveTvUrls = mutableSetOf<String>()
     var activeSourceAudioUrl by mutableStateOf(sourceAudioUrl)
     var activeSourceHeaders by mutableStateOf(sanitizePlaybackHeaders(sourceHeaders))
     var activeSourceResponseHeaders by mutableStateOf(sanitizePlaybackResponseHeaders(sourceResponseHeaders))

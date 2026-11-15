@@ -306,6 +306,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                     }
                 },
                 onError = { message ->
+                    if (isTvMode && message != null && tryNextLiveTvFeedAfterHttpError(message)) {
+                        return@PlatformPlayerSurface
+                    }
                     if (message != null && tryRefreshCredentialedSourceAfterError(message)) {
                         return@PlatformPlayerSurface
                     }

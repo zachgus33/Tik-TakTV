@@ -12,7 +12,7 @@ class LiveTvPlaylistParserTest {
         val schedules = parseXmlTvProgrammeSchedules(
             """
             <tv>
-              <programme start="20261108190000 +0000" stop="20261108200000 +0000" channel="cbs"><title>Evening News</title></programme>
+              <programme start="20261108190000 +0000" stop="20261108200000 +0000" channel="cbs"><title>Evening News</title><desc>From Xfinity Mobile Arena &amp; Philadelphia.</desc></programme>
               <programme start="20261108200000 +0000" stop="20261108210000 +0000" channel="cbs"><title>College Football</title></programme>
               <programme start="20261108210000 +0000" stop="20261108220000 +0000" channel="cbs"><title>Local News</title></programme>
             </tv>
@@ -21,6 +21,7 @@ class LiveTvPlaylistParserTest {
         )
 
         assertEquals(listOf("Evening News", "College Football", "Local News"), schedules.getValue("cbs").map { it.title })
+        assertEquals("From Xfinity Mobile Arena & Philadelphia.", schedules.getValue("cbs").first().description)
     }
 
     @Test
@@ -32,6 +33,7 @@ class LiveTvPlaylistParserTest {
               "epg_listings": [
                 {
                   "title": "RXZlbmluZyBOZXdz",
+                  "description": "From Xfinity Mobile Arena in Philadelphia.",
                   "start_timestamp": 1794168000,
                   "stop_timestamp": 1794171600
                 },
@@ -48,6 +50,7 @@ class LiveTvPlaylistParserTest {
         val schedules = parseXtreamShortEpg(root, now)
 
         assertEquals(listOf("Evening News"), schedules.map(LiveTvProgramme::title))
+        assertEquals("From Xfinity Mobile Arena in Philadelphia.", schedules.first().description)
     }
 
     @Test

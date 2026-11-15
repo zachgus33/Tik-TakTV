@@ -325,6 +325,26 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun regionalNbaFeedMatchesScoreThroughGuideVenueDespiteDaznBroadcast() {
+        val regional = espn.copy(id = "csn", name = "US| CSN PHILADELPHIA HD", tvgId = "csn.us")
+        val unrelated = espn.copy(id = "news", name = "US| CBS NEWS", tvgId = "news.us")
+        val score = event("in", "DAZN IND").copy(
+            sport = "basketball",
+            league = "National Basketball Association",
+            name = "IND @ PHI",
+            venue = "Xfinity Mobile Arena",
+            teams = listOf(NativeScoreTeam("Indiana Pacers", "68"), NativeScoreTeam("Philadelphia 76ers", "73")),
+        )
+        val guide = mapOf(
+            "csn.us" to programme("Live: NBA Basketball").copy(description = "From Xfinity Mobile Arena in Philadelphia."),
+            "news.us" to programme("Live: NBA Basketball"),
+        )
+
+        assertEquals(regional, findScoreChannel(score, listOf(unrelated, regional), guide))
+        assertEquals(listOf(regional), guidedScoreChannelChoices(score, listOf(unrelated, regional), guide, emptyMap()))
+    }
+
+    @Test
     fun abbreviatedSecAndAccBroadcastsMatchTheirFullNetworkNames() {
         val sec = espn.copy(id = "sec", name = "US| SEC NETWORK HD", tvgId = "sec.us")
         val acc = espn.copy(id = "acc", name = "US| ACC NETWORK HD", tvgId = "acc.us")

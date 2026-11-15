@@ -1099,6 +1099,8 @@ internal fun parseXtreamShortEpg(
             startEpochMs = start,
             stopEpochMs = stop,
             timeLabel = "",
+            description = (item.stringValue("description") ?: item.stringValue("desc"))
+                ?.decodeXtreamGuideText()?.take(300).orEmpty(),
         )
     }.sortedBy(LiveTvProgramme::startEpochMs).take(8)
 }
@@ -1532,6 +1534,10 @@ private val xmlTvTitleRegex = Regex(
     """<title\b[^>]*>([\s\S]*?)</title>""",
     RegexOption.IGNORE_CASE,
 )
+private val xmlTvDescriptionRegex = Regex(
+    """<desc\b[^>]*>([\s\S]*?)</desc>""",
+    RegexOption.IGNORE_CASE,
+)
 private val xmlAttributeRegex = Regex("""([\w-]+)="([^"]*)"""")
 
 internal fun parseCurrentXmlTvProgrammes(
@@ -1560,6 +1566,8 @@ internal fun parseCurrentXmlTvProgrammes(
             startEpochMs = startEpochMs,
             stopEpochMs = stopEpochMs,
             timeLabel = "${rawStart.xmlTvTimePart()} - ${rawStop.xmlTvTimePart()}",
+            description = xmlTvDescriptionRegex.find(match.groupValues[2])?.groupValues?.get(1)
+                ?.decodeXmlEntities()?.trim()?.take(300).orEmpty(),
         )
     }
     return programmes
@@ -1589,6 +1597,8 @@ internal fun parseXmlTvProgrammeSchedules(
                 startEpochMs = startEpochMs,
                 stopEpochMs = stopEpochMs,
                 timeLabel = "${rawStart.xmlTvTimePart()} - ${rawStop.xmlTvTimePart()}",
+                description = xmlTvDescriptionRegex.find(match.groupValues[2])?.groupValues?.get(1)
+                    ?.decodeXmlEntities()?.trim()?.take(300).orEmpty(),
             )
         }
     }
