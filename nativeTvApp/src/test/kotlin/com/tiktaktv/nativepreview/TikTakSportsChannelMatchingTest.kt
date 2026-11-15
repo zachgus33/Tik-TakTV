@@ -107,6 +107,14 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun sportsChannelCanBeChosenWhenScoreHasNoBroadcasterOrGuide() {
+        assertEquals(
+            listOf(espn),
+            findScoreChannelCandidates(event("in", ""), listOf(espn), emptyMap()),
+        )
+    }
+
+    @Test
     fun scoreMatchesBroadcastChannelEvenWhenOnlyOtherChannelsHaveGuideData() {
         val state = deriveSportsState(
             channels = listOf(nfl, espn),

@@ -138,8 +138,26 @@ fun TikTakSportsScreen(
             )
         }
     }
-    val visibleLiveEvents = derived.liveEvents
-    val visibleScores = derived.scores
+    val quickLiveEvents = remember(liveState.channels, sportFilter) {
+        liveState.channels.asSequence()
+            .filter { channel ->
+                val label = "${channel.name} ${channel.group}".lowercase()
+                val sportsChannel = "sport" in label || "espn" in label ||
+                    SportsKeywords.any(label::contains)
+                sportsChannel && (sportFilter == "all" || sportFilter in label)
+            }
+            .take(MAX_VISIBLE_SPORT_CHANNELS)
+            .map { it to null }
+            .toList()
+    }
+    val visibleLiveEvents = derived.liveEvents.ifEmpty { quickLiveEvents }
+    // Show scores before the worker finishes matching the IPTV guide.
+    val visibleScores = derived.scores.ifEmpty {
+        scores.asSequence()
+            .filter { sportFilter == "all" || it.sport == sportFilter }
+            .take(MAX_VISIBLE_SCORE_EVENTS)
+            .toList()
+    }
     val liveScores = visibleScores.filter { it.state == "in" }
     val upcomingScores = visibleScores.filter { it.state == "pre" }
     val recentScores = visibleScores.filter { it.state == "post" }
@@ -281,6 +299,9 @@ fun TikTakSportsScreen(
             title = { Text("Choose a channel for ${event.name}") },
             text = {
                 LazyColumn {
+                    item {
+                        Text("The guide could not confirm this game. Pick a channel to check its stream.")
+                    }
                     items(channels, key = LiveTvChannel::id) { channel ->
                         TextButton(
                             onClick = {
@@ -328,6 +349,7 @@ fun deriveSportsState(
     }
     val filteredScores = scores.asSequence()
         .filter { sportFilter == "all" || it.sport == sportFilter }
+        .take(MAX_VISIBLE_SCORE_EVENTS * 2)
         .toList()
     val matchedChannels = filteredScores.mapNotNull { event ->
         findScoreChannelFromIndex(event, channelSearchIndex)?.let { event.id to it }
@@ -412,7 +434,7 @@ fun findScoreChannelCandidates(
 ): List<LiveTvChannel> {
     val teamTokens = event.teams.map { normalizedSportsTokens(it.name) }.filter(Set<String>::isNotEmpty)
     val broadcastTokens = normalizedBroadcastTokens(event.broadcast.orEmpty())
-    return buildSportsChannelSearchIndex(channels, currentProgrammes).asSequence()
+    val matched = buildSportsChannelSearchIndex(channels, currentProgrammes).asSequence()
         .mapNotNull { entry ->
             val allTeamsMatch = teamTokens.isNotEmpty() && teamTokens.all { team ->
                 team.count(entry.programmeTokens::contains) >= if (team.size <= 1) 1 else 2
@@ -428,6 +450,19 @@ fun findScoreChannelCandidates(
         }
         .sortedByDescending { it.second }
         .map { it.first }
+        .distinctBy(LiveTvChannel::streamUrl)
+        .take(12)
+        .toList()
+    if (matched.isNotEmpty()) return matched
+
+    // Some providers expose sports channels before their EPG has loaded, and
+    // some score feeds omit a broadcaster. Let the viewer choose a stream;
+    // never auto-launch a guessed channel.
+    return channels.asSequence()
+        .filter { channel ->
+            val label = "${channel.name} ${channel.group}".lowercase()
+            "sport" in label || "espn" in label || event.sport in label
+        }
         .distinctBy(LiveTvChannel::streamUrl)
         .take(12)
         .toList()
