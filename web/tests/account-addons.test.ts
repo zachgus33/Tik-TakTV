@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { restoreSavedAddons } from "../src/account-addons";
+import { addonUrlsMissingCache, restoreSavedAddons } from "../src/account-addons";
 import { addonResourceUrl, manifestUrl } from "../src/addon-urls";
 import type { Addon } from "../src/types";
 
@@ -22,6 +22,15 @@ describe("profile add-on restore", () => {
     );
     expect(restored).toEqual([{ ...saved, enabled: false }]);
     expect(manifestUrl(saved.base)).toBe("https://saved.example/config/manifest.json?token=private");
+  });
+
+  it("only loads manifests missing from the profile cache", () => {
+    const cached = addon("https://saved.example/config?token=private");
+    expect(addonUrlsMissingCache([
+      { url: manifestUrl(cached.base), enabled: true },
+      { url: "https://new.example/manifest.json", enabled: true },
+      { url: "https://pengu.uk/removed/manifest.json", name: "PenguPlay" },
+    ], [cached])).toEqual(["https://new.example/manifest.json"]);
   });
 
   it("matches a root-level manifest to its installed add-on", () => {

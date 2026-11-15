@@ -18,7 +18,7 @@ import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
 import { persistableSetup } from "./account-isolation";
 import { profileSyncKey } from "./profile-sync";
-import { cleanedAddonRows, restoreSavedAddons } from "./account-addons";
+import { addonUrlsMissingCache, cleanedAddonRows, restoreSavedAddons } from "./account-addons";
 import { manifestUrl } from "./addon-urls";
 import {
   readYouTubeHistory,
@@ -100,13 +100,6 @@ async function setupOwner(ownerId?: string) {
   return current;
 }
 const field = "tikTakWebV1";
-function isRemovedPenguPlay(value: unknown) {
-  try {
-    return new URL(String(value)).hostname.toLowerCase() === "pengu.uk";
-  } catch {
-    return false;
-  }
-}
 type StoredWebSetup = Partial<Setup> & {
   accountProvider?: Provider | null;
 };
@@ -306,9 +299,8 @@ export async function loadSetup(
       nativeRows = repairedRows;
     }
   }
-  const urls = nativeRows
-    .filter((a) => !isRemovedPenguPlay(a.url))
-    .map((a) => String(a.url));
+  const cachedAddons = Array.isArray(web.addons) ? web.addons : [];
+  const urls = addonUrlsMissingCache(nativeRows, cachedAddons);
   const installed = await installMany(urls);
   // The native add-on rows are authoritative. The web blob is only a manifest
   // cache for a row that could not be refreshed; it must never resurrect a
@@ -316,11 +308,11 @@ export async function loadSetup(
   const restoredAddons = restoreSavedAddons(
     nativeRows,
     installed.addons,
-    Array.isArray(web.addons) ? web.addons : [],
+    cachedAddons,
   );
   const warnings = installed.failed
     ? [
-        `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be refreshed. Saved configuration was kept; reconnect the playback service and refresh it from Add-ons.`,
+        `${installed.failed} add-on${installed.failed === 1 ? "" : "s"} could not be loaded on this device. Saved add-on settings were kept. Check your connection, then reopen this profile to retry.`,
       ]
     : [];
   const cleanedRows = cleanedAddonRows(nativeRows);
