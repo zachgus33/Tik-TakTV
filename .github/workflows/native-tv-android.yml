@@ -196,7 +196,7 @@ jobs:
           retention-days: 14
 
   publish-signed-preview:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
     needs: [build, tv-emulator-smoke]
     runs-on: ubuntu-latest
     env:
@@ -253,7 +253,6 @@ jobs:
           {"versionCode":${version_code},"versionName":"${version_name}","apkUrl":"https://github.com/zachgus33/Tik-TakTV/releases/download/tv-latest/tiktak-tv-android-tv.apk","sha256":"${sha256}"}
           JSON
       - name: Publish stable native-preview update assets
-        if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -276,7 +275,6 @@ jobs:
             --title "TikTak TV compatibility update feed (v${version_name})" \
             --notes "This compatibility feed serves existing native TV installations. It contains the same signed app as the current Fire TV and Android TV release, version ${version_name} (${version_code}). For new installs use https://github.com/zachgus33/Tik-TakTV/releases/tag/tv-latest or Downloader code 2564237."
       - name: Replace Downloader release with native TV app
-        if: github.event_name == 'push' && github.ref == 'refs/heads/web-enhanced-pages'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

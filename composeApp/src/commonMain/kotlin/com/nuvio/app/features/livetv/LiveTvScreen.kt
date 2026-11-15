@@ -60,12 +60,10 @@ import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioSectionLabel
 import com.nuvio.app.core.ui.NuvioTokens
-import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.features.settings.NuvioEnhancedBackupFileBridge
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import nuvio.composeapp.generated.resources.Res
@@ -110,7 +108,6 @@ fun LiveTvScreen(
     modifier: Modifier = Modifier,
     onChannelClick: (LiveTvChannel) -> Unit = {},
 ) {
-    val isTv = LocalTvMode.current
     val uiState by remember {
         LiveTvRepository.ensureLoaded()
         LiveTvRepository.uiState
@@ -134,15 +131,6 @@ fun LiveTvScreen(
     var fileImportError by rememberSaveable { mutableStateOf<String?>(null) }
     var visibleChannelLimit by rememberSaveable { mutableStateOf(INITIAL_VISIBLE_CHANNEL_LIMIT) }
     var guideMode by rememberSaveable { mutableStateOf(true) }
-    var guideNow by remember { mutableStateOf(LiveTvClock.nowEpochMs()) }
-    LaunchedEffect(isTv) {
-        if (isTv) {
-            while (true) {
-                delay(30_000L)
-                guideNow = LiveTvClock.nowEpochMs()
-            }
-        }
-    }
 
     LaunchedEffect(uiState.sourceUrl) {
         if (sourceUrl.isBlank()) sourceUrl = uiState.sourceUrl
@@ -208,7 +196,7 @@ fun LiveTvScreen(
     }
     val countries = derivedChannels.countries
     val groups = derivedChannels.groups
-    val recentChannel = remember(uiState.recentChannel, uiState.channels) {
+    val recentChannel = remember(uiState.recentChannel, uiState.channels, uiState.currentProgrammes, uiState.programmeSchedules) {
         uiState.recentChannel?.let { recent ->
             val currentMatch = uiState.channels.firstOrNull { it.streamUrl == recent.streamUrl }
             if (currentMatch != null) {
@@ -223,29 +211,14 @@ fun LiveTvScreen(
             }
         }
     }
-    val visibleChannels = remember(isTv, guideNow, derivedChannels.visible, uiState.currentProgrammes, uiState.programmeSchedules) {
-        if (isTv) {
-            selectGuideBackedChannels(
-                derivedChannels.visible,
-                uiState.currentProgrammes,
-                uiState.programmeSchedules,
-                guideNow,
-            )
-        } else {
-            derivedChannels.visible
-        }
-    }
+    val visibleChannels = derivedChannels.visible
     val renderedChannels = remember(visibleChannels, visibleChannelLimit) {
         visibleChannels.take(visibleChannelLimit)
     }
-    LaunchedEffect(isTv, uiState.sourceType, uiState.xtreamSettings, derivedChannels.visible, visibleChannelLimit) {
-        // Probe the filtered lineup, not the currently rendered guide rows.
-        // An empty guide must still be able to discover its first real schedule.
-        LiveTvRepository.loadXtreamGuideForChannels(
-            if (isTv) derivedChannels.visible.take(visibleChannelLimit) else renderedChannels,
-        )
+    LaunchedEffect(uiState.sourceType, uiState.xtreamSettings, renderedChannels) {
+        LiveTvRepository.loadXtreamGuideForChannels(renderedChannels)
     }
-    LaunchedEffect(query, selectedGroup, selectedCountry, favoritesOnly, guideMode) {
+    LaunchedEffect(query, selectedGroup, selectedCountry, favoritesOnly) {
         visibleChannelLimit = INITIAL_VISIBLE_CHANNEL_LIMIT
     }
     val loadSource: () -> Unit = {
@@ -442,14 +415,7 @@ fun LiveTvScreen(
             }
         }
 
-        if (recentChannel != null && (!isTv ||
-                channelHasUpcomingGuideData(
-                    uiState.channels.firstOrNull { it.streamUrl == recentChannel.streamUrl }
-                        ?: LiveTvChannel(recentChannel.streamUrl, recentChannel.name, recentChannel.streamUrl, recentChannel.tvgId),
-                    uiState.currentProgrammes,
-                    uiState.programmeSchedules,
-                    guideNow,
-                ))) {
+        if (recentChannel != null) {
             item {
                 LiveTvRecentChannelCard(
                     channel = recentChannel,
@@ -552,10 +518,7 @@ fun LiveTvScreen(
             if (visibleChannels.isEmpty()) {
                 item {
                     Text(
-                        text = if (isTv) {
-                            if (uiState.isEpgLoading) "Checking channels for programme guide data..."
-                            else "No channels with upcoming guide data match these filters."
-                        } else "No channels match these filters.",
+                        text = "No channels match these filters.",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.nuvio.colors.textMuted,
                     )
@@ -637,27 +600,11 @@ fun channelHasGuideData(
     return keys.any { key -> currentProgrammes[key] != null || !schedules[key].isNullOrEmpty() }
 }
 
-fun channelHasUpcomingGuideData(
-    channel: LiveTvChannel,
-    currentProgrammes: Map<String, LiveTvProgramme>,
-    schedules: Map<String, List<LiveTvProgramme>>,
-    nowEpochMs: Long = LiveTvClock.nowEpochMs(),
-): Boolean {
-    val keys = listOfNotNull(channel.tvgId?.takeIf(String::isNotBlank), channel.id)
-    return keys.any { key ->
-        currentProgrammes[key]?.stopEpochMs?.let { it > nowEpochMs } == true ||
-            schedules[key]?.any { it.stopEpochMs > nowEpochMs } == true
-    }
-}
-
-fun selectGuideBackedChannels(
+internal fun selectGuideBackedChannels(
     channels: List<LiveTvChannel>,
     currentProgrammes: Map<String, LiveTvProgramme>,
     schedules: Map<String, List<LiveTvProgramme>>,
-    nowEpochMs: Long = LiveTvClock.nowEpochMs(),
-): List<LiveTvChannel> {
-    return channels.filter { channelHasUpcomingGuideData(it, currentProgrammes, schedules, nowEpochMs) }
-}
+): List<LiveTvChannel> = channels.filter { channelHasGuideData(it, currentProgrammes, schedules) }
 
 internal fun selectLiveTvDisplayChannels(channels: List<LiveTvChannel>): List<LiveTvChannel> =
     channels.filterNot { isLikelyCategoryHeading(it.name) }

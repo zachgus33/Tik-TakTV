@@ -2,9 +2,7 @@ package com.tiktaktv.nativepreview
 
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
-import com.nuvio.app.features.livetv.channelHasUpcomingGuideData
-import com.nuvio.app.features.livetv.selectGuideBackedChannels
-import org.junit.Assert.assertEquals
+import com.nuvio.app.features.livetv.channelHasGuideData
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,41 +18,16 @@ class LiveTvGuideFilteringTest {
 
     @Test
     fun acceptsCurrentProgrammeByGuideId() {
-        assertTrue(channelHasUpcomingGuideData(channel, mapOf("guide-id" to programme), emptyMap(), 1L))
+        assertTrue(channelHasGuideData(channel, mapOf("guide-id" to programme), emptyMap()))
     }
 
     @Test
     fun acceptsUpcomingScheduleByChannelIdFallback() {
-        assertTrue(channelHasUpcomingGuideData(channel, emptyMap(), mapOf("channel-id" to listOf(programme)), 1L))
+        assertTrue(channelHasGuideData(channel, emptyMap(), mapOf("channel-id" to listOf(programme))))
     }
 
     @Test
     fun rejectsChannelWithoutGuideData() {
-        assertFalse(channelHasUpcomingGuideData(channel, emptyMap(), emptyMap()))
-    }
-
-    @Test
-    fun rejectsExpiredProgrammeAndSchedule() {
-        assertFalse(channelHasUpcomingGuideData(
-            channel,
-            mapOf("guide-id" to programme),
-            mapOf("channel-id" to listOf(programme)),
-            2L,
-        ))
-    }
-
-    @Test
-    fun guideRowsContainOnlyChannelsWithUpcomingSchedules() {
-        val unguided = channel.copy(id = "unguided", tvgId = "unguided")
-        val expired = channel.copy(id = "expired", tvgId = "expired")
-        assertEquals(
-            listOf(channel),
-            selectGuideBackedChannels(
-                listOf(unguided, expired, channel),
-                mapOf("expired" to programme),
-                mapOf("guide-id" to listOf(programme.copy(stopEpochMs = 3L))),
-                2L,
-            ),
-        )
+        assertFalse(channelHasGuideData(channel, emptyMap(), emptyMap()))
     }
 }
