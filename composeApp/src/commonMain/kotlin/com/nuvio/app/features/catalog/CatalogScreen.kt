@@ -41,6 +41,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +64,7 @@ import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.tikTakTvFocus
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
 import com.nuvio.app.features.home.CatalogPosterLayout
@@ -196,7 +200,7 @@ fun CatalogScreen(
             if (isTvMode) {
                 // The web preference defaults to three columns. On TV that
                 // produces giant posters and only one usable row per screen.
-                ((maxWidth.value - 32f) / 130f).toInt().coerceIn(4, 8)
+                ((maxWidth.value - 32f) / 130f).toInt().coerceIn(4, 10)
             } else catalogColumnsForSettings(
                 requestedColumns = homeCatalogSettingsUiState.catalogColumnCount,
                 posterSize = homeCatalogSettingsUiState.catalogPosterSize,
@@ -213,10 +217,12 @@ fun CatalogScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 state = gridState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() }),
                 contentPadding = PaddingValues(
                     start = 16.dp,
-                    top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,
+                    top = 12.dp,
                     end = 16.dp,
                     bottom = nuvioSafeBottomPadding(28.dp),
                 ),
@@ -374,7 +380,16 @@ private fun CatalogHeader(
                 .size(40.dp)
                 .then(if (firstPosterFocusRequester != null) Modifier.focusProperties {
                     down = firstPosterFocusRequester
-                } else Modifier),
+                } else Modifier)
+                .onPreviewKeyEvent { event ->
+                    if (firstPosterFocusRequester != null &&
+                        event.type == KeyEventType.KeyDown &&
+                        event.key == Key.DirectionDown
+                    ) {
+                        firstPosterFocusRequester.requestFocus()
+                        true
+                    } else false
+                },
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             iconSize = 24.dp,
@@ -462,6 +477,7 @@ private fun CatalogPosterTile(
                     shape = RoundedCornerShape(cornerRadiusDp.dp),
                     surface = NuvioCardDepthSurface.Posters,
                 )
+                .tikTakTvFocus()
                 .posterCardClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
