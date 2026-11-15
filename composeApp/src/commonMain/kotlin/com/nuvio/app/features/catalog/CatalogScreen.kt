@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
@@ -37,6 +38,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +55,7 @@ import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.LocalTvMode
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
 import com.nuvio.app.core.ui.nuvioCardDepth
@@ -113,6 +118,8 @@ fun CatalogScreen(
     )
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var observedOfflineState by remember { mutableStateOf(false) }
+    val isTvMode = LocalTvMode.current
+    val firstPosterFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(target) {
         if (target is CatalogTarget.Library) {
@@ -181,10 +188,15 @@ fun CatalogScreen(
     ) {
         val columns = remember(
             maxWidth,
+            isTvMode,
             homeCatalogSettingsUiState.catalogColumnCount,
             homeCatalogSettingsUiState.catalogPosterSize,
         ) {
-            catalogColumnsForSettings(
+            if (isTvMode) {
+                // The web preference defaults to three columns. On TV that
+                // produces giant posters and only one usable row per screen.
+                ((maxWidth.value - 32f) / 130f).toInt().coerceIn(4, 8)
+            } else catalogColumnsForSettings(
                 requestedColumns = homeCatalogSettingsUiState.catalogColumnCount,
                 posterSize = homeCatalogSettingsUiState.catalogPosterSize,
                 maxWidth = maxWidth,
@@ -249,12 +261,13 @@ fun CatalogScreen(
                             LibraryFilter.Watched -> watchedItems
                             LibraryFilter.Unwatched -> unwatchedItems
                         }
-                        items(
+                        itemsIndexed(
                             items = filteredItems.withDuplicateSafeLazyKeys { item -> item.stableKey() },
-                            key = { item -> item.lazyKey },
-                        ) { keyedItem ->
+                            key = { _, item -> item.lazyKey },
+                        ) { index, keyedItem ->
                             val item = keyedItem.value
                             CatalogPosterTile(
+                                modifier = if (isTvMode && index == 0) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
                                 item = item,
                                 cornerRadiusDp = posterCardStyle.cornerRadiusDp,
                                 hideLabels = posterCardStyle.hideLabelsEnabled,
@@ -270,12 +283,13 @@ fun CatalogScreen(
                             )
                         }
                     } else {
-                        items(
+                        itemsIndexed(
                             items = uiState.items.withDuplicateSafeLazyKeys { item -> item.stableKey() },
-                            key = { item -> item.lazyKey },
-                        ) { keyedItem ->
+                            key = { _, item -> item.lazyKey },
+                        ) { index, keyedItem ->
                             val item = keyedItem.value
                             CatalogPosterTile(
+                                modifier = if (isTvMode && index == 0) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
                                 item = item,
                                 cornerRadiusDp = posterCardStyle.cornerRadiusDp,
                                 hideLabels = posterCardStyle.hideLabelsEnabled,
@@ -300,6 +314,7 @@ fun CatalogScreen(
             }
 
             CatalogHeader(
+                firstPosterFocusRequester = if (isTvMode && uiState.items.isNotEmpty()) firstPosterFocusRequester else null,
                 title = title,
                 subtitle = subtitle,
                 modifier = Modifier.onSizeChanged { headerHeightPx = it.height },
@@ -333,6 +348,7 @@ fun CatalogScreen(
 
 @Composable
 private fun CatalogHeader(
+    firstPosterFocusRequester: FocusRequester?,
     title: String,
     subtitle: String,
     onBack: () -> Unit,
@@ -354,7 +370,10 @@ private fun CatalogHeader(
         NuvioBackButton(
             onClick = onBack,
             modifier = Modifier
-                .size(40.dp),
+                .size(40.dp)
+                .then(if (firstPosterFocusRequester != null) Modifier.focusProperties {
+                    down = firstPosterFocusRequester
+                } else Modifier),
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             iconSize = 24.dp,
@@ -405,6 +424,7 @@ private fun CatalogHeader(
 
 @Composable
 private fun CatalogPosterTile(
+    modifier: Modifier = Modifier,
     item: MetaPreview,
     cornerRadiusDp: Int,
     hideLabels: Boolean,
@@ -432,7 +452,7 @@ private fun CatalogPosterTile(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .aspectRatio(posterLayout.catalogAspectRatio())
                 .clip(RoundedCornerShape(cornerRadiusDp.dp))

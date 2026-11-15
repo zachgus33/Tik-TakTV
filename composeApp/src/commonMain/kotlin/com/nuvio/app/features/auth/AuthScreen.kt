@@ -826,7 +826,7 @@ private fun AuthTextField(
     var editing by remember { mutableStateOf(false) }
 
     fun beginEditing() {
-        if (!isTv || editing) return
+        if (!isTv) return
         editing = true
         scope.launch {
             withFrameNanos { }
@@ -835,14 +835,14 @@ private fun AuthTextField(
         }
     }
 
-    fun leaveEditor(direction: FocusDirection): Boolean {
+    fun leaveEditor(direction: FocusDirection? = null): Boolean {
         if (!isTv || !editing) return false
         keyboardController?.hide()
         editing = false
         scope.launch {
             withFrameNanos { }
             containerFocusRequester.requestFocus()
-            focusManager.moveFocus(direction)
+            if (direction != null) focusManager.moveFocus(direction)
         }
         return true
     }
@@ -859,7 +859,18 @@ private fun AuthTextField(
                 if (isTv) {
                     Modifier
                         .focusRequester(containerFocusRequester)
-                        .onFocusChanged { state -> focused = state.hasFocus }
+                        .onFocusChanged { state ->
+                            focused = state.hasFocus
+                            if (!state.hasFocus) editing = false
+                        }
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && focused &&
+                                event.key in setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
+                            ) {
+                                beginEditing()
+                                true
+                            } else false
+                        }
                         .clickable(onClick = ::beginEditing)
                 } else {
                     Modifier
@@ -902,6 +913,7 @@ private fun AuthTextField(
                                     when (event.key) {
                                         Key.DirectionDown -> leaveEditor(FocusDirection.Down)
                                         Key.DirectionUp -> leaveEditor(FocusDirection.Up)
+                                        Key.Back, Key.Escape -> leaveEditor()
                                         else -> false
                                     }
                                 }

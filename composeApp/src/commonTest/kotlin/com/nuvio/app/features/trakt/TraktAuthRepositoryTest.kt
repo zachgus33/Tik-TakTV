@@ -2,8 +2,24 @@ package com.nuvio.app.features.trakt
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 class TraktAuthRepositoryTest {
+
+    @Test
+    fun `refresh request includes the client secret required by Trakt`() {
+        val payload = Json.encodeToString(
+            TraktRefreshTokenRequest(
+                refreshToken = "refresh",
+                clientId = "client",
+                clientSecret = "secret",
+                redirectUri = "urn:test",
+            ),
+        )
+        assertTrue(payload.contains("\"client_secret\":\"secret\""))
+    }
 
     @Test
     fun `device sign-in keeps polling while Trakt awaits approval`() {

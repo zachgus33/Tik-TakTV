@@ -5,6 +5,7 @@ import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.tiktak.NativeScoreEvent
 import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
+import com.nuvio.app.features.tiktak.findScoreChannelCandidates
 import com.nuvio.app.features.tiktak.deriveSportsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -81,10 +82,28 @@ class TikTakSportsChannelMatchingTest {
 
     @Test
     fun ambiguousAbcFeedsWithoutCurrentGuideDoNotAutoLaunch() {
-        val abcEast = espn.copy(id = "abc-east", name = "ABC East")
-        val abcWest = espn.copy(id = "abc-west", name = "ABC West")
+        val abcEast = espn.copy(id = "abc-east", name = "ABC East", streamUrl = "https://example.com/abc-east.m3u8")
+        val abcWest = espn.copy(id = "abc-west", name = "ABC West", streamUrl = "https://example.com/abc-west.m3u8")
 
         assertNull(findScoreChannel(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()))
+        assertEquals(
+            listOf(abcEast, abcWest),
+            findScoreChannelCandidates(event("in", "ABC"), listOf(abcEast, abcWest), emptyMap()),
+        )
+    }
+
+    @Test
+    fun channelChooserExcludesAbcFeedWithConflictingGuide() {
+        val wrongAbc = espn.copy(id = "abc-news", name = "ABC News", tvgId = "abc.news")
+        val rightAbc = espn.copy(id = "abc-sports", name = "ABC Sports", tvgId = "abc.sports")
+        assertEquals(
+            listOf(rightAbc),
+            findScoreChannelCandidates(
+                event("in", "ABC"),
+                listOf(wrongAbc, rightAbc),
+                mapOf("abc.news" to programme("Evening News")),
+            ),
+        )
     }
 
     @Test
@@ -98,6 +117,18 @@ class TikTakSportsChannelMatchingTest {
         )
 
         assertEquals(espn, state.matchedChannels["game-1"])
+    }
+
+    @Test
+    fun sportsChannelsStayVisibleWhileGuideLoads() {
+        val state = deriveSportsState(
+            channels = listOf(espn),
+            programmes = emptyMap(),
+            schedules = emptyMap(),
+            scores = emptyList(),
+            sportFilter = "all",
+        )
+        assertEquals(listOf(espn to null), state.liveEvents)
     }
 
     @Test
