@@ -35,9 +35,9 @@ class TraktAuthRepositoryTest {
     }
 
     @Test
-    fun `HTTP 400 permanently invalidates a rejected refresh token`() {
+    fun `HTTP 400 preserves saved credentials for a corrected refresh request`() {
         assertEquals(
-            TraktTokenRefreshResponseAction.INVALIDATE,
+            TraktTokenRefreshResponseAction.REJECTED,
             traktTokenRefreshResponseAction(400),
         )
     }

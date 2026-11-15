@@ -443,9 +443,11 @@ object TraktAuthRepository {
         }
 
         when (traktTokenRefreshResponseAction(response.status)) {
-            TraktTokenRefreshResponseAction.INVALIDATE -> {
-                log.w { "Trakt rejected the refresh token with HTTP 400; clearing local credentials" }
-                invalidateCredentials(profileId)
+            TraktTokenRefreshResponseAction.REJECTED -> {
+                // HTTP 400 also covers malformed client requests. Keep the
+                // profile's tokens so a corrected app build can retry them.
+                log.w { "Trakt rejected token refresh with HTTP 400; preserving saved credentials" }
+                publish(errorMessage = localizedString(Res.string.trakt_authorization_expired_reconnect))
                 return@withLock false
             }
 
@@ -469,19 +471,8 @@ object TraktAuthRepository {
             expiresIn = parsed.expiresIn,
         )
         persist()
-        publish()
+        publish(errorMessage = null)
         true
-    }
-
-    private suspend fun invalidateCredentials(profileId: Int) {
-        authState = TraktAuthState()
-        persist()
-        publish(
-            isLoading = false,
-            statusMessage = null,
-            errorMessage = localizedString(Res.string.trakt_authorization_expired_reconnect),
-        )
-        TraktCredentialSync.deleteRemote(profileId)
     }
 
     private fun loadFromDisk() {
@@ -573,12 +564,12 @@ object TraktAuthRepository {
 
 internal enum class TraktTokenRefreshResponseAction {
     ACCEPT,
-    INVALIDATE,
+    REJECTED,
     TRANSIENT_FAILURE,
 }
 
 internal fun traktTokenRefreshResponseAction(status: Int): TraktTokenRefreshResponseAction = when {
-    status == 400 -> TraktTokenRefreshResponseAction.INVALIDATE
+    status == 400 -> TraktTokenRefreshResponseAction.REJECTED
     status in 200..299 -> TraktTokenRefreshResponseAction.ACCEPT
     else -> TraktTokenRefreshResponseAction.TRANSIENT_FAILURE
 }
