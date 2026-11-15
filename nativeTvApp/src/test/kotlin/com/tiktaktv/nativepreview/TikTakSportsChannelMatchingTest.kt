@@ -362,7 +362,34 @@ class TikTakSportsChannelMatchingTest {
         )
         val fox = espn.copy(id = "fox", name = "US| FOX HD", tvgId = "fox.us")
 
-        assertNull(findScoreChannel(score, listOf(fox), mapOf("fox.us" to future)))
+        assertNull(findScoreChannel(score, listOf(fox), emptyMap(), mapOf("fox.us" to listOf(future))))
+    }
+
+    @Test
+    fun websiteStyleRelevantFoxChannelsExcludeNewsAndAutoPreferNationalFeed() {
+        val score = event("in", "Fox").copy(
+            league = "National Football League",
+            name = "NE VS DET",
+            teams = listOf(NativeScoreTeam("New England Patriots", "10"), NativeScoreTeam("Detroit Lions", "35")),
+        )
+        val fox = espn.copy(id = "fox", name = "US| FOX HD", tvgId = "fox.us")
+        val local = espn.copy(id = "fox-29", name = "US| FOX 29", tvgId = "fox-29.us")
+        val news = espn.copy(id = "fox-news", name = "US| FOX NEWS HD", tvgId = "fox-news.us")
+        val business = espn.copy(id = "fox-business", name = "US| FOX BUSINESS NETWORK HD", tvgId = "fox-business.us")
+        val staleGuide = programme("Live: FOX NFL Sunday").copy(
+            startEpochMs = System.currentTimeMillis() - 5 * 60 * 60_000L,
+            stopEpochMs = System.currentTimeMillis() - 3 * 60 * 60_000L,
+        )
+        val current = mapOf(
+            "fox.us" to staleGuide,
+            "fox-29.us" to staleGuide,
+            "fox-news.us" to programme("Live: FOX NFL Sunday"),
+            "fox-business.us" to programme("New England Patriots vs Detroit Lions"),
+        )
+        val channels = listOf(news, business, local, fox)
+
+        assertEquals(fox, findScoreChannel(score, channels, current))
+        assertEquals(listOf(fox, local), guidedScoreChannelChoices(score, channels, current, emptyMap()))
     }
 
     @Test

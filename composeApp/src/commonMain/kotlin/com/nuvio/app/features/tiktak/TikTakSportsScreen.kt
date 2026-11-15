@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -18,12 +17,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -148,7 +145,6 @@ fun TikTakSportsScreen(
     var sportFilter by remember { mutableStateOf("all") }
     var searchingScoreId by remember { mutableStateOf<String?>(null) }
     var unmatchedScoreId by remember { mutableStateOf<String?>(null) }
-    var channelChoices by remember { mutableStateOf<Pair<NativeScoreEvent, List<LiveTvChannel>>?>(null) }
 
     // Indexing thousands of IPTV channels and matching every score used to run
     // during composition. On Fire TV that blocked input dispatch long enough to
@@ -250,7 +246,7 @@ fun TikTakSportsScreen(
                         )
                     }
                     if (choices.isNotEmpty()) {
-                        channelChoices = event to choices
+                        playChannel(choices.first())
                     } else {
                         openScoreEvent(
                             event,
@@ -269,41 +265,6 @@ fun TikTakSportsScreen(
     }
 
     LaunchedEffect(Unit) { refreshScores() }
-
-    channelChoices?.let { (event, choices) ->
-        AlertDialog(
-            onDismissRequest = { channelChoices = null },
-            title = { Text("Choose a channel for ${event.name}") },
-            text = {
-                Column {
-                    Text("The guide has not confirmed this exact game. Check a channel's programme before playing.")
-                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                        items(choices, key = { it.id }) { channel ->
-                            val guideTitle = channel.tvgId?.let(liveState.currentProgrammes::get)?.title
-                                ?: liveState.currentProgrammes[channel.id]?.title
-                                ?: channel.tvgId?.let(liveState.programmeSchedules::get)?.firstOrNull()?.title
-                                ?: liveState.programmeSchedules[channel.id]?.firstOrNull()?.title
-                                ?: "Guide schedule available"
-                            TextButton(
-                                onClick = {
-                                    channelChoices = null
-                                    playChannel(channel)
-                                },
-                                modifier = Modifier.fillMaxWidth().tikTakTvFocus(),
-                            ) {
-                                Text("${channel.name} · $guideTitle", maxLines = 2)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { channelChoices = null }, modifier = Modifier.tikTakTvFocus()) {
-                    Text("Close")
-                }
-            },
-        )
-    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 28.dp),
@@ -576,6 +537,7 @@ private data class SportsChannelSearchEntry(
     val programmeTitle: String,
     val channelTokens: Set<String>,
     val hasProgramme: Boolean,
+    val isCurrentProgramme: Boolean,
     val startEpochMs: Long,
     val stopEpochMs: Long,
 )
@@ -588,9 +550,9 @@ private fun buildSportsChannelSearchIndex(
     val now = GMTDate().timestamp
     return channels.flatMap { channel ->
         val keys = listOfNotNull(channel.tvgId?.takeIf(String::isNotBlank), channel.id)
-        val entries = keys.flatMap { schedules[it].orEmpty() }
-            .filter { it.stopEpochMs > now - 6 * 60 * 60_000L } +
-            keys.mapNotNull(currentProgrammes::get)
+        val currentEntries = keys.mapNotNull(currentProgrammes::get)
+        val entries = currentEntries + keys.flatMap { schedules[it].orEmpty() }
+            .filter { it.stopEpochMs > now - 6 * 60 * 60_000L }
         val tokens = sportsChannelBroadcastTokens(channel.name)
         entries.distinctBy { Triple(it.title, it.startEpochMs, it.stopEpochMs) }
             .map { programme ->
@@ -602,6 +564,7 @@ private fun buildSportsChannelSearchIndex(
                     // in it is the USA Network broadcast named on a score card.
                     channelTokens = tokens,
                     hasProgramme = true,
+                    isCurrentProgramme = programme in currentEntries,
                     startEpochMs = programme.startEpochMs,
                     stopEpochMs = programme.stopEpochMs,
                 )
@@ -628,14 +591,14 @@ private fun findScoreChannelsFromIndex(
     val candidates = index.asSequence()
         .mapNotNull { entry ->
             val eventStart = event.startEpochMs
-            if (eventStart != null &&
+            if (eventStart != null && !(event.state == "in" && entry.isCurrentProgramme) &&
                 (eventStart < entry.startEpochMs - 2 * 60 * 60_000L ||
                     eventStart > entry.stopEpochMs + 2 * 60 * 60_000L)
             ) return@mapNotNull null
-            // A live score must point at a programme airing right now. A
-            // future or expired schedule can describe the game while the
-            // actual stream is a standby slate or another broadcast.
+            // The provider's current-programme index can lag the video feed,
+            // but a future schedule alone must not launch a live score.
             if (event.state == "in" &&
+                !entry.isCurrentProgramme &&
                 (now < entry.startEpochMs || now >= entry.stopEpochMs)
             ) return@mapNotNull null
             val programmeTokens = entry.programmeTokens
@@ -649,6 +612,7 @@ private fun findScoreChannelsFromIndex(
             // When ESPN names a broadcaster, the actual channel name must
             // agree before we can auto-launch it.
             if (broadcastOptions.isNotEmpty() && !broadcastMatch) return@mapNotNull null
+            if (isUnrelatedNewsChannel(entry.channel, broadcastOptions)) return@mapNotNull null
             val genericSportProgramme = broadcastMatch && entry.hasProgramme &&
                 isGenericSportProgramme(entry.programmeTitle, event)
 
@@ -796,10 +760,17 @@ private fun eventBroadcastTokens(event: NativeScoreEvent): List<Set<String>> =
         .filter(Set<String>::isNotEmpty)
         .distinct()
 
+private fun isUnrelatedNewsChannel(channel: LiveTvChannel, broadcasts: List<Set<String>>): Boolean {
+    val nameWords = normalizeSportsText(channel.name).split(' ').toSet()
+    val newsWords = setOf("news", "business")
+    return nameWords.any(newsWords::contains) && broadcasts.none { option -> option.any(newsWords::contains) }
+}
+
 private fun broadcastGuideCandidates(event: NativeScoreEvent, channels: List<LiveTvChannel>): List<LiveTvChannel> {
     val broadcasts = eventBroadcastTokens(event)
     if (broadcasts.isEmpty()) return emptyList()
     return channels.asSequence().filter { channel ->
+        if (isUnrelatedNewsChannel(channel, broadcasts)) return@filter false
         val tokens = sportsChannelBroadcastTokens(channel.name)
         broadcasts.any { option -> option.all(tokens::contains) }
     }.sortedByDescending { canonicalBroadcastScore(event, it) }.take(24).toList()
