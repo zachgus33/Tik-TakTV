@@ -9,6 +9,7 @@ import com.nuvio.app.features.tiktak.findScoreChannelCandidates
 import com.nuvio.app.features.tiktak.deriveSportsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TikTakSportsChannelMatchingTest {
@@ -148,7 +149,7 @@ class TikTakSportsChannelMatchingTest {
             scores = emptyList(),
             sportFilter = "all",
         )
-        assertEquals(emptyList(), state.liveEvents)
+        assertTrue(state.liveEvents.isEmpty())
     }
 
     @Test
