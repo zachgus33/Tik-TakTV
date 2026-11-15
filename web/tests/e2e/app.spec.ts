@@ -2452,7 +2452,12 @@ test("an independent user's configured Torrentio debrid stream uses the playback
     return route.abort();
   });
   await page.route("https://playback.example/request", (route) => {
-    expect(route.request().postDataJSON().url).toContain("/stream/movie/");
+    const source = String(route.request().postDataJSON().url);
+    if (source.includes("/catalog/"))
+      return route.fulfill({ json: { metas: [meta] } });
+    if (source.includes("/meta/"))
+      return route.fulfill({ json: { meta } });
+    expect(source).toContain("/stream/movie/");
     return route.fulfill({
       json: {
         streams: [
