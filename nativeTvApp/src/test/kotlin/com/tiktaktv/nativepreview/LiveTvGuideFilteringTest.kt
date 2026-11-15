@@ -44,17 +44,21 @@ class LiveTvGuideFilteringTest {
     }
 
     @Test
-    fun guideRowsContainOnlyChannelsWithUpcomingSchedules() {
+    fun guideRowsContainOnlyChannelsWithAProgrammeAiringNow() {
         val unguided = channel.copy(id = "unguided", tvgId = "unguided")
         val expired = channel.copy(id = "expired", tvgId = "expired")
         assertEquals(
-            listOf(channel),
+            emptyList<LiveTvChannel>(),
             selectGuideBackedChannels(
                 listOf(unguided, expired, channel),
                 mapOf("expired" to programme),
-                mapOf("guide-id" to listOf(programme.copy(stopEpochMs = 3L))),
+                mapOf("guide-id" to listOf(programme.copy(startEpochMs = 3L, stopEpochMs = 4L))),
                 2L,
             ),
+        )
+        assertEquals(
+            listOf(channel),
+            selectGuideBackedChannels(listOf(unguided, channel), emptyMap(), mapOf("guide-id" to listOf(programme)), 1L),
         )
     }
 }

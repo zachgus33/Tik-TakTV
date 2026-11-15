@@ -591,7 +591,7 @@ private fun buildSportsChannelSearchIndex(
         val entries = keys.flatMap { schedules[it].orEmpty() }
             .filter { it.stopEpochMs > now - 6 * 60 * 60_000L } +
             keys.mapNotNull(currentProgrammes::get)
-        val tokens = sportsChannelBroadcastTokens(channel)
+        val tokens = sportsChannelBroadcastTokens(channel.name)
         entries.distinctBy { Triple(it.title, it.startEpochMs, it.stopEpochMs) }
             .map { programme ->
                 SportsChannelSearchEntry(
@@ -619,6 +619,7 @@ private fun findScoreChannelsFromIndex(
     index: List<SportsChannelSearchEntry>,
 ): List<LiveTvChannel> {
     if (index.isEmpty()) return emptyList()
+    val now = GMTDate().timestamp
     val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
     val teams = event.teams.filter { normalizedSportsTokens(it.name).isNotEmpty() }
     val teamSignatures = teams.map { distinctiveTeamTokens(it, teams) }
@@ -631,6 +632,12 @@ private fun findScoreChannelsFromIndex(
                 (eventStart < entry.startEpochMs - 2 * 60 * 60_000L ||
                     eventStart > entry.stopEpochMs + 2 * 60 * 60_000L)
             ) return@mapNotNull null
+            // A live score must point at a programme airing right now. A
+            // future or expired schedule can describe the game while the
+            // actual stream is a standby slate or another broadcast.
+            if (event.state == "in" &&
+                (now < entry.startEpochMs || now >= entry.stopEpochMs)
+            ) return@mapNotNull null
             val programmeTokens = entry.programmeTokens
             val matchingTeams = teamSignatures.count { tokens -> tokens.any(programmeTokens::contains) }
             val programmeOverlap = eventTokens.count(programmeTokens::contains)
@@ -638,6 +645,10 @@ private fun findScoreChannelsFromIndex(
             val channelTokens = entry.channelTokens
             val broadcastOverlap = broadcastOptions.maxOfOrNull { tokens -> tokens.count(channelTokens::contains) } ?: 0
             val broadcastMatch = broadcastOptions.any { tokens -> tokens.all(channelTokens::contains) }
+            // A guide title is sometimes assigned to the wrong IPTV feed.
+            // When ESPN names a broadcaster, the actual channel name must
+            // agree before we can auto-launch it.
+            if (broadcastOptions.isNotEmpty() && !broadcastMatch) return@mapNotNull null
             val genericSportProgramme = broadcastMatch && entry.hasProgramme &&
                 isGenericSportProgramme(entry.programmeTitle, event)
 
@@ -718,8 +729,7 @@ private fun normalizedSportsTokens(value: String): Set<String> = normalizeSports
     .filter { it.length >= 3 && it !in SportsMatchStopWords }
     .toSet()
 
-private fun sportsChannelBroadcastTokens(channel: LiveTvChannel): Set<String> {
-    val identity = "${channel.name} ${channel.tvgId.orEmpty()}"
+private fun sportsChannelBroadcastTokens(identity: String): Set<String> {
     val aliases = broadcastAliases(identity)
     val broadBrandTokens = buildSet {
         if ("fs1" in aliases || "fs2" in aliases) add("fox")
@@ -790,7 +800,7 @@ private fun broadcastGuideCandidates(event: NativeScoreEvent, channels: List<Liv
     val broadcasts = eventBroadcastTokens(event)
     if (broadcasts.isEmpty()) return emptyList()
     return channels.asSequence().filter { channel ->
-        val tokens = sportsChannelBroadcastTokens(channel)
+        val tokens = sportsChannelBroadcastTokens(channel.name)
         broadcasts.any { option -> option.all(tokens::contains) }
     }.sortedByDescending { canonicalBroadcastScore(event, it) }.take(24).toList()
 }

@@ -333,6 +333,39 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun wrongBroadcasterNeverWinsEvenWithTheExactMatchupInItsGuide() {
+        val score = event("in", "Fox").copy(
+            league = "National Football League",
+            name = "NE VS DET",
+            teams = listOf(NativeScoreTeam("New England Patriots", "3"), NativeScoreTeam("Detroit Lions", "28")),
+        )
+        val bein = espn.copy(id = "bein", name = "UK| BEIN SPORT 2 EN FHD", tvgId = "fox.us")
+        val fox = espn.copy(id = "fox", name = "US| FOX HD", tvgId = "fox.local")
+        val programmes = mapOf(
+            "fox.us" to programme("New England Patriots vs Detroit Lions"),
+            "fox.local" to programme("Live: NFL Football"),
+        )
+
+        assertEquals(fox, findScoreChannel(score, listOf(bein, fox), programmes))
+        assertEquals(listOf(fox), guidedScoreChannelChoices(score, listOf(bein, fox), programmes, emptyMap()))
+    }
+
+    @Test
+    fun liveScoreDoesNotLaunchAChannelWithOnlyFutureGuideData() {
+        val future = programme("New England Patriots vs Detroit Lions").copy(
+            startEpochMs = System.currentTimeMillis() + 30 * 60_000L,
+            stopEpochMs = System.currentTimeMillis() + 3 * 60 * 60_000L,
+        )
+        val score = event("in", "Fox").copy(
+            league = "National Football League",
+            teams = listOf(NativeScoreTeam("New England Patriots", "3"), NativeScoreTeam("Detroit Lions", "28")),
+        )
+        val fox = espn.copy(id = "fox", name = "US| FOX HD", tvgId = "fox.us")
+
+        assertNull(findScoreChannel(score, listOf(fox), mapOf("fox.us" to future)))
+    }
+
+    @Test
     fun duplicateCurrentAndScheduleEntriesDoNotHideOneValidStream() {
         val score = event("in", "ESPN").copy(league = "National Football League")
         val current = programme("Live: NFL Football")

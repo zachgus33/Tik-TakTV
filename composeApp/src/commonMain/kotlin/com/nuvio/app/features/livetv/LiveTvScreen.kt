@@ -596,6 +596,7 @@ fun LiveTvScreen(
                         emptyList()
                     },
                     showGuide = guideMode,
+                    guideNow = guideNow,
                     isFavorite = renderedChannels[index].streamUrl in uiState.favoriteUrls,
                     onFavoriteClick = { LiveTvRepository.toggleFavorite(renderedChannels[index]) },
                     onClick = { playChannel(renderedChannels[index]) },
@@ -656,7 +657,15 @@ fun selectGuideBackedChannels(
     schedules: Map<String, List<LiveTvProgramme>>,
     nowEpochMs: Long = LiveTvClock.nowEpochMs(),
 ): List<LiveTvChannel> {
-    return channels.filter { channelHasUpcomingGuideData(it, currentProgrammes, schedules, nowEpochMs) }
+    // The TV grid starts at "Now". A channel with only a later programme
+    // would render an empty "No guide data" cell at the start of its row.
+    return channels.filter { channel ->
+        val keys = listOfNotNull(channel.tvgId?.takeIf(String::isNotBlank), channel.id)
+        keys.any { key ->
+            currentProgrammes[key]?.let { nowEpochMs >= it.startEpochMs && nowEpochMs < it.stopEpochMs } == true ||
+                schedules[key]?.any { nowEpochMs >= it.startEpochMs && nowEpochMs < it.stopEpochMs } == true
+        }
+    }
 }
 
 internal fun selectLiveTvDisplayChannels(channels: List<LiveTvChannel>): List<LiveTvChannel> =
@@ -1193,6 +1202,7 @@ private fun LiveTvChannelRow(
     programme: LiveTvProgramme?,
     schedule: List<LiveTvProgramme>,
     showGuide: Boolean,
+    guideNow: Long,
     isFavorite: Boolean,
     onFavoriteClick: () -> Unit,
     onClick: () -> Unit,
@@ -1276,6 +1286,7 @@ private fun LiveTvChannelRow(
                 LiveTvTwoHourProgrammeRow(
                     schedule = schedule,
                     currentProgramme = programme,
+                    guideStart = guideNow,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -1318,15 +1329,16 @@ private data class LiveTvGuideSegment(
 private fun LiveTvTwoHourProgrammeRow(
     schedule: List<LiveTvProgramme>,
     currentProgramme: LiveTvProgramme?,
+    guideStart: Long,
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
-    val guideStart = remember { LiveTvClock.nowEpochMs() }
     val guideEnd = guideStart + TWO_HOUR_GUIDE_MS
-    val segments = remember(schedule, guideStart) {
+    val segments = remember(schedule, currentProgramme, guideStart) {
         buildList {
             var cursor = guideStart
-            schedule.asSequence()
+            (schedule + listOfNotNull(currentProgramme)).asSequence()
+                .distinctBy { Triple(it.title, it.startEpochMs, it.stopEpochMs) }
                 .filter { it.stopEpochMs > guideStart && it.startEpochMs < guideEnd }
                 .sortedBy(LiveTvProgramme::startEpochMs)
                 .forEach { entry ->
