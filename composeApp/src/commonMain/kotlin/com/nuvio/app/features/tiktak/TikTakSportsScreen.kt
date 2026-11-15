@@ -137,6 +137,8 @@ fun TikTakSportsScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var sportFilter by remember { mutableStateOf("all") }
+    var searchingScoreId by remember { mutableStateOf<String?>(null) }
+    var unmatchedScoreId by remember { mutableStateOf<String?>(null) }
 
     // Indexing thousands of IPTV channels and matching every score used to run
     // during composition. On Fire TV that blocked input dispatch long enough to
@@ -212,22 +214,31 @@ fun TikTakSportsScreen(
 
     fun openScore(event: NativeScoreEvent, matched: LiveTvChannel?) {
         if (matched != null) {
+            unmatchedScoreId = null
             onChannelClick(matched)
             return
         }
+        if (searchingScoreId != null) return
+        unmatchedScoreId = null
+        searchingScoreId = event.id
         scope.launch {
-            // The guide may have finished loading after the score card rendered.
-            // Recheck it, but never launch an unrelated generic sports channel.
-            val channel = withContext(Dispatchers.Default) {
-                findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
+            try {
+                // The guide may have finished loading after the score card
+                // rendered. Recheck once, with visible feedback meanwhile.
+                val channel = withContext(Dispatchers.Default) {
+                    findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
+                }
+                openScoreEvent(
+                    event,
+                    channel,
+                    channelsAvailable = liveState.channels.isNotEmpty(),
+                    channelsStillLoading = liveState.isLoading || liveState.isEpgLoading,
+                    onChannelClick = onChannelClick,
+                )
+                if (channel == null) unmatchedScoreId = event.id
+            } finally {
+                searchingScoreId = null
             }
-            openScoreEvent(
-                event,
-                channel,
-                channelsAvailable = liveState.channels.isNotEmpty(),
-                channelsStillLoading = liveState.isLoading || liveState.isEpgLoading,
-                onChannelClick = onChannelClick,
-            )
         }
     }
 
@@ -280,6 +291,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    searching = searchingScoreId == event.id,
+                    unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
@@ -293,6 +306,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    searching = searchingScoreId == event.id,
+                    unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
@@ -336,6 +351,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    searching = searchingScoreId == event.id,
+                    unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
@@ -408,6 +425,8 @@ fun prioritizeStreamableScores(
 private fun ScoreCard(
     event: NativeScoreEvent,
     matchedChannelName: String?,
+    searching: Boolean,
+    unmatched: Boolean,
     channelsAvailable: Boolean,
     channelsLoading: Boolean,
     onClick: () -> Unit,
@@ -438,12 +457,14 @@ private fun ScoreCard(
         val context = listOfNotNull(event.broadcast, event.venue).joinToString(" • ")
         if (context.isNotBlank()) Text(context, color = MaterialTheme.nuvio.colors.textMuted)
         Text(
-            text = matchedChannelName?.let { "Press OK to watch on $it" }
-                ?: when {
-                    channelsLoading -> "Loading your Live TV channels before matching this game"
-                    !channelsAvailable -> "No Live TV channels loaded on this profile"
-                    else -> "Press OK to look for this game in your Live TV guide"
-                },
+            text = when {
+                searching -> "Checking the Live TV guide for this game..."
+                unmatched -> "No guide-confirmed stream for this game in your Live TV lineup"
+                matchedChannelName != null -> "Press OK to watch on $matchedChannelName"
+                channelsLoading -> "Loading your Live TV channels before matching this game"
+                !channelsAvailable -> "No Live TV channels loaded on this profile"
+                else -> "Press OK to look for this game in your Live TV guide"
+            },
             color = if (matchedChannelName != null) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.textMuted,
             fontWeight = FontWeight.SemiBold,
         )
@@ -473,18 +494,19 @@ private fun buildSportsChannelSearchIndex(
     schedules: Map<String, List<LiveTvProgramme>> = emptyMap(),
 ): List<SportsChannelSearchEntry> {
     val now = GMTDate().timestamp
-    return channels.map { channel ->
+    return channels.mapNotNull { channel ->
         val programme = channel.tvgId?.let(currentProgrammes::get) ?: currentProgrammes[channel.id]
             ?: (channel.tvgId?.let(schedules::get) ?: schedules[channel.id])
                 ?.firstOrNull { now in it.startEpochMs until it.stopEpochMs }
+            ?: return@mapNotNull null
         SportsChannelSearchEntry(
             channel = channel,
-            programmeTokens = normalizedSportsTokens(programme?.title.orEmpty()),
-            programmeTitle = programme?.title.orEmpty(),
+            programmeTokens = normalizedSportsTokens(programme.title),
+            programmeTitle = programme.title,
             // A broad group such as "USA Sports" is not proof that every channel
             // in it is the USA Network broadcast named on a score card.
             channelTokens = normalizedSportsTokens("${channel.name} ${channel.tvgId.orEmpty()}"),
-            hasProgramme = programme != null,
+            hasProgramme = true,
         )
     }
 }
