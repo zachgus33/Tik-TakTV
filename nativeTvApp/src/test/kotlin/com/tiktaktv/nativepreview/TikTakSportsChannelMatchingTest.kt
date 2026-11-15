@@ -325,9 +325,10 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
-    fun regionalNbaFeedMatchesScoreThroughGuideVenueDespiteDaznBroadcast() {
+    fun regionalNbaFeedMatchesScoreThroughCityAndGuideDespiteDaznBroadcast() {
         val regional = espn.copy(id = "csn", name = "US| CSN PHILADELPHIA HD", tvgId = "csn.us")
         val unrelated = espn.copy(id = "news", name = "US| CBS NEWS", tvgId = "news.us")
+        val college = espn.copy(id = "college", name = "US| CSN PHILADELPHIA PLUS", tvgId = "college.us")
         val score = event("in", "DAZN IND").copy(
             sport = "basketball",
             league = "National Basketball Association",
@@ -336,12 +337,13 @@ class TikTakSportsChannelMatchingTest {
             teams = listOf(NativeScoreTeam("Indiana Pacers", "68"), NativeScoreTeam("Philadelphia 76ers", "73")),
         )
         val guide = mapOf(
-            "csn.us" to programme("Live: NBA Basketball").copy(description = "From Xfinity Mobile Arena in Philadelphia."),
+            "csn.us" to programme("Live: NBA Basketball"),
             "news.us" to programme("Live: NBA Basketball"),
+            "college.us" to programme("Live: Women's College Basketball"),
         )
 
-        assertEquals(regional, findScoreChannel(score, listOf(unrelated, regional), guide))
-        assertEquals(listOf(regional), guidedScoreChannelChoices(score, listOf(unrelated, regional), guide, emptyMap()))
+        assertEquals(regional, findScoreChannel(score, listOf(unrelated, college, regional), guide))
+        assertEquals(listOf(regional), guidedScoreChannelChoices(score, listOf(unrelated, college, regional), guide, emptyMap()))
     }
 
     @Test

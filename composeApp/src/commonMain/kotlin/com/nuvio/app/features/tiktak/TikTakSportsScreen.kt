@@ -42,6 +42,7 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.livetv.LiveTvRepository
+import com.nuvio.app.features.livetv.channelHasGuideData
 import com.nuvio.app.features.livetv.channelHasUpcomingGuideData
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.trakt.TraktPlatformClock
@@ -231,20 +232,27 @@ fun TikTakSportsScreen(
                 // The guide may have finished loading after the score card
                 // rendered. Recheck once, with visible feedback meanwhile.
                 val channel = withContext(Dispatchers.Default) {
-                    findScoreChannel(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
+                    guidedScoreChannelChoices(event, liveState.channels, liveState.currentProgrammes, liveState.programmeSchedules)
+                        .firstOrNull()
                 } ?: run {
                     // A direct visit to Sports may precede the full XML guide.
                     // Fetch the small guide only for channels named by this
                     // game's broadcaster, then retry once with fresh data.
                     val candidates = scoreGuideCandidates(event, LiveTvRepository.uiState.value.channels).take(4)
+                    val currentGuide = LiveTvRepository.uiState.value
+                    if (candidates.isEmpty() ||
+                        (candidates.all { channelHasGuideData(it, currentGuide.currentProgrammes, currentGuide.programmeSchedules) } &&
+                            !currentGuide.isEpgLoading)
+                    ) return@run null
                     // Requery even if a channel has today's current show. Its
                     // upcoming game may only exist in the short EPG response.
-                    withTimeoutOrNull(5_000L) {
+                    withTimeoutOrNull(3_000L) {
                         LiveTvRepository.loadXtreamGuideForChannels(candidates, force = true)?.join()
                     }
                     val latest = LiveTvRepository.uiState.value
                     withContext(Dispatchers.Default) {
-                        findScoreChannel(event, latest.channels, latest.currentProgrammes, latest.programmeSchedules)
+                        guidedScoreChannelChoices(event, latest.channels, latest.currentProgrammes, latest.programmeSchedules)
+                            .firstOrNull()
                     }
                 }
                 if (channel != null) {
@@ -602,6 +610,10 @@ private fun findScoreChannelsFromIndex(
     val teamSignatures = teams.map { distinctiveTeamTokens(it, teams) }
     val broadcastOptions = eventBroadcastTokens(event)
     val venue = normalizeSportsText(event.venue.orEmpty())
+    val teamRegions = event.teams.mapNotNull { team ->
+        normalizeSportsText(team.name.substringBeforeLast(' ', ""))
+            .takeIf { it.length >= 5 }
+    }
 
     val candidates = index.asSequence()
         .mapNotNull { entry ->
@@ -629,21 +641,24 @@ private fun findScoreChannelsFromIndex(
             // streaming-service broadcast name absent from channel names.
             val venueMatch = venue.length >= 8 && entry.programmeContext.contains(venue) &&
                 isGenericSportProgramme(entry.programmeTitle, event)
+            val regionalMatch = teamRegions.any { region ->
+                normalizeSportsText(entry.channel.name).contains(region)
+            } && isGenericSportProgramme(entry.programmeTitle, event)
             val channelTokens = entry.channelTokens
             val broadcastOverlap = broadcastOptions.maxOfOrNull { tokens -> tokens.count(channelTokens::contains) } ?: 0
             val broadcastMatch = broadcastOptions.any { tokens -> tokens.all(channelTokens::contains) }
             // A guide title is sometimes assigned to the wrong IPTV feed.
             // When ESPN names a broadcaster, the actual channel name must
             // agree before we can auto-launch it.
-            if (broadcastOptions.isNotEmpty() && !broadcastMatch && !venueMatch) return@mapNotNull null
+            if (broadcastOptions.isNotEmpty() && !broadcastMatch && !venueMatch && !regionalMatch) return@mapNotNull null
             if (isUnrelatedNewsChannel(entry.channel, broadcastOptions)) return@mapNotNull null
-            val genericSportProgramme = (broadcastMatch || venueMatch) && entry.hasProgramme &&
+            val genericSportProgramme = (broadcastMatch || venueMatch || regionalMatch) && entry.hasProgramme &&
                 isGenericSportProgramme(entry.programmeTitle, event)
 
             // A named broadcaster alone cannot prove which feed carries a game.
             // When guide data names a programme, require the actual matchup;
             // otherwise a second ABC feed can win despite airing another show.
-            if (entry.hasProgramme && !allTeamsMatch && !genericSportProgramme && !venueMatch) {
+            if (entry.hasProgramme && !allTeamsMatch && !genericSportProgramme && !venueMatch && !regionalMatch) {
                 return@mapNotNull null
             }
             // A channel's name is not evidence that it is carrying this game.
@@ -654,6 +669,7 @@ private fun findScoreChannelsFromIndex(
             }
             val score = (if (allTeamsMatch) 300 else 0) + programmeOverlap * 8 +
                 (if (venueMatch) 220 else 0) +
+                (if (regionalMatch) 180 else 0) +
                 (if (broadcastMatch) 35 + broadcastOverlap * 5 else 0) +
                 (if (entry.hasProgramme) 10 else 0) +
                 (if (genericSportProgramme) 50 else 0) +
