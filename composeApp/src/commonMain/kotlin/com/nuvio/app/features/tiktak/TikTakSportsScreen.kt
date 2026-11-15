@@ -530,7 +530,7 @@ private fun buildSportsChannelSearchIndex(
             programmeTitle = programme.title,
             // A broad group such as "USA Sports" is not proof that every channel
             // in it is the USA Network broadcast named on a score card.
-            channelTokens = normalizedSportsTokens("${channel.name} ${channel.tvgId.orEmpty()}"),
+            channelTokens = sportsChannelBroadcastTokens(channel),
             hasProgramme = true,
         )
     }
@@ -619,6 +619,17 @@ private fun normalizedSportsTokens(value: String): Set<String> = normalizeSports
     .filter { it.length >= 3 && it !in SportsMatchStopWords }
     .toSet()
 
+private fun sportsChannelBroadcastTokens(channel: LiveTvChannel): Set<String> {
+    val identity = "${channel.name} ${channel.tvgId.orEmpty()}"
+    val normalized = normalizeSportsText(identity)
+    return normalizedSportsTokens(identity) + buildSet {
+        // Score feeds abbreviate Fox Sports 1/2 as FS1/FS2. Keep the number in
+        // the alias so a generic "College Football" guide cannot pick FS2.
+        if (Regex("\\bfox sports (?:1|one)\\b").containsMatchIn(normalized)) add("fs1")
+        if (Regex("\\bfox sports (?:2|two)\\b").containsMatchIn(normalized)) add("fs2")
+    }
+}
+
 private fun normalizedBroadcastTokens(value: String): Set<String> {
     if ('+' in value) return emptySet()
     return normalizedSportsTokens(value)
@@ -644,7 +655,7 @@ private fun broadcastGuideCandidates(event: NativeScoreEvent, channels: List<Liv
     val broadcasts = eventBroadcastTokens(event)
     if (broadcasts.isEmpty()) return emptyList()
     return channels.asSequence().filter { channel ->
-        val tokens = normalizedSportsTokens("${channel.name} ${channel.tvgId.orEmpty()}")
+        val tokens = sportsChannelBroadcastTokens(channel)
         broadcasts.any { option -> option.all(tokens::contains) }
     }.take(24).toList()
 }

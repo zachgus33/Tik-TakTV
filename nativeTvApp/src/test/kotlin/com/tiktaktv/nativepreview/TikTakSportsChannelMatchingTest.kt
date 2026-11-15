@@ -186,6 +186,20 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun fs1ScoreMatchesFoxSportsOneButNotFoxSportsTwo() {
+        val fs1 = espn.copy(id = "fs1", name = "US| FOX SPORTS 1 HD", tvgId = "fox-sports-1.us")
+        val fs2 = espn.copy(id = "fs2", name = "US| FOX SPORTS 2 HD", tvgId = "fox-sports-2.us")
+        val score = event("in", "FS1").copy(league = "NCAA - Football")
+        val programmes = mapOf(
+            "fox-sports-1.us" to programme("College Football"),
+            "fox-sports-2.us" to programme("College Football"),
+        )
+
+        assertEquals(fs1, findScoreChannel(score, listOf(fs2, fs1), programmes))
+        assertNull(findScoreChannel(score, listOf(fs2), programmes))
+    }
+
+    @Test
     fun genericSportsGuideDoesNotOverrideAConflictingMatchup() {
         val wrong = espn.copy(tvgId = "espn.wrong")
         val programmes = mapOf("espn.wrong" to programme("Alabama Crimson Tide vs Auburn Tigers"))
