@@ -140,6 +140,18 @@ class TikTakSportsChannelMatchingTest {
     }
 
     @Test
+    fun unrelatedGuideProgrammeIsNotShownAsLiveSports() {
+        val state = deriveSportsState(
+            channels = listOf(espn),
+            programmes = mapOf("espn.us" to programme("Evening News")),
+            schedules = emptyMap(),
+            scores = emptyList(),
+            sportFilter = "all",
+        )
+        assertEquals(emptyList(), state.liveEvents)
+    }
+
+    @Test
     fun broadcasterWithGenericSportGuideCanOpenWhenItIsTheOnlyCandidate() {
         assertEquals(
             espn,

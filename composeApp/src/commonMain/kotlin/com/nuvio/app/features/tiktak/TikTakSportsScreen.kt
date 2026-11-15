@@ -43,7 +43,6 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.livetv.LiveTvChannel
 import com.nuvio.app.features.livetv.LiveTvProgramme
 import com.nuvio.app.features.livetv.LiveTvRepository
-import com.nuvio.app.features.livetv.channelHasGuideData
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -343,7 +342,10 @@ fun deriveSportsState(
         val searchable = "${programme?.title.orEmpty()} ${channel.name} ${channel.group}".lowercase()
         val sportsChannel = SportsKeywords.any(searchable::contains) ||
             "sport" in channel.group.lowercase() || "espn" in channel.name.lowercase()
-        if (sportsChannel && (channelHasGuideData(channel, programmes, schedules) || programme == null)) {
+        val sportsProgramme = programme?.title?.lowercase()?.let { title ->
+            SportsKeywords.any(title::contains)
+        } == true
+        if (sportsProgramme || (programme == null && sportsChannel)) {
             channel to programme?.title
         } else null
     }
@@ -707,7 +709,7 @@ private fun JsonObject.objectValue(key: String): JsonObject? = runCatching { get
 private fun JsonObject.string(key: String): String? = runCatching { get(key)?.jsonPrimitive?.contentOrNull }.getOrNull()
 
 private val SportsKeywords = listOf(
-    "football", "basketball", "baseball", "hockey", "soccer", "tennis", "golf", "ufc", "mma", "boxing", "racing", "formula 1", "grand prix", "nfl", "nba", "nhl", "mlb", "match", " vs ",
+    "football", "basketball", "baseball", "hockey", "soccer", "tennis", "golf", "ufc", "mma", "boxing", "racing", "formula 1", "grand prix", "nfl", "nba", "nhl", "mlb", "match", " vs ", "sports",
 )
 
 private const val MAX_VISIBLE_SCORE_EVENTS = 120
