@@ -264,6 +264,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    channelsAvailable = liveState.channels.isNotEmpty(),
+                    channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
                 )
             }
@@ -275,6 +277,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    channelsAvailable = liveState.channels.isNotEmpty(),
+                    channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
                 )
             }
@@ -283,7 +287,11 @@ fun TikTakSportsScreen(
         if (visibleLiveEvents.isEmpty()) {
             item {
                 Text(
-                    text = if (liveState.channels.isEmpty()) "Your IPTV provider is still syncing or has no channels." else "No matching sports programmes are listed right now.",
+                    text = when {
+                        liveState.isLoading -> "Loading channels from your IPTV provider."
+                        liveState.channels.isEmpty() -> "No Live TV channels loaded on this profile. Check the IPTV connection in Live TV."
+                        else -> "No matching sports programmes are listed right now."
+                    },
                     color = MaterialTheme.nuvio.colors.textMuted,
                 )
             }
@@ -312,6 +320,8 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    channelsAvailable = liveState.channels.isNotEmpty(),
+                    channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
                 )
             }
@@ -382,6 +392,8 @@ fun prioritizeStreamableScores(
 private fun ScoreCard(
     event: NativeScoreEvent,
     matchedChannelName: String?,
+    channelsAvailable: Boolean,
+    channelsLoading: Boolean,
     onClick: () -> Unit,
 ) {
     FocusCard(onClick = onClick) {
@@ -411,7 +423,11 @@ private fun ScoreCard(
         if (context.isNotBlank()) Text(context, color = MaterialTheme.nuvio.colors.textMuted)
         Text(
             text = matchedChannelName?.let { "Press OK to watch on $it" }
-                ?: "Press OK to look for this game in your Live TV guide",
+                ?: when {
+                    channelsLoading -> "Loading your Live TV channels before matching this game"
+                    !channelsAvailable -> "No Live TV channels loaded on this profile"
+                    else -> "Press OK to look for this game in your Live TV guide"
+                },
             color = if (matchedChannelName != null) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.textMuted,
             fontWeight = FontWeight.SemiBold,
         )
