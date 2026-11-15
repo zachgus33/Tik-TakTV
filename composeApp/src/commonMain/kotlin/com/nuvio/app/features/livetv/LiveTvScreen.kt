@@ -117,7 +117,7 @@ fun LiveTvScreen(
     var sourceUrl by rememberSaveable { mutableStateOf(uiState.sourceUrl) }
     var query by rememberSaveable { mutableStateOf("") }
     var selectedGroup by rememberSaveable { mutableStateOf("") }
-    var selectedCountry by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCountry by rememberSaveable { mutableStateOf("") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var editingSource by rememberSaveable { mutableStateOf(uiState.sourceUrl.isBlank()) }
     var showingAdvancedSettings by rememberSaveable { mutableStateOf(false) }
@@ -153,31 +153,22 @@ fun LiveTvScreen(
         initialValue = LiveTvDerivedChannels(),
         uiState.channels,
         uiState.favoriteUrls,
-        uiState.currentProgrammes,
-        uiState.programmeSchedules,
         query,
         selectedGroup,
         selectedCountry,
         favoritesOnly,
-        guideMode,
     ) {
         value = withContext(Dispatchers.Default) {
-            // Programme data is optional. Keep playable channels visible while
-            // the guide loads, and when a provider does not supply guide data.
+            // Guide checkpoints can arrive many times per second. Channel
+            // visibility must depend only on the lineup and user filters;
+            // otherwise every checkpoint cancels this calculation and the
+            // TV guide can remain stuck at zero channels indefinitely.
             val realChannels = selectLiveTvDisplayChannels(uiState.channels)
             val filteredChannels = realChannels.filter { channel ->
-                (selectedCountry.isNullOrBlank() || liveTvCountryFor(channel)?.code == selectedCountry) &&
+                (selectedCountry.isBlank() || liveTvCountryFor(channel)?.code == selectedCountry) &&
                     (selectedGroup.isBlank() || channel.group == selectedGroup) &&
                     (!favoritesOnly || channel.streamUrl in uiState.favoriteUrls) &&
                     (query.isBlank() || channel.name.contains(query, ignoreCase = true))
-            }
-            val visibleChannels = if (guideMode) {
-                val (withGuide, withoutGuide) = filteredChannels.partition { channel ->
-                    channelHasGuideData(channel, uiState.currentProgrammes, uiState.programmeSchedules)
-                }
-                withGuide + withoutGuide
-            } else {
-                filteredChannels
             }
             LiveTvDerivedChannels(
                 countries = realChannels.asSequence()
@@ -191,16 +182,15 @@ fun LiveTvScreen(
                     .distinct()
                     .sorted()
                     .toList(),
-                visible = visibleChannels,
+                visible = filteredChannels,
             )
         }
     }
     LaunchedEffect(derivedChannels.countries) {
-        if (selectedCountry == null) {
-            if (derivedChannels.countries.isNotEmpty()) {
-                selectedCountry = derivedChannels.countries.firstOrNull { it.code == "US" }?.code.orEmpty()
-            }
-        } else if (selectedCountry!!.isNotBlank() && derivedChannels.countries.none { it.code == selectedCountry }) {
+        // Match the website's All countries default. The provider can publish
+        // sports channels before the full lineup, so selecting US here can
+        // hide every early channel from another region.
+        if (selectedCountry.isNotBlank() && derivedChannels.countries.none { it.code == selectedCountry }) {
             selectedCountry = ""
         }
     }
@@ -478,7 +468,7 @@ fun LiveTvScreen(
             item {
                 LiveTvFilterRow(
                     countries = countries,
-                    selectedCountry = selectedCountry.orEmpty(),
+                    selectedCountry = selectedCountry,
                     groups = groups,
                     selectedGroup = selectedGroup,
                     favoritesOnly = favoritesOnly,

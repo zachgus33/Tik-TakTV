@@ -47,6 +47,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -143,19 +146,32 @@ fun TikTakSportsScreen(
     }
     LaunchedEffect(
         liveState.channels,
-        liveState.currentProgrammes,
-        liveState.programmeSchedules,
         scores,
         sportFilter,
     ) {
-        derived = withContext(Dispatchers.Default) {
-            deriveSportsState(
-                channels = liveState.channels,
-                programmes = liveState.currentProgrammes,
-                schedules = liveState.programmeSchedules,
-                scores = scores,
-                sportFilter = sportFilter,
-            )
+        // Guide checkpoints must not cancel a large match calculation every
+        // time another channel's EPG arrives. Rebuild from the latest guide
+        // at a bounded cadence, keeping the previous results visible.
+        var previousProgrammes: Map<String, LiveTvProgramme>? = null
+        var previousSchedules: Map<String, List<LiveTvProgramme>>? = null
+        while (currentCoroutineContext().isActive) {
+            val latest = LiveTvRepository.uiState.value
+            if (previousProgrammes !== latest.currentProgrammes ||
+                previousSchedules !== latest.programmeSchedules
+            ) {
+                previousProgrammes = latest.currentProgrammes
+                previousSchedules = latest.programmeSchedules
+                derived = withContext(Dispatchers.Default) {
+                    deriveSportsState(
+                        channels = liveState.channels,
+                        programmes = latest.currentProgrammes,
+                        schedules = latest.programmeSchedules,
+                        scores = scores,
+                        sportFilter = sportFilter,
+                    )
+                }
+            }
+            delay(1_000L)
         }
     }
     val quickLiveEvents = remember(liveState.channels, sportFilter) {
