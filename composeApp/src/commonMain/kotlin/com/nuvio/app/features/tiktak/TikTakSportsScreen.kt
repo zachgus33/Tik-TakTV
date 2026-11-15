@@ -349,11 +349,13 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    relevantChannels = derived.relevantChannels[event.id].orEmpty(),
                     searching = searchingScoreId == event.id,
                     unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
+                    onChannelClick = onChannelClick,
                 )
             }
         }
@@ -364,11 +366,13 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    relevantChannels = derived.relevantChannels[event.id].orEmpty(),
                     searching = searchingScoreId == event.id,
                     unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
+                    onChannelClick = onChannelClick,
                 )
             }
         }
@@ -410,11 +414,13 @@ fun TikTakSportsScreen(
                 ScoreCard(
                     event = event,
                     matchedChannelName = matchedChannel?.name,
+                    relevantChannels = emptyList(),
                     searching = searchingScoreId == event.id,
                     unmatched = unmatchedScoreId == event.id,
                     channelsAvailable = liveState.channels.isNotEmpty(),
                     channelsLoading = liveState.isLoading,
                     onClick = { openScore(event, matchedChannel) },
+                    onChannelClick = onChannelClick,
                 )
             }
         }
@@ -425,6 +431,7 @@ data class SportsDerivedState(
     val liveEvents: List<Pair<LiveTvChannel, String?>> = emptyList(),
     val scores: List<NativeScoreEvent> = emptyList(),
     val matchedChannels: Map<String, LiveTvChannel> = emptyMap(),
+    val relevantChannels: Map<String, List<LiveTvChannel>> = emptyMap(),
 )
 
 fun deriveSportsState(
@@ -453,9 +460,11 @@ fun deriveSportsState(
         .filter { sportFilter == "all" || it.sport == sportFilter }
         .take(MAX_VISIBLE_SCORE_EVENTS * 2)
         .toList()
-    val matchedChannels = filteredScores.mapNotNull { event ->
-        findScoreChannelFromIndex(event, channelSearchIndex)?.let { event.id to it }
+    val relevantChannels = filteredScores.mapNotNull { event ->
+        findScoreChannelsFromIndex(event, channelSearchIndex).take(3)
+            .takeIf(List<LiveTvChannel>::isNotEmpty)?.let { event.id to it }
     }.toMap()
+    val matchedChannels = relevantChannels.mapValues { it.value.first() }
     val visibleScores = prioritizeStreamableScores(filteredScores, matchedChannels)
         .take(MAX_VISIBLE_SCORE_EVENTS)
     return SportsDerivedState(
@@ -465,6 +474,7 @@ fun deriveSportsState(
         }.take(MAX_VISIBLE_SPORT_CHANNELS).toList(),
         scores = visibleScores,
         matchedChannels = matchedChannels,
+        relevantChannels = relevantChannels,
     )
 }
 
@@ -484,12 +494,15 @@ fun prioritizeStreamableScores(
 private fun ScoreCard(
     event: NativeScoreEvent,
     matchedChannelName: String?,
+    relevantChannels: List<LiveTvChannel>,
     searching: Boolean,
     unmatched: Boolean,
     channelsAvailable: Boolean,
     channelsLoading: Boolean,
     onClick: () -> Unit,
+    onChannelClick: (LiveTvChannel) -> Unit,
 ) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     FocusCard(onClick = {
         if (event.state == "post") {
             NuvioToastController.show("This game has ended. Select a live or upcoming game to find a channel.")
@@ -532,6 +545,16 @@ private fun ScoreCard(
             color = if (matchedChannelName != null) MaterialTheme.nuvio.colors.accent else MaterialTheme.nuvio.colors.textMuted,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+    if (event.state != "post" && relevantChannels.isNotEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            relevantChannels.take(3).forEach { channel ->
+                Button(onClick = { onChannelClick(channel) }, modifier = Modifier.tikTakTvFocus()) {
+                    Text("Watch ${channel.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
     }
 }
 
@@ -586,8 +609,13 @@ private fun buildSportsChannelSearchIndex(
 private fun findScoreChannelFromIndex(
     event: NativeScoreEvent,
     index: List<SportsChannelSearchEntry>,
-): LiveTvChannel? {
-    if (index.isEmpty()) return null
+): LiveTvChannel? = findScoreChannelsFromIndex(event, index).firstOrNull()
+
+private fun findScoreChannelsFromIndex(
+    event: NativeScoreEvent,
+    index: List<SportsChannelSearchEntry>,
+): List<LiveTvChannel> {
+    if (index.isEmpty()) return emptyList()
     val eventTokens = normalizedSportsTokens(event.name + " " + event.teams.joinToString(" ") { it.name })
     val teams = event.teams.filter { normalizedSportsTokens(it.name).isNotEmpty() }
     val teamSignatures = teams.map { distinctiveTeamTokens(it, teams) }
@@ -625,16 +653,25 @@ private fun findScoreChannelFromIndex(
             val score = (if (allTeamsMatch) 300 else 0) + programmeOverlap * 8 +
                 (if (broadcastMatch) 35 + broadcastOverlap * 5 else 0) +
                 (if (entry.hasProgramme) 10 else 0) +
-                (if (genericSportProgramme) 50 else 0)
-            Triple(entry.channel, score, allTeamsMatch)
+                (if (genericSportProgramme) 50 else 0) +
+                canonicalBroadcastScore(event, entry.channel)
+            entry.channel to score
         }
         .sortedByDescending { it.second }
+        .distinctBy { it.first.id }
+        .map { it.first }
         .toList()
-    val best = candidates.firstOrNull() ?: return null
-    // Two indistinguishable feeds need a guide-confirmed matchup; picking the
-    // first playlist entry would silently open an unrelated broadcast.
-    if (!best.third && candidates.getOrNull(1)?.second == best.second) return null
-    return best.first
+    return candidates
+}
+
+private fun canonicalBroadcastScore(event: NativeScoreEvent, channel: LiveTvChannel): Int {
+    val channelName = normalizeSportsText(channel.name)
+        .replace(Regex("^(?:us|usa|united states) "), "")
+        .replace(Regex(" (?:hd|fhd|uhd|4k|sd)$"), "")
+    return if ((event.broadcasts + listOfNotNull(event.broadcast)).any { broadcast ->
+            channelName == normalizeSportsText(broadcast) ||
+                broadcastAliases(channelName).intersect(broadcastAliases(broadcast)).isNotEmpty()
+        }) 40 else 0
 }
 
 private fun isGenericSportProgramme(title: String, event: NativeScoreEvent): Boolean {
@@ -655,8 +692,14 @@ private fun isGenericSportProgramme(title: String, event: NativeScoreEvent): Boo
     if (sportWords.none(words::contains)) return false
     val leagueMarkers = setOf("nfl", "nba", "wnba", "nhl", "mlb", "mls", "ufc", "ncaa", "college")
     val titleLeague = words.intersect(leagueMarkers).map { if (it == "ncaa") "college" else it }.toSet()
-    val eventLeague = normalizeSportsText(event.league).split(' ').toSet()
-        .intersect(leagueMarkers).map { if (it == "ncaa") "college" else it }.toSet()
+    val eventLeagueWords = normalizeSportsText(event.league).split(' ').toSet()
+    val eventLeague = eventLeagueWords.intersect(leagueMarkers)
+        .map { if (it == "ncaa") "college" else it }.toMutableSet().apply {
+            if (setOf("national", "football", "league").all(eventLeagueWords::contains)) add("nfl")
+            if (setOf("national", "basketball", "association").all(eventLeagueWords::contains)) add("nba")
+            if (setOf("national", "hockey", "league").all(eventLeagueWords::contains)) add("nhl")
+            if (setOf("major", "league", "baseball").all(eventLeagueWords::contains)) add("mlb")
+        }
     return titleLeague.isEmpty() || titleLeague.any(eventLeague::contains)
 }
 
@@ -746,7 +789,7 @@ private fun broadcastGuideCandidates(event: NativeScoreEvent, channels: List<Liv
     return channels.asSequence().filter { channel ->
         val tokens = sportsChannelBroadcastTokens(channel)
         broadcasts.any { option -> option.all(tokens::contains) }
-    }.take(24).toList()
+    }.sortedByDescending { canonicalBroadcastScore(event, it) }.take(24).toList()
 }
 
 fun guidedScoreChannelChoices(
@@ -755,24 +798,10 @@ fun guidedScoreChannelChoices(
     programmes: Map<String, LiveTvProgramme>,
     schedules: Map<String, List<LiveTvProgramme>>,
 ): List<LiveTvChannel> {
-    val broadcasterChannels = broadcastGuideCandidates(event, channels)
-        .filter { channelHasUpcomingGuideData(it, programmes, schedules) }
-    if (broadcasterChannels.isNotEmpty()) return broadcasterChannels.take(12)
-    // Some feeds omit broadcast names. Offer guide-backed sports channels for
-    // manual selection, without claiming any of them carries the exact game.
-    return channels.asSequence()
-        .filter { channel ->
-            channelHasUpcomingGuideData(channel, programmes, schedules) &&
-                (listOfNotNull(
-                    channel.tvgId?.let(programmes::get)?.title,
-                    programmes[channel.id]?.title,
-                ) + listOfNotNull(channel.tvgId, channel.id)
-                    .flatMap { schedules[it].orEmpty() }
-                    .map(LiveTvProgramme::title))
-                    .any { it.contains(event.sport, ignoreCase = true) }
-        }
+    // Match the website's score-to-guide relationship: only offer channels
+    // whose actual programme fits this game, never every channel named Fox.
+    return findScoreChannelsFromIndex(event, buildSportsChannelSearchIndex(channels, programmes, schedules))
         .take(12)
-        .toList()
 }
 
 private val SportsMatchStopWords = setOf(

@@ -309,6 +309,38 @@ class TikTakSportsChannelMatchingTest {
         assertNull(findScoreChannel(event("in", "ESPN"), listOf(wrong), programmes))
     }
 
+    @Test
+    fun fullNflLeagueNameFindsCanonicalFoxStreamAndRelevantChannels() {
+        val score = event("in", "Fox").copy(
+            league = "National Football League",
+            name = "NE @ DET",
+            teams = listOf(NativeScoreTeam("New England Patriots", "7"), NativeScoreTeam("Detroit Lions", "14")),
+        )
+        val news = espn.copy(id = "fox-news", name = "FOX News", tvgId = "fox-news.us")
+        val business = espn.copy(id = "fox-business", name = "FOX Business News", tvgId = "fox-business.us")
+        val local = espn.copy(id = "fox-29", name = "FOX 29", tvgId = "fox-29.us")
+        val national = espn.copy(id = "fox-hd", name = "US| FOX HD", tvgId = "fox.us")
+        val programmes = mapOf(
+            "fox-news.us" to programme("Sunday Morning Futures"),
+            "fox-business.us" to programme("Barron's Roundtable"),
+            "fox-29.us" to programme("Live: NFL Football"),
+            "fox.us" to programme("Live: NFL Football"),
+        )
+        val channels = listOf(news, business, local, national)
+
+        assertEquals(national, findScoreChannel(score, channels, programmes))
+        assertEquals(listOf(national, local), guidedScoreChannelChoices(score, channels, programmes, emptyMap()))
+    }
+
+    @Test
+    fun duplicateCurrentAndScheduleEntriesDoNotHideOneValidStream() {
+        val score = event("in", "ESPN").copy(league = "National Football League")
+        val current = programme("Live: NFL Football")
+        assertEquals(espn, findScoreChannel(
+            score, listOf(espn), mapOf("espn.us" to current), mapOf("espn.us" to listOf(current)),
+        ))
+    }
+
     private fun event(state: String, broadcast: String) = NativeScoreEvent(
         id = "game-1",
         sport = "football",
