@@ -116,6 +116,7 @@ fun CatalogScreen(
         initialFirstVisibleItemIndex = initialScrollPosition.firstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = initialScrollPosition.firstVisibleItemScrollOffset,
     )
+    val firstVisiblePosterIndex = gridState.firstVisibleItemIndex
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var observedOfflineState by remember { mutableStateOf(false) }
     val isTvMode = LocalTvMode.current
@@ -267,7 +268,7 @@ fun CatalogScreen(
                         ) { index, keyedItem ->
                             val item = keyedItem.value
                             CatalogPosterTile(
-                                modifier = if (isTvMode && index == 0) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
+                                modifier = if (isTvMode && index == firstVisiblePosterIndex) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
                                 item = item,
                                 cornerRadiusDp = posterCardStyle.cornerRadiusDp,
                                 hideLabels = posterCardStyle.hideLabelsEnabled,
@@ -289,7 +290,7 @@ fun CatalogScreen(
                         ) { index, keyedItem ->
                             val item = keyedItem.value
                             CatalogPosterTile(
-                                modifier = if (isTvMode && index == 0) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
+                                modifier = if (isTvMode && index == firstVisiblePosterIndex) Modifier.focusRequester(firstPosterFocusRequester) else Modifier,
                                 item = item,
                                 cornerRadiusDp = posterCardStyle.cornerRadiusDp,
                                 hideLabels = posterCardStyle.hideLabelsEnabled,
