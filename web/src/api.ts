@@ -459,10 +459,15 @@ export async function addonDetail(
     /^tt\d+$/.test(item.id) &&
     missingSeason
   ) {
+    const fallbackController = new AbortController();
+    const cancelFallback = () => fallbackController.abort();
+    if (signal?.aborted) cancelFallback();
+    signal?.addEventListener("abort", cancelFallback, { once: true });
+    const fallbackTimer = setTimeout(cancelFallback, 2500);
     try {
       const canonical = await addonDetail(
         { ...item, provider: defaultAddon.base },
-        signal,
+        fallbackController.signal,
       );
       const seen = new Set(episodes.map((episode) => `${episode.season}:${episode.episode}`));
       const missing = canonical.episodes.filter((episode) =>
@@ -474,6 +479,9 @@ export async function addonDetail(
       }
     } catch {
       // Keep the add-on's episodes if the public metadata source is unavailable.
+    } finally {
+      clearTimeout(fallbackTimer);
+      signal?.removeEventListener("abort", cancelFallback);
     }
   }
   return {
