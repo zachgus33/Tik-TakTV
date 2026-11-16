@@ -43,6 +43,31 @@ export function rankExactTitleFirst<T extends { name: string }>(
   return [...items].sort((left, right) => score(right.name) - score(left.name));
 }
 
+/** Catalogs often report a series as either "2014" or "2014–2019". */
+export function dedupeSearchTitles<T extends { name: string; type: string; year?: string; id?: string }>(
+  items: T[],
+): T[] {
+  const results: T[] = [];
+  const positions = new Map<string, number>();
+  const quality = (item: T) =>
+    (item.type === "series" && /\b\d{4}\s*[-–—]\s*\d{4}\b/.test(item.year ?? "") ? 2 : 0) +
+    (/^tt\d+$/.test(item.id ?? "") ? 1 : 0);
+  for (const item of items) {
+    const year = item.type === "series"
+      ? /^\s*(\d{4})/.exec(item.year ?? "")?.[1] ?? item.year ?? ""
+      : item.year ?? "";
+    const key = `${item.type}:${normalizeSearchText(item.name)}:${year}`;
+    const index = positions.get(key);
+    if (index === undefined) {
+      positions.set(key, results.length);
+      results.push(item);
+    } else if (quality(item) > quality(results[index])) {
+      results[index] = item;
+    }
+  }
+  return results;
+}
+
 export function hasRelevantTitle(query: string, titles: string[]) {
   const normalizedQuery = normalizeSearchText(query);
   return !!normalizedQuery && titles.some((title) =>

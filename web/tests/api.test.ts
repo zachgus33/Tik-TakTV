@@ -3,6 +3,7 @@ import {
   connectProvider,
   decodeText,
   fromMeta,
+  addonDetail,
   installAddon,
   json,
   normalizeServer,
@@ -25,6 +26,44 @@ const provider: Provider = {
 };
 afterEach(() => vi.restoreAllMocks());
 describe("provider URLs and data", () => {
+  it("fills season 1 from canonical metadata when an IMDb add-on omits it", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const partial = url.includes("partial.example");
+      return new Response(JSON.stringify({ meta: {
+        id: "tt3501074", name: "Madam Secretary", type: "series",
+        videos: partial
+          ? [{ id: "tt3501074:2:1", season: 2, episode: 1, title: "The Show Must Go On" }]
+          : [
+              { id: "tt3501074:1:1", season: 1, episode: 1, title: "Pilot" },
+              { id: "tt3501074:2:1", season: 2, episode: 1, title: "The Show Must Go On" },
+            ],
+      } }));
+    });
+    const result = await addonDetail({
+      id: "tt3501074", name: "Madam Secretary", type: "series",
+      source: "addon", provider: "https://partial.example",
+    });
+    expect(result.episodes.map((episode) => `${episode.season}:${episode.episode}`))
+      .toEqual(["1:1", "2:1"]);
+    expect(result.item.provider).toBe("https://partial.example");
+  });
+  it("fills a missing middle season without replacing existing episode IDs", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const partial = String(input).includes("partial.example");
+      return new Response(JSON.stringify({ meta: {
+        id: "tt1234567", name: "Series", type: "series",
+        videos: (partial ? [1, 3] : [1, 2, 3]).map((season) => ({
+          id: `${partial ? "custom" : "canonical"}:${season}:1`,
+          season, episode: 1,
+        })),
+      } }));
+    });
+    const result = await addonDetail({ id: "tt1234567", name: "Series", type: "series",
+      source: "addon", provider: "https://partial.example" });
+    expect(result.episodes.map((episode) => episode.id))
+      .toEqual(["custom:1:1", "canonical:2:1", "custom:3:1"]);
+  });
   it("keeps custom catalog artwork when it is HTTP or relative to the add-on", () => {
     const addon = { base: "https://arabic.example/config", manifest: { id: "arabic", name: "Arabic" } };
     expect(fromMeta({ id: "arabic:1", name: "فيلم", poster: "/posters/1.jpg" }, addon).poster)

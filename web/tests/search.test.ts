@@ -5,9 +5,19 @@ import {
   hasRelevantTitle,
   normalizeSearchText,
   rankExactTitleFirst,
+  dedupeSearchTitles,
 } from "../src/smart-search";
 
 describe("smart title spelling", () => {
+  it("collapses series cards with a start year and a year range", () => {
+    const results = dedupeSearchTitles([
+      { id: "other", name: "Madam Secretary", type: "series", year: "2014" },
+      { id: "tt3501074", name: "Madam Secretary", type: "series", year: "2014–2019" },
+      { id: "remake", name: "Madam Secretary", type: "series", year: "2024" },
+      { id: "movie", name: "Madam Secretary", type: "movie", year: "2014" },
+    ]);
+    expect(results.map((item) => item.id)).toEqual(["tt3501074", "remake", "movie"]);
+  });
   it("corrects a close misspelling without changing the number of words", () => {
     expect(
       closestTitleCorrection("madame secretary", [

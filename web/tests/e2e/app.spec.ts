@@ -168,6 +168,46 @@ test("series player offers next episode and optional auto-advance", async ({ pag
   await expect(page.getByRole("button", { name: /Play next:/ })).toHaveCount(0);
 });
 
+test("series search merges year-range duplicates and fills a missing first season", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nuvio:addons", JSON.stringify([{
+    base: "https://incomplete.example",
+    manifest: { id: "incomplete", name: "Incomplete catalog", types: ["series"],
+      resources: ["catalog", "meta"],
+      catalogs: [{ id: "find", type: "series", extra: [{ name: "search" }] }],
+    },
+  }])));
+  await page.route("https://api.themoviedb.org/3/search/multi**", (route) =>
+    route.fulfill({ json: { results: [] } }),
+  );
+  await page.route("https://incomplete.example/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({ json: path.includes("/meta/")
+      ? { meta: { id: "tt3501074", name: "Madam Secretary", type: "series",
+          videos: [{ id: "tt3501074:2:1", season: 2, episode: 1, title: "Season two" }] } }
+      : { metas: ["2014", "2014–2019"].map((releaseInfo) => ({
+          id: "tt3501074", name: "Madam Secretary", type: "series", releaseInfo,
+        })) },
+    });
+  });
+  await page.route("https://v3-cinemeta.strem.io/meta/series/tt3501074.json", (route) =>
+    route.fulfill({ json: { meta: { id: "tt3501074", name: "Madam Secretary", type: "series",
+      videos: [
+        { id: "tt3501074:1:1", season: 1, episode: 1, title: "Pilot" },
+        { id: "tt3501074:2:1", season: 2, episode: 1, title: "Season two" },
+      ],
+    } } }),
+  );
+  await page.goto("/#discover");
+  await page.getByRole("button", { name: "Series" }).click();
+  await page.getByLabel("Search titles or channels").fill("Madam Secretary");
+  await expect(page.locator(".media-card")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator(".media-card strong").first()).toHaveText("Madam Secretary");
+  await expect(page.getByText("1 titles")).toBeVisible();
+  await page.locator(".media-card").click();
+  await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("1");
+  await expect(page.getByRole("button", { name: /Pilot/ })).toBeVisible();
+});
+
 test("a new release shows once and links to the complete change history", async ({
   page,
 }) => {

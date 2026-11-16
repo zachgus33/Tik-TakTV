@@ -437,9 +437,7 @@ export async function addonDetail(
   );
   if (!data.meta) throw new Error("No details available from this add-on.");
   const m = data.meta;
-  return {
-    item: fromMeta(m, { base: item.provider!, manifest: { id: "", name: "" } }),
-    episodes: (Array.isArray(m.videos) ? m.videos : [])
+  const episodes: Episode[] = (Array.isArray(m.videos) ? m.videos : [])
       .map((v) => ({
         id: String(v.id),
         name: String(v.title ?? v.name ?? `Episode ${v.episode}`),
@@ -447,7 +445,40 @@ export async function addonDetail(
         episode: Number(v.episode ?? 1),
         released: v.released,
       }))
-      .sort((a, b) => a.season - b.season || a.episode - b.episode),
+      .sort((a, b) => a.season - b.season || a.episode - b.episode);
+  const seasons = [...new Set(episodes.map((episode) => episode.season))]
+    .filter((season) => Number.isInteger(season) && season > 0)
+    .sort((a, b) => a - b);
+  const missingSeason = !seasons.length || seasons[0] > 1 ||
+    seasons.some((season, index) => index > 0 && season > seasons[index - 1] + 1);
+  // An add-on can omit a whole season even when its search card looks correct.
+  // Fill gaps from the canonical IMDb record when it contains more episodes.
+  if (
+    item.type === "series" &&
+    item.provider !== defaultAddon.base &&
+    /^tt\d+$/.test(item.id) &&
+    missingSeason
+  ) {
+    try {
+      const canonical = await addonDetail(
+        { ...item, provider: defaultAddon.base },
+        signal,
+      );
+      const seen = new Set(episodes.map((episode) => `${episode.season}:${episode.episode}`));
+      const missing = canonical.episodes.filter((episode) =>
+        !seen.has(`${episode.season}:${episode.episode}`),
+      );
+      if (missing.length) {
+        episodes.push(...missing);
+        episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
+      }
+    } catch {
+      // Keep the add-on's episodes if the public metadata source is unavailable.
+    }
+  }
+  return {
+    item: fromMeta(m, { base: item.provider!, manifest: { id: "", name: "" } }),
+    episodes,
   };
 }
 export async function addonStreams(

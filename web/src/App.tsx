@@ -142,6 +142,7 @@ import {
   correctionSearchProbes,
   hasRelevantTitle,
   rankExactTitleFirst,
+  dedupeSearchTitles,
 } from "./smart-search";
 
 const tvInterface =
@@ -2632,19 +2633,13 @@ export default function App() {
                 tmdbMatches = corrected[0].value;
               catalogMatches = corrected.slice(1);
             }
-            const seen = new Set<string>();
             result = rankExactTitleFirst(
-              [
+              dedupeSearchTitles([
                 ...catalogMatches.flatMap((match) =>
                   match.status === "fulfilled" ? match.value.filter((item) => scopes.includes(item.type)) : [],
                 ),
                 ...tmdbMatches.filter((item) => scopes.includes(item.type)),
-              ].filter((item) => {
-                const key = `${item.type}:${item.name.toLocaleLowerCase()}:${item.year ?? ""}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-              }),
+              ]),
               searchTerm,
             );
           } else if (chosen) {
