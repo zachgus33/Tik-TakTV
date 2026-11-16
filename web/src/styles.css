@@ -3406,6 +3406,17 @@ body:has(dialog[open]:not(.mini-live-player)) {
   gap: 9px;
   margin-top: 18px;
 }
+.next-episode-setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.next-episode-setting small {
+  width: 100%;
+  color: var(--muted);
+  margin-left: 22px;
+}
 .subtitle-sync {
   display: inline-flex;
   gap: 4px;

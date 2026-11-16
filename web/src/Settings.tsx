@@ -59,6 +59,7 @@ import {
 import FeedbackCenter from "./FeedbackCenter";
 import SponsorBlockSettings from "./SponsorBlockSettings";
 import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
+import NextEpisodeSetting from "./NextEpisodeSetting";
 import TraktSettings from "./TraktSettings";
 import ExternalTrackingSettings from "./ExternalTrackingSettings";
 
@@ -322,6 +323,16 @@ export default function Settings(props: Props) {
                 browser or TV. SponsorBlock data is community supplied, so a
                 segment may not exist for every video.
               </p>
+            </section>
+            <section className="settings-card">
+              <div className="card-heading">
+                <PlayCircle />
+                <div>
+                  <h2>Series playback</h2>
+                  <p>Choose whether episodes continue automatically.</p>
+                </div>
+              </div>
+              <NextEpisodeSetting />
             </section>
             <section className="settings-card">
               <div className="card-heading">

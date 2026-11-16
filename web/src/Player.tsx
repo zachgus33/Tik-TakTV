@@ -20,6 +20,8 @@ import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import { runtimeSeconds, shiftWebVtt } from "./player-utils";
+import { readNextEpisodeAutoAdvance } from "./next-episode";
+import NextEpisodeSetting from "./NextEpisodeSetting";
 import { createTraktScrobbler } from "./trakt-scrobble";
 import { createSimklScrobbler } from "./simkl-scrobble";
 import { anilistProgressEnabled } from "./ExternalTrackingSettings";
@@ -98,6 +100,8 @@ function VideoPlayer({
   partyIdentity,
   traktProfileName,
   onSeek,
+  nextEpisode,
+  onNextEpisode,
 }: {
   playback: Playback;
   playbackMetricId: string;
@@ -109,6 +113,8 @@ function VideoPlayer({
   partyIdentity: PartyIdentity;
   traktProfileName: string;
   onSeek?: (seconds: number) => void;
+  nextEpisode?: Episode | null;
+  onNextEpisode?: () => Promise<void>;
 }) {
   const tvMode =
     document.documentElement.classList.contains("tv-mode") ||
@@ -117,6 +123,31 @@ function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [nextError, setNextError] = useState("");
+  const [nextBusy, setNextBusy] = useState(false);
+  const nextBusyRef = useRef(false);
+  const nextEpisodeRef = useRef(nextEpisode);
+  const onNextEpisodeRef = useRef(onNextEpisode);
+  nextEpisodeRef.current = nextEpisode;
+  onNextEpisodeRef.current = onNextEpisode;
+  async function advanceNextEpisode() {
+    if (!nextEpisodeRef.current || !onNextEpisodeRef.current || nextBusyRef.current) return;
+    nextBusyRef.current = true;
+    setNextBusy(true);
+    setNextError("");
+    try {
+      await onNextEpisodeRef.current();
+    } catch (error) {
+      setNextError(error instanceof Error ? error.message : "Could not load the next episode.");
+    } finally {
+      nextBusyRef.current = false;
+      setNextBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (nextEpisode && !playback.party && videoRef.current?.ended && readNextEpisodeAutoAdvance())
+      void advanceNextEpisode();
+  }, [nextEpisode, playback.party]);
   const [retry, setRetry] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tvControlsVisible, setTvControlsVisible] = useState(true);
@@ -473,6 +504,8 @@ function VideoPlayer({
         event: "ended",
       });
       persist();
+      if (nextEpisodeRef.current && !playback.party && readNextEpisodeAutoAdvance())
+        void advanceNextEpisode();
     };
     const play = async () => {
       try {
@@ -1030,7 +1063,17 @@ function VideoPlayer({
           {notice}
         </p>
       )}
+      {nextError && <p role="alert" className="error">{nextError}</p>}
       <div className="player-tools">
+        {nextEpisode && !party && (
+          <>
+            <button type="button" disabled={nextBusy} onClick={() => void advanceNextEpisode()}>
+              <FastForward size={18} />
+              {nextBusy ? "Finding next episode…" : `Play next: S${nextEpisode.season} E${nextEpisode.episode}`}
+            </button>
+            <NextEpisodeSetting compact />
+          </>
+        )}
         {onChooseSource && (
           <button type="button" onClick={onChooseSource}>
             <Settings2 size={18} /> Choose stream
@@ -1245,11 +1288,15 @@ export default function Player({
   onClose,
   partyIdentity,
   traktProfileName,
+  nextEpisode,
+  onNextEpisode,
 }: {
   playback: Playback;
   onClose: () => void;
   partyIdentity: PartyIdentity;
   traktProfileName: string;
+  nextEpisode?: Episode | null;
+  onNextEpisode?: () => Promise<void>;
 }) {
   // Keep window state inside the player. Lifting this into App made every
   // minimize/restore rerender the complete guide or Sports tree, which can
@@ -1545,6 +1592,8 @@ export default function Player({
           partyIdentity={partyIdentity}
           traktProfileName={traktProfileName}
           onSeek={seekConversion}
+          nextEpisode={nextEpisode}
+          onNextEpisode={onNextEpisode}
         />
         {sourcePicker}
       </>

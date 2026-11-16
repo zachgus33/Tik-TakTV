@@ -95,6 +95,7 @@ import {
   type Stream,
 } from "./types";
 import type { Playback } from "./Player";
+import { findNextEpisode } from "./next-episode";
 import { getTraktRating, setTraktRating, traktRatingIds } from "./trakt-ratings";
 import { getSimklRating, setSimklRating, simklRatingIds } from "./simkl-ratings";
 import { simklAccessToken, anilistAccessToken } from "./ExternalTrackingSettings";
@@ -2212,6 +2213,75 @@ export default function App() {
   } | null>(null);
   const [detail, setDetail] = useState<Item | null>(null);
   const [playback, setPlayback] = useState<Playback | null>(null);
+  const [nextEpisode, setNextEpisode] = useState<Episode | null>(null);
+  const nextEpisodeRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setNextEpisode(null);
+    if (playback?.item.type !== "series" || !playback.episode || playback.party) return;
+    const controller = new AbortController();
+    const item = playback.item;
+    const current = playback.episode;
+    const details = item.source === "addon"
+      ? addonDetail(item, controller.signal).catch((error) => {
+          if (controller.signal.aborted || item.provider === defaultAddon.base || !/^(?:tt\d+|tmdb:\d+)$/.test(item.id)) throw error;
+          return addonDetail({ ...item, provider: defaultAddon.base }, controller.signal);
+        })
+      : item.source === "xtream" && provider && provider.scope === item.provider
+        ? providerDetail(provider, item, controller.signal)
+        : Promise.resolve({ item, episodes: [] });
+    void details.then(({ episodes }) => {
+      if (!controller.signal.aborted) setNextEpisode(findNextEpisode(episodes, current));
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, [playback?.item, playback?.episode, playback?.party, provider]);
+  useEffect(() => () => nextEpisodeRequest.current?.abort(), [playback]);
+  async function playNextEpisode() {
+    const current = playback;
+    const episode = nextEpisode;
+    if (!current || !episode || current.item.type !== "series") return;
+    nextEpisodeRequest.current?.abort();
+    const controller = new AbortController();
+    nextEpisodeRequest.current = controller;
+    const item = current.item;
+    let next: Playback;
+    if (item.source === "xtream") {
+      if (!provider || provider.scope !== item.provider)
+        throw new Error("Reconnect the IPTV account for this series in Settings.");
+      next = {
+        item,
+        episode,
+        url: streamUrl(provider, "series", episode.id, episode.extension),
+      };
+    } else if (item.source === "addon") {
+      const result = await addonStreams(addons, item, episode.id, controller.signal);
+      if (controller.signal.aborted) return;
+      const ranked = autoplayStreams(result.streams, !!torboxKey || !!realDebridKey);
+      const candidate = ranked[0];
+      if (!candidate?.url || !directStream(candidate))
+        throw new Error("No automatically playable stream was found for the next episode. Open the series details to choose a source.");
+      const toPlayback = (stream: Stream): Playback => ({
+        item,
+        episode,
+        url: stream.url!,
+        sourceLabel: stream.name ?? stream.addonName ?? "Stream",
+        sourceDetail: stream.title,
+        mode: getService() ? compatibilityPlaybackMode(stream) : undefined,
+        requestHeaders: (stream.behaviorHints?.proxyHeaders as { request?: Record<string, string> } | undefined)?.request,
+        subtitleRequest: { addons, id: episode.id },
+        relay: debridStream(stream),
+      });
+      next = {
+        ...toPlayback(candidate),
+        automaticFallbackCount: 4,
+        alternatives: ranked.slice(1, 50).filter(directStream).map(toPlayback),
+      };
+    } else {
+      throw new Error("This series has no automatic next-episode source.");
+    }
+    if (controller.signal.aborted) return;
+    setNextEpisode(null);
+    setPlayback(next);
+  }
   const [youtubeResumeRequest, setYoutubeResumeRequest] =
     useState<YouTubeResumeRequest | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
@@ -4207,13 +4277,17 @@ export default function App() {
           }
         >
           <Player
+            key={`${itemKey(playback.item)}:${playback.episode?.id ?? ""}`}
             playback={playback}
+            nextEpisode={nextEpisode}
+            onNextEpisode={playNextEpisode}
             traktProfileName={traktProfileIdentity(activeProfileView?.name ?? "")}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,
             }}
             onClose={() => {
+              nextEpisodeRequest.current?.abort();
               const url = new URL(location.href);
               if (url.searchParams.has("party")) {
                 url.searchParams.delete("party");

@@ -117,6 +117,57 @@ test.beforeEach(async ({ page }) => {
   await mockSources(page);
 });
 
+test("series player offers next episode and optional auto-advance", async ({ page }) => {
+  await page.addInitScript(() => {
+    const item = {
+      id: "tt-next-test", name: "Next Episode Test", type: "series",
+      source: "addon", provider: "https://v3-cinemeta.strem.io",
+    };
+    localStorage.setItem("nuvio:progress", JSON.stringify([{
+      item, seconds: 20, duration: 100, at: Date.now(),
+      episode: { id: "tt-next-test:1:1", name: "Pilot", season: 1, episode: 1 },
+    }]));
+    localStorage.setItem("nuvio:addons", JSON.stringify([{
+      base: "https://v3-cinemeta.strem.io",
+      manifest: { id: "test-series", name: "Test series streams", types: ["series"],
+        resources: ["catalog", "meta", "stream"], catalogs: [{ id: "top", type: "series" }] },
+    }]));
+  });
+  await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes("/meta/series/")) {
+      await route.fulfill({ json: { meta: {
+        id: "tt-next-test", name: "Next Episode Test", type: "series",
+        videos: [1, 2, 3].map((episode) => ({
+          id: `tt-next-test:1:${episode}`, title: `Episode ${episode}`,
+          season: 1, episode,
+        })),
+      } } });
+    } else if (path.includes("/stream/series/")) {
+      const episode = /:(\d+)\.json$/.exec(decodeURIComponent(path))?.[1] ?? "1";
+      await route.fulfill({ json: { streams: [{
+        name: "1080p AAC", url: `https://cdn.example/episode-${episode}.mp4`,
+      }] } });
+    } else {
+      await route.fulfill({ json: { metas: [] } });
+    }
+  });
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/#library");
+  await page.getByRole("button", { name: /Next Episode Test/ }).first().click();
+  await page.getByRole("button", { name: /Resume S1 E1/ }).click();
+  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-1\.mp4/);
+  await page.getByRole("button", { name: "Play next: S1 E2" }).click();
+  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-2\.mp4/);
+  await expect(page.getByRole("checkbox", { name: /Auto-advance to the next episode/ })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: /Auto-advance to the next episode/ }).check();
+  await page.locator(".player-dialog video").evaluate((video) => video.dispatchEvent(new Event("ended")));
+  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-3\.mp4/);
+  await expect(page.getByRole("button", { name: /Play next:/ })).toHaveCount(0);
+});
+
 test("a new release shows once and links to the complete change history", async ({
   page,
 }) => {
