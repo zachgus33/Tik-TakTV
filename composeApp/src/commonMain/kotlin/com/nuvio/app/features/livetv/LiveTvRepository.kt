@@ -4,6 +4,7 @@ import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpStreamPostTextWithHeaders
 import com.nuvio.app.features.addons.httpStreamTextWithHeaders
+import com.nuvio.app.features.tiktak.TikTakServiceClient
 import io.github.jan.supabase.auth.auth
 import io.ktor.http.encodeURLParameter
 import kotlinx.atomicfu.locks.SynchronizedObject
@@ -542,12 +543,28 @@ object LiveTvRepository {
         }
     }
 
-    suspend fun prepareForPlayback(channel: LiveTvChannel): LiveTvChannel =
+    suspend fun prepareForPlayback(channel: LiveTvChannel): LiveTvChannel {
+        if (channel.streamUrl.startsWith("https://api.tiktaktv.me/media/")) return channel
         if (mutableUiState.value.sourceType == LiveTvSourceType.Stalker && !channel.stalkerCommand.isNullOrBlank()) {
-            resolveStalkerPlaybackChannel(channel)
-        } else {
+            return resolveStalkerPlaybackChannel(channel)
+        }
+        if (mutableUiState.value.sourceType != LiveTvSourceType.Xtream || hasFriendXtreamOverride()) return channel
+        if (SupabaseProvider.client.auth.currentSessionOrNull()?.accessToken.isNullOrBlank()) {
+            println("TikTak live relay skipped: no account session")
+            return channel
+        }
+        return try {
+            // Signed-in website playback prepares Xtream live streams through
+            // this service. Opening the raw .ts URL on Fire TV returns 458.
+            val prepared = TikTakServiceClient.prepareLiveChannel(channel)
+            println("TikTak live relay prepared=${prepared != null} channel=${channel.name}")
+            prepared ?: channel
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
             channel
         }
+    }
 
     fun disconnect() {
         cancelEpgLoad()
@@ -582,8 +599,11 @@ object LiveTvRepository {
     }
 
     fun recordRecentChannel(channel: LiveTvChannel) {
+        // Prepared service links expire. Keep the original lineup URL so a
+        // recent-channel click can prepare a fresh playback session.
+        val original = mutableUiState.value.channels.firstOrNull { it.id == channel.id } ?: channel
         val recentChannel = LiveTvRecentChannel(
-            streamUrl = channel.streamUrl,
+            streamUrl = original.streamUrl,
             name = channel.name,
             logoUrl = channel.logoUrl,
             group = channel.group,

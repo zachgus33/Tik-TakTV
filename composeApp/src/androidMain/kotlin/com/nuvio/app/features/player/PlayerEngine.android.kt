@@ -97,6 +97,8 @@ private const val PLAYER_DIAGNOSTIC_TAG = "NuvioPlayerDiag"
 private class PlaybackDiagnostics {
     var prepareStartedAtMs: Long = 0L
     var attempt: Int = 0
+    var liveWindowRecoveries: Int = 0
+    var lastLiveWindowRecoveryAtMs: Long = 0L
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -591,6 +593,24 @@ private fun ExoPlayerSurface(
                         "causeChain=${diagnosticThrowableChain(error)}",
                     error,
                 )
+
+                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW &&
+                    sourceUrl.startsWith("https://api.tiktaktv.me/media/")
+                ) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - playbackDiagnostics.lastLiveWindowRecoveryAtMs > 30_000L) {
+                        playbackDiagnostics.liveWindowRecoveries = 0
+                    }
+                    if (playbackDiagnostics.liveWindowRecoveries < 3) {
+                        playbackDiagnostics.liveWindowRecoveries++
+                        playbackDiagnostics.lastLiveWindowRecoveryAtMs = now
+                        Log.i(PLAYER_DIAGNOSTIC_TAG, "recover live edge attempt=${playbackDiagnostics.liveWindowRecoveries}")
+                        exoPlayer.seekToDefaultPosition()
+                        exoPlayer.prepare()
+                        latestOnError.value(null)
+                        return
+                    }
+                }
 
                 val isSourceError = error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
                         error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||

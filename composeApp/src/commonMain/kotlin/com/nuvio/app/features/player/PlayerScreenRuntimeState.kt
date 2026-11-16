@@ -66,6 +66,7 @@ internal class PlayerScreenRuntime(
     val isLiveTv: Boolean get() = contentType == "live-tv"
     private val shouldResolveInitialPlayerQuality: Boolean
         get() = torrentInfoHash == null &&
+            !isLiveTv &&
             sourceQualities.isEmpty() &&
             sourceAudioUrl == null &&
             sourceUrl.contains(".m3u8", ignoreCase = true)

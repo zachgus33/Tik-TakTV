@@ -7,12 +7,44 @@ import com.nuvio.app.features.tiktak.NativeScoreTeam
 import com.nuvio.app.features.tiktak.findScoreChannel
 import com.nuvio.app.features.tiktak.deriveSportsState
 import com.nuvio.app.features.tiktak.guidedScoreChannelChoices
+import com.nuvio.app.features.tiktak.scoreChannelHasGameEvidence
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TikTakSportsChannelMatchingTest {
+    @Test
+    fun genericBostonGuideCannotAutoPlayUtahGame() {
+        val score = NativeScoreEvent(
+            id = "sa-utah", sport = "basketball", league = "National Basketball Association",
+            name = "SA @ UTAH", detail = "4th", state = "in",
+            teams = listOf(NativeScoreTeam("Utah Jazz", "102"), NativeScoreTeam("San Antonio Spurs", "108")),
+            venue = "Delta Center", broadcast = "KJZZ-TV", broadcasts = listOf("KJZZ-TV", "Jazz+", "DAZN SAS"),
+        )
+        val boston = LiveTvChannel("boston", "US| CSN BOSTON HD", "https://example.com/boston.ts", "US-NBC Sports Boston")
+        val now = System.currentTimeMillis()
+        val guide = LiveTvProgramme("Live: NBA Basketball", now - 60_000L, now + 60_000L, "Now", "From TD Garden in Boston.")
+
+        assertFalse(scoreChannelHasGameEvidence(score, boston, mapOf(boston.tvgId!! to guide), emptyMap()))
+    }
+
+    @Test
+    fun venueGuideCanAutoPlayMatchingGame() {
+        val score = NativeScoreEvent(
+            id = "cha-lac", sport = "basketball", league = "National Basketball Association",
+            name = "CHA @ LAC", detail = "2nd", state = "in",
+            teams = listOf(NativeScoreTeam("Charlotte Hornets", "40"), NativeScoreTeam("Los Angeles Clippers", "45")),
+            venue = "Intuit Dome", broadcast = "FDSN", broadcasts = listOf("FDSN"),
+        )
+        val affiliate = LiveTvChannel("my28", "US| MY28 Durham", "https://example.com/my28.ts", "US-MY28")
+        val now = System.currentTimeMillis()
+        val guide = LiveTvProgramme("Live: NBA Basketball", now - 60_000L, now + 60_000L, "Now", "From Intuit Dome in Inglewood, Calif.")
+
+        assertTrue(scoreChannelHasGameEvidence(score, affiliate, mapOf(affiliate.tvgId!! to guide), emptyMap()))
+    }
+
     private val espn = LiveTvChannel(
         id = "espn",
         name = "ESPN HD",
@@ -500,6 +532,30 @@ class TikTakSportsChannelMatchingTest {
         val current = programme("Live: NFL Football")
         assertEquals(espn, findScoreChannel(
             score, listOf(espn), mapOf("espn.us" to current), mapOf("espn.us" to listOf(current)),
+        ))
+    }
+
+    @Test
+    fun nbaScoreFindsLocalAffiliatesThroughVenueWithoutScanningUnrelatedGuideRows() {
+        val score = event("in", "ClipperVision").copy(
+            sport = "basketball",
+            league = "NBA",
+            name = "CHA @ LAC",
+            venue = "Intuit Dome",
+            teams = listOf(NativeScoreTeam("Charlotte Hornets", "83"), NativeScoreTeam("LA Clippers", "84")),
+        )
+        val durham = espn.copy(id = "my28", name = "US| MY 28 DURHAM NC", tvgId = "my28")
+        val greensboro = espn.copy(id = "my48", name = "US| MY 48 GREENSBORO NC", tvgId = "my48")
+        val unrelated = espn.copy(id = "sportsnet", name = "Sportsnet", tvgId = "sportsnet")
+        val game = programme("Live: NBA Basketball").copy(description = "From Intuit Dome in Inglewood, Calif.")
+        val guide = mapOf(
+            "my28" to game,
+            "my48" to game,
+            "sportsnet" to programme("Live: NBA Basketball").copy(description = "From Philadelphia."),
+        )
+
+        assertEquals(listOf(durham, greensboro), guidedScoreChannelChoices(
+            score, listOf(unrelated, durham, greensboro), guide, emptyMap(),
         ))
     }
 
