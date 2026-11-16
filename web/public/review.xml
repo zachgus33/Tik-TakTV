@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv generator-info-name="TikTak TV Appstore review">
+  <channel id="big-buck-bunny-demo">
+    <display-name>Big Buck Bunny Demo</display-name>
+  </channel>
+  <programme start="20200101000000 +0000" stop="20370101000000 +0000" channel="big-buck-bunny-demo">
+    <title lang="en">Big Buck Bunny - Licensed Demo</title>
+    <desc lang="en">Blender Foundation open movie, licensed under Creative Commons Attribution 3.0.</desc>
+  </programme>
+</tv>

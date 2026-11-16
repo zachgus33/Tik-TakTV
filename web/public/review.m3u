@@ -1,4 +1,4 @@
-#EXTM3U
+#EXTM3U url-tvg="https://www.tiktaktv.me/review.xml"
 # TikTak TV Appstore review playlist. Big Buck Bunny is licensed CC BY 3.0 by the Blender Foundation.
 #EXTINF:-1 tvg-id="big-buck-bunny-demo" tvg-name="Big Buck Bunny Demo" group-title="App Review Demo",Big Buck Bunny - Licensed Demo Stream
 https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
