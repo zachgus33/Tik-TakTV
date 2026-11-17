@@ -85,6 +85,14 @@ export type Progress = {
   at: number;
   episode?: Episode;
 };
+export type WatchedItem = {
+  id: string;
+  type: "movie" | "series";
+  name: string;
+  season?: number;
+  episode?: number;
+  watchedAt: number;
+};
 export type Programme = {
   id: string;
   title: string;

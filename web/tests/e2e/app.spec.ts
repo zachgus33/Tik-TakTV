@@ -117,37 +117,81 @@ test.beforeEach(async ({ page }) => {
   await mockSources(page);
 });
 
-test("series player offers next episode and optional auto-advance", async ({ page }) => {
+test("series player offers next episode and optional auto-advance", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     const item = {
-      id: "tt-next-test", name: "Next Episode Test", type: "series",
-      source: "addon", provider: "https://v3-cinemeta.strem.io",
+      id: "tt-next-test",
+      name: "Next Episode Test",
+      type: "series",
+      source: "addon",
+      provider: "https://v3-cinemeta.strem.io",
     };
-    localStorage.setItem("nuvio:progress", JSON.stringify([{
-      item, seconds: 20, duration: 100, at: Date.now(),
-      episode: { id: "tt-next-test:1:1", name: "Pilot", season: 1, episode: 1 },
-    }]));
-    localStorage.setItem("nuvio:addons", JSON.stringify([{
-      base: "https://v3-cinemeta.strem.io",
-      manifest: { id: "test-series", name: "Test series streams", types: ["series"],
-        resources: ["catalog", "meta", "stream"], catalogs: [{ id: "top", type: "series" }] },
-    }]));
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item,
+          seconds: 20,
+          duration: 100,
+          at: Date.now(),
+          episode: {
+            id: "tt-next-test:1:1",
+            name: "Pilot",
+            season: 1,
+            episode: 1,
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://v3-cinemeta.strem.io",
+          manifest: {
+            id: "test-series",
+            name: "Test series streams",
+            types: ["series"],
+            resources: ["catalog", "meta", "stream"],
+            catalogs: [{ id: "top", type: "series" }],
+          },
+        },
+      ]),
+    );
   });
   await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.includes("/meta/series/")) {
-      await route.fulfill({ json: { meta: {
-        id: "tt-next-test", name: "Next Episode Test", type: "series",
-        videos: [1, 2, 3].map((episode) => ({
-          id: `tt-next-test:1:${episode}`, title: `Episode ${episode}`,
-          season: 1, episode,
-        })),
-      } } });
+      await route.fulfill({
+        json: {
+          meta: {
+            id: "tt-next-test",
+            name: "Next Episode Test",
+            type: "series",
+            videos: [1, 2, 3].map((episode) => ({
+              id: `tt-next-test:1:${episode}`,
+              title: `Episode ${episode}`,
+              season: 1,
+              episode,
+            })),
+          },
+        },
+      });
     } else if (path.includes("/stream/series/")) {
-      const episode = /:(\d+)\.json$/.exec(decodeURIComponent(path))?.[1] ?? "1";
-      await route.fulfill({ json: { streams: [{
-        name: "1080p AAC", url: `https://cdn.example/episode-${episode}.mp4`,
-      }] } });
+      const episode =
+        /:(\d+)\.json$/.exec(decodeURIComponent(path))?.[1] ?? "1";
+      await route.fulfill({
+        json: {
+          streams: [
+            {
+              name: "1080p AAC",
+              url: `https://cdn.example/episode-${episode}.mp4`,
+            },
+          ],
+        },
+      });
     } else {
       await route.fulfill({ json: { metas: [] } });
     }
@@ -156,52 +200,119 @@ test("series player offers next episode and optional auto-advance", async ({ pag
     route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
   );
   await page.goto("/#library");
-  await page.getByRole("button", { name: /Next Episode Test/ }).first().click();
+  await page
+    .getByRole("button", { name: /Next Episode Test/ })
+    .first()
+    .click();
   await page.getByRole("button", { name: /Resume S1 E1/ }).click();
-  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-1\.mp4/);
+  await expect(page.locator(".player-dialog video")).toHaveAttribute(
+    "src",
+    /episode-1\.mp4/,
+  );
   await page.getByRole("button", { name: "Play next: S1 E2" }).click();
-  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-2\.mp4/);
-  await expect(page.getByRole("checkbox", { name: /Auto-advance to the next episode/ })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /Auto-advance to the next episode/ }).check();
-  await page.locator(".player-dialog video").evaluate((video) => video.dispatchEvent(new Event("ended")));
-  await expect(page.locator(".player-dialog video")).toHaveAttribute("src", /episode-3\.mp4/);
+  await expect(page.locator(".player-dialog video")).toHaveAttribute(
+    "src",
+    /episode-2\.mp4/,
+  );
+  await expect(
+    page.getByRole("checkbox", { name: /Auto-advance to the next episode/ }),
+  ).not.toBeChecked();
+  await page
+    .getByRole("checkbox", { name: /Auto-advance to the next episode/ })
+    .check();
+  await page
+    .locator(".player-dialog video")
+    .evaluate((video) => video.dispatchEvent(new Event("ended")));
+  await expect(page.locator(".player-dialog video")).toHaveAttribute(
+    "src",
+    /episode-3\.mp4/,
+  );
   await expect(page.getByRole("button", { name: /Play next:/ })).toHaveCount(0);
 });
 
-test("series search merges year-range duplicates and fills a missing first season", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("nuvio:addons", JSON.stringify([{
-    base: "https://incomplete.example",
-    manifest: { id: "incomplete", name: "Incomplete catalog", types: ["series"],
-      resources: ["catalog", "meta"],
-      catalogs: [{ id: "find", type: "series", extra: [{ name: "search" }] }],
-    },
-  }])));
+test("series search merges year-range duplicates and fills a missing first season", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://incomplete.example",
+          manifest: {
+            id: "incomplete",
+            name: "Incomplete catalog",
+            types: ["series"],
+            resources: ["catalog", "meta"],
+            catalogs: [
+              { id: "find", type: "series", extra: [{ name: "search" }] },
+            ],
+          },
+        },
+      ]),
+    ),
+  );
   await page.route("https://api.themoviedb.org/3/search/multi**", (route) =>
     route.fulfill({ json: { results: [] } }),
   );
   await page.route("https://incomplete.example/**", (route) => {
     const path = new URL(route.request().url()).pathname;
-    return route.fulfill({ json: path.includes("/meta/")
-      ? { meta: { id: "tt3501074", name: "Madam Secretary", type: "series",
-          videos: [{ id: "tt3501074:2:1", season: 2, episode: 1, title: "Season two" }] } }
-      : { metas: ["2014", "2014–2019"].map((releaseInfo) => ({
-          id: "tt3501074", name: "Madam Secretary", type: "series", releaseInfo,
-        })) },
+    return route.fulfill({
+      json: path.includes("/meta/")
+        ? {
+            meta: {
+              id: "tt3501074",
+              name: "Madam Secretary",
+              type: "series",
+              videos: [
+                {
+                  id: "tt3501074:2:1",
+                  season: 2,
+                  episode: 1,
+                  title: "Season two",
+                },
+              ],
+            },
+          }
+        : {
+            metas: ["2014", "2014–2019"].map((releaseInfo) => ({
+              id: "tt3501074",
+              name: "Madam Secretary",
+              type: "series",
+              releaseInfo,
+            })),
+          },
     });
   });
-  await page.route("https://v3-cinemeta.strem.io/meta/series/tt3501074.json", (route) =>
-    route.fulfill({ json: { meta: { id: "tt3501074", name: "Madam Secretary", type: "series",
-      videos: [
-        { id: "tt3501074:1:1", season: 1, episode: 1, title: "Pilot" },
-        { id: "tt3501074:2:1", season: 2, episode: 1, title: "Season two" },
-      ],
-    } } }),
+  await page.route(
+    "https://v3-cinemeta.strem.io/meta/series/tt3501074.json",
+    (route) =>
+      route.fulfill({
+        json: {
+          meta: {
+            id: "tt3501074",
+            name: "Madam Secretary",
+            type: "series",
+            videos: [
+              { id: "tt3501074:1:1", season: 1, episode: 1, title: "Pilot" },
+              {
+                id: "tt3501074:2:1",
+                season: 2,
+                episode: 1,
+                title: "Season two",
+              },
+            ],
+          },
+        },
+      }),
   );
   await page.goto("/#discover");
   await page.getByRole("button", { name: "Series" }).click();
   await page.getByLabel("Search titles or channels").fill("Madam Secretary");
   await expect(page.locator(".media-card")).toHaveCount(1, { timeout: 15_000 });
-  await expect(page.locator(".media-card strong").first()).toHaveText("Madam Secretary");
+  await expect(page.locator(".media-card strong").first()).toHaveText(
+    "Madam Secretary",
+  );
   await expect(page.getByText("1 titles")).toBeVisible();
   await page.locator(".media-card").click();
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("1");
@@ -211,8 +322,9 @@ test("series search merges year-range duplicates and fills a missing first seaso
 test("a new release shows once and links to the complete change history", async ({
   page,
 }) => {
-  await page.addInitScript((previousRelease) =>
-    localStorage.setItem("tiktak:whats-new-seen", previousRelease),
+  await page.addInitScript(
+    (previousRelease) =>
+      localStorage.setItem("tiktak:whats-new-seen", previousRelease),
     releases[1].version,
   );
   await page.goto("/#home");
@@ -281,7 +393,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
         ((window as any).__youtubePlayers ??= []).push(this);
         queueMicrotask(() => options.events.onReady({ target: this }));
       }
-      destroy() { this.iframe.remove(); }
+      destroy() {
+        this.iframe.remove();
+      }
       getCurrentTime() {
         return this.time;
       }
@@ -405,8 +519,22 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
           },
         ],
         subscriptions: [{ id: "channel-1", title: "Subscribed channel" }],
-        subscriptionFeed: [{ videoId: "aqz-KE-bpKQ", title: "Subscription upload", channel: "Subscribed channel", kind: "video" }],
-        historyFeed: [{ videoId: "dQw4w9WgXcQ", title: "Previously watched", channel: "History channel", kind: "video" }],
+        subscriptionFeed: [
+          {
+            videoId: "aqz-KE-bpKQ",
+            title: "Subscription upload",
+            channel: "Subscribed channel",
+            kind: "video",
+          },
+        ],
+        historyFeed: [
+          {
+            videoId: "dQw4w9WgXcQ",
+            title: "Previously watched",
+            channel: "History channel",
+            kind: "video",
+          },
+        ],
       },
     });
   });
@@ -463,7 +591,15 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   );
   await page.route("https://playback.example/youtube/playback", (route) =>
     route.request().postDataJSON()?.kind === "video"
-      ? route.fulfill({ json: { playback: { type: "progressive", url: "/media/test/stream", mimeType: "video/mp4" } } })
+      ? route.fulfill({
+          json: {
+            playback: {
+              type: "progressive",
+              url: "/media/test/stream",
+              mimeType: "video/mp4",
+            },
+          },
+        })
       : route.fulfill({ status: 404, json: { error: "No compatible stream" } }),
   );
   await page.route("https://playback.example/sponsorblock", (route) =>
@@ -476,8 +612,12 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
     }),
   );
   await page.goto("/#youtube");
-  const updateDialog = page.getByRole("dialog", { name: /YouTube discovery and library/ });
-  await updateDialog.waitFor({ state: "visible", timeout: 3_000 }).catch(() => {});
+  const updateDialog = page.getByRole("dialog", {
+    name: /YouTube discovery and library/,
+  });
+  await updateDialog
+    .waitFor({ state: "visible", timeout: 3_000 })
+    .catch(() => {});
   if (await updateDialog.isVisible())
     await updateDialog.getByRole("button", { name: "Dismiss update" }).click();
   await expect(
@@ -486,17 +626,23 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await expect(page.getByText("Test viewer", { exact: true })).toBeVisible();
   await expect(page.getByText("Account recommendation")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Related uploads from channels you watched" }),
+    page.getByRole("heading", {
+      name: "Related uploads from channels you watched",
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "For You", exact: true }),
   ).toBeVisible();
-  const youtubeHeadings = await page.locator(".youtube-section h2").allTextContents();
+  const youtubeHeadings = await page
+    .locator(".youtube-section h2")
+    .allTextContents();
   expect(youtubeHeadings.indexOf("For You")).toBeLessThan(
     youtubeHeadings.indexOf("Related uploads from channels you watched"),
   );
   if (testInfo.project.name === "iphone")
-    await page.screenshot({ path: "tests/visual/youtube-for-you-mobile-after.png" });
+    await page.screenshot({
+      path: "tests/visual/youtube-for-you-mobile-after.png",
+    });
   await expect(page.getByText("More video 29")).toHaveCount(0);
   await page.getByRole("button", { name: "Show more videos" }).click();
   await expect(page.getByText("More video 29")).toBeVisible();
@@ -509,7 +655,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await sections.getByRole("button", { name: "History" }).click();
   await expect(page.getByText("Previously watched")).toBeVisible();
   await sections.getByRole("button", { name: "Subscriptions" }).click();
-  await expect(page.getByLabel("Search videos from Subscribed channel")).toBeVisible();
+  await expect(
+    page.getByLabel("Search videos from Subscribed channel"),
+  ).toBeVisible();
   await expect(page.getByText("Subscription upload")).toBeVisible();
   await page.getByLabel("Search videos from Subscribed channel").click();
   await expect(
@@ -541,7 +689,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
     players[players.length - 1].fail(150);
   });
   await expect(page.locator(".youtube-direct-player")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Let’s try that again." })).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: "Let’s try that again." }),
+  ).toBeHidden();
   await page.getByRole("tab", { name: "Music" }).click();
   await expect(
     page.getByRole("heading", { name: "YouTube Music" }),
@@ -623,9 +773,9 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   const continueSection = page.locator(".media-row", {
     has: page.getByRole("heading", { name: "Pick up where you left off" }),
   });
-  await expect(continueSection.locator(".media-card strong").first()).not.toHaveText(
-    "youtube:dQw4w9WgXcQ",
-  );
+  await expect(
+    continueSection.locator(".media-card strong").first(),
+  ).not.toHaveText("youtube:dQw4w9WgXcQ");
   await continueSection.locator(".media-card").first().click();
   await expect(page).toHaveURL(/#youtube$/);
   await expect
@@ -643,10 +793,11 @@ test("YouTube and YouTube Music are remote-friendly inside TikTak TV", async ({
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(localStorage.getItem("nuvio:progress") ?? "[]").find(
-          (entry: any) => entry.item.id === "youtube:dQw4w9WgXcQ",
-        )?.seconds,
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("nuvio:progress") ?? "[]").find(
+            (entry: any) => entry.item.id === "youtube:dQw4w9WgXcQ",
+          )?.seconds,
       ),
     )
     .toBe(90);
@@ -1351,6 +1502,88 @@ test("a title can be removed from watch history", async ({ page }) => {
       JSON.parse(localStorage.getItem("nuvio:progress")!),
     ),
   ).toEqual([]);
+});
+test("Friends resume history shows watched icons on earlier episodes", async ({
+  page,
+}) => {
+  const friends = {
+    id: "tt0108778",
+    name: "Friends",
+    type: "series",
+    description: "Six friends living in Manhattan.",
+    videos: [
+      {
+        id: "tt0108778:1:1",
+        title: "The One Where Monica Gets a Roommate",
+        season: 1,
+        episode: 1,
+      },
+      {
+        id: "tt0108778:1:2",
+        title: "The One with the Sonogram at the End",
+        season: 1,
+        episode: 2,
+      },
+      {
+        id: "tt0108778:1:3",
+        title: "The One with the Thumb",
+        season: 1,
+        episode: 3,
+      },
+    ],
+  };
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item: {
+            id: "tt0108778",
+            name: "Friends",
+            type: "series",
+            source: "addon",
+            provider: "https://v3-cinemeta.strem.io",
+          },
+          seconds: 300,
+          duration: 1800,
+          at: Date.now(),
+          episode: {
+            id: "tt0108778:1:3",
+            name: "The One with the Thumb",
+            season: 1,
+            episode: 3,
+          },
+        },
+      ]),
+    );
+  });
+  await page.unroute("https://v3-cinemeta.strem.io/**");
+  await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill({
+      json: path.includes("/meta/") ? { meta: friends } : { metas: [friends] },
+    });
+  });
+  await page.goto("/#home");
+  await page
+    .locator(".media-card strong", { hasText: "Friends" })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: /1 The One Where Monica Gets a Roommate Watched/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /2 The One with the Sonogram at the End Watched/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /3 The One with the Thumb/,
+    }),
+  ).not.toContainText("Watched");
 });
 test("catalog manager creates, renames, reorders and hides Home rows", async ({
   page,
@@ -2546,8 +2779,7 @@ test("an independent user's configured Torrentio debrid stream uses the playback
     const source = String(route.request().postDataJSON().url);
     if (source.includes("/catalog/"))
       return route.fulfill({ json: { metas: [meta] } });
-    if (source.includes("/meta/"))
-      return route.fulfill({ json: { meta } });
+    if (source.includes("/meta/")) return route.fulfill({ json: { meta } });
     expect(source).toContain("/stream/movie/");
     return route.fulfill({
       json: {
@@ -2579,31 +2811,52 @@ test("an independent user's configured Torrentio debrid stream uses the playback
   await expect(page.locator("video")).toBeVisible();
 });
 
-test("configured add-on streams retain query settings and recover from relay failure", async ({ page }) => {
+test("configured add-on streams retain query settings and recover from relay failure", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
-    localStorage.setItem("nuvio:playback-service", JSON.stringify({
-      url: "https://playback.example", token: "test-user", mode: "direct",
-    }));
-    localStorage.setItem("nuvio:addons", JSON.stringify([{
-      base: "https://configured.example/account?token=private",
-      manifest: {
-        id: "configured.example", name: "Configured streams",
-        types: ["movie"], resources: ["catalog", "meta", "stream"],
-        catalogs: [{ id: "top", type: "movie" }],
-      },
-    }]));
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "test-user",
+        mode: "direct",
+      }),
+    );
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://configured.example/account?token=private",
+          manifest: {
+            id: "configured.example",
+            name: "Configured streams",
+            types: ["movie"],
+            resources: ["catalog", "meta", "stream"],
+            catalogs: [{ id: "top", type: "movie" }],
+          },
+        },
+      ]),
+    );
   });
   const requested: string[] = [];
   await page.route("https://playback.example/request", (route) => {
     const source = route.request().postDataJSON().url as string;
-    if (source.startsWith("https://configured.example/")) requested.push(source);
+    if (source.startsWith("https://configured.example/"))
+      requested.push(source);
     return route.fulfill({ status: 502, json: { error: "upstream" } });
   });
   await page.route("https://configured.example/**", (route) => {
     const url = new URL(route.request().url());
     expect(url.searchParams.get("token")).toBe("private");
     if (url.pathname.includes("/stream/"))
-      return route.fulfill({ json: { streams: [{ name: "Test 1080p", url: "https://cdn.example/film.mp4" }] } });
+      return route.fulfill({
+        json: {
+          streams: [
+            { name: "Test 1080p", url: "https://cdn.example/film.mp4" },
+          ],
+        },
+      });
     if (url.pathname.includes("/meta/"))
       return route.fulfill({ json: { meta } });
     return route.fulfill({ json: { metas: [meta] } });
@@ -2614,37 +2867,68 @@ test("configured add-on streams retain query settings and recover from relay fai
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
-  await expect.poll(() => requested.some((url) => url.includes("/stream/movie/tt-test.json?token=private"))).toBe(true);
+  await expect
+    .poll(() =>
+      requested.some((url) =>
+        url.includes("/stream/movie/tt-test.json?token=private"),
+      ),
+    )
+    .toBe(true);
   await expect(page.locator("video")).toBeVisible();
 });
 
-test("refresh and test preserve a configured add-on manifest URL", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("nuvio:addons", JSON.stringify([{
-    base: "https://configured.example/account?token=private",
-    manifest: {
-      id: "configured.example", name: "Configured streams",
-      types: ["movie"], resources: ["catalog", "stream"], catalogs: [],
-    },
-  }])));
+test("refresh and test preserve a configured add-on manifest URL", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://configured.example/account?token=private",
+          manifest: {
+            id: "configured.example",
+            name: "Configured streams",
+            types: ["movie"],
+            resources: ["catalog", "stream"],
+            catalogs: [],
+          },
+        },
+      ]),
+    ),
+  );
   const requested: string[] = [];
   await page.route("https://configured.example/**", (route) => {
     requested.push(route.request().url());
-    return route.fulfill({ json: {
-      id: "configured.example", name: "Configured streams",
-      types: ["movie"], resources: ["catalog", "stream"], catalogs: [],
-    } });
+    return route.fulfill({
+      json: {
+        id: "configured.example",
+        name: "Configured streams",
+        types: ["movie"],
+        resources: ["catalog", "stream"],
+        catalogs: [],
+      },
+    });
   });
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Add-ons/ }).click();
   await page.getByRole("button", { name: "Test Configured streams" }).click();
-  await expect(page.getByText("Configured streams is reachable.")).toBeVisible();
-  await page.getByRole("button", { name: "Refresh installed manifests" }).click();
+  await expect(
+    page.getByText("Configured streams is reachable."),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Refresh installed manifests" })
+    .click();
   await expect(page.getByText("All add-on manifests refreshed.")).toBeVisible();
   // The second action may reuse the short-lived manifest cache.
   expect(requested.length).toBeGreaterThan(0);
-  expect(requested.every((url) =>
-    url === "https://configured.example/account/manifest.json?token=private",
-  )).toBe(true);
+  expect(
+    requested.every(
+      (url) =>
+        url ===
+        "https://configured.example/account/manifest.json?token=private",
+    ),
+  ).toBe(true);
 });
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
@@ -3833,6 +4117,29 @@ test.describe("authenticated integrations", () => {
             },
           },
         ];
+      else if (url.pathname.endsWith("/sync_pull_provider_credentials"))
+        data = [
+          {
+            provider: "trakt",
+            credential_json: {
+              access_token: "profile-trakt-access",
+              refresh_token: "profile-trakt-refresh",
+              token_type: "bearer",
+              created_at: Math.floor(Date.now() / 1000),
+              expires_in: 86_400,
+              username: "profile-viewer",
+            },
+          },
+        ];
+      else if (url.pathname.endsWith("/sync_pull_watched_items"))
+        data = [
+          {
+            content_id: meta.id,
+            content_type: "movie",
+            title: meta.name,
+            watched_at: Date.now(),
+          },
+        ];
       else if (url.pathname.includes("/sync_push_")) {
         pushes.push({
           path: url.pathname,
@@ -3841,6 +4148,15 @@ test.describe("authenticated integrations", () => {
         data = null;
       }
       await route.fulfill({ json: data });
+    });
+    await page.route("https://api.trakt.tv/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      return route.fulfill({
+        json:
+          path === "/users/settings"
+            ? { user: { username: "profile-viewer" } }
+            : [],
+      });
     });
     await page.route("https://v3-cinemeta.strem.io/manifest.json", (r) =>
       r.fulfill({
@@ -3868,26 +4184,62 @@ test.describe("authenticated integrations", () => {
     });
     await expect(homeProfile).toBeVisible();
     await homeProfile.hover();
-    await expect(homeProfile).toHaveCSS("border-top-color", "rgb(184, 138, 255)");
+    await expect(homeProfile).toHaveCSS(
+      "border-top-color",
+      "rgb(184, 138, 255)",
+    );
     await homeProfile.focus();
-    await expect(homeProfile).toHaveCSS("border-top-color", "rgb(184, 138, 255)");
+    await expect(homeProfile).toHaveCSS(
+      "border-top-color",
+      "rgb(184, 138, 255)",
+    );
     await homeProfile.click();
     await expect(
       page.getByRole("heading", { name: "The Test Movie" }),
     ).toBeVisible();
+    await expect(
+      page
+        .locator(".media-card", { hasText: "The Test Movie" })
+        .first()
+        .locator(".card-watched-icon"),
+    ).toBeVisible();
+    const setupClose = page.getByRole("button", { name: "Close setup" });
+    await setupClose.click({ timeout: 5_000 }).catch(() => undefined);
+    await page
+      .locator(".media-card", { hasText: "The Test Movie" })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("dialog").locator(".title-watched-badge"),
+    ).toHaveText("Watched");
+    await page.getByRole("button", { name: "Close details" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const key = Object.keys(localStorage).find((entry) =>
+            entry.startsWith("tiktak:trakt:profile%3A"),
+          );
+          return key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+        }),
+      )
+      .toMatchObject({
+        access_token: "profile-trakt-access",
+        refresh_token: "profile-trakt-refresh",
+      });
     await expect
       .poll(() =>
         page.evaluate(() => localStorage.getItem("nuvio:playback-service")),
       )
       .toBeNull();
-    const setupClose = page.getByRole("button", { name: "Close setup" });
-    if (await setupClose.isVisible().catch(() => false))
-      await setupClose.click();
     await page.goto("/#settings");
     await page
       .getByRole("button", { name: "Close setup" })
       .click({ timeout: 3000 })
       .catch(() => undefined);
+    await page.getByRole("button", { name: /^Trakt/ }).click();
+    await expect(page.getByText("Connected as")).toContainText(
+      "profile-viewer",
+    );
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
@@ -3931,6 +4283,10 @@ test.describe("authenticated integrations", () => {
         name: "Open Streaming Services: Folder 1",
       }),
     ).toBeVisible();
+    await expect(page.locator(".account-hero-card h2")).toHaveText("Home");
+    // Let AccountPanel's post-render effect capture the freshly loaded profile
+    // before changing a setting; otherwise the change can become its baseline.
+    await page.waitForTimeout(250);
     await page.goto("/#settings");
     await page.getByRole("button", { name: /Playback/ }).click();
     await page

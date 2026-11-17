@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Bookmark,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clapperboard,
@@ -93,15 +94,31 @@ import {
   type Progress,
   type Provider,
   type Stream,
+  type WatchedItem,
 } from "./types";
+import { isEpisodeWatched, isWatched } from "./watched";
 import type { Playback } from "./Player";
 import { findNextEpisode } from "./next-episode";
-import { getTraktRating, setTraktRating, traktRatingIds } from "./trakt-ratings";
-import { getSimklRating, setSimklRating, simklRatingIds } from "./simkl-ratings";
-import { simklAccessToken, anilistAccessToken } from "./ExternalTrackingSettings";
+import {
+  getTraktRating,
+  setTraktRating,
+  traktRatingIds,
+} from "./trakt-ratings";
+import {
+  getSimklRating,
+  setSimklRating,
+  simklRatingIds,
+} from "./simkl-ratings";
+import {
+  simklAccessToken,
+  anilistAccessToken,
+} from "./ExternalTrackingSettings";
 import { anilistMedia, anilistMediaRef, rateAniList } from "./anilist-tracking";
-import { traktAccessToken } from "./TraktSettings";
-import { migrateLegacyTraktProfile, traktProfileIdentity } from "./trakt-profile";
+import { reconcileTraktCredential, traktAccessToken } from "./TraktSettings";
+import {
+  migrateLegacyTraktProfile,
+  traktProfileIdentity,
+} from "./trakt-profile";
 import {
   normalizeYouTubeProgress,
   resolveYouTubeProgressTitle,
@@ -158,11 +175,9 @@ const SetupWizard = lazy(() => import("./SetupWizard"));
 
 const futureAvailability = new Map<string, boolean>();
 
-async function hideUnavailableFutureTitles<T extends { title: string; items: Item[] }>(
-  rows: T[],
-  addons: Addon[],
-  signal: AbortSignal,
-) {
+async function hideUnavailableFutureTitles<
+  T extends { title: string; items: Item[] },
+>(rows: T[], addons: Addon[], signal: AbortSignal) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const candidates = rows
@@ -776,10 +791,12 @@ function Card({
   item,
   onOpen,
   progress,
+  watched = false,
 }: {
   item: Item;
   onOpen: (item: Item) => void;
   progress?: Progress;
+  watched?: boolean;
 }) {
   return (
     <button
@@ -809,6 +826,11 @@ function Card({
           <span className="rating">
             <Star size={11} fill="currentColor" />
             {Number(item.rating).toFixed(1)}
+          </span>
+        )}
+        {watched && (
+          <span className="card-watched-icon" aria-label="Watched">
+            <CheckCircle2 size={17} />
           </span>
         )}
         {progress && (
@@ -994,6 +1016,7 @@ function Detail({
   onPlay,
   onSelectItem,
   onRemoveProgress,
+  watched,
   resume,
   torboxKey,
   realDebridKey,
@@ -1009,6 +1032,7 @@ function Detail({
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
   onRemoveProgress: (item: Item) => void;
+  watched: WatchedItem[];
   resume?: Progress;
   torboxKey: string;
   realDebridKey: string;
@@ -1037,15 +1061,21 @@ function Detail({
       setTraktConnected(false);
       return;
     }
-    void traktAccessToken(traktProfileName).then(async token => {
-      if (!live) return;
-      setTraktConnected(!!token);
-      if (token) {
-        const rating = await getTraktRating(traktProfileName, item);
-        if (live) setTraktRatingValue(rating);
-      }
-    }).catch(error => { if (live) setTraktRatingError(message(error)); });
-    return () => { live = false; };
+    void traktAccessToken(traktProfileName)
+      .then(async (token) => {
+        if (!live) return;
+        setTraktConnected(!!token);
+        if (token) {
+          const rating = await getTraktRating(traktProfileName, item);
+          if (live) setTraktRatingValue(rating);
+        }
+      })
+      .catch((error) => {
+        if (live) setTraktRatingError(message(error));
+      });
+    return () => {
+      live = false;
+    };
   }, [traktProfileName, item.id, item.type]);
   async function changeTraktRating(value: number | null) {
     setTraktRatingBusy(true);
@@ -1067,15 +1097,21 @@ function Detail({
       setSimklConnected(false);
       return;
     }
-    void simklAccessToken(traktProfileName).then(async token => {
-      if (!live) return;
-      setSimklConnected(!!token);
-      if (token) {
-        const rating = await getSimklRating(traktProfileName, item);
-        if (live) setSimklRatingValue(rating);
-      }
-    }).catch(error => { if (live) setSimklRatingError(message(error)); });
-    return () => { live = false; };
+    void simklAccessToken(traktProfileName)
+      .then(async (token) => {
+        if (!live) return;
+        setSimklConnected(!!token);
+        if (token) {
+          const rating = await getSimklRating(traktProfileName, item);
+          if (live) setSimklRatingValue(rating);
+        }
+      })
+      .catch((error) => {
+        if (live) setSimklRatingError(message(error));
+      });
+    return () => {
+      live = false;
+    };
   }, [traktProfileName, item.id, item.type]);
   async function changeSimklRating(value: number | null) {
     setSimklRatingBusy(true);
@@ -1083,26 +1119,49 @@ function Detail({
     try {
       await setSimklRating(traktProfileName, item, value);
       setSimklRatingValue(value);
-    } catch (error) { setSimklRatingError(message(error)); }
-    finally { setSimklRatingBusy(false); }
+    } catch (error) {
+      setSimklRatingError(message(error));
+    } finally {
+      setSimklRatingBusy(false);
+    }
   }
   useEffect(() => {
     let live = true;
-    setAnilistConnected(false); setAnilistRating(null); setAnilistProgress(null); setAnilistRatingError("");
-    if (!traktProfileName || !anilistMediaRef(item.id) || !anilistAccessToken(traktProfileName)) return;
-    void anilistMedia(traktProfileName, item.id).then(media => {
-      if (!live || !media) return;
-      setAnilistConnected(true);
-      setAnilistRating(media.mediaListEntry?.score || null);
-      setAnilistProgress(media.mediaListEntry?.progress ?? 0);
-    }).catch(error => { if (live) setAnilistRatingError(message(error)); });
-    return () => { live = false; };
+    setAnilistConnected(false);
+    setAnilistRating(null);
+    setAnilistProgress(null);
+    setAnilistRatingError("");
+    if (
+      !traktProfileName ||
+      !anilistMediaRef(item.id) ||
+      !anilistAccessToken(traktProfileName)
+    )
+      return;
+    void anilistMedia(traktProfileName, item.id)
+      .then((media) => {
+        if (!live || !media) return;
+        setAnilistConnected(true);
+        setAnilistRating(media.mediaListEntry?.score || null);
+        setAnilistProgress(media.mediaListEntry?.progress ?? 0);
+      })
+      .catch((error) => {
+        if (live) setAnilistRatingError(message(error));
+      });
+    return () => {
+      live = false;
+    };
   }, [traktProfileName, item.id]);
   async function changeAnilistRating(value: number | null) {
-    setAnilistRatingBusy(true); setAnilistRatingError("");
-    try { await rateAniList(traktProfileName, item.id, value); setAnilistRating(value); }
-    catch (error) { setAnilistRatingError(message(error)); }
-    finally { setAnilistRatingBusy(false); }
+    setAnilistRatingBusy(true);
+    setAnilistRatingError("");
+    try {
+      await rateAniList(traktProfileName, item.id, value);
+      setAnilistRating(value);
+    } catch (error) {
+      setAnilistRatingError(message(error));
+    } finally {
+      setAnilistRatingBusy(false);
+    }
   }
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [season, setSeason] = useState<number | null>(null);
@@ -1643,49 +1702,109 @@ function Detail({
         </div>
         {traktConnected && (
           <div className="trakt-rating" aria-label="Your Trakt rating">
-            <strong>Your Trakt rating: {traktRating === null ? "Not rated" : `${traktRating}/10`}</strong>
+            <strong>
+              Your Trakt rating:{" "}
+              {traktRating === null ? "Not rated" : `${traktRating}/10`}
+            </strong>
             <div className="trakt-rating-choices">
-              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
-                <button key={value} type="button" disabled={traktRatingBusy}
-                  className={traktRating === value ? "selected" : undefined}
-                  aria-label={`Rate ${value} out of 10 on Trakt`}
-                  onClick={() => void changeTraktRating(value)}>{value}</button>
-              ))}
-              {traktRating !== null && <button type="button" disabled={traktRatingBusy}
-                onClick={() => void changeTraktRating(null)}>Remove rating</button>}
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                (value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={traktRatingBusy}
+                    className={traktRating === value ? "selected" : undefined}
+                    aria-label={`Rate ${value} out of 10 on Trakt`}
+                    onClick={() => void changeTraktRating(value)}
+                  >
+                    {value}
+                  </button>
+                ),
+              )}
+              {traktRating !== null && (
+                <button
+                  type="button"
+                  disabled={traktRatingBusy}
+                  onClick={() => void changeTraktRating(null)}
+                >
+                  Remove rating
+                </button>
+              )}
             </div>
             {traktRatingError && <p role="alert">{traktRatingError}</p>}
           </div>
         )}
         {simklConnected && (
           <div className="trakt-rating" aria-label="Your Simkl rating">
-            <strong>Your Simkl rating: {simklRating === null ? "Not rated" : `${simklRating}/10`}</strong>
+            <strong>
+              Your Simkl rating:{" "}
+              {simklRating === null ? "Not rated" : `${simklRating}/10`}
+            </strong>
             <div className="trakt-rating-choices">
-              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
-                <button key={value} type="button" disabled={simklRatingBusy}
-                  className={simklRating === value ? "selected" : undefined}
-                  aria-label={`Rate ${value} out of 10 on Simkl`}
-                  onClick={() => void changeSimklRating(value)}>{value}</button>
-              ))}
-              {simklRating !== null && <button type="button" disabled={simklRatingBusy}
-                onClick={() => void changeSimklRating(null)}>Remove rating</button>}
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                (value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={simklRatingBusy}
+                    className={simklRating === value ? "selected" : undefined}
+                    aria-label={`Rate ${value} out of 10 on Simkl`}
+                    onClick={() => void changeSimklRating(value)}
+                  >
+                    {value}
+                  </button>
+                ),
+              )}
+              {simklRating !== null && (
+                <button
+                  type="button"
+                  disabled={simklRatingBusy}
+                  onClick={() => void changeSimklRating(null)}
+                >
+                  Remove rating
+                </button>
+              )}
             </div>
             {simklRatingError && <p role="alert">{simklRatingError}</p>}
           </div>
         )}
         {anilistConnected && (
-          <div className="trakt-rating" aria-label="Your AniList anime progress and rating">
-            <strong>Your AniList progress: {anilistProgress ?? 0} episode{anilistProgress === 1 ? "" : "s"}</strong>
-            <strong>Your AniList rating: {anilistRating === null ? "Not rated" : `${anilistRating}/10`}</strong>
+          <div
+            className="trakt-rating"
+            aria-label="Your AniList anime progress and rating"
+          >
+            <strong>
+              Your AniList progress: {anilistProgress ?? 0} episode
+              {anilistProgress === 1 ? "" : "s"}
+            </strong>
+            <strong>
+              Your AniList rating:{" "}
+              {anilistRating === null ? "Not rated" : `${anilistRating}/10`}
+            </strong>
             <div className="trakt-rating-choices">
-              {Array.from({ length: 10 }, (_, index) => index + 1).map(value => (
-                <button key={value} type="button" disabled={anilistRatingBusy}
-                  className={anilistRating === value ? "selected" : undefined}
-                  aria-label={`Rate ${value} out of 10 on AniList`}
-                  onClick={() => void changeAnilistRating(value)}>{value}</button>
-              ))}
-              {anilistRating !== null && <button type="button" disabled={anilistRatingBusy}
-                onClick={() => void changeAnilistRating(null)}>Remove rating</button>}
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                (value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={anilistRatingBusy}
+                    className={anilistRating === value ? "selected" : undefined}
+                    aria-label={`Rate ${value} out of 10 on AniList`}
+                    onClick={() => void changeAnilistRating(value)}
+                  >
+                    {value}
+                  </button>
+                ),
+              )}
+              {anilistRating !== null && (
+                <button
+                  type="button"
+                  disabled={anilistRatingBusy}
+                  onClick={() => void changeAnilistRating(null)}
+                >
+                  Remove rating
+                </button>
+              )}
             </div>
             {anilistRatingError && <p role="alert">{anilistRatingError}</p>}
           </div>
@@ -1742,6 +1861,11 @@ function Detail({
             {saved ? <Check size={18} /> : <Plus size={18} />}{" "}
             {saved ? "In my library" : "My library"}
           </button>
+          {item.type === "movie" && isWatched(watched, item) && (
+            <span className="title-watched-badge" aria-label="Watched">
+              <CheckCircle2 size={18} /> Watched
+            </span>
+          )}
           {resume && (
             <button
               className="remove-history"
@@ -1962,7 +2086,18 @@ function Detail({
                   >
                     <span className="episode-number">{ep.episode}</span>
                     <span>{ep.name}</span>
-                    {downloadMode ? <Download size={18} /> : <Play size={18} />}
+                    <span className="episode-row-status">
+                      {isEpisodeWatched(watched, item, ep, resume?.episode) && (
+                        <span className="episode-watched-badge">
+                          <CheckCircle2 size={16} /> Watched
+                        </span>
+                      )}
+                      {downloadMode ? (
+                        <Download size={18} />
+                      ) : (
+                        <Play size={18} />
+                      )}
+                    </span>
                   </button>
                 ))}
             </div>
@@ -2076,32 +2211,52 @@ export default function App() {
   const [progress, setProgress] = useState<Progress[]>(() =>
     normalizeYouTubeProgress(read("progress", [])),
   );
+  const [watched, setWatched] = useState<WatchedItem[]>(() =>
+    read("watched", []),
+  );
   useEffect(() => {
     if (!profileReady) return;
     const missing = progress.filter(youtubeProgressNeedsTitle).slice(0, 30);
     if (!missing.length) return;
     let cancelled = false;
-    void Promise.all(missing.map(async (entry) => {
-      const videoId = youtubeVideoIdFromItem(entry.item)!;
-      return { videoId, metadata: await resolveYouTubeProgressTitle(videoId) };
-    })).then((resolved) => {
+    void Promise.all(
+      missing.map(async (entry) => {
+        const videoId = youtubeVideoIdFromItem(entry.item)!;
+        return {
+          videoId,
+          metadata: await resolveYouTubeProgressTitle(videoId),
+        };
+      }),
+    ).then((resolved) => {
       if (cancelled) return;
-      const byId = new Map(resolved.filter((entry) => entry.metadata).map((entry) => [entry.videoId, entry.metadata!]));
+      const byId = new Map(
+        resolved
+          .filter((entry) => entry.metadata)
+          .map((entry) => [entry.videoId, entry.metadata!]),
+      );
       if (!byId.size) return;
       setProgress((current) => {
         const updated = current.map((entry) => {
           if (!youtubeProgressNeedsTitle(entry)) return entry;
           const metadata = byId.get(youtubeVideoIdFromItem(entry.item)!);
-          return metadata ? {
-            ...entry,
-            item: { ...entry.item, name: metadata.title, poster: metadata.thumbnail || entry.item.poster },
-          } : entry;
+          return metadata
+            ? {
+                ...entry,
+                item: {
+                  ...entry.item,
+                  name: metadata.title,
+                  poster: metadata.thumbnail || entry.item.poster,
+                },
+              }
+            : entry;
         });
         save("progress", updated);
         return updated;
       });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profileReady, progress]);
   function loadAccountSetup(s: Setup) {
     // Failure history belongs to the previous browser profile and must never
@@ -2137,6 +2292,14 @@ export default function App() {
     const restoredProgress = normalizeYouTubeProgress(s.progress);
     setProgress(restoredProgress);
     save("progress", restoredProgress);
+    const restoredWatched = s.watched ?? [];
+    setWatched(restoredWatched);
+    save("watched", restoredWatched);
+    if (s.trakt !== undefined)
+      void reconcileTraktCredential(
+        traktProfileIdentity(activeProfileView?.name ?? ""),
+        s.trakt,
+      ).catch(() => undefined);
     setProvider(s.provider);
     storeProvider(s.provider, true);
     setEpgUrl(s.epgUrl ?? "");
@@ -2166,9 +2329,9 @@ export default function App() {
   const [region, setRegion] = useState(localLiveRegion);
   const [categoryList, setCategoryList] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [homeRows, setHomeRows] = useState<{ title: string; items: Item[]; catalogKey: string }[]>(
-    [],
-  );
+  const [homeRows, setHomeRows] = useState<
+    { title: string; items: Item[]; catalogKey: string }[]
+  >([]);
   const loadedHomeRef = useRef<{
     addons: Addon[];
     homeCatalogs: HomeCatalogSetting[];
@@ -2218,21 +2381,36 @@ export default function App() {
   const nextEpisodeRequest = useRef<AbortController | null>(null);
   useEffect(() => {
     setNextEpisode(null);
-    if (playback?.item.type !== "series" || !playback.episode || playback.party) return;
+    if (playback?.item.type !== "series" || !playback.episode || playback.party)
+      return;
     const controller = new AbortController();
     const item = playback.item;
     const current = playback.episode;
-    const details = item.source === "addon"
-      ? addonDetail(item, controller.signal).catch((error) => {
-          if (controller.signal.aborted || item.provider === defaultAddon.base || !/^(?:tt\d+|tmdb:\d+)$/.test(item.id)) throw error;
-          return addonDetail({ ...item, provider: defaultAddon.base }, controller.signal);
-        })
-      : item.source === "xtream" && provider && provider.scope === item.provider
-        ? providerDetail(provider, item, controller.signal)
-        : Promise.resolve({ item, episodes: [] });
-    void details.then(({ episodes }) => {
-      if (!controller.signal.aborted) setNextEpisode(findNextEpisode(episodes, current));
-    }).catch(() => undefined);
+    const details =
+      item.source === "addon"
+        ? addonDetail(item, controller.signal).catch((error) => {
+            if (
+              controller.signal.aborted ||
+              item.provider === defaultAddon.base ||
+              !/^(?:tt\d+|tmdb:\d+)$/.test(item.id)
+            )
+              throw error;
+            return addonDetail(
+              { ...item, provider: defaultAddon.base },
+              controller.signal,
+            );
+          })
+        : item.source === "xtream" &&
+            provider &&
+            provider.scope === item.provider
+          ? providerDetail(provider, item, controller.signal)
+          : Promise.resolve({ item, episodes: [] });
+    void details
+      .then(({ episodes }) => {
+        if (!controller.signal.aborted)
+          setNextEpisode(findNextEpisode(episodes, current));
+      })
+      .catch(() => undefined);
     return () => controller.abort();
   }, [playback?.item, playback?.episode, playback?.party, provider]);
   useEffect(() => () => nextEpisodeRequest.current?.abort(), [playback]);
@@ -2247,19 +2425,31 @@ export default function App() {
     let next: Playback;
     if (item.source === "xtream") {
       if (!provider || provider.scope !== item.provider)
-        throw new Error("Reconnect the IPTV account for this series in Settings.");
+        throw new Error(
+          "Reconnect the IPTV account for this series in Settings.",
+        );
       next = {
         item,
         episode,
         url: streamUrl(provider, "series", episode.id, episode.extension),
       };
     } else if (item.source === "addon") {
-      const result = await addonStreams(addons, item, episode.id, controller.signal);
+      const result = await addonStreams(
+        addons,
+        item,
+        episode.id,
+        controller.signal,
+      );
       if (controller.signal.aborted) return;
-      const ranked = autoplayStreams(result.streams, !!torboxKey || !!realDebridKey);
+      const ranked = autoplayStreams(
+        result.streams,
+        !!torboxKey || !!realDebridKey,
+      );
       const candidate = ranked[0];
       if (!candidate?.url || !directStream(candidate))
-        throw new Error("No automatically playable stream was found for the next episode. Open the series details to choose a source.");
+        throw new Error(
+          "No automatically playable stream was found for the next episode. Open the series details to choose a source.",
+        );
       const toPlayback = (stream: Stream): Playback => ({
         item,
         episode,
@@ -2267,7 +2457,10 @@ export default function App() {
         sourceLabel: stream.name ?? stream.addonName ?? "Stream",
         sourceDetail: stream.title,
         mode: getService() ? compatibilityPlaybackMode(stream) : undefined,
-        requestHeaders: (stream.behaviorHints?.proxyHeaders as { request?: Record<string, string> } | undefined)?.request,
+        requestHeaders: (
+          stream.behaviorHints?.proxyHeaders as
+            { request?: Record<string, string> } | undefined
+        )?.request,
         subtitleRequest: { addons, id: episode.id },
         relay: debridStream(stream),
       });
@@ -2402,8 +2595,11 @@ export default function App() {
           key: `${a.base}|${c.type}|${c.id}`,
         })),
     );
-  const activeCatalog = catalogs.find((entry) => entry.key === selectedCatalog) ?? catalogs[0];
-  const catalogGenreOptions = activeCatalog?.catalog.extra?.find((extra) => extra.name === "genre")?.options ?? [];
+  const activeCatalog =
+    catalogs.find((entry) => entry.key === selectedCatalog) ?? catalogs[0];
+  const catalogGenreOptions =
+    activeCatalog?.catalog.extra?.find((extra) => extra.name === "genre")
+      ?.options ?? [];
   useEffect(() => {
     if (page !== "home") return;
     const loaded = loadedHomeRef.current;
@@ -2424,12 +2620,27 @@ export default function App() {
     const entries = homeCatalogEntries(addons, homeCatalogs);
     void Promise.allSettled(
       entries.map(async ({ addon, catalog: entryCatalog, customTitle }) => {
-        let items = await catalog(addon, entryCatalog.type, entryCatalog.id, "", c.signal);
+        let items = await catalog(
+          addon,
+          entryCatalog.type,
+          entryCatalog.id,
+          "",
+          c.signal,
+        );
         // Some catalogs declare optional genre choices but return no default
         // page. Try their first advertised choice before showing an empty row.
-        const firstOption = entryCatalog.extra?.find((extra) => extra.name === "genre")?.options?.[0];
+        const firstOption = entryCatalog.extra?.find(
+          (extra) => extra.name === "genre",
+        )?.options?.[0];
         if (!items.length && firstOption) {
-          items = await catalog(addon, entryCatalog.type, entryCatalog.id, "", c.signal, firstOption);
+          items = await catalog(
+            addon,
+            entryCatalog.type,
+            entryCatalog.id,
+            "",
+            c.signal,
+            firstOption,
+          );
         }
         return {
           title: customTitle || entryCatalog.name || addon.manifest.name,
@@ -2561,7 +2772,9 @@ export default function App() {
               (addon.manifest.catalogs ?? [])
                 .filter(
                   (entry) =>
-                    (scopes.includes(entry.type as Kind) || entry.type === "trakt" || entry.type === "all") &&
+                    (scopes.includes(entry.type as Kind) ||
+                      entry.type === "trakt" ||
+                      entry.type === "all") &&
                     entry.extra?.some((extra) => extra.name === "search"),
                 )
                 .map((entry) => ({ addon, catalog: entry })),
@@ -2636,7 +2849,9 @@ export default function App() {
             result = rankExactTitleFirst(
               dedupeSearchTitles([
                 ...catalogMatches.flatMap((match) =>
-                  match.status === "fulfilled" ? match.value.filter((item) => scopes.includes(item.type)) : [],
+                  match.status === "fulfilled"
+                    ? match.value.filter((item) => scopes.includes(item.type))
+                    : [],
                 ),
                 ...tmdbMatches.filter((item) => scopes.includes(item.type)),
               ]),
@@ -2653,15 +2868,29 @@ export default function App() {
               category || undefined,
             );
             if (!result.length && !category) {
-              const firstOption = chosen.catalog.extra?.find((extra) => extra.name === "genre")?.options?.[0];
+              const firstOption = chosen.catalog.extra?.find(
+                (extra) => extra.name === "genre",
+              )?.options?.[0];
               if (firstOption) {
-                result = await catalog(chosen.addon, chosen.catalog.type, chosen.catalog.id, "", c.signal, firstOption);
+                result = await catalog(
+                  chosen.addon,
+                  chosen.catalog.type,
+                  chosen.catalog.id,
+                  "",
+                  c.signal,
+                  firstOption,
+                );
                 if (!c.signal.aborted) setCategory(firstOption);
               }
             }
           }
         }
-        if (!c.signal.aborted) setItems(source === "catalogs" && page === "discover" && !deferredQuery ? result.filter((item) => item.type === kind) : result);
+        if (!c.signal.aborted)
+          setItems(
+            source === "catalogs" && page === "discover" && !deferredQuery
+              ? result.filter((item) => item.type === kind)
+              : result,
+          );
       } catch (e) {
         if (!c.signal.aborted && !restored) setError(message(e));
       } finally {
@@ -2966,6 +3195,7 @@ export default function App() {
               collections: [],
               library: [],
               progress: [],
+              watched: [],
               provider: null,
               epgUrl: "",
               torboxKey: "",
@@ -3316,6 +3546,7 @@ export default function App() {
                               key={itemKey(p.item)}
                               item={p.item}
                               progress={p}
+                              watched={isWatched(watched, p.item)}
                               onOpen={open}
                             />
                           ))}
@@ -3329,7 +3560,9 @@ export default function App() {
                     collections={collections}
                     addons={addons}
                     library={library}
-                    profileName={traktProfileIdentity(activeProfileView?.name ?? "")}
+                    profileName={traktProfileIdentity(
+                      activeProfileView?.name ?? "",
+                    )}
                     onOpen={open}
                     onBrowsingChange={setCollectionBrowsing}
                   />
@@ -3362,6 +3595,7 @@ export default function App() {
                             <Card
                               key={itemKey(item)}
                               item={item}
+                              watched={isWatched(watched, item)}
                               onOpen={open}
                             />
                           ))}
@@ -3502,18 +3736,22 @@ export default function App() {
                       ))}
                     </select>
                   )}
-                  {source === "catalogs" && !query && catalogGenreOptions.length > 0 && (
-                    <select
-                      aria-label="Catalog category"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="">Default</option>
-                      {catalogGenreOptions.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  )}
+                  {source === "catalogs" &&
+                    !query &&
+                    catalogGenreOptions.length > 0 && (
+                      <select
+                        aria-label="Catalog category"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      >
+                        <option value="">Default</option>
+                        {catalogGenreOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   <button onClick={randomDiscoverPick} disabled={loading}>
                     <Dices size={17} />
                     Random Pick
@@ -3559,6 +3797,7 @@ export default function App() {
                         key={itemKey(p.item)}
                         item={p.item}
                         progress={p}
+                        watched={isWatched(watched, p.item)}
                         onOpen={open}
                       />
                     ))}
@@ -3607,7 +3846,12 @@ export default function App() {
                   </p>
                   <div className="media-grid">
                     {filtered.slice(0, limit).map((item) => (
-                      <Card key={itemKey(item)} item={item} onOpen={open} />
+                      <Card
+                        key={itemKey(item)}
+                        item={item}
+                        watched={isWatched(watched, item)}
+                        onOpen={open}
+                      />
                     ))}
                   </div>
                   {filtered.length > limit && (
@@ -4106,6 +4350,7 @@ export default function App() {
                     collections,
                     library,
                     progress,
+                    watched,
                     provider,
                     epgUrl,
                     torboxKey,
@@ -4126,6 +4371,7 @@ export default function App() {
                     setCollections([]);
                     setLibrary([]);
                     setProgress([]);
+                    setWatched([]);
                     setHomeCatalogs([]);
                     setRecentChannels([]);
                     setTorboxKey("");
@@ -4147,7 +4393,9 @@ export default function App() {
             {page === "settings" && (
               <Suspense fallback={<Loading />}>
                 <Settings
-                  profileName={traktProfileIdentity(activeProfileView?.name ?? "")}
+                  profileName={traktProfileIdentity(
+                    activeProfileView?.name ?? "",
+                  )}
                   provider={provider}
                   epgUrl={epgUrl}
                   onEpgUrl={setEpgUrl}
@@ -4260,6 +4508,7 @@ export default function App() {
           }}
           onSelectItem={setDetail}
           onRemoveProgress={removeFromHistory}
+          watched={watched}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />
       )}
@@ -4276,7 +4525,9 @@ export default function App() {
             playback={playback}
             nextEpisode={nextEpisode}
             onNextEpisode={playNextEpisode}
-            traktProfileName={traktProfileIdentity(activeProfileView?.name ?? "")}
+            traktProfileName={traktProfileIdentity(
+              activeProfileView?.name ?? "",
+            )}
             partyIdentity={{
               name: activeProfileView?.name || "Guest",
               avatar: activeProfileView?.image,
@@ -4291,6 +4542,7 @@ export default function App() {
               }
               setPlayback(null);
               setProgress(normalizeYouTubeProgress(read("progress", [])));
+              setWatched(read("watched", []));
             }}
           />
         </Suspense>

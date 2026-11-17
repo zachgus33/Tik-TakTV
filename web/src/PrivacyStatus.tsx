@@ -76,8 +76,9 @@ export default function PrivacyStatus({
               <p>
                 Debrid keys, configured add-on URLs, and IPTV credentials are
                 scoped to your signed-in Nuvio account and profile and cached in
-                this browser so playback works. TikTak TV never displays them to
-                other users.
+                this browser so playback works. Watched status and an optional
+                Trakt connection also sync with the selected profile. TikTak TV
+                never displays them to other users.
               </p>
             </div>
           </article>
@@ -475,9 +476,10 @@ export default function PrivacyStatus({
         <details>
           <summary>Privacy summary</summary>
           <p>
-            Account configuration is synchronized through Nuvio and cached on
-            this device. Playback reports omit stream URLs, manifest URLs,
-            passwords and API keys. Clearing site data removes local caches.
+            Account configuration, watched status, and an optional Trakt
+            connection are synchronized through Nuvio and cached on this device.
+            Playback reports omit stream URLs, manifest URLs, passwords and API
+            keys. Clearing site data removes local caches.
           </p>
         </details>
         <button type="button" className="text-link" onClick={onOpenFeedback}>

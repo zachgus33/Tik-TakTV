@@ -7,18 +7,18 @@ import { createClient } from "@supabase/supabase-js";
 import { NUVIO_URL, NUVIO_ANON_KEY } from "./nuvio-config";
 import { parseCollections, type Collection } from "./collections";
 import { installMany } from "./addon-import";
-import {
-  defaultAddon,
-  safeSourceUrl,
-  safeUrl,
-  addonDetail,
-} from "./api";
-import type { Addon, Item, Progress, Provider } from "./types";
+import { defaultAddon, safeSourceUrl, safeUrl, addonDetail } from "./api";
+import type { Addon, Item, Progress, Provider, WatchedItem } from "./types";
+import { watchedKey } from "./watched";
 import { resolveAccountProvider } from "./provider-sharing";
 import { DEFAULT_TMDB_KEY } from "./config";
 import { persistableSetup } from "./account-isolation";
 import { profileSyncKey } from "./profile-sync";
-import { addonUrlsMissingCache, cleanedAddonRows, restoreSavedAddons } from "./account-addons";
+import {
+  addonUrlsMissingCache,
+  cleanedAddonRows,
+  restoreSavedAddons,
+} from "./account-addons";
 import { manifestUrl } from "./addon-urls";
 import {
   readYouTubeHistory,
@@ -59,12 +59,24 @@ export type Setup = {
   collections: Collection[];
   library: Item[];
   progress: Progress[];
+  watched?: WatchedItem[];
+  trakt?: TraktCredential | null;
   provider: Provider | null;
   epgUrl?: string;
   torboxKey: string;
   realDebridKey: string;
   autoplay: boolean;
   homeCatalogs?: HomeCatalogSetting[];
+};
+export type TraktCredential = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  created_at: number;
+  expires_in: number;
+  username?: string;
+  user_slug?: string;
+  scrobbling_enabled?: boolean;
 };
 export type HomeCatalogSetting = {
   addon_id: string;
@@ -89,6 +101,7 @@ const baselines = new Map<
     rows: Record<string, unknown>[];
     progress: Progress[];
     progressRows: Record<string, unknown>[];
+    watched: WatchedItem[];
     homeCatalogs: string;
   }
 >();
@@ -104,6 +117,7 @@ type StoredWebSetup = Partial<Setup> & {
   accountProvider?: Provider | null;
 };
 const origin = (() => {
+  if (typeof localStorage === "undefined") return "tiktak-test";
   let id = localStorage.getItem("tiktak:client");
   if (!id) {
     id = `tiktak-${crypto.randomUUID()}`;
@@ -118,6 +132,90 @@ export async function rpc<T>(
   const { data, error } = await account.rpc(name, params);
   if (error) throw new Error(`Nuvio sync failed (${name}): ${error.message}`);
   return data as T;
+}
+
+async function pullWatched(profileId: number) {
+  const result: WatchedItem[] = [];
+  const pageSize = 500;
+  for (let page = 1; ; page += 1) {
+    const rows = await rpc<Record<string, unknown>[]>(
+      "sync_pull_watched_items",
+      { p_profile_id: profileId, p_page: page, p_page_size: pageSize },
+    );
+    result.push(
+      ...rows.flatMap((row): WatchedItem[] => {
+        const id = String(row.content_id ?? "").trim();
+        if (!id) return [];
+        return [
+          {
+            id,
+            type: row.content_type === "series" ? "series" : "movie",
+            name: String(row.title ?? id),
+            season: row.season == null ? undefined : Number(row.season),
+            episode: row.episode == null ? undefined : Number(row.episode),
+            watchedAt: Number(row.watched_at) || Date.now(),
+          },
+        ];
+      }),
+    );
+    if (rows.length < pageSize) break;
+  }
+  return result;
+}
+
+export function parseTraktCredential(
+  value: Record<string, unknown> | undefined,
+): TraktCredential | null {
+  const access = String(value?.access_token ?? "").trim();
+  const refresh = String(value?.refresh_token ?? "").trim();
+  if (!access || !refresh) return null;
+  return {
+    access_token: access,
+    refresh_token: refresh,
+    token_type: String(value?.token_type ?? "bearer"),
+    created_at: Number(value?.created_at) || Math.floor(Date.now() / 1000),
+    expires_in: Number(value?.expires_in) || 86_400,
+    username: typeof value?.username === "string" ? value.username : undefined,
+    user_slug:
+      typeof value?.user_slug === "string" ? value.user_slug : undefined,
+    scrobbling_enabled:
+      typeof value?.scrobbling_enabled === "boolean"
+        ? value.scrobbling_enabled
+        : undefined,
+  };
+}
+
+function activeProfileId() {
+  const owner = localStorage.getItem("tiktak:active-profile-owner") ?? "";
+  const id = Number(owner.slice(owner.lastIndexOf(":") + 1));
+  if (!owner || !Number.isInteger(id) || id < 1)
+    throw new Error("Open a signed-in Nuvio profile before connecting Trakt.");
+  return id;
+}
+
+export async function saveTraktCredential(credential: TraktCredential) {
+  await rpc("sync_push_provider_credentials", {
+    p_profile_id: activeProfileId(),
+    p_credentials: [{ provider: "trakt", credential_json: credential }],
+    p_origin_client_id: origin,
+  });
+}
+
+export async function pullActiveTraktCredential() {
+  const rows = await rpc<
+    { provider: string; credential_json: Record<string, unknown> }[]
+  >("sync_pull_provider_credentials", { p_profile_id: activeProfileId() });
+  return parseTraktCredential(
+    rows.find((row) => row.provider.toLowerCase() === "trakt")?.credential_json,
+  );
+}
+
+export async function deleteTraktCredential() {
+  await rpc("sync_delete_provider_credentials", {
+    p_profile_id: activeProfileId(),
+    p_provider: "trakt",
+    p_origin_client_id: origin,
+  });
 }
 export const profiles = () => rpc<Profile[]>("sync_pull_profiles");
 export async function ensureProfiles(): Promise<Profile[]> {
@@ -219,6 +317,7 @@ export async function loadSetup(
     libraryRows,
     credentials,
     progressRows,
+    watched,
     homeRows,
   ] = await Promise.all([
     settings(id),
@@ -239,11 +338,12 @@ export async function loadSetup(
     rpc<{ provider: string; credential_json: Record<string, unknown> }[]>(
       "sync_pull_provider_credentials",
       { p_profile_id: id },
-    ).catch(() => []),
+    ).catch(() => null),
     rpc<Record<string, unknown>[]>("sync_pull_watch_progress", {
       p_profile_id: id,
       p_limit: 1000,
     }),
+    pullWatched(id),
     rpc<{ settings_json: unknown }[]>("sync_pull_home_catalog_settings", {
       p_profile_id: id,
       p_platform: "home_catalog_shared",
@@ -318,7 +418,10 @@ export async function loadSetup(
   const cleanedRows = cleanedAddonRows(nativeRows);
   let savedRows: Record<string, unknown>[] = cleanedRows;
   if (cleanedRows.length !== nativeRows.length) {
-    const addonsToSave = cleanedRows.map((row, index) => ({ ...row, sort_order: index }));
+    const addonsToSave = cleanedRows.map((row, index) => ({
+      ...row,
+      sort_order: index,
+    }));
     await rpc("sync_push_addons", {
       p_profile_id: addonId,
       p_addons: addonsToSave,
@@ -339,12 +442,12 @@ export async function loadSetup(
     background: safeUrl(r.background),
     description: String(r.description ?? ""),
   }));
-  const tmdb = credentials.find((c) => c.provider === "tmdb")?.credential_json
+  const tmdb = credentials?.find((c) => c.provider === "tmdb")?.credential_json
     .api_key;
   if (typeof tmdb === "string") localStorage.setItem("nuvio:tmdb-key", tmdb);
-  const key = credentials.find((c) => c.provider === "debrid:torbox")
+  const key = credentials?.find((c) => c.provider === "debrid:torbox")
     ?.credential_json.api_key;
-  const realDebridKey = credentials.find(
+  const realDebridKey = credentials?.find(
     (c) => c.provider === "debrid:realdebrid",
   )?.credential_json.api_key;
   const resolvedCollections = parseCollections(
@@ -420,14 +523,13 @@ export async function loadSetup(
     .sort((a, b) => b.at - a.at)
     .slice(0, 100);
   baselines.set(profileSyncKey(owner, id), {
-    addons: JSON.stringify(
-      restoredAddons,
-    ),
+    addons: JSON.stringify(restoredAddons),
     collections: JSON.stringify(resolvedCollections),
     library,
     rows: savedRows,
     progress: mergedProgress,
     progressRows,
+    watched,
     homeCatalogs: JSON.stringify(homeCatalogs),
   });
   return {
@@ -444,6 +546,14 @@ export async function loadSetup(
           ? web.library
           : [],
       progress: mergedProgress,
+      watched,
+      trakt:
+        credentials === null
+          ? undefined
+          : parseTraktCredential(
+              credentials.find((row) => row.provider.toLowerCase() === "trakt")
+                ?.credential_json,
+            ),
       provider: sharedProvider,
       epgUrl: safeSourceUrl(web.epgUrl) ?? "",
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
@@ -452,7 +562,9 @@ export async function loadSetup(
           ? realDebridKey
           : (web.realDebridKey ?? ""),
       autoplay: web.autoplay ?? true,
-      homeCatalogs: Array.isArray((homeBlob as { items?: unknown[] } | null)?.items)
+      homeCatalogs: Array.isArray(
+        (homeBlob as { items?: unknown[] } | null)?.items,
+      )
         ? homeCatalogs
         : web.homeCatalogs,
     },
@@ -524,8 +636,10 @@ export async function saveSetup(
     );
     const raw = current?.[0]?.settings_json;
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    const existing = parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown> : {};
+    const existing =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
     await rpc("sync_push_home_catalog_settings", {
       p_profile_id: id,
       p_platform: "home_catalog_shared",
@@ -604,9 +718,50 @@ export async function saveSetup(
       }),
       p_origin_client_id: origin,
     });
+  const watched = setup.watched ?? [];
+  const watchedAdditions = watched.filter(
+    (item) =>
+      !previous.watched.some(
+        (old) =>
+          watchedKey(old.type, old.id, old.season, old.episode) ===
+          watchedKey(item.type, item.id, item.season, item.episode),
+      ),
+  );
+  const watchedRemovals = previous.watched.filter(
+    (old) =>
+      !watched.some(
+        (item) =>
+          watchedKey(old.type, old.id, old.season, old.episode) ===
+          watchedKey(item.type, item.id, item.season, item.episode),
+      ),
+  );
+  if (watchedAdditions.length)
+    await rpc("sync_push_watched_items", {
+      p_profile_id: id,
+      p_items: watchedAdditions.map((item) => ({
+        content_id: item.id,
+        content_type: item.type,
+        title: item.name,
+        season: item.season ?? null,
+        episode: item.episode ?? null,
+        watched_at: item.watchedAt,
+      })),
+      p_origin_client_id: origin,
+    });
+  if (watchedRemovals.length)
+    await rpc("sync_delete_watched_items", {
+      p_profile_id: id,
+      p_keys: watchedRemovals.map((item) => ({
+        content_id: item.id,
+        season: item.season ?? null,
+        episode: item.episode ?? null,
+      })),
+      p_origin_client_id: origin,
+    });
   baselines.set(keyForProfile, {
     ...previous,
     progress: setup.progress,
+    watched,
     addons: JSON.stringify(setup.addons),
     collections: JSON.stringify(setup.collections),
     library: setup.library.filter((i) => i.source === "addon"),

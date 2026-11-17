@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type Hls from "hls.js";
+import { playbackNeedsRecovery } from "./playback-stall";
 import type { Addon, Episode, Item, Subtitle } from "./types";
 import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
@@ -131,21 +132,35 @@ function VideoPlayer({
   nextEpisodeRef.current = nextEpisode;
   onNextEpisodeRef.current = onNextEpisode;
   async function advanceNextEpisode() {
-    if (!nextEpisodeRef.current || !onNextEpisodeRef.current || nextBusyRef.current) return;
+    if (
+      !nextEpisodeRef.current ||
+      !onNextEpisodeRef.current ||
+      nextBusyRef.current
+    )
+      return;
     nextBusyRef.current = true;
     setNextBusy(true);
     setNextError("");
     try {
       await onNextEpisodeRef.current();
     } catch (error) {
-      setNextError(error instanceof Error ? error.message : "Could not load the next episode.");
+      setNextError(
+        error instanceof Error
+          ? error.message
+          : "Could not load the next episode.",
+      );
     } finally {
       nextBusyRef.current = false;
       setNextBusy(false);
     }
   }
   useEffect(() => {
-    if (nextEpisode && !playback.party && videoRef.current?.ended && readNextEpisodeAutoAdvance())
+    if (
+      nextEpisode &&
+      !playback.party &&
+      videoRef.current?.ended &&
+      readNextEpisodeAutoAdvance()
+    )
       void advanceNextEpisode();
   }, [nextEpisode, playback.party]);
   const [retry, setRetry] = useState(0);
@@ -367,6 +382,10 @@ function VideoPlayer({
     let disposed = false;
     let lastSave = 0;
     let hlsRecoveries = 0;
+    let stallRecoveries = 0;
+    let stallFailed = false;
+    let lastAdvanceAt = Date.now();
+    let lastMediaTime = 0;
     setError("");
     setNotice("");
     setQuality([]);
@@ -390,11 +409,22 @@ function VideoPlayer({
     }
     const mediaOffset = playback.mediaOffset ?? 0;
     const absoluteTime = () => mediaOffset + (video.currentTime || 0);
-    const scrobbler = createTraktScrobbler(playback.item, playback.episode, traktProfileName);
-    const simklScrobbler = createSimklScrobbler(playback.item, playback.episode, traktProfileName);
+    const scrobbler = createTraktScrobbler(
+      playback.item,
+      playback.episode,
+      traktProfileName,
+    );
+    const simklScrobbler = createSimklScrobbler(
+      playback.item,
+      playback.episode,
+      traktProfileName,
+    );
     const scrobbleProgress = () => {
-      const duration = runtimeSeconds(playback.item.runtime) || mediaOffset + video.duration;
-      return Number.isFinite(duration) && duration > 0 ? absoluteTime() / duration * 100 : 0;
+      const duration =
+        runtimeSeconds(playback.item.runtime) || mediaOffset + video.duration;
+      return Number.isFinite(duration) && duration > 0
+        ? (absoluteTime() / duration) * 100
+        : 0;
     };
     const persist = () =>
       storeProgress(
@@ -407,6 +437,11 @@ function VideoPlayer({
       if (document.visibilityState === "hidden") persist();
     };
     const time = () => {
+      if (Math.abs(video.currentTime - lastMediaTime) >= 0.1) {
+        lastMediaTime = video.currentTime;
+        lastAdvanceAt = Date.now();
+        stallRecoveries = 0;
+      }
       setCurrentTime(absoluteTime());
       const available = video.seekable.length
         ? video.seekable.end(video.seekable.length - 1)
@@ -478,6 +513,8 @@ function VideoPlayer({
       );
     };
     const playingStarted = () => {
+      lastAdvanceAt = Date.now();
+      lastMediaTime = video.currentTime;
       setPlaying(true);
       scrobbler.start(scrobbleProgress());
       simklScrobbler.start(scrobbleProgress());
@@ -496,15 +533,26 @@ function VideoPlayer({
       setPlaying(false);
       scrobbler.stop(100);
       simklScrobbler.stop(100);
-      if (traktProfileName && anilistProgressEnabled(traktProfileName) && anilistMediaRef(playback.item.id))
-        void recordAniListEpisode(traktProfileName, playback.item.id, playback.episode?.episode)
-          .catch(() => undefined);
+      if (
+        traktProfileName &&
+        anilistProgressEnabled(traktProfileName) &&
+        anilistMediaRef(playback.item.id)
+      )
+        void recordAniListEpisode(
+          traktProfileName,
+          playback.item.id,
+          playback.episode?.episode,
+        ).catch(() => undefined);
       reportMediaActivity(playbackMetricId, {
         active: false,
         event: "ended",
       });
       persist();
-      if (nextEpisodeRef.current && !playback.party && readNextEpisodeAutoAdvance())
+      if (
+        nextEpisodeRef.current &&
+        !playback.party &&
+        readNextEpisodeAutoAdvance()
+      )
         void advanceNextEpisode();
     };
     const play = async () => {
@@ -513,6 +561,39 @@ function VideoPlayer({
       } catch {
         if (!disposed) setNotice("Tap the video’s play button to start.");
       }
+    };
+    const resetStallClock = () => {
+      lastAdvanceAt = Date.now();
+      lastMediaTime = video.currentTime;
+    };
+    const recoverStall = () => {
+      if (stallFailed) return;
+      if (
+        !playbackNeedsRecovery({
+          now: Date.now(),
+          lastAdvanceAt,
+          paused: video.paused,
+          ended: video.ended,
+          seeking: video.seeking,
+          hidden: document.visibilityState === "hidden",
+        })
+      )
+        return;
+      lastAdvanceAt = Date.now();
+      if (hlsRef.current && stallRecoveries < 1) {
+        stallRecoveries += 1;
+        hlsRef.current.startLoad(
+          playback.item.type === "live" ? -1 : video.currentTime,
+        );
+        setNotice("Playback stalled. Reconnecting…");
+        void play();
+        return;
+      }
+      stallFailed = true;
+      setNotice(
+        "Playback stopped responding. Trying another compatible source…",
+      );
+      failed();
     };
     video.addEventListener("loadedmetadata", loaded);
     video.addEventListener("timeupdate", time);
@@ -523,8 +604,11 @@ function VideoPlayer({
     video.addEventListener("pause", persist);
     video.addEventListener("ended", playbackEnded);
     video.addEventListener("error", failed);
+    video.addEventListener("seeking", resetStallClock);
+    video.addEventListener("canplay", resetStallClock);
     window.addEventListener("pagehide", persist);
     document.addEventListener("visibilitychange", persistVisible);
+    const stallTimer = window.setInterval(recoverStall, 3_000);
     const isHls = playback.hls || /\.m3u8(?:[?#]|$)/i.test(playback.url);
     const nativeHls =
       video.canPlayType("application/vnd.apple.mpegurl") !== "" &&
@@ -631,8 +715,11 @@ function VideoPlayer({
       video.removeEventListener("pause", persist);
       video.removeEventListener("ended", playbackEnded);
       video.removeEventListener("error", failed);
+      video.removeEventListener("seeking", resetStallClock);
+      video.removeEventListener("canplay", resetStallClock);
       window.removeEventListener("pagehide", persist);
       document.removeEventListener("visibilitychange", persistVisible);
+      window.clearInterval(stallTimer);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.pause();
@@ -1063,13 +1150,23 @@ function VideoPlayer({
           {notice}
         </p>
       )}
-      {nextError && <p role="alert" className="error">{nextError}</p>}
+      {nextError && (
+        <p role="alert" className="error">
+          {nextError}
+        </p>
+      )}
       <div className="player-tools">
         {nextEpisode && !party && (
           <>
-            <button type="button" disabled={nextBusy} onClick={() => void advanceNextEpisode()}>
+            <button
+              type="button"
+              disabled={nextBusy}
+              onClick={() => void advanceNextEpisode()}
+            >
               <FastForward size={18} />
-              {nextBusy ? "Finding next episode…" : `Play next: S${nextEpisode.season} E${nextEpisode.episode}`}
+              {nextBusy
+                ? "Finding next episode…"
+                : `Play next: S${nextEpisode.season} E${nextEpisode.episode}`}
             </button>
             <NextEpisodeSetting compact />
           </>

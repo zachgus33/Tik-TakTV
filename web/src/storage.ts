@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { Addon, Item, Progress, Provider } from "./types";
+import type { Addon, Item, Progress, Provider, WatchedItem } from "./types";
 import { defaultAddons } from "./api";
+import { markWatched } from "./watched";
 
 export function read<T>(
   key: string,
@@ -54,6 +55,7 @@ const accountScopedKeys = [
   "collections",
   "library",
   "progress",
+  "watched",
   "torbox-key",
   "realdebrid-key",
   "playback-service",
@@ -85,7 +87,8 @@ export function activeProfileIndex() {
 }
 
 export function activeYouTubeInterestsKey() {
-  const profile = localStorage.getItem("tiktak:active-profile-owner") ?? "default:1";
+  const profile =
+    localStorage.getItem("tiktak:active-profile-owner") ?? "default:1";
   return `tiktak:youtube-interests:${profile}`;
 }
 
@@ -155,5 +158,10 @@ export function storeProgress(
       at: Date.now(),
       episode,
     });
+  else
+    save(
+      "watched",
+      markWatched(read<WatchedItem[]>("watched", []), item, episode),
+    );
   save("progress", next.slice(0, 100));
 }
