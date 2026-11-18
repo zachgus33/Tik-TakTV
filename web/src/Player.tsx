@@ -577,12 +577,20 @@ function VideoPlayer({
       )
         void advanceNextEpisode();
     };
-    const play = async () => {
+    const play = async (showBlockedNotice = false) => {
       try {
         await video.play();
       } catch {
-        if (!disposed) setNotice("Tap the video’s play button to start.");
+        if (!disposed && showBlockedNotice)
+          setNotice("Tap the video’s play button to start.");
       }
+    };
+    // iOS PWA can reject an immediate play() while it is still attaching an
+    // asynchronously resolved movie URL, then leave the fully buffered video
+    // paused. Retry once when media is actually ready; the original tap on
+    // Play best stream/source remains the user gesture that started playback.
+    const playWhenReady = () => {
+      if (video.paused && !video.ended) void play(true);
     };
     const resetStallClock = () => {
       lastAdvanceAt = Date.now();
@@ -628,6 +636,7 @@ function VideoPlayer({
     video.addEventListener("error", failed);
     video.addEventListener("seeking", resetStallClock);
     video.addEventListener("canplay", resetStallClock);
+    video.addEventListener("canplay", playWhenReady);
     window.addEventListener("pagehide", persist);
     document.addEventListener("visibilitychange", persistVisible);
     const stallTimer = window.setInterval(recoverStall, 3_000);
@@ -739,6 +748,7 @@ function VideoPlayer({
       video.removeEventListener("error", failed);
       video.removeEventListener("seeking", resetStallClock);
       video.removeEventListener("canplay", resetStallClock);
+      video.removeEventListener("canplay", playWhenReady);
       window.removeEventListener("pagehide", persist);
       document.removeEventListener("visibilitychange", persistVisible);
       window.clearInterval(stallTimer);

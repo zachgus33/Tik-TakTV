@@ -2627,6 +2627,47 @@ test("autoplay shows a top loading state without opening the manual stream list"
   );
 });
 
+test("iPhone retries user-selected playback once media is ready", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone", "Exercises iOS PWA media readiness.");
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const nativePlay = HTMLMediaElement.prototype.play;
+    let attempts = 0;
+    Object.defineProperty(window, "__testPlayAttempts", {
+      get: () => attempts,
+    });
+    HTMLMediaElement.prototype.play = function () {
+      attempts += 1;
+      if (attempts === 1)
+        return Promise.reject(new DOMException("Media is not ready", "AbortError"));
+      return nativePlay.call(this);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          { name: "1080p", seeders: 100, url: "https://cdn.example/ready.mp4" },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/ready.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play best stream" }).click();
+  const video = page.locator("video");
+  await expect(video).toBeVisible();
+  await video.evaluate((element) => element.dispatchEvent(new Event("canplay")));
+  await expect
+    .poll(() => page.evaluate(() => (window as Window & { __testPlayAttempts?: number }).__testPlayAttempts))
+    .toBeGreaterThan(1);
+});
+
 test("the player exposes every compatible stream while automatic fallback stays bounded", async ({
   page,
 }) => {

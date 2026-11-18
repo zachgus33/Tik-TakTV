@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.17.1";
+export const latestRelease = "2026.11.18.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 18, 2026",
+    title: "Reliable iPhone playback start",
+    changes: [
+      "Starting Play best stream, choosing a source, or resuming a movie or episode now retries playback when iPhone/iPad media becomes ready instead of leaving a loaded video paused.",
+      "If iOS still blocks playback after that ready-state retry, TikTak TV keeps the clear Play control and explains what to do.",
+    ],
+  },
+  {
+    version: "2026.11.17.1",
     date: "November 17, 2026",
     title: "Direct-first debrid playback and profile setup",
     changes: [
