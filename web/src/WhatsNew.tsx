@@ -7,7 +7,7 @@ const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
-    version: latestRelease,
+    version: "2026.11.13.5",
     date: "November 17, 2026",
     title: "Direct-first debrid playback and profile setup",
     changes: [
