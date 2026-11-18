@@ -2756,7 +2756,7 @@ test("autoplay falls back to the next ranked source when playback fails", async 
   await page.getByRole("button", { name: "Play best stream" }).click();
   await fallbackRequested;
 });
-test("an independent user's configured Torrentio debrid stream uses the playback relay", async ({
+test("an independent user's configured Torrentio debrid stream falls back to the playback relay", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -2805,13 +2805,15 @@ test("an independent user's configured Torrentio debrid stream uses the playback
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect.poll(() => preparations.length).toBeGreaterThan(0);
-  expect(directStreamCalls).toBe(0);
+  // Direct requests are preferred; the aborted browser request represents a
+  // CORS/network block, after which the authenticated companion takes over.
+  expect(directStreamCalls).toBeGreaterThan(0);
   expect(preparations[0].url).toContain("/resolve/torbox/");
   expect(preparations[0].mode).toBe("direct");
   await expect(page.locator("video")).toBeVisible();
 });
 
-test("configured add-on streams retain query settings and recover from relay failure", async ({
+test("configured add-on streams retain query settings with direct-first loading", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -2839,15 +2841,17 @@ test("configured add-on streams retain query settings and recover from relay fai
       ]),
     );
   });
-  const requested: string[] = [];
+  const relayed: string[] = [];
   await page.route("https://playback.example/request", (route) => {
     const source = route.request().postDataJSON().url as string;
     if (source.startsWith("https://configured.example/"))
-      requested.push(source);
+      relayed.push(source);
     return route.fulfill({ status: 502, json: { error: "upstream" } });
   });
+  const direct: string[] = [];
   await page.route("https://configured.example/**", (route) => {
     const url = new URL(route.request().url());
+    direct.push(url.href);
     expect(url.searchParams.get("token")).toBe("private");
     if (url.pathname.includes("/stream/"))
       return route.fulfill({
@@ -2869,11 +2873,12 @@ test("configured add-on streams retain query settings and recover from relay fai
   await page.getByRole("button", { name: "Play best stream" }).click();
   await expect
     .poll(() =>
-      requested.some((url) =>
+      direct.some((url) =>
         url.includes("/stream/movie/tt-test.json?token=private"),
       ),
     )
     .toBe(true);
+  expect(relayed).toEqual([]);
   await expect(page.locator("video")).toBeVisible();
 });
 

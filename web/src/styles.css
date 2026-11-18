@@ -7011,6 +7011,24 @@ button.primary:hover,
   min-height: 44px;
   padding-block: 8px;
 }
+.tv-mode .profile-auth-card .profile-login:has(.signup-avatar-colors) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 0.75rem;
+}
+.tv-mode .profile-auth-card .profile-login:has(.signup-avatar-colors) > :is(
+  .signup-avatar-colors,
+  .primary,
+  .profile-auth-note
+) {
+  grid-column: 1 / -1;
+}
+.tv-mode .signup-avatar-colors > div {
+  justify-content: center;
+}
+.tv-mode .signup-avatar-colors button {
+  min-height: 2.1rem;
+  width: 2.1rem;
+}
 .tv-mode .setup-wizard-backdrop {
   padding: max(24px, 4vh) max(56px, 5vw);
   overflow: hidden;
