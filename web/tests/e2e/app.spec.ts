@@ -939,6 +939,26 @@ test("TV sign-in and account creation remain inside a 720p viewport", async ({
   ).toBeInViewport();
 });
 
+test("desktop account creation keeps every required action reachable at laptop height", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.addInitScript(() =>
+    localStorage.removeItem("tiktak:established-local"),
+  );
+  await page.goto("/#home");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByLabel("Profile name")).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Create free account" }),
+  ).toBeInViewport();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+});
+
 test("TV onboarding traps remote focus and keeps its controls visible", async ({
   page,
 }) => {

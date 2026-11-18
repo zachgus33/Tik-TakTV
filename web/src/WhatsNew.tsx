@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.18.1";
+export const latestRelease = "2026.11.18.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 18, 2026",
+    title: "Profile tracking restore and responsive signup",
+    changes: [
+      "Trakt now restores against the exact signed-in account and selected profile before the profile screen renders, so a connection follows that profile to a new device.",
+      "The public account screen now keeps signup fields and Create account reachable on shorter laptop windows and browser zoom levels instead of clipping the form.",
+    ],
+  },
+  {
+    version: "2026.11.18.1",
     date: "November 18, 2026",
     title: "Reliable iPhone playback start",
     changes: [
