@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.18.2";
+export const latestRelease = "2026.11.18.3";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 18, 2026",
+    title: "Landing screen fits shorter desktops",
+    changes: [
+      "The public landing screen now scales its showcase, feature tabs, and signup panel to fit short laptop windows and browser zoom levels without requiring a page scroll.",
+      "All account creation controls remain visible and reachable at 1440×720 while preserving the TV-style visual layout.",
+    ],
+  },
+  {
+    version: "2026.11.18.2",
     date: "November 18, 2026",
     title: "Profile tracking restore and responsive signup",
     changes: [

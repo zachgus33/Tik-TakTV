@@ -7984,6 +7984,47 @@ button.primary:hover,
     align-self: start;
     padding-block: 6px 24px;
   }
+  .profile-gate:has(.profile-gate-story) .profile-gate-brand {
+    font-size: 1.4rem;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-brand small {
+    font-size: 0.4rem;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-story {
+    max-width: min(720px, 58vw);
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-story h2 {
+    margin: 4px 0 7px;
+    font-size: clamp(2.1rem, 3.5vw, 3.35rem);
+    line-height: 0.98;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-story > p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.42;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-preview {
+    margin: 9px 0 7px;
+    padding: 10px;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-preview-window {
+    width: auto;
+    height: min(34vh, 310px);
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-preview-tabs {
+    gap: 7px;
+    margin-top: 8px;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-preview-tabs button {
+    min-height: 40px;
+    font-size: 0.7rem;
+  }
+  .profile-gate:has(.profile-gate-story) .profile-gate-points {
+    gap: 6px 14px;
+    font-size: 0.71rem;
+  }
   .profile-gate:has(.profile-gate-story) h1 {
     margin-bottom: 0.55rem;
     font-size: clamp(1.8rem, 3.1vw, 2.5rem);

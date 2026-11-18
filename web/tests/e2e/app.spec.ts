@@ -942,7 +942,7 @@ test("TV sign-in and account creation remain inside a 720p viewport", async ({
 test("desktop account creation keeps every required action reachable at laptop height", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.setViewportSize({ width: 1440, height: 720 });
   await page.addInitScript(() =>
     localStorage.removeItem("tiktak:established-local"),
   );
@@ -954,7 +954,11 @@ test("desktop account creation keeps every required action reachable at laptop h
   ).toBeInViewport();
   await expect
     .poll(() =>
-      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <= innerWidth &&
+          document.documentElement.scrollHeight <= innerHeight,
+      ),
     )
     .toBe(true);
 });
