@@ -509,27 +509,40 @@ export async function addonStreams(
       ),
   );
   const active = eligible.filter((addon) => !addonQuarantined(addon));
-  const results = await Promise.allSettled(
-    active.map(async (a) => {
+  // Several add-ons share the same companion or debrid provider. Starting all
+  // of them at once causes 429s and makes an otherwise usable first stream
+  // fail. Keep a small pool: it still starts playback as soon as a source
+  // responds, while the remaining candidates continue loading in the
+  // background for the stream picker and fallback.
+  const results: PromiseSettledResult<Stream[]>[] = Array(active.length);
+  let next = 0;
+  const loadOne = async () => {
+    while (!signal?.aborted) {
+      const index = next++;
+      if (index >= active.length) return;
+      const addon = active[index];
       try {
         const data = await json<{ streams?: Stream[] }>(
-          addonResourceUrl(a.base, "stream", item.type, id),
+          addonResourceUrl(addon.base, "stream", item.type, id),
           signal,
           20000,
         );
-        recordAddonSuccess(a);
+        recordAddonSuccess(addon);
         const streams = (data.streams ?? []).map((s) => ({
           ...s,
-          addonName: a.manifest.name,
-          name: s.name ?? a.manifest.name,
+          addonName: addon.manifest.name,
+          name: s.name ?? addon.manifest.name,
         }));
-        onSource?.(streams, a);
-        return streams;
-      } catch (error) {
-        recordAddonFailure(a, error);
-        throw error;
+        onSource?.(streams, addon);
+        results[index] = { status: "fulfilled", value: streams };
+      } catch (reason) {
+        recordAddonFailure(addon, reason);
+        results[index] = { status: "rejected", reason };
       }
-    }),
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(3, active.length) }, () => loadOne()),
   );
   const failureReason = (error: unknown) => {
     const detail = error instanceof Error ? error.message : "";
