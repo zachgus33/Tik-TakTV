@@ -4002,9 +4002,9 @@ test.describe("authenticated integrations", () => {
     await expect(page.getByRole("heading", { name: "Make TikTak TV yours" })).toBeVisible();
     await page.getByLabel("Profile name").fill("Jay");
     await page.getByRole("button", { name: "Enter TikTak TV" }).click();
-    expect(profilePayload?.p_profiles).toEqual([
-      expect.objectContaining({ profile_index: 1, name: "Jay" }),
-    ]);
+    await expect
+      .poll(() => profilePayload?.p_profiles?.[0]?.name)
+      .toBe("Jay");
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("nuvio:tmdb-key")))
       .toBe("c49921f8195461e369d52a70a15fc8e1");

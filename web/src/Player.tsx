@@ -218,8 +218,12 @@ function VideoPlayer({
         ?.focus();
     focus();
     // Chromium WebView may drop focus while a hidden control row is becoming
-    // visible. Re-apply it after that render without changing navigation.
-    requestAnimationFrame(focus);
+    // visible. Re-apply it only if focus was lost; otherwise this would undo a
+    // Left/Right move made immediately after the control row appears.
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || active === dialogRef.current) focus();
+    });
   }, []);
   useEffect(() => {
     if (!playback.party) return;
