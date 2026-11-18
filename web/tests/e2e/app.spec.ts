@@ -941,7 +941,8 @@ test("TV sign-in and account creation remain inside a 720p viewport", async ({
 
 test("desktop account creation keeps every required action reachable at laptop height", async ({
   page,
-}) => {
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Desktop viewport contract.");
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.addInitScript(() =>
     localStorage.removeItem("tiktak:established-local"),
