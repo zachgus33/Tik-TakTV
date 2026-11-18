@@ -250,7 +250,10 @@ export async function deleteProviderCredential(provider: "simkl" | "anilist") {
   });
 }
 export const profiles = () => rpc<Profile[]>("sync_pull_profiles");
-export async function ensureProfiles(): Promise<Profile[]> {
+export async function ensureProfiles(initial?: {
+  name?: string;
+  avatarColor?: string;
+}): Promise<Profile[]> {
   const existing = await profiles();
   if (existing.length) return existing;
 
@@ -259,8 +262,12 @@ export async function ensureProfiles(): Promise<Profile[]> {
     p_profiles: [
       {
         profile_index: 1,
-        name: "Home",
-        avatar_color_hex: "#8E24AA",
+        // A new TikTak account must never start as an anonymous, generic
+        // profile. The sign-up screen supplies these values before the first
+        // authenticated profile sync; the defaults preserve older clients and
+        // invitation/confirmation flows that do not have a pending choice.
+        name: initial?.name?.trim() || "Home",
+        avatar_color_hex: initial?.avatarColor || "#8E24AA",
         uses_primary_addons: false,
         uses_primary_plugins: false,
         avatar_id: null,

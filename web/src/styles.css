@@ -802,6 +802,42 @@ body {
   text-align: center;
 }
 
+.signup-avatar-colors {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.signup-avatar-colors legend {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  margin-bottom: 0.55rem;
+}
+
+.signup-avatar-colors > div {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.signup-avatar-colors button {
+  aspect-ratio: 1;
+  background: var(--avatar-color);
+  border: 2px solid transparent;
+  border-radius: 50%;
+  color: white;
+  font-weight: 800;
+  min-height: 2.35rem;
+  padding: 0;
+  width: 2.35rem;
+}
+
+.signup-avatar-colors button:is(:hover, :focus-visible, .selected) {
+  border-color: white;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--avatar-color) 42%, transparent);
+  transform: translateY(-1px);
+}
+
 .profile-first-setup {
   display: grid;
   gap: 1rem;

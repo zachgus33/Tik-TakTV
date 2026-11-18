@@ -296,6 +296,13 @@ function ProfileGate({
   onGuest: () => void;
   skipSelection: boolean;
 }) {
+  const signupAvatarColors = [
+    ["Violet", "#8E24AA"],
+    ["Ocean", "#1565C0"],
+    ["Forest", "#2E7D32"],
+    ["Sunset", "#E65100"],
+    ["Rose", "#C2185B"],
+  ] as const;
   const [list, setList] = useState<Profile[]>([]);
   const [email, setEmail] = useState("");
   const [pinProfile, setPinProfile] = useState<Profile | null>(null);
@@ -309,12 +316,17 @@ function ProfileGate({
     () => document.visibilityState === "visible",
   );
   const [notice, setNotice] = useState("");
-  const [authCooldownUntil, setAuthCooldownUntil] = useState(0);
+  const [authCooldownUntil, setAuthCooldownUntil] = useState(() => {
+    const saved = Number(sessionStorage.getItem("tiktak:auth-cooldown-until"));
+    return Number.isFinite(saved) && saved > Date.now() ? saved : 0;
+  });
   const [authNow, setAuthNow] = useState(() => Date.now());
   const [profileSetup, setProfileSetup] = useState<Profile | null>(null);
   const [avatarCatalog, setAvatarCatalog] = useState<Avatar[]>([]);
   const [profileName, setProfileName] = useState("");
   const [profileAvatar, setProfileAvatar] = useState<Avatar>();
+  const [signupProfileName, setSignupProfileName] = useState("");
+  const [signupAvatarColor, setSignupAvatarColor] = useState("#8E24AA");
   useEffect(() => {
     const updateVisibility = () =>
       setPageVisible(document.visibilityState === "visible");
@@ -351,6 +363,10 @@ function ProfileGate({
     const interval = window.setInterval(() => setAuthNow(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [authCooldownUntil]);
+  useEffect(() => {
+    if (authCooldownUntil > Date.now()) return;
+    sessionStorage.removeItem("tiktak:auth-cooldown-until");
+  }, [authCooldownUntil, authNow]);
   const authCooldownSeconds = authCooldownLabel(authCooldownUntil, authNow);
   function selectPreview(next: LandingPreview) {
     setPreview(next);
@@ -365,14 +381,31 @@ function ProfileGate({
       return;
     }
     setEmail(data.session?.user.email ?? "");
+    let pendingProfile: { name?: string; avatarColor?: string } | undefined;
+    try {
+      const saved = JSON.parse(
+        sessionStorage.getItem("tiktak:new-account-profile") ?? "null",
+      ) as { email?: string; name?: string; avatarColor?: string } | null;
+      if (
+        saved &&
+        saved.email?.toLowerCase() === data.session.user.email?.toLowerCase()
+      )
+        pendingProfile = { name: saved.name, avatarColor: saved.avatarColor };
+    } catch {
+      // A stale or malformed local handoff must never block sign-in.
+    }
     const [available, availableAvatars] = data.session
-      ? await Promise.all([ensureProfiles(), avatars().catch(() => [])])
+      ? await Promise.all([
+          ensureProfiles(pendingProfile),
+          avatars().catch(() => []),
+        ])
       : [[], [] as Avatar[]];
     setList(available);
     if (
       data.session &&
       sessionStorage.getItem("tiktak:new-account") === "1" &&
-      available[0]
+      available[0] &&
+      !pendingProfile
     ) {
       setAvatarCatalog(availableAvatars);
       setProfileSetup(available[0]);
@@ -381,6 +414,11 @@ function ProfileGate({
         availableAvatars.find((avatar) => avatar.id === available[0].avatar_id),
       );
       return;
+    }
+    if (data.session && pendingProfile) {
+      sessionStorage.removeItem("tiktak:new-account");
+      sessionStorage.removeItem("tiktak:new-account-profile");
+      setNotice("Your profile was created. Select it to enter TikTak TV.");
     }
     if (data.session && skipSelection) {
       const remembered = Number(
@@ -746,6 +784,14 @@ function ProfileGate({
                   setError("Passwords do not match.");
                   return;
                 }
+                const signUpProfile = {
+                  name: signupProfileName.trim(),
+                  avatarColor: signupAvatarColor,
+                };
+                if (authMode === "signup" && !signUpProfile.name) {
+                  setError("Choose a profile name to create your account.");
+                  return;
+                }
                 setBusy(true);
                 setError("");
                 setNotice("");
@@ -754,6 +800,12 @@ function ProfileGate({
                     ? account.auth.signUp({
                         email: String(form.get("email") ?? "").trim(),
                         password,
+                        options: {
+                          data: {
+                            profile_name: signUpProfile.name,
+                            avatar_color_hex: signUpProfile.avatarColor,
+                          },
+                        },
                       })
                     : account.auth.signInWithPassword({
                         email: String(form.get("email") ?? "").trim(),
@@ -762,8 +814,16 @@ function ProfileGate({
                 void request
                   .then(({ data, error }) => {
                     if (error) throw error;
-                    if (authMode === "signup")
+                    if (authMode === "signup") {
                       sessionStorage.setItem("tiktak:new-account", "1");
+                      sessionStorage.setItem(
+                        "tiktak:new-account-profile",
+                        JSON.stringify({
+                          email: String(form.get("email") ?? "").trim(),
+                          ...signUpProfile,
+                        }),
+                      );
+                    }
                     if (authMode === "signup" && !data.session) {
                       setNotice(
                         "Account created. Check your email to confirm it, then sign in.",
@@ -776,7 +836,12 @@ function ProfileGate({
                   .catch((e) => {
                     const delay = authRateLimitDelay(e);
                     if (delay) {
-                      setAuthCooldownUntil(Date.now() + delay);
+                      const until = Date.now() + delay;
+                      sessionStorage.setItem(
+                        "tiktak:auth-cooldown-until",
+                        String(until),
+                      );
+                      setAuthCooldownUntil(until);
                       setAuthNow(Date.now());
                     }
                     setError(authErrorMessage(e));
@@ -806,16 +871,53 @@ function ProfileGate({
                 />
               </label>
               {authMode === "signup" && (
-                <label>
-                  Confirm password
-                  <input
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                  />
-                </label>
+                <>
+                  <label>
+                    Confirm password
+                    <input
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Profile name
+                    <input
+                      value={signupProfileName}
+                      onChange={(event) =>
+                        setSignupProfileName(event.target.value)
+                      }
+                      maxLength={32}
+                      autoComplete="nickname"
+                      required
+                    />
+                  </label>
+                  <fieldset className="signup-avatar-colors">
+                    <legend>Choose an avatar color</legend>
+                    <div>
+                      {signupAvatarColors.map(([label, color]) => (
+                        <button
+                          type="button"
+                          key={color}
+                          className={
+                            signupAvatarColor === color ? "selected" : ""
+                          }
+                          aria-pressed={signupAvatarColor === color}
+                          aria-label={`Use ${label} avatar`}
+                          onClick={() => setSignupAvatarColor(color)}
+                          style={
+                            { "--avatar-color": color } as React.CSSProperties
+                          }
+                        >
+                          {signupProfileName.trim().slice(0, 1).toUpperCase() ||
+                            "?"}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                </>
               )}
               <button
                 className="primary"

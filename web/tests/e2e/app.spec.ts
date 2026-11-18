@@ -3932,7 +3932,16 @@ test.describe("authenticated integrations", () => {
       else if (url.pathname.includes("/auth/v1/user")) data = user;
       else if (url.pathname.endsWith("/sync_pull_profiles"))
         data = profileCreated
-          ? [{ profile_index: 1, name: "Home", pin_enabled: false }]
+          ? [
+              {
+                profile_index: 1,
+                name: profilePayload?.p_profiles?.[0]?.name ?? "Home",
+                avatar_color_hex:
+                  profilePayload?.p_profiles?.[0]?.avatar_color_hex ??
+                  "#8E24AA",
+                pin_enabled: false,
+              },
+            ]
           : [];
       else if (url.pathname.endsWith("/sync_push_profiles")) {
         profilePayload = route.request().postDataJSON();
@@ -3997,14 +4006,16 @@ test.describe("authenticated integrations", () => {
     await page.getByLabel("Email", { exact: true }).fill(user.email);
     await page.getByLabel("Password", { exact: true }).fill("fake-password");
     await page.getByLabel("Confirm password").fill("fake-password");
+    await page.getByLabel("Profile name").fill("Jay");
+    await page.getByLabel("Use Ocean avatar").click();
     await page.getByRole("button", { name: "Create free account" }).click();
 
-    await expect(page.getByRole("heading", { name: "Make TikTak TV yours" })).toBeVisible();
-    await page.getByLabel("Profile name").fill("Jay");
-    await page.getByRole("button", { name: "Enter TikTak TV" }).click();
-    await expect
-      .poll(() => profilePayload?.p_profiles?.[0]?.name)
-      .toBe("Jay");
+    await expect.poll(() => profilePayload?.p_profiles?.[0]?.name).toBe("Jay");
+    expect(profilePayload?.p_profiles?.[0]?.avatar_color_hex).toBe("#1565C0");
+    await expect(
+      page.getByText("Your profile was created. Select it to enter TikTak TV."),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /Jay/ }).click();
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("nuvio:tmdb-key")))
       .toBe("c49921f8195461e369d52a70a15fc8e1");

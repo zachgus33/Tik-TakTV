@@ -184,9 +184,12 @@ export async function sourceFetch(
     if (error instanceof Error && error.message.includes("playback service"))
       throw error;
   }
-  const addonJson = parsed &&
+  const addonJson =
+    parsed &&
     (/(?:^|\/)manifest\.json$/i.test(parsed.pathname) ||
-      /\/(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json$/i.test(parsed.pathname));
+      /\/(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json$/i.test(
+        parsed.pathname,
+      ));
   const relay = (signal = options.signal ?? undefined) => {
     const headers = new Headers(options.headers);
     if (addonJson && !headers.has("accept"))
@@ -220,60 +223,28 @@ export async function sourceFetch(
   // companion even when the provider itself uses HTTPS.
   if (providerApi && config) return relay();
   if (forceService && config) return relay();
-  const addonPayload = addonJson && (options.method ?? "GET") === "GET";
-  let relayResponse: Response | undefined;
-  let relayError: unknown;
-  if (addonPayload && config) {
-    // Nuvio Web requests add-on JSON from its server. Use the same route first
-    // for signed-in TikTak users: configured add-ons commonly reject browser
-    // CORS requests. Keep a bounded direct fallback for browser-accessible ones.
-    const attempt = new AbortController();
-    const cancel = () => attempt.abort();
-    options.signal?.addEventListener("abort", cancel, { once: true });
-    const timer = setTimeout(cancel, 8000);
-    try {
-      let response = await relay(attempt.signal);
-      // The companion limits concurrent upstream work. A short, bounded retry
-      // is more useful than falling through to a direct browser request that
-      // the same add-on will reject with CORS, and it prevents a page load from
-      // amplifying one temporary 429 into dozens of failed requests.
-      if (response.status === 429 && !attempt.signal.aborted) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 650));
-        if (!attempt.signal.aborted) response = await relay(attempt.signal);
-      }
-      if (response.ok) return response;
-      relayResponse = response;
-    } catch (error) {
-      if (options.signal?.aborted) throw error;
-      relayError = error;
-    } finally {
-      clearTimeout(timer);
-      options.signal?.removeEventListener("abort", cancel);
-    }
-  }
-  // Add-on JSON was already attempted through the authenticated companion.
-  // Do not hammer a known rate-limited relay with a direct request that will
-  // usually fail CORS and hide the actionable companion error.
-  if (addonPayload && relayResponse?.status === 429) return relayResponse;
   try {
     const response = await fetch(url, options);
     if (
       config &&
-      !addonPayload &&
       [401, 403, 408, 425, 429, 502, 503, 504].includes(response.status) &&
       !options.signal?.aborted
     ) {
+      // HTTPS sources play and load directly by default. Fall back only after
+      // the browser was refused, throttled, or timed out: those are the cases
+      // where the companion can supply protected headers or bypass browser
+      // CORS. One fallback request avoids turning a source failure into a
+      // retry storm against either the add-on or the companion.
       const relayed = await relay().catch(() => undefined);
       if (relayed?.ok) return relayed;
     }
-    return response.ok ? response : (relayResponse ?? response);
+    return response;
   } catch (e) {
-    if (relayResponse) return relayResponse;
-    if (relayError && e instanceof TypeError)
-      throw new Error(
-        "The playback service did not reach this add-on, and the add-on blocked direct browser access.",
-      );
-    if (e instanceof TypeError && config && !addonPayload && !options.signal?.aborted)
+    // A browser TypeError is the observable CORS/network failure path. HTTP,
+    // Xtream APIs, explicit relay requests, and header-bearing media already
+    // took the companion path above, so this only adds the companion when a
+    // normal HTTPS request genuinely cannot be used in the browser.
+    if (e instanceof TypeError && config && !options.signal?.aborted)
       return relay();
     throw e;
   }
