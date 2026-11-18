@@ -26,7 +26,7 @@
   </head>
   <body>
     <h1>TikTak TV Privacy Policy</h1>
-    <p>Last updated November 16, 2026.</p>
+    <p>Last updated November 18, 2026.</p>
     <p>
       TikTak TV is a media client. It does not sell personal information or host
       video content.
@@ -42,11 +42,46 @@
     <h2>Google and YouTube data</h2>
     <p>
       If you connect YouTube, TikTak TV requests read-only access to your
-      YouTube account. It uses that access to show your subscriptions,
-      recommendations, watch history, playlists, and library. Google refresh
-      tokens are encrypted, associated with your authenticated TikTak TV
-      account, and are not sold or shared for advertising. You can disconnect
-      YouTube from TikTak TV at any time.
+      YouTube account. It uses that access only to provide user-facing features
+      inside TikTak TV, including your channel, subscriptions, playlists, recent
+      account activity, library, and personalized video and music feeds. TikTak
+      TV cannot upload, edit, rate, comment on, or delete content from your
+      YouTube account.
+    </p>
+    <p>
+      Google user data is not sold, transferred to advertising platforms or data
+      brokers, used for personalized advertising, or read by people except when
+      necessary for security, legal compliance, or support that you explicitly
+      request. TikTak TV's use of information received from Google APIs adheres
+      to the
+      <a
+        href="https://developers.google.com/terms/api-services-user-data-policy"
+        >Google API Services User Data Policy</a
+      >, including the Limited Use requirements.
+    </p>
+    <h2>Google data protection and security</h2>
+    <p>
+      TikTak TV protects Google user data with technical and organizational
+      security controls. Google access and refresh tokens are transmitted only
+      over encrypted HTTPS/TLS connections between your device, the TikTak TV
+      companion service, and Google's OAuth and YouTube API services. Tokens are
+      handled by the companion service and are not exposed in the TikTak TV user
+      interface.
+    </p>
+    <p>
+      At rest, Google access and refresh tokens are stored in an authenticated
+      AES-256-GCM encrypted vault. The encryption key is kept separately from
+      the encrypted vault data. Requests for connected YouTube data require a
+      valid TikTak TV account session, and the authenticated account identifier
+      restricts each request to that account's stored credentials. Access is
+      limited to service processes and authorized personnel who need it for
+      security, legal compliance, or support requested by the user.
+    </p>
+    <p>
+      TikTak TV does not include Google tokens in application diagnostics. If
+      TikTak TV becomes aware of unauthorized access to Google user data, it
+      will investigate and contain the issue, revoke affected credentials when
+      appropriate, and notify affected users or authorities as required by law.
     </p>
     <h2>Optional Trakt connection</h2>
     <p>
@@ -89,13 +124,27 @@
     </p>
     <h2>Storage and deletion</h2>
     <p>
-      Clearing browser site data or app storage removes local caches. Disconnecting
-      YouTube deletes its stored account token from TikTak TV. You can also revoke
-      access from your Google Account permissions page. In the Amazon Appstore
-      version, signed-in users can request account deletion from Settings &gt;
-      Account &gt; Delete account. This deletes the Nuvio account and clears local
-      account data. For help with a deletion request, contact the support address
-      listed on TikTak TV's Amazon Appstore page. See our
+      Clearing browser site data or app storage removes local caches.
+      Disconnecting YouTube deletes TikTak TV's stored Google access and refresh
+      tokens, clears connected-account caches, and prevents further YouTube
+      account access. You can also revoke access from your
+      <a href="https://myaccount.google.com/permissions"
+        >Google Account permissions page</a
+      >.
+    </p>
+    <p>
+      To request deletion of any other Google or YouTube data associated with
+      your TikTak TV account, use the contact method below. TikTak TV will delete
+      stored data covered by the request as soon as possible and within seven
+      calendar days. Deleting data from TikTak TV does not delete data held by
+      YouTube.
+    </p>
+    <p>
+      In the Amazon Appstore version, signed-in users can request account
+      deletion from Settings &gt; Account &gt; Delete account. This deletes the
+      Nuvio account and clears local account data. For help with a deletion
+      request, contact the support address listed on TikTak TV's Amazon Appstore
+      page. See our
       <a href="/account-deletion.html">account deletion instructions</a>.
     </p>
     <h2>Contact</h2>
