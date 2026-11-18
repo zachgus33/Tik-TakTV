@@ -2756,7 +2756,7 @@ test("autoplay falls back to the next ranked source when playback fails", async 
   await page.getByRole("button", { name: "Play best stream" }).click();
   await fallbackRequested;
 });
-test("an independent user's configured Torrentio debrid stream falls back to the playback relay", async ({
+test("an independent user's configured Torrentio debrid stream converts only after browser playback fails", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -2809,7 +2809,7 @@ test("an independent user's configured Torrentio debrid stream falls back to the
   // CORS/network block, after which the authenticated companion takes over.
   expect(directStreamCalls).toBeGreaterThan(0);
   expect(preparations[0].url).toContain("/resolve/torbox/");
-  expect(preparations[0].mode).toBe("direct");
+  expect(preparations[0].mode).toBe("transcode");
   await expect(page.locator("video")).toBeVisible();
 });
 

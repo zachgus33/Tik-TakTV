@@ -49,6 +49,8 @@ export type Playback = {
   subtitleRequest?: { addons: Addon[]; id: string };
   prepared?: boolean;
   relay?: boolean;
+  /** Permit conversion only after direct debrid playback actually fails. */
+  compatibilityFallback?: boolean;
   party?: { id: string; host: boolean };
   alternatives?: Playback[];
   /** Number of alternatives that may be tried automatically. */
@@ -1543,6 +1545,7 @@ export default function Player({
     if (
       fallbackStarted.current ||
       !service ||
+      !(selected.compatibilityFallback || selected.relay) ||
       selected.item.type === "live" ||
       selected.url.startsWith(`${service.url}/media/`)
     )

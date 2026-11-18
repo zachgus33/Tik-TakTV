@@ -1555,6 +1555,7 @@ function Detail({
           // perspective. Try it directly first; Player switches to the
           // compatibility service only after a real playback failure.
           relay: false,
+          compatibilityFallback: debridStream(candidate),
         };
       };
       onPlay({
@@ -1587,6 +1588,7 @@ function Detail({
           subtitleRequest: { addons, id: ep?.id ?? item.id },
           mode: undefined,
           relay: false,
+          compatibilityFallback: true,
         });
       return;
     }
@@ -1610,6 +1612,7 @@ function Detail({
         resume: position,
         subtitleRequest: { addons, id: ep?.id ?? item.id },
         mode: undefined,
+        compatibilityFallback: true,
       });
     }
   }
@@ -2720,6 +2723,7 @@ export default function App() {
         )?.request,
         subtitleRequest: { addons, id: episode.id },
         relay: false,
+        compatibilityFallback: debridStream(stream),
       });
       next = {
         ...toPlayback(candidate),
