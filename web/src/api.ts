@@ -494,6 +494,7 @@ export async function addonStreams(
   item: Item,
   id: string,
   signal?: AbortSignal,
+  onSource?: (streams: Stream[], addon: Addon) => void,
 ) {
   const eligible = addons.filter(
     (a) =>
@@ -517,11 +518,13 @@ export async function addonStreams(
           20000,
         );
         recordAddonSuccess(a);
-        return (data.streams ?? []).map((s) => ({
+        const streams = (data.streams ?? []).map((s) => ({
           ...s,
           addonName: a.manifest.name,
           name: s.name ?? a.manifest.name,
         }));
+        onSource?.(streams, a);
+        return streams;
       } catch (error) {
         recordAddonFailure(a, error);
         throw error;

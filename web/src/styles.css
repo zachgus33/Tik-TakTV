@@ -801,6 +801,60 @@ body {
   line-height: 1.55;
   text-align: center;
 }
+
+.profile-first-setup {
+  display: grid;
+  gap: 1rem;
+  max-width: 32rem;
+}
+
+.profile-first-setup h2,
+.profile-first-setup p {
+  margin: 0;
+}
+
+.profile-first-setup fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.profile-first-setup legend {
+  color: var(--muted);
+  font-size: .84rem;
+  font-weight: 700;
+  margin-bottom: .7rem;
+}
+
+.profile-avatar-picker {
+  display: grid;
+  gap: .65rem;
+  grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
+}
+
+.profile-avatar-picker button {
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 2px solid transparent;
+  border-radius: 50%;
+  overflow: hidden;
+  padding: 0;
+}
+
+.profile-avatar-picker button:hover,
+.profile-avatar-picker button:focus-visible,
+.profile-avatar-picker button.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.profile-avatar-picker img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
 .profile-gate .success {
   width: min(420px, 100%);
   margin: 0 auto 1rem;

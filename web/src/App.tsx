@@ -6,9 +6,13 @@
 import { storeProvider } from "./storage";
 import {
   account,
+  avatars,
+  avatarUrl,
   loadSetup,
   ensureProfiles,
   unlock,
+  updateProfile,
+  type Avatar,
   type HomeCatalogSetting,
   type Profile,
   type Setup,
@@ -115,6 +119,11 @@ import {
 } from "./ExternalTrackingSettings";
 import { anilistMedia, anilistMediaRef, rateAniList } from "./anilist-tracking";
 import { reconcileTraktCredential, traktAccessToken } from "./TraktSettings";
+import {
+  authCooldownLabel,
+  authErrorMessage,
+  authRateLimitDelay,
+} from "./auth-feedback";
 import {
   migrateLegacyTraktProfile,
   traktProfileIdentity,
@@ -300,6 +309,12 @@ function ProfileGate({
     () => document.visibilityState === "visible",
   );
   const [notice, setNotice] = useState("");
+  const [authCooldownUntil, setAuthCooldownUntil] = useState(0);
+  const [authNow, setAuthNow] = useState(() => Date.now());
+  const [profileSetup, setProfileSetup] = useState<Profile | null>(null);
+  const [avatarCatalog, setAvatarCatalog] = useState<Avatar[]>([]);
+  const [profileName, setProfileName] = useState("");
+  const [profileAvatar, setProfileAvatar] = useState<Avatar>();
   useEffect(() => {
     const updateVisibility = () =>
       setPageVisible(document.visibilityState === "visible");
@@ -331,6 +346,12 @@ function ProfileGate({
     );
     return () => window.clearTimeout(timeout);
   }, [busy, email, manualPreviewHold, pageVisible, preview, previewPaused]);
+  useEffect(() => {
+    if (authCooldownUntil <= Date.now()) return;
+    const interval = window.setInterval(() => setAuthNow(Date.now()), 1_000);
+    return () => window.clearInterval(interval);
+  }, [authCooldownUntil]);
+  const authCooldownSeconds = authCooldownLabel(authCooldownUntil, authNow);
   function selectPreview(next: LandingPreview) {
     setPreview(next);
     setManualPreviewHold(true);
@@ -344,8 +365,23 @@ function ProfileGate({
       return;
     }
     setEmail(data.session?.user.email ?? "");
-    const available = data.session ? await ensureProfiles() : [];
+    const [available, availableAvatars] = data.session
+      ? await Promise.all([ensureProfiles(), avatars().catch(() => [])])
+      : [[], [] as Avatar[]];
     setList(available);
+    if (
+      data.session &&
+      sessionStorage.getItem("tiktak:new-account") === "1" &&
+      available[0]
+    ) {
+      setAvatarCatalog(availableAvatars);
+      setProfileSetup(available[0]);
+      setProfileName(available[0].name || "Home");
+      setProfileAvatar(
+        availableAvatars.find((avatar) => avatar.id === available[0].avatar_id),
+      );
+      return;
+    }
     if (data.session && skipSelection) {
       const remembered = Number(
         localStorage.getItem(`tiktak:profile:${data.session.user.id}`),
@@ -384,6 +420,43 @@ function ProfileGate({
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open this profile.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function finishProfileSetup() {
+    if (!profileSetup || !profileName.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      await updateProfile(profileSetup, {
+        name: profileName.trim(),
+        avatar: profileAvatar,
+      });
+      const updated: Profile = {
+        ...profileSetup,
+        name: profileName.trim(),
+        avatar_id: profileAvatar?.id ?? profileSetup.avatar_id,
+        avatar_url: profileAvatar
+          ? avatarUrl(profileAvatar)
+          : profileSetup.avatar_url,
+        avatar_color_hex:
+          profileAvatar?.bg_color ?? profileSetup.avatar_color_hex,
+      };
+      setList((current) =>
+        current.map((profile) =>
+          profile.profile_index === updated.profile_index ? updated : profile,
+        ),
+      );
+      sessionStorage.removeItem("tiktak:new-account");
+      setProfileSetup(null);
+      await enter(updated);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not finish profile setup.",
+      );
     } finally {
       setBusy(false);
     }
@@ -526,6 +599,50 @@ function ProfileGate({
         )}
         {busy && !list.length ? (
           <Loading />
+        ) : profileSetup ? (
+          <form
+            className="profile-first-setup"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void finishProfileSetup();
+            }}
+          >
+            <span className="eyebrow">FIRST PROFILE</span>
+            <h2>Make TikTak TV yours</h2>
+            <p>Choose the name and avatar that will appear on every device.</p>
+            <label>
+              Profile name
+              <input
+                autoFocus
+                value={profileName}
+                onChange={(event) => setProfileName(event.target.value)}
+                maxLength={32}
+                required
+              />
+            </label>
+            {avatarCatalog.length > 0 && (
+              <fieldset>
+                <legend>Choose an avatar</legend>
+                <div className="profile-avatar-picker">
+                  {avatarCatalog.map((avatar) => (
+                    <button
+                      type="button"
+                      key={avatar.id}
+                      className={profileAvatar?.id === avatar.id ? "selected" : ""}
+                      aria-pressed={profileAvatar?.id === avatar.id}
+                      aria-label={`Use ${avatar.display_name} avatar`}
+                      onClick={() => setProfileAvatar(avatar)}
+                    >
+                      <img src={avatarUrl(avatar)} alt="" />
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            <button className="primary" disabled={busy || !profileName.trim()}>
+              {busy ? "Saving profile…" : "Enter TikTak TV"}
+            </button>
+          </form>
         ) : email ? (
           <>
             {!pinProfile && (
@@ -619,6 +736,7 @@ function ProfileGate({
               className="profile-login"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (busy || authCooldownSeconds > 0) return;
                 const form = new FormData(e.currentTarget);
                 const password = String(form.get("password") ?? "");
                 if (
@@ -644,6 +762,8 @@ function ProfileGate({
                 void request
                   .then(({ data, error }) => {
                     if (error) throw error;
+                    if (authMode === "signup")
+                      sessionStorage.setItem("tiktak:new-account", "1");
                     if (authMode === "signup" && !data.session) {
                       setNotice(
                         "Account created. Check your email to confirm it, then sign in.",
@@ -653,7 +773,14 @@ function ProfileGate({
                     }
                     return refresh();
                   })
-                  .catch((e) => setError(e.message))
+                  .catch((e) => {
+                    const delay = authRateLimitDelay(e);
+                    if (delay) {
+                      setAuthCooldownUntil(Date.now() + delay);
+                      setAuthNow(Date.now());
+                    }
+                    setError(authErrorMessage(e));
+                  })
                   .finally(() => setBusy(false));
               }}
             >
@@ -690,9 +817,14 @@ function ProfileGate({
                   />
                 </label>
               )}
-              <button className="primary" disabled={busy}>
+              <button
+                className="primary"
+                disabled={busy || authCooldownSeconds > 0}
+              >
                 {busy
                   ? "Please wait…"
+                  : authCooldownSeconds > 0
+                    ? `Try again in ${authCooldownSeconds}s`
                   : authMode === "signup"
                     ? "Create free account"
                     : "Sign in"}
@@ -1200,7 +1332,16 @@ function Detail({
   const streamRequests = useRef(
     new Map<string, ReturnType<typeof addonStreams>>(),
   );
-  function requestStreams(target: Item, id: string, signal?: AbortSignal) {
+  function requestStreams(
+    target: Item,
+    id: string,
+    signal?: AbortSignal,
+    onSource?: (streams: Stream[]) => void,
+  ) {
+    if (onSource)
+      return addonStreams(addons, target, id, signal, (streams) =>
+        onSource(streams),
+      );
     const key = `${target.type}:${id}`;
     const existing = streamRequests.current.get(key);
     if (existing) return existing;
@@ -1554,7 +1695,25 @@ function Detail({
     setBusy(true);
     setPreparing(auto || downloadBest);
     try {
-      const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
+      let autoStarted = false;
+      const startFirstPlayable = (partial: Stream[]) => {
+        if (!auto || downloadBest || autoStarted || c.signal.aborted) return;
+        const hasDebrid = !!torboxKey || !!realDebridKey;
+        const candidates = autoplayStreams(partial, hasDebrid);
+        if (!candidates.length) return;
+        autoStarted = true;
+        void chooseStream(candidates[0], ep, c.signal, candidates.slice(1)).catch(
+          () => {
+            autoStarted = false;
+          },
+        );
+      };
+      const result = await requestStreams(
+        item,
+        ep?.id ?? item.id,
+        c.signal,
+        startFirstPlayable,
+      );
       if (c.signal.aborted) return;
       const incompatible = Math.max(
         0,
@@ -1574,7 +1733,7 @@ function Detail({
         if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
         else setDownloadMode(false);
       } else {
-        if (auto && autoplayRanked.length) {
+        if (auto && autoplayRanked.length && !autoStarted) {
           try {
             await chooseStream(
               autoplayRanked[0],

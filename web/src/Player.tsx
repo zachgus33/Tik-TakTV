@@ -211,6 +211,16 @@ function VideoPlayer({
         active.blur();
     }, 3500);
   }, [tvMode]);
+  const focusTvPrimaryControl = useCallback(() => {
+    const focus = () =>
+      dialogRef.current
+        ?.querySelector<HTMLElement>("[data-tv-initial-focus]:not([disabled])")
+        ?.focus();
+    focus();
+    // Chromium WebView may drop focus while a hidden control row is becoming
+    // visible. Re-apply it after that render without changing navigation.
+    requestAnimationFrame(focus);
+  }, []);
   useEffect(() => {
     if (!playback.party) return;
     setParty(
@@ -282,15 +292,21 @@ function VideoPlayer({
         seekTo(currentTime + 10);
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
-        document
-          .querySelector<HTMLElement>(".tv-player-controls button")
-          ?.focus();
+        event.stopPropagation();
+        focusTvPrimaryControl();
       }
     };
     window.addEventListener("keydown", handleTvPlaybackKeys, true);
     return () =>
       window.removeEventListener("keydown", handleTvPlaybackKeys, true);
-  }, [tvMode, minimized, currentTime, playback.item.type, revealTvControls]);
+  }, [
+    tvMode,
+    minimized,
+    currentTime,
+    playback.item.type,
+    revealTvControls,
+    focusTvPrimaryControl,
+  ]);
   useEffect(() => {
     if (!tvMode) return;
     if (playing) revealTvControls();
@@ -946,6 +962,13 @@ function VideoPlayer({
       aria-label={`${playback.item.name} player`}
       onPointerMove={revealTvControls}
       onPointerDown={revealTvControls}
+      onKeyDownCapture={(event) => {
+        if (!tvMode || event.key !== "ArrowDown") return;
+        event.preventDefault();
+        event.stopPropagation();
+        revealTvControls();
+        focusTvPrimaryControl();
+      }}
     >
       <div className="player-top">
         <div>

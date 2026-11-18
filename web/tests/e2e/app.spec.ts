@@ -3999,11 +3999,12 @@ test.describe("authenticated integrations", () => {
     await page.getByLabel("Confirm password").fill("fake-password");
     await page.getByRole("button", { name: "Create free account" }).click();
 
-    await expect(page.getByRole("button", { name: /Home/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Make TikTak TV yours" })).toBeVisible();
+    await page.getByLabel("Profile name").fill("Jay");
+    await page.getByRole("button", { name: "Enter TikTak TV" }).click();
     expect(profilePayload?.p_profiles).toEqual([
-      expect.objectContaining({ profile_index: 1, name: "Home" }),
+      expect.objectContaining({ profile_index: 1, name: "Jay" }),
     ]);
-    await page.getByRole("button", { name: /Home/ }).click();
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("nuvio:tmdb-key")))
       .toBe("c49921f8195461e369d52a70a15fc8e1");
