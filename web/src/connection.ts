@@ -232,7 +232,15 @@ export async function sourceFetch(
     options.signal?.addEventListener("abort", cancel, { once: true });
     const timer = setTimeout(cancel, 8000);
     try {
-      const response = await relay(attempt.signal);
+      let response = await relay(attempt.signal);
+      // The companion limits concurrent upstream work. A short, bounded retry
+      // is more useful than falling through to a direct browser request that
+      // the same add-on will reject with CORS, and it prevents a page load from
+      // amplifying one temporary 429 into dozens of failed requests.
+      if (response.status === 429 && !attempt.signal.aborted) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 650));
+        if (!attempt.signal.aborted) response = await relay(attempt.signal);
+      }
       if (response.ok) return response;
       relayResponse = response;
     } catch (error) {
@@ -243,6 +251,10 @@ export async function sourceFetch(
       options.signal?.removeEventListener("abort", cancel);
     }
   }
+  // Add-on JSON was already attempted through the authenticated companion.
+  // Do not hammer a known rate-limited relay with a direct request that will
+  // usually fail CORS and hide the actionable companion error.
+  if (addonPayload && relayResponse?.status === 429) return relayResponse;
   try {
     const response = await fetch(url, options);
     if (
