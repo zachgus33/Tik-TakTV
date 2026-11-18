@@ -10,8 +10,8 @@ export const anilistClientId = "56991";
 const simklRedirect = "https://www.tiktaktv.me/simkl-callback.html";
 const anilistRedirect = "https://www.tiktaktv.me/anilist-callback.html";
 type Provider = "simkl" | "anilist";
-type SimklToken = { access_token: string; refresh_token: string; expires_in: number; scope: string; saved_at: number };
-type AniListToken = { access_token: string; expires_at: number };
+type SimklToken = { access_token: string; refresh_token: string; expires_in: number; scope: string; saved_at: number; scrobbling_enabled?: boolean };
+type AniListToken = { access_token: string; expires_at: number; scrobbling_enabled?: boolean };
 const key = (provider: Provider, profile: string) => `tiktak:${provider}:${encodeURIComponent(profile)}`;
 const pendingKey = (provider: Provider) => `tiktak:${provider}-pending`;
 const callbackKey = (provider: Provider) => `tiktak:${provider}-callback`;
@@ -61,10 +61,22 @@ export function anilistAccessToken(profile: string): string | null {
 const scrobbleKey = (provider: Provider, profile: string) =>
   `tiktak:${provider}-scrobble:${encodeURIComponent(profile)}`;
 export function simklScrobblingEnabled(profile: string): boolean {
-  return localStorage.getItem(scrobbleKey("simkl", profile)) === "1";
+  return localStorage.getItem(scrobbleKey("simkl", profile)) === "1" ||
+    load<SimklToken>("simkl", profile)?.scrobbling_enabled === true;
 }
 export function anilistProgressEnabled(profile: string): boolean {
-  return localStorage.getItem(scrobbleKey("anilist", profile)) === "1";
+  return localStorage.getItem(scrobbleKey("anilist", profile)) === "1" ||
+    load<AniListToken>("anilist", profile)?.scrobbling_enabled === true;
+}
+
+function setProgressEnabled(provider: Provider, profile: string, enabled: boolean) {
+  const current = load<Record<string, unknown>>(provider, profile);
+  if (enabled) localStorage.setItem(scrobbleKey(provider, profile), "1");
+  else localStorage.removeItem(scrobbleKey(provider, profile));
+  if (!current) return;
+  const updated = { ...current, scrobbling_enabled: enabled };
+  localStorage.setItem(key(provider, profile), JSON.stringify(updated));
+  void saveProviderCredential(provider, updated).catch(() => undefined);
 }
 
 export async function simklRequest(profile: string, path: string, body?: unknown): Promise<Response> {
@@ -217,15 +229,9 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
     <p>{name} is separate from Trakt and your Nuvio watch history. Each profile connects its own account.</p>
     {connected ? <><p>Connected as <strong>{account || `your ${name} account`}</strong>.</p>
       {provider === "simkl" && <label className="check"><input type="checkbox" checked={scrobbling}
-        onChange={event => { setScrobbling(event.target.checked);
-          if (event.target.checked) localStorage.setItem(scrobbleKey(provider, profileName), "1");
-          else localStorage.removeItem(scrobbleKey(provider, profileName));
-        }} /> Scrobble playback to my Simkl account</label>}
+        onChange={event => { setScrobbling(event.target.checked); setProgressEnabled(provider, profileName, event.target.checked); }} /> Scrobble playback to my Simkl account</label>}
       {provider === "anilist" && <label className="check"><input type="checkbox" checked={scrobbling}
-        onChange={event => { setScrobbling(event.target.checked);
-          if (event.target.checked) localStorage.setItem(scrobbleKey(provider, profileName), "1");
-          else localStorage.removeItem(scrobbleKey(provider, profileName));
-        }} /> Update my AniList anime progress after playback</label>}
+        onChange={event => { setScrobbling(event.target.checked); setProgressEnabled(provider, profileName, event.target.checked); }} /> Update my AniList anime progress after playback</label>}
       <button type="button" onClick={() => void disconnect()}>Disconnect {name}</button></>
       : <button type="button" disabled={busy} onClick={() => void connect()}>Connect {name}</button>}
     {error && <p className="error" role="alert">{error}</p>}
