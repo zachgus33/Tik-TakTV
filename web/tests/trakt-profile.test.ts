@@ -1,5 +1,9 @@
 import { afterEach, expect, it } from "vitest";
-import { migrateLegacyTraktProfile, traktProfileIdentity } from "../src/trakt-profile";
+import {
+  migrateLegacyTraktProfile,
+  traktProfileIdentity,
+  traktProfileIdentityFor,
+} from "../src/trakt-profile";
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -28,4 +32,10 @@ it("migrates an existing Trakt login once and keeps same-name profiles separate"
   migrateLegacyTraktProfile("Mom");
   expect(traktProfileIdentity("Mom")).toBe("profile:account-a:2");
   expect(storage.getItem("tiktak:trakt:profile%3Aaccount-a%3A2")).toBeNull();
+});
+
+it("builds a stable remote Trakt identity before profile UI state renders", () => {
+  expect(traktProfileIdentityFor("account-a", 2)).toBe("profile:account-a:2");
+  expect(traktProfileIdentityFor("", 2)).toBe("");
+  expect(traktProfileIdentityFor("account-a", 0)).toBe("");
 });

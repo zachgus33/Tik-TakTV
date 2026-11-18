@@ -4182,7 +4182,7 @@ test.describe("authenticated integrations", () => {
         };
       else if (url.pathname.includes("/auth/v1/user")) data = user;
       else if (url.pathname.endsWith("/sync_pull_profiles"))
-        data = [{ profile_index: 1, name: "Home", pin_enabled: false }];
+        data = [{ profile_index: 2, name: "Home", pin_enabled: false }];
       else if (url.pathname === "/rest/v1/addons")
         data = [
           {
@@ -4307,12 +4307,12 @@ test.describe("authenticated integrations", () => {
     await page.getByRole("button", { name: "Close details" }).click();
     await expect
       .poll(() =>
-        page.evaluate(() => {
+        page.evaluate((expectedKey) => {
           const key = Object.keys(localStorage).find((entry) =>
-            entry.startsWith("tiktak:trakt:profile%3A"),
+            entry === expectedKey,
           );
           return key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
-        }),
+        }, `tiktak:trakt:${encodeURIComponent(`profile:${user.id}:2`)}`),
       )
       .toMatchObject({
         access_token: "profile-trakt-access",
@@ -4396,7 +4396,11 @@ test.describe("authenticated integrations", () => {
     expect(pushes.some((p) => p.path.endsWith("sync_push_addons"))).toBe(false);
     const saved = [...pushes]
       .reverse()
-      .find((p) => p.path.endsWith("sync_push_profile_settings_blob"))!;
+      .find(
+        (p) =>
+          p.path.endsWith("sync_push_profile_settings_blob") &&
+          p.body.p_profile_id === 2,
+      )!;
     expect(saved.body.p_settings_json.unrelatedSetting).toBe("preserve");
     expect(saved.body.p_settings_json.tikTakWebV1.autoplay).toBe(false);
   });

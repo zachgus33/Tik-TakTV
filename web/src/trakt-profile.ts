@@ -1,4 +1,10 @@
 /** Keep Trakt credentials with one account profile, even when names match. */
+export function traktProfileIdentityFor(ownerId: string, profileIndex: number) {
+  return ownerId && Number.isInteger(profileIndex) && profileIndex > 0
+    ? `profile:${ownerId}:${profileIndex}`
+    : "";
+}
+
 export function traktProfileIdentity(name: string): string {
   const identity = localStorage.getItem("tiktak:active-profile-owner");
   if (identity) return `profile:${identity}`;

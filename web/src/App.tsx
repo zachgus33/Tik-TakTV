@@ -127,6 +127,7 @@ import {
 import {
   migrateLegacyTraktProfile,
   traktProfileIdentity,
+  traktProfileIdentityFor,
 } from "./trakt-profile";
 import {
   normalizeYouTubeProgress,
@@ -2518,7 +2519,7 @@ export default function App() {
       cancelled = true;
     };
   }, [profileReady, progress]);
-  function loadAccountSetup(s: Setup) {
+  function loadAccountSetup(s: Setup, syncedTraktProfile = "") {
     // Failure history belongs to the previous browser profile and must never
     // suppress an add-on for a different Nuvio user.
     clearProfileTransientStorage();
@@ -2557,7 +2558,8 @@ export default function App() {
     save("watched", restoredWatched);
     if (s.trakt !== undefined)
       void reconcileTraktCredential(
-        traktProfileIdentity(activeProfileView?.name ?? ""),
+        syncedTraktProfile ||
+          traktProfileIdentity(activeProfileView?.name ?? ""),
         s.trakt,
       ).catch(() => undefined);
     setProvider(s.provider);
@@ -3483,7 +3485,10 @@ export default function App() {
         }}
         onSetup={(setup, profile, ownerId, warnings) => {
           if (!activeProfileMatches(ownerId, profile.profile_index)) return;
-          loadAccountSetup(setup);
+          loadAccountSetup(
+            setup,
+            traktProfileIdentityFor(ownerId, profile.profile_index),
+          );
           const now = Date.now();
           localStorage.setItem("tiktak:last-sync", String(now));
           setProfileSyncing(false);
