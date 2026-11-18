@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  deleteProviderCredential,
+  pullActiveProviderCredential,
+  saveProviderCredential,
+} from "./account";
 
 export const simklWebClientId = "adc2981e4eca8f5811f0a8fd4319ab1e93505388be698fdab9b3d0c1a7e9a70a";
 export const anilistClientId = "56991";
@@ -14,6 +19,13 @@ const callbackKey = (provider: Provider) => `tiktak:${provider}-callback`;
 function load<T>(provider: Provider, profile: string): T | null {
   try { return JSON.parse(localStorage.getItem(key(provider, profile)) || "null") as T | null; }
   catch { return null; }
+}
+
+function restore<T>(provider: Provider, profile: string, value: Record<string, unknown> | null): T | null {
+  if (!value || typeof value !== "object") return null;
+  const token = value as T;
+  localStorage.setItem(key(provider, profile), JSON.stringify(token));
+  return token;
 }
 
 function random() {
@@ -83,6 +95,20 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
   useEffect(() => { setConnected(!!load(provider, profileName)); setAccount(""); setError("");
     setScrobbling(provider === "simkl" ? simklScrobblingEnabled(profileName) : anilistProgressEnabled(profileName)); }, [provider, profileName]);
 
+  // Tracker tokens are profile data, not browser data. Restore them after a
+  // sign-in or a new device opens this profile; offline/local profiles keep
+  // their existing browser-only behavior.
+  useEffect(() => {
+    let active = true;
+    void pullActiveProviderCredential(provider)
+      .then((value) => {
+        const restored = restore<SimklToken | AniListToken>(provider, profileName, value);
+        if (active && restored) setConnected(true);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [profileName, provider]);
+
   useEffect(() => {
     const raw = localStorage.getItem(callbackKey(provider));
     if (!raw) return;
@@ -102,7 +128,11 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
         setBusy(true);
         void simklTokenRequest({ grant_type: "authorization_code", code: result.code,
           redirect_uri: simklRedirect, code_verifier: pending.verifier })
-          .then(value => { localStorage.setItem(key(provider, profileName), JSON.stringify(value)); setConnected(true); })
+          .then(async value => {
+            localStorage.setItem(key(provider, profileName), JSON.stringify(value));
+            await saveProviderCredential(provider, value as unknown as Record<string, unknown>);
+            setConnected(true);
+          })
           .catch(cause => setError(cause instanceof Error ? cause.message : "Simkl sign-in failed."))
           .finally(() => setBusy(false));
       } else {
@@ -110,8 +140,10 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
           throw new Error("AniList sign-in response was invalid.");
         const expires = Number(result.expires_in);
         if (!Number.isFinite(expires) || expires <= 0) throw new Error("AniList token lifetime was invalid.");
-        localStorage.setItem(key(provider, profileName), JSON.stringify({ access_token: result.access_token,
-          expires_at: Date.now() + expires * 1000 } satisfies AniListToken));
+        const token = { access_token: result.access_token,
+          expires_at: Date.now() + expires * 1000 } satisfies AniListToken;
+        localStorage.setItem(key(provider, profileName), JSON.stringify(token));
+        void saveProviderCredential(provider, token as unknown as Record<string, unknown>).catch(() => undefined);
         setConnected(true);
       }
     } catch (cause) { setError(cause instanceof Error ? cause.message : `${name} sign-in failed.`); }
@@ -172,6 +204,7 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
     localStorage.removeItem(scrobbleKey(provider, profileName));
     setScrobbling(false);
     setConnected(false); setAccount(""); setError("");
+    void deleteProviderCredential(provider).catch(() => undefined);
     if (token) void fetch("https://api.simkl.com/oauth2/revoke", { method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: simklWebClientId, token }) }).catch(() => undefined);

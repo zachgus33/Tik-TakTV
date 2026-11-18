@@ -217,6 +217,38 @@ export async function deleteTraktCredential() {
     p_origin_client_id: origin,
   });
 }
+
+/** Store third-party tracker credentials with the selected Nuvio profile. */
+export async function saveProviderCredential(
+  provider: "simkl" | "anilist",
+  credential: Record<string, unknown>,
+) {
+  await rpc("sync_push_provider_credentials", {
+    p_profile_id: activeProfileId(),
+    p_credentials: [{ provider, credential_json: credential }],
+    p_origin_client_id: origin,
+  });
+}
+
+export async function pullActiveProviderCredential(
+  provider: "simkl" | "anilist",
+) {
+  const rows = await rpc<
+    { provider: string; credential_json: Record<string, unknown> }[]
+  >("sync_pull_provider_credentials", { p_profile_id: activeProfileId() });
+  return (
+    rows.find((row) => row.provider.toLowerCase() === provider)
+      ?.credential_json ?? null
+  );
+}
+
+export async function deleteProviderCredential(provider: "simkl" | "anilist") {
+  await rpc("sync_delete_provider_credentials", {
+    p_profile_id: activeProfileId(),
+    p_provider: provider,
+    p_origin_client_id: origin,
+  });
+}
 export const profiles = () => rpc<Profile[]>("sync_pull_profiles");
 export async function ensureProfiles(): Promise<Profile[]> {
   const existing = await profiles();
