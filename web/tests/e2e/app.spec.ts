@@ -3272,10 +3272,32 @@ test("subtitle timing controls persist the selected offset", async ({
     )
     .toBe("1");
 });
-test("phone autoplay chooses the highest quality stream and normalizes HEVC", async ({
+test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fallback", async ({
   page,
 }) => {
   await streamingAddon(page);
+  await page.addInitScript(() => {
+    const sources: string[] = [];
+    const capture = (node: Node) => {
+      if (node instanceof HTMLVideoElement && node.src) sources.push(node.src);
+      if (node instanceof Element)
+        node.querySelectorAll("video[src]").forEach((video) => {
+          if (video.src) sources.push(video.src);
+        });
+    };
+    new MutationObserver((records) =>
+      records.forEach((record) => {
+        if (record.type === "attributes") capture(record.target);
+        record.addedNodes.forEach(capture);
+      }),
+    ).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["src"],
+    });
+    Object.defineProperty(window, "__testMediaSources", { value: sources });
+  });
   await page.addInitScript(() =>
     localStorage.setItem(
       "nuvio:playback-service",
@@ -3318,9 +3340,21 @@ test("phone autoplay chooses the highest quality stream and normalizes HEVC", as
         body: "#EXTM3U\n#EXT-X-ENDLIST\n",
       }),
   );
+  await page.route("https://cdn.example/episode.x265.mp4", (route) => {
+    return route.fulfill({ status: 500, body: "browser decode failed" });
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __testMediaSources?: string[] })
+            .__testMediaSources,
+      ),
+    )
+    .toContain("https://cdn.example/episode.x265.mp4");
   await expect.poll(() => prepared.mode).toBe("transcode");
   expect(prepared.live).toBe(false);
   expect(prepared.url).toBe("https://cdn.example/episode.x265.mp4");

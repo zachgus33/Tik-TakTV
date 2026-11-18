@@ -148,6 +148,23 @@ export function codecCompatibility(stream: Stream): number {
 export function compatibilityPlaybackMode(
   stream: Stream,
 ): "remux" | "transcode" | undefined {
+  // A Torrentio/debrid resolver can return a browser-playable CDN response
+  // whose filename still advertises the original container or codecs. Do not
+  // turn that hint into a conversion requirement before the browser has even
+  // tried the resolved URL. Player recovery can request conversion after an
+  // actual decode/load failure.
+  const protectedHeaders = (
+    stream.behaviorHints?.proxyHeaders as
+      | { request?: Record<string, string> }
+      | undefined
+  )?.request;
+  if (
+    stream.url &&
+    debridStream(stream) &&
+    stream.behaviorHints?.notWebReady !== true &&
+    !Object.keys(protectedHeaders ?? {}).length
+  )
+    return undefined;
   const source = streamDescriptor(stream);
   if (audioCompatibility(stream) < 0) return "transcode";
   if (

@@ -1551,7 +1551,10 @@ function Detail({
               { request?: Record<string, string> } | undefined
           )?.request,
           subtitleRequest: { addons, id: ep?.id ?? item.id },
-          relay: debridStream(candidate),
+          // Resolved debrid video is regular HTTPS media from the browser's
+          // perspective. Try it directly first; Player switches to the
+          // compatibility service only after a real playback failure.
+          relay: false,
         };
       };
       onPlay({
@@ -1582,11 +1585,8 @@ function Detail({
           url: resolved.url,
           resume: position,
           subtitleRequest: { addons, id: ep?.id ?? item.id },
-          mode:
-            getService() && !/\.(?:mp4|m4v|webm)$/i.test(resolved.filename)
-              ? "transcode"
-              : undefined,
-          relay: true,
+          mode: undefined,
+          relay: false,
         });
       return;
     }
@@ -1603,17 +1603,13 @@ function Detail({
       signal,
     );
     if (!signal?.aborted) {
-      const compatibilityMode =
-        getService() && !/\.(?:mp4|m4v|webm)$/i.test(prepared.selected.name)
-          ? "transcode"
-          : undefined;
       onPlay({
         item,
         episode: ep,
         url,
         resume: position,
         subtitleRequest: { addons, id: ep?.id ?? item.id },
-        mode: compatibilityMode,
+        mode: undefined,
       });
     }
   }
@@ -2723,7 +2719,7 @@ export default function App() {
             { request?: Record<string, string> } | undefined
         )?.request,
         subtitleRequest: { addons, id: episode.id },
-        relay: debridStream(stream),
+        relay: false,
       });
       next = {
         ...toPlayback(candidate),

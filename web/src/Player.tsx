@@ -1543,7 +1543,6 @@ export default function Player({
     if (
       fallbackStarted.current ||
       !service ||
-      !selected.relay ||
       selected.item.type === "live" ||
       selected.url.startsWith(`${service.url}/media/`)
     )

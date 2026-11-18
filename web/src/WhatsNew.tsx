@@ -1,11 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.13.5";
+export const latestRelease = "2026.11.17.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
+  {
+    version: latestRelease,
+    date: "November 17, 2026",
+    title: "Direct-first debrid playback and profile setup",
+    changes: [
+      "Torrentio and other resolved debrid movie and series streams now try direct browser playback first, even when filenames mention HEVC, AV1, DTS, or MKV.",
+      "Compatibility conversion is now a recovery option after real playback failure, while protected headers, HTTP IPTV, and explicit non-web-ready sources still use the playback service.",
+      "New accounts create a named color-avatar profile during signup, and sign-in cooldowns retain the server retry delay after a refresh.",
+      "The TV-size signup screen stays fully reachable at 720p, and profile, Sports, Live TV, friend-code, tracker, and YouTube behavior remains intact.",
+    ],
+  },
   {
     version: latestRelease,
     date: "November 13, 2026",

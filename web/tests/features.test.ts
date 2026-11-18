@@ -791,7 +791,7 @@ describe("720p+ preference and safe episode matching", () => {
   });
   it("keeps higher quality ahead of container compatibility", () => {
     const mkv = {
-      name: "[TB+] Torrentio 1080p",
+      name: "Provider 1080p",
       title: "Show 1080p seeders: 500",
       url: "https://cdn.example/video",
       behaviorHints: { filename: "Show.S01E01.1080p.mkv" },
@@ -805,7 +805,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
     expect(rankedStreams([mkv, mp4], true)[0]).toBe(mkv);
   });
-  it("keeps quality ranking while marking incompatible codecs for conversion", () => {
+  it("keeps resolved Torrentio codecs direct-first while preserving quality ranking", () => {
     const h264 = {
       name: "[TB+] Torrentio 720p",
       title: "Show.720p.x264 seeders: 170",
@@ -819,8 +819,8 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(codecCompatibility(h264)).toBe(2);
     expect(codecCompatibility(hevc)).toBe(-2);
-    expect(compatibilityPlaybackMode(h264)).toBe("transcode");
-    expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
+    expect(compatibilityPlaybackMode(h264)).toBeUndefined();
+    expect(compatibilityPlaybackMode(hevc)).toBeUndefined();
     expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
   });
   it("prefers browser-safe audio and converts Shield-risky audio formats", () => {
@@ -1038,6 +1038,14 @@ describe("stream manifest compatibility", () => {
         behaviorHints: { notWebReady: true },
       }).label,
     ).toBe("Conversion required");
+    expect(
+      streamCompatibility({
+        name: "[TB+] Torrentio 1080p",
+        title: "Movie.1080p.x265.DTS",
+        url: "https://torrentio.example/resolve/torbox/key/hash/file/0/video",
+        behaviorHints: { filename: "Movie.1080p.x265.DTS.mkv" },
+      }).label,
+    ).toBe("Direct play");
     expect(streamCompatibility({ name: "Unavailable" }).label).toBe(
       "Unsupported",
     );

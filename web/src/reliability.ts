@@ -4,6 +4,7 @@ import type { Addon, Provider, Stream } from "./types";
 import {
   codecCompatibility,
   compatibilityPlaybackMode,
+  debridStream,
   directStream,
 } from "./stream-selection";
 import { validateTorboxKey } from "./torbox";
@@ -214,6 +215,23 @@ export async function runHealthChecks(input: {
 }
 
 export function streamCompatibility(stream: Stream) {
+  const protectedHeaders = (
+    stream.behaviorHints?.proxyHeaders as
+      | { request?: Record<string, string> }
+      | undefined
+  )?.request;
+  if (
+    stream.url &&
+    debridStream(stream) &&
+    stream.behaviorHints?.notWebReady !== true &&
+    !Object.keys(protectedHeaders ?? {}).length
+  )
+    return {
+      label: "Direct play",
+      kind: "direct" as const,
+      detail:
+        "The resolved debrid stream will be tried directly. Compatibility conversion is available if playback fails.",
+    };
   const mode = compatibilityPlaybackMode(stream);
   if (mode && (stream.url || stream.infoHash))
     return {
