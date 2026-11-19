@@ -1661,29 +1661,6 @@ function VideoPlayer({
                   : "Sync from dialogue"}
               </button>
             </span>
-            {subtitleSyncCapturedAt != null && (
-              <span className="subtitle-cue-picker">
-                <small>Select the matching subtitle line</small>
-                {selectedSubtitleSyncCues()
-                  .sort(
-                    (left, right) =>
-                      Math.abs(left.startTime - subtitleSyncCapturedAt) -
-                      Math.abs(right.startTime - subtitleSyncCapturedAt),
-                  )
-                  .slice(0, 7)
-                  .sort((left, right) => left.startTime - right.startTime)
-                  .map((cue) => (
-                    <button
-                      type="button"
-                      key={`${cue.startTime}-${cue.text}`}
-                      onClick={() => applySubtitleSyncCue(cue)}
-                    >
-                      <time>{formatPlayerTime(cue.startTime)}</time>
-                      {cue.text}
-                    </button>
-                  ))}
-              </span>
-            )}
           </div>
         )}
         <label className="button file-button">
@@ -1750,6 +1727,48 @@ function VideoPlayer({
           Report playback issue
         </button>
       </div>
+      {subtitleSyncCapturedAt != null && (
+        <section
+          className="subtitle-cue-overlay"
+          role="dialog"
+          aria-label="Choose the matching subtitle line"
+        >
+          <header>
+            <div>
+              <strong>Select the matching subtitle line</strong>
+              <small>Choose the text you just heard</small>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Cancel subtitle sync"
+              onClick={() => setSubtitleSyncCapturedAt(null)}
+            >
+              <X size={18} />
+            </button>
+          </header>
+          <div>
+            {selectedSubtitleSyncCues()
+              .sort(
+                (left, right) =>
+                  Math.abs(left.startTime - subtitleSyncCapturedAt) -
+                  Math.abs(right.startTime - subtitleSyncCapturedAt),
+              )
+              .slice(0, 7)
+              .sort((left, right) => left.startTime - right.startTime)
+              .map((cue) => (
+                <button
+                  type="button"
+                  key={`${cue.startTime}-${cue.text}`}
+                  onClick={() => applySubtitleSyncCue(cue)}
+                >
+                  <time>{formatPlayerTime(cue.startTime)}</time>
+                  <span>{cue.text}</span>
+                </button>
+              ))}
+          </div>
+        </section>
+      )}
     </dialog>
   );
 }

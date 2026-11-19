@@ -363,6 +363,71 @@ body {
   bottom: 180px;
 }
 
+.tv-web-player .subtitle-cue-overlay {
+  position: absolute;
+  z-index: 24;
+  left: 50%;
+  bottom: max(82px, calc(env(safe-area-inset-bottom) + 72px));
+  display: grid;
+  gap: 10px;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(62dvh, 520px);
+  padding: 14px;
+  overflow-y: auto;
+  border: 1px solid #ffffff26;
+  border-radius: 18px;
+  color: #fff;
+  background: #0b0a0ff2;
+  box-shadow: 0 24px 80px #000c;
+  backdrop-filter: blur(22px);
+  transform: translateX(-50%);
+}
+
+.tv-web-player .subtitle-cue-overlay header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tv-web-player .subtitle-cue-overlay header div,
+.tv-web-player .subtitle-cue-overlay > div {
+  display: grid;
+  gap: 6px;
+}
+
+.tv-web-player .subtitle-cue-overlay small {
+  display: block;
+  margin-top: 2px;
+  color: #aaa6b2;
+}
+
+.tv-web-player .subtitle-cue-overlay > div > button {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff14;
+  border-radius: 11px;
+  color: #fff;
+  text-align: left;
+  background: #ffffff0a;
+}
+
+.tv-web-player .subtitle-cue-overlay > div > button:hover,
+.tv-web-player .subtitle-cue-overlay > div > button:focus-visible {
+  border-color: #a855f7;
+  background: #a855f726;
+}
+
+.tv-web-player .subtitle-cue-overlay time {
+  color: #c084fc;
+  font-variant-numeric: tabular-nums;
+}
+
 .tv-web-player.controls-hidden .player-top,
 .tv-web-player.controls-hidden .vod-controls {
   opacity: 0;

@@ -3406,7 +3406,13 @@ test("subtitle timing controls persist the selected offset", async ({
   await page
     .getByRole("button", { name: "Capture dialogue for subtitle sync" })
     .click();
-  await page.getByRole("button", { name: /0:01 Hello/ }).click();
+  const cuePicker = page.getByRole("dialog", {
+    name: "Choose the matching subtitle line",
+  });
+  await expect(cuePicker).toBeVisible();
+  const matchingCue = cuePicker.getByRole("button", { name: /0:01 Hello/ });
+  await expect(matchingCue).toBeInViewport();
+  await matchingCue.click();
   await expect(
     page.getByRole("button", { name: "Reset subtitle timing" }),
   ).toHaveText("+9.0s");
