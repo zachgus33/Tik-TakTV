@@ -2606,6 +2606,16 @@ test("autoplay selects highest quality first and seeders break quality ties", as
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  const player = page.locator("dialog.tv-web-player");
+  await expect(player).toBeVisible();
+  const playerBox = await player.boundingBox();
+  const viewport = page.viewportSize();
+  expect(Math.round(playerBox?.x ?? -1)).toBe(0);
+  expect(Math.round(playerBox?.y ?? -1)).toBe(0);
+  expect(Math.round(playerBox?.width ?? 0)).toBe(viewport?.width);
+  expect(Math.round(playerBox?.height ?? 0)).toBe(viewport?.height);
+  await expect(player.locator(".tv-web-center-controls")).toBeVisible();
+  await expect(player.locator(".tv-web-progress-controls")).toBeVisible();
   // The empty media fixture intentionally fails decoding and can trigger the
   // player's automatic fallback before a normal DOM assertion runs on slower
   // CI workers. Assert the first assigned source instead: that is the ranking

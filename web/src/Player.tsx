@@ -362,7 +362,6 @@ function VideoPlayer({
       );
   }
   const revealTvControls = useCallback(() => {
-    if (!tvMode) return;
     window.clearTimeout(tvControlsTimerRef.current);
     setTvControlsVisible(true);
     if (!playingRef.current) return;
@@ -372,20 +371,17 @@ function VideoPlayer({
       if (active?.closest(".player-top, .tv-player-controls, .player-tools"))
         active.blur();
     }, 3500);
-  }, [tvMode]);
+  }, []);
   const focusTvPrimaryControl = useCallback(() => {
     const focus = () =>
       dialogRef.current
         ?.querySelector<HTMLElement>("[data-tv-initial-focus]:not([disabled])")
         ?.focus();
     focus();
-    // Chromium WebView may drop focus while a hidden control row is becoming
-    // visible. Re-apply it only if focus was lost; otherwise this would undo a
-    // Left/Right move made immediately after the control row appears.
-    requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (!active || active === document.body || active === dialogRef.current) focus();
-    });
+    // Reveal state is committed on the next frame. Focus again after that
+    // commit so TV/WebView remotes land on Play instead of the hidden shell.
+    requestAnimationFrame(() => requestAnimationFrame(focus));
+    window.setTimeout(focus, 80);
   }, []);
   useEffect(() => {
     if (!playback.party) return;
@@ -474,14 +470,13 @@ function VideoPlayer({
     focusTvPrimaryControl,
   ]);
   useEffect(() => {
-    if (!tvMode) return;
     if (playing) revealTvControls();
     else {
       window.clearTimeout(tvControlsTimerRef.current);
       setTvControlsVisible(true);
     }
     return () => window.clearTimeout(tvControlsTimerRef.current);
-  }, [playing, revealTvControls, tvMode]);
+  }, [playing, revealTvControls]);
   useEffect(() => {
     return () => {
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
@@ -1238,7 +1233,7 @@ function VideoPlayer({
   return (
     <dialog
       ref={dialogRef}
-      className={`player-dialog${tvMode ? " tv-player-surface" : ""}${minimized ? " mini-live-player" : ""}${tvMode && !tvControlsVisible ? " controls-hidden" : ""}`}
+      className={`player-dialog tv-web-player${tvMode ? " tv-player-surface" : ""}${minimized ? " mini-live-player" : ""}${!tvControlsVisible ? " controls-hidden" : ""}`}
       onCancel={(event) => {
         event.preventDefault();
         dismiss();
@@ -1247,7 +1242,26 @@ function VideoPlayer({
       onPointerMove={revealTvControls}
       onPointerDown={revealTvControls}
       onKeyDownCapture={(event) => {
-        if (!tvMode || event.key !== "ArrowDown") return;
+        if (!tvMode) return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          const active = document.activeElement as HTMLElement | null;
+          const cluster = active?.closest(".tv-web-center-controls");
+          if (cluster) {
+            const controls = Array.from(
+              cluster.querySelectorAll<HTMLButtonElement>("button:not([disabled])"),
+            );
+            const index = controls.indexOf(active as HTMLButtonElement);
+            const next =
+              event.key === "ArrowRight" ? controls[index + 1] : controls[index - 1];
+            if (next) {
+              event.preventDefault();
+              event.stopPropagation();
+              next.focus();
+            }
+            return;
+          }
+        }
+        if (event.key !== "ArrowDown") return;
         event.preventDefault();
         event.stopPropagation();
         revealTvControls();
@@ -1297,6 +1311,7 @@ function VideoPlayer({
       <video
         ref={videoRef}
         controls={playback.item.type === "live" && !tvMode}
+        autoPlay
         playsInline
         preload="metadata"
         poster={playback.item.background}
@@ -1317,6 +1332,7 @@ function VideoPlayer({
           className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}
           aria-label="Playback controls"
         >
+          <div className="tv-web-center-controls">
           {(playback.item.type !== "live" || tvMode) && (
             <button
               data-tv-initial-focus={tvMode ? true : undefined}
@@ -1356,6 +1372,8 @@ function VideoPlayer({
               </button>
             </>
           )}
+          </div>
+          <div className="tv-web-progress-controls">
           {playback.item.type !== "live" ? (
             <>
               <span>{formatPlayerTime(currentTime)}</span>
@@ -1390,6 +1408,7 @@ function VideoPlayer({
               <Settings2 size={22} />
             </button>
           )}
+          </div>
         </div>
       )}
       {party && (
