@@ -320,7 +320,12 @@ export async function prepareDownload(
   signal?: AbortSignal,
 ) {
   const config = getService();
-  if (!config && /\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) && !headers) return url;
+  // A direct MP4 already has the most reliable download contract for mobile
+  // Safari/PWA. Sending it through a live FFmpeg pipe produces an indeterminate
+  // attachment there (often reported as -1 bytes), so only use the companion
+  // when headers or a non-MP4 source genuinely require conversion.
+  if (/\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) && !Object.keys(headers ?? {}).length)
+    return url;
   if (!config)
     throw new Error(
       "This source needs the TikTak TV playback service to convert it to MP4. Connect the service in Settings, or choose a direct MP4 source.",

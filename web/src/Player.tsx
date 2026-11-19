@@ -4,13 +4,13 @@ import {
   Airplay,
   Check,
   Copy,
-  FastForward,
   Link,
   Maximize,
   Pause,
   PictureInPicture2,
   Play,
   RotateCcw,
+  RotateCw,
   Settings2,
   X,
 } from "lucide-react";
@@ -1090,7 +1090,7 @@ function VideoPlayer({
                 aria-label="Fast forward 10 seconds"
                 onClick={() => seekTo(currentTime + 10)}
               >
-                <FastForward size={18} />
+                <RotateCw size={18} />
                 <span>10</span>
               </button>
             </>
