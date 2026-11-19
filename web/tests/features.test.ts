@@ -301,6 +301,94 @@ describe("browser downloads", () => {
       prepareDownload("https://cdn.example/movie.mp4", "Movie.mp4"),
     ).resolves.toBe("https://cdn.example/movie.mp4");
   });
+
+  it("waits for the companion's completed MP4 and exposes its real prepared size", async () => {
+    const values = new Map<string, string>([
+      [
+        "nuvio:playback-service",
+        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    vi.stubGlobal(
+      "window",
+      Object.assign(new EventTarget(), { setTimeout, clearTimeout }),
+    );
+    const progress: { status: string; bytes?: number }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith("/download"))
+        return new Response(
+          JSON.stringify({
+            status: "preparing",
+            statusPath: "/media/abcdefghijklmnopqrstuvwx12345678/status.json",
+          }),
+          { status: 202 },
+        );
+      return new Response(
+        JSON.stringify({
+          status: "ready",
+          bytes: 4_194_304,
+          path: "/media/abcdefghijklmnopqrstuvwx12345678/download.mp4",
+        }),
+      );
+    });
+    await expect(
+      prepareDownload(
+        "https://cdn.example/movie.mkv",
+        "Movie.mp4",
+        undefined,
+        undefined,
+        (value) => progress.push({ status: value.status, bytes: value.bytes }),
+      ),
+    ).resolves.toBe(
+      "https://playback.example/media/abcdefghijklmnopqrstuvwx12345678/download.mp4",
+    );
+    expect(progress).toEqual([
+      { status: "preparing", bytes: undefined },
+      { status: "ready", bytes: 4_194_304 },
+    ]);
+  });
+
+  it("reports a companion conversion failure instead of handing off an attachment", async () => {
+    const values = new Map<string, string>([
+      [
+        "nuvio:playback-service",
+        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    vi.stubGlobal(
+      "window",
+      Object.assign(new EventTarget(), { setTimeout, clearTimeout }),
+    );
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "preparing",
+            statusPath: "/media/abcdefghijklmnopqrstuvwx12345678/status.json",
+          }),
+          { status: 202 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ status: "failed", error: "The source rejected the download." }),
+        ),
+      );
+    await expect(
+      prepareDownload("https://cdn.example/movie.mkv", "Movie.mp4"),
+    ).rejects.toThrow("The source rejected the download.");
+  });
 });
 describe("live television browser compatibility", () => {
   it("uses AAC for Safari's native HLS player", () => {
@@ -1051,7 +1139,7 @@ describe("stream manifest compatibility", () => {
     );
   });
 
-  it("keeps a durable download activity history", () => {
+  it("keeps download activity separately for each profile for 30 days", () => {
     const values = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => values.get(key) ?? null,
@@ -1059,7 +1147,7 @@ describe("stream manifest compatibility", () => {
       removeItem: (key: string) => values.delete(key),
     });
     vi.stubGlobal("window", new EventTarget());
-    localStorage.removeItem("nuvio:downloads");
+    localStorage.setItem("tiktak:active-profile-owner", "account-a:1");
     updateDownloadJob({
       id: "job-1",
       name: "Movie.mp4",
@@ -1070,7 +1158,17 @@ describe("stream manifest compatibility", () => {
     expect(downloadJobs()).toEqual([
       expect.objectContaining({ id: "job-1", status: "started" }),
     ]);
-    vi.unstubAllGlobals();
+    localStorage.setItem("tiktak:active-profile-owner", "account-a:2");
+    expect(downloadJobs()).toEqual([]);
+    updateDownloadJob({
+      id: "job-2",
+      name: "Other movie.mp4",
+      status: "failed",
+      detail: "Source rejected the download.",
+      at: Date.now() - 30 * 24 * 60 * 60 * 1_000 - 1,
+    });
+    expect(downloadJobs()).toEqual([]);
+    expect(values.get("nuvio:downloads:account-a:2")).toBe("[]");
   });
 
   it("treats empty resource filters as unrestricted", async () => {
