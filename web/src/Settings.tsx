@@ -202,6 +202,7 @@ const sections = [
 ] as const;
 export default function Settings(props: Props) {
   const [section, setSection] = useState<SettingsSection>(() =>
+    sessionStorage.getItem("tiktak:open-settings-section") === "downloads" ? "downloads" :
     localStorage.getItem("tiktak:trakt-callback") ? "trakt" :
       localStorage.getItem("tiktak:simkl-callback") ? "simkl" :
         localStorage.getItem("tiktak:anilist-callback") ? "anilist" :
@@ -219,6 +220,7 @@ export default function Settings(props: Props) {
     published: boolean;
   } | null>(null);
   useEffect(() => clearRequestedWhatsNewSection(), []);
+  useEffect(() => sessionStorage.removeItem("tiktak:open-settings-section"), []);
   useEffect(() => setEpgDraft(props.epgUrl), [props.epgUrl]);
   useEffect(() => {
     if (!props.playbackConnected) {

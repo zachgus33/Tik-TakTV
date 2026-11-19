@@ -1257,6 +1257,7 @@ function Detail({
   onSelectItem,
   onRemoveProgress,
   onSetWatched,
+  onOpenDownloads,
   watched,
   resume,
   torboxKey,
@@ -1274,6 +1275,7 @@ function Detail({
   onSelectItem: (item: Item) => void;
   onRemoveProgress: (item: Item) => void;
   onSetWatched: (item: Item, episode: Episode | undefined, watched: boolean) => void;
+  onOpenDownloads: () => void;
   watched: WatchedItem[];
   resume?: Progress;
   torboxKey: string;
@@ -1422,6 +1424,7 @@ function Detail({
     }[]
   >([]);
   const [downloadMode, setDownloadMode] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState(false);
   const [readyDownload, setReadyDownload] = useState<{
     url: string;
     filename: string;
@@ -1842,7 +1845,18 @@ function Detail({
       const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
       if (downloadBest) {
         if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
-        else setDownloadMode(false);
+        else {
+          setDownloadMode(false);
+          if (downloadJobId.current)
+            updateDownloadJob({
+              id: downloadJobId.current,
+              name: downloadFilename(ep),
+              status: "failed",
+              detail: "No eligible stream was found. Try Find streams or check Playback health.",
+              at: Date.now(),
+            });
+          setError("No eligible stream was found to download.");
+        }
       } else {
         if (auto && autoplayRanked.length && !autoStarted) {
           try {
@@ -1917,6 +1931,7 @@ function Detail({
       detail: "Selecting the best 720p+ source and preparing an MP4.",
       at: Date.now(),
     });
+    setDownloadNotice(true);
     void play(ep, false, true);
   }
   function appleTouchBrowser() {
@@ -2273,6 +2288,16 @@ function Detail({
               <Download size={18} />
               {appleTouchBrowser() ? "Open MP4 / Save to Files" : "Save MP4"}
             </a>
+          </div>
+        )}
+        {downloadNotice && (
+          <div className="download-queued-popup" role="dialog" aria-label="Download added">
+            <div>
+              <strong>Download added</strong>
+              <p>Preparation and any available MP4 action are in your download manager.</p>
+            </div>
+            <button className="primary" onClick={onOpenDownloads}>View download manager</button>
+            <button onClick={() => setDownloadNotice(false)}>Continue browsing</button>
           </div>
         )}
         {busy && <Loading />}
@@ -4842,6 +4867,11 @@ export default function App() {
           onSelectItem={setDetail}
           onRemoveProgress={removeFromHistory}
           onSetWatched={setWatchedStatus}
+          onOpenDownloads={() => {
+            sessionStorage.setItem("tiktak:open-settings-section", "downloads");
+            setDetail(null);
+            navigate("settings");
+          }}
           watched={watched}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />

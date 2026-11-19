@@ -5085,6 +5085,19 @@ body:has(dialog[open]:not(.mini-live-player)) {
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
 }
+.download-queued-popup {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, #15121a);
+}
+.download-queued-popup p { margin: 3px 0 0; color: var(--muted); font-size: .85rem; }
+@media (max-width: 640px) { .download-queued-popup { grid-template-columns: 1fr; } .download-queued-popup button { width: 100%; } }
 .download-ready p {
   margin: 4px 0 0;
   color: var(--muted);
