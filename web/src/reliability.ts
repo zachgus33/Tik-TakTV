@@ -264,9 +264,18 @@ export type DownloadJob = {
   url?: string;
 };
 const DOWNLOADS_KEY = "nuvio:downloads";
+const DOWNLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+function downloadsKey() {
+  const profile = localStorage.getItem("tiktak:active-profile-owner") || "local";
+  return `${DOWNLOADS_KEY}:${profile}`;
+}
 export function downloadJobs(): DownloadJob[] {
   try {
-    return JSON.parse(localStorage.getItem(DOWNLOADS_KEY) ?? "[]");
+    const key = downloadsKey();
+    const stored = JSON.parse(localStorage.getItem(key) ?? "[]") as DownloadJob[];
+    const current = stored.filter((job) => Date.now() - job.at <= DOWNLOAD_RETENTION_MS);
+    if (current.length !== stored.length) localStorage.setItem(key, JSON.stringify(current));
+    return current;
   } catch {
     return [];
   }
@@ -276,10 +285,10 @@ export function updateDownloadJob(job: DownloadJob) {
     job,
     ...downloadJobs().filter((item) => item.id !== job.id),
   ].slice(0, 30);
-  localStorage.setItem(DOWNLOADS_KEY, JSON.stringify(jobs));
+  localStorage.setItem(downloadsKey(), JSON.stringify(jobs));
   window.dispatchEvent(new Event("downloads-changed"));
 }
 export function clearDownloadJobs() {
-  localStorage.removeItem(DOWNLOADS_KEY);
+  localStorage.removeItem(downloadsKey());
   window.dispatchEvent(new Event("downloads-changed"));
 }

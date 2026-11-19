@@ -55,7 +55,7 @@ export default function DownloadCenter() {
                 <a
                   className="download-job-action"
                   href={job.url}
-                  download={job.name}
+                  download={appleTouchBrowser ? undefined : job.name}
                   rel="noopener"
                   onClick={(event) => {
                     updateDownloadJob({

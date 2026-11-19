@@ -1661,6 +1661,7 @@ function Detail({
       }
     })();
     setReadyDownload({ url: downloadUrl, filename, persistentUrl });
+    const managerUrl = persistentUrl ?? downloadUrl;
     if (downloadJobId.current)
       updateDownloadJob({
         id: downloadJobId.current,
@@ -1669,7 +1670,7 @@ function Detail({
         detail:
           "MP4 is ready. Use Download MP4 if the browser does not start it automatically.",
         at: Date.now(),
-        url: persistentUrl,
+        url: managerUrl,
       });
     setDownloadMode(false);
     // iOS PWAs cannot reliably open an asynchronously prepared file without
@@ -1677,7 +1678,7 @@ function Detail({
     // Download Center's explicit, user-initiated link open the MP4 instead.
     if (!appleTouchBrowser()) {
       handoffDownload(downloadUrl, filename);
-      markDownloadStarted(filename, persistentUrl);
+      markDownloadStarted(filename, managerUrl);
     }
   }
   function markDownloadStarted(filename: string, url?: string) {

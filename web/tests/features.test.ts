@@ -1065,7 +1065,7 @@ describe("stream manifest compatibility", () => {
       name: "Movie.mp4",
       status: "started",
       detail: "Ready",
-      at: 1,
+      at: Date.now(),
     });
     expect(downloadJobs()).toEqual([
       expect.objectContaining({ id: "job-1", status: "started" }),
