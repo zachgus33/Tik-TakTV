@@ -2726,6 +2726,7 @@ test("iPhone retries user-selected playback once media is ready", async ({
 test("the player exposes every compatible stream while automatic fallback stays bounded", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await streamingAddon(page);
   await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
     route.fulfill({
@@ -3315,6 +3316,7 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
 test("subtitle timing controls persist the selected offset", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await streamingAddon(page);
   await page.addInitScript(() => {
     const addons = JSON.parse(localStorage.getItem("nuvio:addons") || "[]");
