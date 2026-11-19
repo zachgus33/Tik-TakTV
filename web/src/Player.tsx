@@ -190,6 +190,7 @@ function VideoPlayer({
   const [retry, setRetry] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tvControlsVisible, setTvControlsVisible] = useState(true);
+  const [playerToolsOpen, setPlayerToolsOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [seekEnd, setSeekEnd] = useState(0);
   const [subtitles, setSubtitles] = useState<
@@ -227,7 +228,9 @@ function VideoPlayer({
     savedSubtitleOffset(playback),
   );
   const [subtitleIncrement, setSubtitleIncrement] = useState(() => {
-    const saved = Number(localStorage.getItem("tiktak:subtitle-increment") || 0.5);
+    const saved = Number(
+      localStorage.getItem("tiktak:subtitle-increment") || 0.5,
+    );
     return saved === 1 || saved === 2 ? saved : 0.5;
   });
   const subtitleOffsetRef = useRef(subtitleOffset);
@@ -335,12 +338,13 @@ function VideoPlayer({
       const embedded =
         embeddedSubtitles.find((track) => track.label === preferred) ??
         embeddedSubtitles[0];
-      const externalIndex = subtitles.findIndex((track) => track.name === preferred);
+      const externalIndex = subtitles.findIndex(
+        (track) => track.name === preferred,
+      );
       if (embedded) {
         embedded.track.mode = "showing";
         value = embedded.key;
-      }
-      else {
+      } else {
         const index = externalIndex >= 0 ? externalIndex : 0;
         const selected = video.querySelectorAll("track")[index];
         if (selected) {
@@ -364,14 +368,14 @@ function VideoPlayer({
   const revealTvControls = useCallback(() => {
     window.clearTimeout(tvControlsTimerRef.current);
     setTvControlsVisible(true);
-    if (!playingRef.current) return;
+    if (!playingRef.current || playerToolsOpen) return;
     tvControlsTimerRef.current = window.setTimeout(() => {
       setTvControlsVisible(false);
       const active = document.activeElement as HTMLElement | null;
       if (active?.closest(".player-top, .tv-player-controls, .player-tools"))
         active.blur();
     }, 3500);
-  }, []);
+  }, [playerToolsOpen]);
   const focusTvPrimaryControl = useCallback(() => {
     const focus = () =>
       dialogRef.current
@@ -562,21 +566,21 @@ function VideoPlayer({
     const restore = () => {
       if (preference?.type === "off") selectSubtitleTrack("off");
       else if (preference?.type === "embedded") {
-      const index = embeddedSubtitles.findIndex(
-        (track) =>
-          track.label === preference?.label ||
-          (!!preference?.language &&
-            track.track.language === preference.language),
-      );
-      selectSubtitleTrack(index >= 0 ? `embedded:${index}` : "auto");
+        const index = embeddedSubtitles.findIndex(
+          (track) =>
+            track.label === preference?.label ||
+            (!!preference?.language &&
+              track.track.language === preference.language),
+        );
+        selectSubtitleTrack(index >= 0 ? `embedded:${index}` : "auto");
       } else if (preference?.type === "external") {
-      const index = subtitles.findIndex(
-        (track) =>
-          track.sourceUrl === preference?.url ||
-          track.name === preference?.label ||
-          (!!preference?.language && track.language === preference.language),
-      );
-      selectSubtitleTrack(index >= 0 ? `external:${index}` : "auto");
+        const index = subtitles.findIndex(
+          (track) =>
+            track.sourceUrl === preference?.url ||
+            track.name === preference?.label ||
+            (!!preference?.language && track.language === preference.language),
+        );
+        selectSubtitleTrack(index >= 0 ? `external:${index}` : "auto");
       } else selectSubtitleTrack("auto");
       subtitlePreferenceRestoredRef.current = true;
     };
@@ -615,8 +619,7 @@ function VideoPlayer({
   }
   function selectedSubtitleSyncCues(): ParsedSubtitleCue[] {
     if (selectedSubtitleTrack.startsWith("external:")) {
-      const subtitle =
-        subtitles[Number(selectedSubtitleTrack.split(":")[1])];
+      const subtitle = subtitles[Number(selectedSubtitleTrack.split(":")[1])];
       return subtitle ? parseWebVttCues(subtitle.sourceText) : [];
     }
     if (selectedSubtitleTrack.startsWith("embedded:")) {
@@ -654,7 +657,9 @@ function VideoPlayer({
     const next = Math.round((subtitleSyncCapturedAt - cue.startTime) * 10) / 10;
     changeSubtitleOffset(next);
     setSubtitleSyncCapturedAt(null);
-    setNotice(`Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`);
+    setNotice(
+      `Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`,
+    );
   }
   useEffect(() => {
     const video = videoRef.current!;
@@ -1248,11 +1253,15 @@ function VideoPlayer({
           const cluster = active?.closest(".tv-web-center-controls");
           if (cluster) {
             const controls = Array.from(
-              cluster.querySelectorAll<HTMLButtonElement>("button:not([disabled])"),
+              cluster.querySelectorAll<HTMLButtonElement>(
+                "button:not([disabled])",
+              ),
             );
             const index = controls.indexOf(active as HTMLButtonElement);
             const next =
-              event.key === "ArrowRight" ? controls[index + 1] : controls[index - 1];
+              event.key === "ArrowRight"
+                ? controls[index + 1]
+                : controls[index - 1];
             if (next) {
               event.preventDefault();
               event.stopPropagation();
@@ -1333,81 +1342,93 @@ function VideoPlayer({
           aria-label="Playback controls"
         >
           <div className="tv-web-center-controls">
-          {(playback.item.type !== "live" || tvMode) && (
-            <button
-              data-tv-initial-focus={tvMode ? true : undefined}
-              type="button"
-              aria-label={playing ? "Pause" : "Play"}
-              onClick={() => {
-                const video = videoRef.current;
-                if (!video) return;
-                if (video.paused) void video.play();
-                else video.pause();
-              }}
-            >
-              {playing ? <Pause size={18} /> : <Play size={18} />}
-            </button>
-          )}
-          {playback.item.type !== "live" && (
-            <>
+            {(playback.item.type !== "live" || tvMode) && (
               <button
+                data-tv-initial-focus={tvMode ? true : undefined}
                 type="button"
-                aria-label="Rewind 10 seconds"
+                aria-label={playing ? "Pause" : "Play"}
                 onClick={() => {
                   const video = videoRef.current;
-                  if (video)
-                    video.currentTime = Math.max(0, video.currentTime - 10);
+                  if (!video) return;
+                  if (video.paused) void video.play();
+                  else video.pause();
                 }}
               >
-                <RotateCcw size={18} />
-                <span>10</span>
+                {playing ? <Pause size={18} /> : <Play size={18} />}
               </button>
-              <button
-                type="button"
-                aria-label="Fast forward 10 seconds"
-                onClick={() => seekTo(currentTime + 10)}
-              >
-                <RotateCw size={18} />
-                <span>10</span>
-              </button>
-            </>
-          )}
+            )}
+            {playback.item.type !== "live" && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Rewind 10 seconds"
+                  onClick={() => {
+                    const video = videoRef.current;
+                    if (video)
+                      video.currentTime = Math.max(0, video.currentTime - 10);
+                  }}
+                >
+                  <RotateCcw size={18} />
+                  <span>10</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Fast forward 10 seconds"
+                  onClick={() => seekTo(currentTime + 10)}
+                >
+                  <RotateCw size={18} />
+                  <span>10</span>
+                </button>
+              </>
+            )}
           </div>
           <div className="tv-web-progress-controls">
-          {playback.item.type !== "live" ? (
-            <>
-              <span>{formatPlayerTime(currentTime)}</span>
-              <input
-                type="range"
-                aria-label="Playback position"
-                min="0"
-                max={Math.max(1, timelineEnd)}
-                step="0.1"
-                value={Math.min(currentTime, Math.max(1, timelineEnd))}
-                onChange={(event) => seekTo(Number(event.target.value))}
-              />
-              <span>{formatPlayerTime(timelineEnd)}</span>
-            </>
-          ) : (
-            <span className="tv-live-indicator">
-              <i /> LIVE
-            </span>
-          )}
-          {tvMode && (
+            {playback.item.type !== "live" ? (
+              <>
+                <span>{formatPlayerTime(currentTime)}</span>
+                <input
+                  type="range"
+                  aria-label="Playback position"
+                  min="0"
+                  max={Math.max(1, timelineEnd)}
+                  step="0.1"
+                  value={Math.min(currentTime, Math.max(1, timelineEnd))}
+                  onChange={(event) => seekTo(Number(event.target.value))}
+                />
+                <span>{formatPlayerTime(timelineEnd)}</span>
+              </>
+            ) : (
+              <span className="tv-live-indicator">
+                <i /> LIVE
+              </span>
+            )}
             <button
               type="button"
-              aria-label="Playback settings"
-              onClick={() =>
-                document
-                  .querySelector<HTMLElement>(
-                    ".tv-player-surface .player-tools button, .tv-player-surface .player-tools select",
-                  )
-                  ?.focus()
+              className={playerToolsOpen ? "selected" : undefined}
+              aria-label={
+                playerToolsOpen
+                  ? "Close playback options"
+                  : "Open playback options"
               }
+              aria-controls="player-options"
+              aria-expanded={playerToolsOpen}
+              onClick={() => {
+                const next = !playerToolsOpen;
+                window.clearTimeout(tvControlsTimerRef.current);
+                setTvControlsVisible(true);
+                setPlayerToolsOpen(next);
+                if (next)
+                  requestAnimationFrame(() =>
+                    dialogRef.current
+                      ?.querySelector<HTMLElement>(
+                        ".player-tools button:not([disabled]), .player-tools select",
+                      )
+                      ?.focus(),
+                  );
+              }}
             >
               <Settings2 size={22} />
             </button>
-          )}
           </div>
         </div>
       )}
@@ -1480,7 +1501,29 @@ function VideoPlayer({
           {nextError}
         </p>
       )}
-      <div className="player-tools">
+      <div
+        id="player-options"
+        className={`player-tools${playerToolsOpen ? " tools-open" : ""}`}
+        role="dialog"
+        aria-label="Playback options"
+        aria-hidden={!tvMode && !playerToolsOpen}
+      >
+        {!tvMode && (
+          <div className="player-tools-header">
+            <div>
+              <strong>Playback options</strong>
+              <small>Stream, subtitles, sharing, and display</small>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close playback options"
+              onClick={() => setPlayerToolsOpen(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
         {nextEpisode && !party && (
           <>
             <button
@@ -1610,59 +1653,68 @@ function VideoPlayer({
         )}
         {(subtitles.length > 0 || embeddedSubtitles.length > 0) &&
           selectedSubtitleTrack !== "off" && (
-          <div className="subtitle-sync" aria-label="Subtitle timing">
-            <select
-              aria-label="Subtitle timing increment"
-              value={subtitleIncrement}
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                setSubtitleIncrement(value);
-                localStorage.setItem("tiktak:subtitle-increment", String(value));
-              }}
-            >
-              {[0.5, 1, 2].map((increment) => (
-                <option key={increment} value={increment}>{increment}s steps</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              aria-label="Show subtitles earlier"
-              onClick={() => changeSubtitleOffset(subtitleOffset - subtitleIncrement)}
-            >
-              Earlier
-            </button>
-            <button
-              type="button"
-              aria-label="Reset subtitle timing"
-              title="Reset subtitle timing"
-              onClick={() => changeSubtitleOffset(0)}
-            >
-              {subtitleOffset > 0 ? "+" : ""}
-              {subtitleOffset.toFixed(1)}s
-            </button>
-            <button
-              type="button"
-              aria-label="Show subtitles later"
-              onClick={() => changeSubtitleOffset(subtitleOffset + subtitleIncrement)}
-            >
-              Later
-            </button>
-            <span className="subtitle-auto-sync">
+            <div className="subtitle-sync" aria-label="Subtitle timing">
+              <select
+                aria-label="Subtitle timing increment"
+                value={subtitleIncrement}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setSubtitleIncrement(value);
+                  localStorage.setItem(
+                    "tiktak:subtitle-increment",
+                    String(value),
+                  );
+                }}
+              >
+                {[0.5, 1, 2].map((increment) => (
+                  <option key={increment} value={increment}>
+                    {increment}s steps
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                className={
-                  subtitleSyncCapturedAt != null ? "selected" : undefined
+                aria-label="Show subtitles earlier"
+                onClick={() =>
+                  changeSubtitleOffset(subtitleOffset - subtitleIncrement)
                 }
-                aria-label="Capture dialogue for subtitle sync"
-                onClick={captureSubtitleSync}
               >
-                {subtitleSyncCapturedAt != null
-                  ? "Dialogue captured"
-                  : "Sync from dialogue"}
+                Earlier
               </button>
-            </span>
-          </div>
-        )}
+              <button
+                type="button"
+                aria-label="Reset subtitle timing"
+                title="Reset subtitle timing"
+                onClick={() => changeSubtitleOffset(0)}
+              >
+                {subtitleOffset > 0 ? "+" : ""}
+                {subtitleOffset.toFixed(1)}s
+              </button>
+              <button
+                type="button"
+                aria-label="Show subtitles later"
+                onClick={() =>
+                  changeSubtitleOffset(subtitleOffset + subtitleIncrement)
+                }
+              >
+                Later
+              </button>
+              <span className="subtitle-auto-sync">
+                <button
+                  type="button"
+                  className={
+                    subtitleSyncCapturedAt != null ? "selected" : undefined
+                  }
+                  aria-label="Capture dialogue for subtitle sync"
+                  onClick={captureSubtitleSync}
+                >
+                  {subtitleSyncCapturedAt != null
+                    ? "Dialogue captured"
+                    : "Sync from dialogue"}
+                </button>
+              </span>
+            </div>
+          )}
         <label className="button file-button">
           Load subtitles
           <input

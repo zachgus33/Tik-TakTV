@@ -109,6 +109,31 @@ async function connect(page: Page) {
     page.getByText("Connection verified.", { exact: false }),
   ).toBeVisible();
 }
+async function openPlaybackOptions(page: Page) {
+  const toggle = page.getByRole("button", { name: "Open playback options" });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  const panel = page.getByRole("dialog", { name: "Playback options" });
+  await expect(panel).toBeVisible();
+  const panelBox = await panel.boundingBox();
+  const viewport = page.viewportSize();
+  expect(panelBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+  expect(panelBox?.y ?? -1).toBeGreaterThanOrEqual(0);
+  expect(
+    Math.ceil((panelBox?.x ?? Infinity) + (panelBox?.width ?? Infinity)),
+  ).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect(
+    Math.ceil((panelBox?.y ?? Infinity) + (panelBox?.height ?? Infinity)),
+  ).toBeLessThanOrEqual(viewport?.height ?? 0);
+  await expect
+    .poll(() =>
+      panel.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth + 1,
+      ),
+    )
+    .toBe(true);
+  return panel;
+}
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((release) => {
     localStorage.setItem("tiktak:established-local", "1");
@@ -209,11 +234,13 @@ test("series player offers next episode and optional auto-advance", async ({
     "src",
     /episode-1\.mp4/,
   );
+  await openPlaybackOptions(page);
   await page.getByRole("button", { name: "Play next: S1 E2" }).click();
   await expect(page.locator(".player-dialog video")).toHaveAttribute(
     "src",
     /episode-2\.mp4/,
   );
+  await openPlaybackOptions(page);
   await expect(
     page.getByRole("checkbox", { name: /Auto-advance to the next episode/ }),
   ).not.toBeChecked();
@@ -1609,9 +1636,11 @@ test("Friends resume history shows watched icons on earlier episodes", async ({
       name: /3 The One with the Thumb/,
     }),
   ).not.toContainText("Watched");
-  await page.getByRole("button", {
-    name: "Mark episode 3 watched",
-  }).click();
+  await page
+    .getByRole("button", {
+      name: "Mark episode 3 watched",
+    })
+    .click();
   await expect(
     page.getByRole("button", {
       name: /3 The One with the Thumb Watched/,
@@ -2621,13 +2650,33 @@ test("autoplay selects highest quality first and seeders break quality ties", as
   const player = page.locator("dialog.tv-web-player");
   await expect(player).toBeVisible();
   const playerBox = await player.boundingBox();
+  const videoBox = await player.locator("video").boundingBox();
   const viewport = page.viewportSize();
   expect(Math.round(playerBox?.x ?? -1)).toBe(0);
   expect(Math.round(playerBox?.y ?? -1)).toBe(0);
   expect(Math.round(playerBox?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(playerBox?.height ?? 0)).toBe(viewport?.height);
+  expect(Math.round(videoBox?.x ?? -1)).toBe(0);
+  expect(Math.round(videoBox?.y ?? -1)).toBe(0);
+  expect(Math.round(videoBox?.width ?? 0)).toBe(viewport?.width);
+  expect(Math.round(videoBox?.height ?? 0)).toBe(viewport?.height);
   await expect(player.locator(".tv-web-center-controls")).toBeVisible();
   await expect(player.locator(".tv-web-progress-controls")).toBeVisible();
+  const transportBox = await player
+    .locator(".tv-web-center-controls")
+    .boundingBox();
+  expect(
+    Math.abs(
+      (transportBox?.x ?? 0) +
+        (transportBox?.width ?? 0) / 2 -
+        (viewport?.width ?? 0) / 2,
+    ),
+  ).toBeLessThanOrEqual(2);
+  const options = page.getByRole("dialog", { name: "Playback options" });
+  await expect(options).toBeHidden();
+  await openPlaybackOptions(page);
+  await options.getByRole("button", { name: "Close playback options" }).click();
+  await expect(options).toBeHidden();
   // The empty media fixture intentionally fails decoding and can trigger the
   // player's automatic fallback before a normal DOM assertion runs on slower
   // CI workers. Assert the first assigned source instead: that is the ranking
@@ -2685,7 +2734,10 @@ test("autoplay shows a top loading state without opening the manual stream list"
 test("iPhone retries user-selected playback once media is ready", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "iphone", "Exercises iOS PWA media readiness.");
+  test.skip(
+    testInfo.project.name !== "iphone",
+    "Exercises iOS PWA media readiness.",
+  );
   await streamingAddon(page);
   await page.addInitScript(() => {
     const nativePlay = HTMLMediaElement.prototype.play;
@@ -2696,7 +2748,9 @@ test("iPhone retries user-selected playback once media is ready", async ({
     HTMLMediaElement.prototype.play = function () {
       attempts += 1;
       if (attempts === 1)
-        return Promise.reject(new DOMException("Media is not ready", "AbortError"));
+        return Promise.reject(
+          new DOMException("Media is not ready", "AbortError"),
+        );
       return nativePlay.call(this);
     };
   });
@@ -2717,9 +2771,17 @@ test("iPhone retries user-selected playback once media is ready", async ({
   await page.getByRole("button", { name: "Play best stream" }).click();
   const video = page.locator("video");
   await expect(video).toBeVisible();
-  await video.evaluate((element) => element.dispatchEvent(new Event("canplay")));
+  await video.evaluate((element) =>
+    element.dispatchEvent(new Event("canplay")),
+  );
   await expect
-    .poll(() => page.evaluate(() => (window as Window & { __testPlayAttempts?: number }).__testPlayAttempts))
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __testPlayAttempts?: number })
+            .__testPlayAttempts,
+      ),
+    )
     .toBeGreaterThan(1);
 });
 
@@ -2746,6 +2808,7 @@ test("the player exposes every compatible stream while automatic fallback stays 
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  await openPlaybackOptions(page);
   await expect(
     page.getByRole("button", { name: "Choose stream" }),
   ).toBeVisible();
@@ -2941,8 +3004,7 @@ test("configured add-on streams retain query settings with direct-first loading"
   const relayed: string[] = [];
   await page.route("https://playback.example/request", (route) => {
     const source = route.request().postDataJSON().url as string;
-    if (source.startsWith("https://configured.example/"))
-      relayed.push(source);
+    if (source.startsWith("https://configured.example/")) relayed.push(source);
     return route.fulfill({ status: 502, json: { error: "upstream" } });
   });
   const direct: string[] = [];
@@ -3356,6 +3418,7 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  await openPlaybackOptions(page);
   await expect(
     page.getByRole("button", { name: "Show subtitles later" }),
   ).toBeVisible();
@@ -3377,7 +3440,9 @@ test("subtitle timing controls persist the selected offset", async ({
     page.getByRole("button", { name: "Reset subtitle timing" }),
   ).toHaveText("+3.0s");
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("tiktak:subtitle-increment")))
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("tiktak:subtitle-increment")),
+    )
     .toBe("2");
   await page.getByRole("button", { name: "Reset subtitle timing" }).click();
   const video = page.locator("video");
@@ -3395,10 +3460,11 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.getByLabel("Subtitle language").selectOption("embedded:0");
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(
-          localStorage.getItem("tiktak:subtitle-selection:tt-test") ?? "null",
-        )?.type,
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("tiktak:subtitle-selection:tt-test") ?? "null",
+          )?.type,
       ),
     )
     .toBe("embedded");
@@ -3568,6 +3634,7 @@ test("Watch Together creates a shareable room from the resolved source", async (
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play best stream" }).click();
+  await openPlaybackOptions(page);
   await page.getByRole("button", { name: "Watch Together" }).click();
   await expect(
     page.getByText("You control this room", { exact: false }),
@@ -3718,7 +3785,9 @@ test("queues the best ranked movie download without blocking the app", async ({
   expect(requested.filename).toBe("The Test Movie.mp4");
   const before = page.url();
   await page.getByRole("button", { name: "View download manager" }).click();
-  await expect(page.getByText("Preparing the complete MP4", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Preparing the complete MP4", { exact: false }),
+  ).toBeVisible();
   expect(mediaRequests).toBe(0);
   await page.reload();
   statusReady = true;
@@ -4441,7 +4510,9 @@ test.describe("authenticated integrations", () => {
       page.getByRole("dialog").locator(".title-watched-badge"),
     ).toHaveText("Watched");
     await page.getByRole("button", { name: "Mark unwatched" }).click();
-    await expect(page.getByRole("button", { name: "Mark watched" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Mark watched" }),
+    ).toBeVisible();
     await expect
       .poll(() =>
         pushes.some(
@@ -4469,12 +4540,15 @@ test.describe("authenticated integrations", () => {
     await page.getByRole("button", { name: "Close details" }).click();
     await expect
       .poll(() =>
-        page.evaluate((expectedKey) => {
-          const key = Object.keys(localStorage).find((entry) =>
-            entry === expectedKey,
-          );
-          return key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
-        }, `tiktak:trakt:${encodeURIComponent(`profile:${user.id}:2`)}`),
+        page.evaluate(
+          (expectedKey) => {
+            const key = Object.keys(localStorage).find(
+              (entry) => entry === expectedKey,
+            );
+            return key ? JSON.parse(localStorage.getItem(key) ?? "null") : null;
+          },
+          `tiktak:trakt:${encodeURIComponent(`profile:${user.id}:2`)}`,
+        ),
       )
       .toMatchObject({
         access_token: "profile-trakt-access",
