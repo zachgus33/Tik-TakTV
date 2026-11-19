@@ -373,7 +373,7 @@ body {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translate(-50%, 24px);
+  transform: translateX(-50%);
   transition:
     opacity 180ms ease,
     transform 180ms ease,
@@ -384,7 +384,7 @@ body {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transform: translate(-50%, 0);
+  transform: translateX(-50%);
 }
 
 .tv-web-player:not(.tv-player-surface) .player-tools-header {
