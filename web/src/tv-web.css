@@ -91,6 +91,11 @@ body {
   border-bottom: 1px solid #ffffff0b;
   background: linear-gradient(180deg, #08080ce8, #08080c91 70%, transparent);
   backdrop-filter: blur(14px);
+  pointer-events: none;
+}
+
+.topbar > * {
+  pointer-events: auto;
 }
 
 .topbar .breadcrumb {
