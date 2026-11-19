@@ -4,6 +4,7 @@ import {
   Airplay,
   Check,
   Copy,
+  FastForward,
   Link,
   Maximize,
   Pause,
