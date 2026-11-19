@@ -28,7 +28,7 @@ async function verifyCompletedDownload({ endpoint, accessToken, origin }) {
     Origin: origin,
   };
   const source =
-    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
   const started = await checkedFetch(`${endpoint}/download`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
