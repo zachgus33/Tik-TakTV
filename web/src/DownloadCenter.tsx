@@ -8,8 +8,27 @@ import {
 } from "./reliability";
 import {
   completedDownloadUrl,
+  DownloadStatusError,
   downloadPreparationStatus,
 } from "./connection";
+
+function preparationDetail(
+  status: Awaited<ReturnType<typeof downloadPreparationStatus>>,
+) {
+  const megabytes = Number(status.bytes ?? 0) / 1_048_576;
+  const processed = Math.max(0, Math.floor(Number(status.progressSeconds) || 0));
+  const size = megabytes ? ` - ${megabytes.toFixed(1)} MB written` : "";
+  const duration = processed
+    ? ` - ${Math.floor(processed / 60)}m ${processed % 60}s processed`
+    : "";
+  const phase = status.stage === "transcode" ? "Converting" : "Copying";
+  return `${phase} the source into a complete MP4 on the playback service${size}${duration}. No download starts until it finishes.`;
+}
+
+function readyDetail(bytes?: number) {
+  const megabytes = Number(bytes ?? 0) / 1_048_576;
+  return `MP4 is ready${megabytes ? ` - ${megabytes.toFixed(1)} MB` : ""}. Tap below to download the completed file.`;
+}
 
 export default function DownloadCenter() {
   const [jobs, setJobs] = useState<DownloadJob[]>(downloadJobs);
@@ -25,7 +44,6 @@ export default function DownloadCenter() {
           try {
             const status = await downloadPreparationStatus(job.statusPath!);
             if (!active) return;
-            const megabytes = Number(status.bytes ?? 0) / 1_048_576;
             updateDownloadJob({
               ...job,
               status:
@@ -38,18 +56,36 @@ export default function DownloadCenter() {
                 status.status === "failed"
                   ? (status.error ?? "MP4 preparation failed.")
                   : status.status === "ready"
-                    ? `MP4 is ready${megabytes ? ` · ${megabytes.toFixed(1)} MB` : ""}. Tap below to download the completed file.`
-                    : `Preparing the complete MP4 on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB written` : ""}.`,
-              at: Date.now(),
+                    ? readyDetail(status.bytes)
+                    : preparationDetail(status),
+              // Viewing the manager cannot extend its 30-day retention.
+              at: job.at,
               bytes: status.bytes,
+              progressSeconds: status.progressSeconds,
+              stage: status.stage,
               url:
                 status.status === "ready" && status.path
                   ? completedDownloadUrl(status.path)
                   : job.url,
             });
-          } catch {
-            // A temporary status failure must not turn a running Pi job into a
-            // false failure. The next poll can recover it.
+          } catch (error) {
+            if (!active) return;
+            if (error instanceof DownloadStatusError && error.permanent) {
+              updateDownloadJob({
+                ...job,
+                status: "failed",
+                detail: `The temporary MP4 is no longer available: ${error.message}`,
+                at: job.at,
+              });
+            } else {
+              // Keep network/tunnel trouble retryable, but do not pretend the
+              // companion is still making conversion progress.
+              updateDownloadJob({
+                ...job,
+                detail: `Waiting to refresh preparation status: ${error instanceof Error ? error.message : "unknown error"} Retrying automatically.`,
+                at: job.at,
+              });
+            }
           }
         }),
       );

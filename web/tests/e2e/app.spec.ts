@@ -3786,7 +3786,7 @@ test("queues the best ranked movie download without blocking the app", async ({
   const before = page.url();
   await page.getByRole("button", { name: "View download manager" }).click();
   await expect(
-    page.getByText("Preparing the complete MP4", { exact: false }),
+    page.getByText("Copying the source into a complete MP4", { exact: false }),
   ).toBeVisible();
   expect(mediaRequests).toBe(0);
   await page.reload();

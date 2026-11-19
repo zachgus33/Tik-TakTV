@@ -816,6 +816,8 @@ test("spools a complete MP4 before serving a sized range-capable download", asyn
     assert.equal(status.status, "ready");
     assert.equal(status.bytes, body.length);
     assert.equal(status.path, created.path);
+    assert.equal(status.progressSeconds, 2);
+    assert.equal(status.stage, undefined);
 
     const head = await fetch(base + created.path, { method: "HEAD" });
     assert.equal(head.status, 200);

@@ -1580,6 +1580,9 @@ export function createService({
   function downloadStatus(job) {
     return {
       status: job.status,
+      // HLS and many add-on sources do not report an eventual duration or
+      // byte length, so progress deliberately has no made-up percentage.
+      stage: job.status === "preparing" ? job.attempt : undefined,
       filename: job.filename,
       bytes: job.bytes ?? 0,
       progressSeconds: job.progressSeconds ?? 0,
@@ -1609,6 +1612,7 @@ export function createService({
       if (seconds) job.progressSeconds = Number(seconds) / 1_000_000;
       job.touched = Date.now();
       job.updatedAt = job.touched;
+      // Report the actual spool size, never an estimate of the final MP4.
       void stat(job.file)
         .then((value) => {
           job.bytes = value.size;

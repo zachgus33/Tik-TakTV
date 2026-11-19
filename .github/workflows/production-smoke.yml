@@ -3,6 +3,12 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      verify_download_transfer:
+        description: "Prepare and download a completed MP4 through the production companion"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -29,6 +35,7 @@ jobs:
           NUVIO_SMOKE_EMAIL: ${{ secrets.NUVIO_SMOKE_EMAIL }}
           NUVIO_SMOKE_PASSWORD: ${{ secrets.NUVIO_SMOKE_PASSWORD }}
           NUVIO_SMOKE_FRIEND_CODE: ${{ secrets.NUVIO_SMOKE_FRIEND_CODE }}
+          SMOKE_DOWNLOAD_TRANSFER: ${{ github.event.inputs.verify_download_transfer == 'true' && '1' || '0' }}
       - name: Open or update production incident
         if: failure()
         uses: actions/github-script@v8

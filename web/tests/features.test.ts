@@ -35,7 +35,7 @@ import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
 import { resolveAccountProvider } from "../src/provider-sharing";
 import { liveAudioCodec } from "../src/media-compatibility";
-import { prepareDownload } from "../src/connection";
+import { downloadPreparationStatus, prepareDownload } from "../src/connection";
 import {
   streamCompatibility,
   updateDownloadJob,
@@ -388,6 +388,31 @@ describe("browser downloads", () => {
     await expect(
       prepareDownload("https://cdn.example/movie.mkv", "Movie.mp4"),
     ).rejects.toThrow("The source rejected the download.");
+  });
+
+  it("treats an expired temporary MP4 as a terminal manager failure", async () => {
+    const values = new Map<string, string>([
+      [
+        "nuvio:playback-service",
+        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Download expired." }), { status: 410 }),
+    );
+    await expect(
+      downloadPreparationStatus(
+        "/media/abcdefghijklmnopqrstuvwx12345678/status.json",
+      ),
+    ).rejects.toMatchObject({
+      name: "DownloadStatusError",
+      permanent: true,
+    });
   });
 });
 describe("live television browser compatibility", () => {

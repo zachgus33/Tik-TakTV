@@ -391,6 +391,7 @@ export async function prepareDownload(
 
 export type DownloadPreparationStatus = {
   status: "preparing" | "ready" | "failed";
+  stage?: "copy" | "transcode";
   statusPath?: string;
   path?: string;
   filename?: string;
@@ -432,12 +433,35 @@ export async function downloadPreparationStatus(
     throw new Error("Invalid download status path.");
   if (!config) throw new Error("Connect the TikTak TV playback service first.");
   const response = await serviceRequest(statusPath, undefined, signal, config);
-  if (!response.ok)
-    throw new Error(`Download status returned HTTP ${response.status}.`);
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => ({}))) as {
+      error?: unknown;
+    };
+    const message =
+      typeof detail.error === "string" && detail.error.trim()
+        ? detail.error
+        : `Download status returned HTTP ${response.status}.`;
+    // An expired opaque ticket cannot recover on a later poll. Tunnel and
+    // gateway failures remain retryable in the manager.
+    throw new DownloadStatusError(
+      message,
+      response.status === 404 || response.status === 410,
+    );
+  }
   const status = (await response.json()) as DownloadPreparationStatus;
   if (!["preparing", "ready", "failed"].includes(status.status))
     throw new Error("Invalid download status response.");
   return { ...status, statusPath };
+}
+
+export class DownloadStatusError extends Error {
+  constructor(
+    message: string,
+    readonly permanent: boolean,
+  ) {
+    super(message);
+    this.name = "DownloadStatusError";
+  }
 }
 
 export function completedDownloadUrl(path: string) {

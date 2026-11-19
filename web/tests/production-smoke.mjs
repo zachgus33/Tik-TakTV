@@ -10,6 +10,8 @@ const endpointRecord =
 const rawEndpointRecord =
   "https://raw.githubusercontent.com/zachgus33/Tik-TakTV-Endpoint/main/endpoint.json";
 const timeout = (milliseconds = 20_000) => AbortSignal.timeout(milliseconds);
+const delay = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 const checkedFetch = async (url, options = {}) => {
   const response = await fetch(url, {
     redirect: "follow",
@@ -19,6 +21,75 @@ const checkedFetch = async (url, options = {}) => {
   assert.ok(response.ok, `${url} returned HTTP ${response.status}`);
   return response;
 };
+
+async function verifyCompletedDownload({ endpoint, accessToken, origin }) {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Origin: origin,
+  };
+  const source =
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+  const started = await checkedFetch(`${endpoint}/download`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: source,
+      filename: "TikTak production download probe.mp4",
+    }),
+  });
+  assert.equal(started.status, 202, "Companion did not queue the MP4 download");
+  const job = await started.json();
+  assert.match(
+    job.statusPath,
+    /^\/media\/[A-Za-z0-9_-]{32}\/status\.json$/,
+    "Companion did not return a bounded download status path",
+  );
+
+  const deadline = Date.now() + 150_000;
+  let status;
+  while (Date.now() < deadline) {
+    const response = await checkedFetch(`${endpoint}${job.statusPath}`, {
+      headers,
+    });
+    status = await response.json();
+    if (status.status === "ready") break;
+    assert.notEqual(
+      status.status,
+      "failed",
+      `Companion failed MP4 preparation: ${status.error ?? "no detail"}`,
+    );
+    await delay(1_000);
+  }
+  assert.equal(status?.status, "ready", "Timed out waiting for a completed MP4");
+  assert.match(
+    status.path,
+    /^\/media\/[A-Za-z0-9_-]{32}\/download\.mp4$/,
+    "Companion did not expose a completed MP4 path",
+  );
+  assert.ok(Number(status.bytes) > 0, "Completed MP4 has no truthful byte size");
+
+  const attachment = await checkedFetch(`${endpoint}${status.path}`, { headers });
+  assert.match(
+    attachment.headers.get("content-disposition") ?? "",
+    /attachment/i,
+    "Completed MP4 is not sent as a download attachment",
+  );
+  const length = Number(attachment.headers.get("content-length"));
+  assert.equal(length, Number(status.bytes), "Attachment length disagrees with status");
+  const file = new Uint8Array(await attachment.arrayBuffer());
+  assert.equal(file.byteLength, length, "Attachment transfer was truncated");
+
+  const partial = await checkedFetch(`${endpoint}${status.path}`, {
+    headers: { ...headers, Range: "bytes=0-31" },
+  });
+  assert.equal(partial.status, 206, "Completed MP4 does not support byte ranges");
+  assert.equal(
+    (await partial.arrayBuffer()).byteLength,
+    Math.min(32, length),
+    "Range transfer has the wrong size",
+  );
+  console.log(`Completed MP4 transfer verified (${length} bytes).`);
+}
 
 const home = await (
   await checkedFetch(`${site}/?smoke=${Date.now()}#home`)
@@ -209,6 +280,12 @@ if (email && password) {
     /^\/media\//,
     "Safe test stream was not prepared",
   );
+  if (process.env.SMOKE_DOWNLOAD_TRANSFER === "1")
+    await verifyCompletedDownload({
+      endpoint: record.url,
+      accessToken: session.access_token,
+      origin: siteOrigin,
+    });
   console.log("Authenticated account and friend-service checks passed.");
 } else {
   console.log(
