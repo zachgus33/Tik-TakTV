@@ -3603,19 +3603,37 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
     }),
   );
   let requested: Record<string, unknown> = {};
+  const downloadJobId = "a".repeat(32);
+  const statusPath = `/media/${downloadJobId}/status.json`;
+  const downloadPath = `/media/${downloadJobId}/download.mp4`;
   await page.route("https://playback.example/download", async (route) => {
     requested = JSON.parse(route.request().postData() ?? "{}");
-    await route.fulfill({ json: { path: "/media/job/download.mp4" } });
+    await route.fulfill({
+      status: 202,
+      json: { status: "preparing", statusPath, path: downloadPath },
+    });
   });
+  await page.route(`https://playback.example${statusPath}`, (route) =>
+    route.fulfill({
+      json: {
+        status: "ready",
+        statusPath,
+        path: downloadPath,
+        bytes: 3,
+      },
+    }),
+  );
   let mediaRequests = 0;
   await page
     .context()
-    .route("https://playback.example/media/job/download.mp4", (route) => {
+    .route(`https://playback.example${downloadPath}`, (route) => {
       mediaRequests += 1;
       return route.fulfill({
         contentType: "video/mp4",
         headers: {
           "Content-Disposition": 'attachment; filename="The Test Movie.mp4"',
+          "Content-Length": "3",
+          "Accept-Ranges": "bytes",
         },
         body: "mp4",
       });
@@ -3636,9 +3654,17 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
     const appleTouchBrowser = await page.evaluate(() =>
       /iPad|iPhone|iPod/i.test(navigator.userAgent),
     );
-    if (appleTouchBrowser)
-      await expect(page.getByRole("button", { name: "View download manager" })).toBeVisible();
-    else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
+    if (appleTouchBrowser) {
+      const before = page.url();
+      await page.getByRole("button", { name: "View download manager" }).click();
+      await expect(
+        page.getByRole("link", { name: "Open MP4 / Save to Files" }),
+      ).toHaveAttribute("href", `https://playback.example${downloadPath}`);
+      expect(new URL(page.url()).origin).toBe(new URL(before).origin);
+      expect(new URL(page.url()).hash).toBe("#settings");
+      expect(page.url()).not.toContain("about:blank");
+      expect(mediaRequests).toBe(0);
+    } else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
   }
 });
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({

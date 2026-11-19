@@ -6,14 +6,61 @@ import {
   type DownloadJob,
   updateDownloadJob,
 } from "./reliability";
+import {
+  completedDownloadUrl,
+  downloadPreparationStatus,
+} from "./connection";
 
 export default function DownloadCenter() {
   const [jobs, setJobs] = useState<DownloadJob[]>(downloadJobs);
   useEffect(() => {
     const refresh = () => setJobs(downloadJobs());
+    let active = true;
+    const refreshPreparations = async () => {
+      const preparing = downloadJobs().filter(
+        (job) => job.status === "preparing" && job.statusPath,
+      );
+      await Promise.all(
+        preparing.map(async (job) => {
+          try {
+            const status = await downloadPreparationStatus(job.statusPath!);
+            if (!active) return;
+            const megabytes = Number(status.bytes ?? 0) / 1_048_576;
+            updateDownloadJob({
+              ...job,
+              status:
+                status.status === "failed"
+                  ? "failed"
+                  : status.status === "ready"
+                    ? "ready"
+                    : "preparing",
+              detail:
+                status.status === "failed"
+                  ? (status.error ?? "MP4 preparation failed.")
+                  : status.status === "ready"
+                    ? `MP4 is ready${megabytes ? ` · ${megabytes.toFixed(1)} MB` : ""}. Tap below to download the completed file.`
+                    : `Preparing the complete MP4 on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB written` : ""}.`,
+              at: Date.now(),
+              bytes: status.bytes,
+              url:
+                status.status === "ready" && status.path
+                  ? completedDownloadUrl(status.path)
+                  : job.url,
+            });
+          } catch {
+            // A temporary status failure must not turn a running Pi job into a
+            // false failure. The next poll can recover it.
+          }
+        }),
+      );
+    };
     window.addEventListener("downloads-changed", refresh);
     window.addEventListener("storage", refresh);
+    void refreshPreparations();
+    const timer = window.setInterval(() => void refreshPreparations(), 2_000);
     return () => {
+      active = false;
+      window.clearInterval(timer);
       window.removeEventListener("downloads-changed", refresh);
       window.removeEventListener("storage", refresh);
     };
@@ -27,7 +74,7 @@ export default function DownloadCenter() {
         <Download />
         <div>
           <h2>Download center</h2>
-          <p>Recent MP4 preparation and browser downloads.</p>
+          <p>Completed MP4 preparation and browser downloads.</p>
         </div>
         {jobs.length > 0 && (
           <button onClick={() => clearDownloadJobs()}>
@@ -57,7 +104,7 @@ export default function DownloadCenter() {
                   href={job.url}
                   download={appleTouchBrowser ? undefined : job.name}
                   rel="noopener"
-                  onClick={(event) => {
+                  onClick={() => {
                     updateDownloadJob({
                       ...job,
                       status: "started",
@@ -75,9 +122,10 @@ export default function DownloadCenter() {
         </div>
       )}
       <p className="hint">
-        Browsers do not expose byte-level progress for files handed to their
-        native download manager. On iPhone or iPad, use Open MP4 and then Share
-        → Save to Files when Safari displays the video.
+        TikTak finishes the MP4 on the playback service before showing the
+        download button, so iPhone, iPad, PWA, and desktop receive a real file
+        size instead of an indeterminate stream. Temporary files are removed
+        after delivery or expiry.
       </p>
     </section>
   );

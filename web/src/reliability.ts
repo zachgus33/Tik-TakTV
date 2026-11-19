@@ -262,6 +262,8 @@ export type DownloadJob = {
   detail: string;
   at: number;
   url?: string;
+  statusPath?: string;
+  bytes?: number;
 };
 const DOWNLOADS_KEY = "nuvio:downloads";
 const DOWNLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;

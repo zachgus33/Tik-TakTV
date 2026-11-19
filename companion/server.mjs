@@ -712,10 +712,24 @@ async function resolveYoutubePlayback(videoId, kind, signal) {
   return youtubePlaybackChoice(responses, kind);
 }
 
-export function createService({ token, origins, authorizeAccount }) {
+export function createService({
+  token,
+  origins,
+  authorizeAccount,
+  spawnMedia = spawn,
+  downloadDirectory,
+}) {
   if (!token || token.length < 32)
     throw new Error("Set a private PLAYBACK_TOKEN of at least 32 characters.");
   const jobs = new Map();
+  const downloadSpoolDir =
+    downloadDirectory ??
+    process.env.DOWNLOAD_SPOOL_DIR ??
+    join(process.cwd(), "runtime", "downloads");
+  const downloadReadyTtl = 6 * 60 * 60_000;
+  const downloadFailedTtl = 30 * 60_000;
+  const downloadDeliveredTtl = 10 * 60_000;
+  const downloadPreparingTtl = 4 * 60 * 60_000;
   const tickets = new Map();
   const accountTokens = new Map();
   const youtubeCache = new Map();
@@ -1557,6 +1571,84 @@ export function createService({ token, origins, authorizeAccount }) {
       actual.length === expected.length && timingSafeEqual(actual, expected)
     );
   }
+  async function removeMediaJob(id, job) {
+    job.process?.kill("SIGTERM");
+    jobs.delete(id);
+    if (job.dir)
+      await rm(job.dir, { recursive: true, force: true }).catch(() => {});
+  }
+  function downloadStatus(job) {
+    return {
+      status: job.status,
+      filename: job.filename,
+      bytes: job.bytes ?? 0,
+      progressSeconds: job.progressSeconds ?? 0,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      ...(job.status === "ready"
+        ? { path: `/media/${job.id}/download.mp4` }
+        : {}),
+      ...(job.status === "failed" ? { error: job.error } : {}),
+    };
+  }
+  function startDownloadJob(job) {
+    const child = spawnMedia(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
+    });
+    job.process = child;
+    job.running = true;
+    job.status = "preparing";
+    const updateProgress = (chunk) => {
+      const text = chunk.toString();
+      job.errorOutput = (job.errorOutput + text).slice(-4000);
+      const seconds = /out_time_ms=(\d+)/.exec(text)?.[1];
+      if (seconds) job.progressSeconds = Number(seconds) / 1_000_000;
+      job.touched = Date.now();
+      job.updatedAt = job.touched;
+      void stat(job.file)
+        .then((value) => {
+          job.bytes = value.size;
+        })
+        .catch(() => {});
+    };
+    child.stderr.on("data", updateProgress);
+    const fail = (detail) => {
+      if (job.status !== "preparing") return;
+      job.process = null;
+      job.running = false;
+      job.status = "failed";
+      job.error = detail;
+      job.updatedAt = Date.now();
+      job.touched = job.updatedAt;
+      void rm(job.file, { force: true }).catch(() => {});
+    };
+    child.once("error", () => {
+      fail("The MP4 converter could not start. Try another source.");
+    });
+    child.once("exit", (code) => {
+      if (job.status !== "preparing") return;
+      job.process = null;
+      job.running = false;
+      void stat(job.file)
+        .then((value) => {
+          if (code || value.size < 1)
+            throw new Error("The completed MP4 was empty.");
+          job.status = "ready";
+          job.bytes = value.size;
+          job.completedAt = Date.now();
+          job.updatedAt = job.completedAt;
+          job.touched = job.completedAt;
+        })
+        .catch(() => {
+          fail(
+            /401|403|forbidden|unauthorized/i.test(job.errorOutput)
+              ? "The source rejected the download. Refresh its stream link and try again."
+              : "This source could not be converted to MP4. Try another source.",
+          );
+        });
+    });
+  }
   const ttl = 4 * 60 * 60 * 1000;
   function ticket(url, headers = {}) {
     if (tickets.size >= limits.tickets)
@@ -1571,15 +1663,23 @@ export function createService({ token, origins, authorizeAccount }) {
     return id;
   }
   const sweep = setInterval(() => {
+    const now = Date.now();
     for (const [id, t] of tickets)
-      if (t.expires < Date.now()) tickets.delete(id);
-    for (const [id, j] of jobs)
-      if (Date.now() - j.touched > 120000) {
-        j.process?.kill();
-        jobs.delete(id);
-        if (j.dir)
-          void rm(j.dir, { recursive: true, force: true }).catch(() => {});
+      if (t.expires < now) tickets.delete(id);
+    for (const [id, j] of jobs) {
+      if (j.kind === "download") {
+        const expired =
+          (j.deliveredAt && now - j.deliveredAt > downloadDeliveredTtl) ||
+          (j.status === "ready" &&
+            now - (j.completedAt ?? j.updatedAt) > downloadReadyTtl) ||
+          (j.status === "failed" && now - j.updatedAt > downloadFailedTtl) ||
+          (j.status === "preparing" &&
+            now - j.createdAt > downloadPreparingTtl);
+        if (expired) void removeMediaJob(id, j);
+        continue;
       }
+      if (now - j.touched > 120000) void removeMediaJob(id, j);
+    }
     for (const [id, party] of parties)
       if (party.expires < Date.now()) parties.delete(id);
     for (const [id, endedAt] of endedParties)
@@ -1688,7 +1788,7 @@ export function createService({ token, origins, authorizeAccount }) {
     res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
     res.setHeader(
       "Access-Control-Expose-Headers",
-      "Content-Range,Accept-Ranges,Content-Length,X-TikTak-Companion",
+      "Content-Range,Accept-Ranges,Content-Length,Content-Disposition,X-TikTak-Companion",
     );
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -1785,72 +1885,79 @@ export function createService({ token, origins, authorizeAccount }) {
         if (job) {
           const file = route.pathname.split("/")[3];
           if (job.kind === "download") {
+            job.touched = Date.now();
+            if (file === "status.json")
+              return send(200, downloadStatus(job));
             if (file !== "download.mp4")
               return send(404, { error: "Unknown media file" });
+            if (job.status === "preparing") {
+              res.setHeader("Retry-After", "2");
+              return send(425, {
+                error: "The MP4 is still being prepared.",
+                ...downloadStatus(job),
+              });
+            }
+            if (job.status === "failed")
+              return send(502, {
+                error: job.error,
+                ...downloadStatus(job),
+              });
+            const info = await stat(job.file).catch(() => null);
+            if (!info || info.size < 1)
+              return send(503, {
+                error: "The completed MP4 is temporarily unavailable.",
+              });
             const encodedName = encodeURIComponent(job.filename);
+            let start = 0;
+            let end = info.size - 1;
+            let responseStatus = 200;
+            const range = String(req.headers.range ?? "");
+            if (range) {
+              const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+              if (!match)
+                return res.writeHead(416, {
+                  "Content-Range": `bytes */${info.size}`,
+                }).end();
+              if (!match[1] && match[2]) {
+                start = Math.max(0, info.size - Number(match[2]));
+                end = info.size - 1;
+              } else {
+                if (match[1]) start = Number(match[1]);
+                if (match[2]) end = Number(match[2]);
+              }
+              if (
+                !Number.isSafeInteger(start) ||
+                !Number.isSafeInteger(end) ||
+                start < 0 ||
+                end < start ||
+                start >= info.size
+              )
+                return res.writeHead(416, {
+                  "Content-Range": `bytes */${info.size}`,
+                }).end();
+              end = Math.min(end, info.size - 1);
+              responseStatus = 206;
+            }
             const downloadHeaders = {
               "Content-Type": "video/mp4",
               "Content-Disposition": `attachment; filename="TikTak-TV.mp4"; filename*=UTF-8''${encodedName}`,
               "Cache-Control": "no-store",
+              "Accept-Ranges": "bytes",
+              "Content-Length": String(end - start + 1),
+              ...(responseStatus === 206
+                ? { "Content-Range": `bytes ${start}-${end}/${info.size}` }
+                : {}),
             };
             if (req.method === "HEAD") {
-              res.writeHead(200, downloadHeaders);
+              res.writeHead(responseStatus, downloadHeaders);
               return res.end();
             }
-            job.touched = Date.now();
-            job.process?.kill();
-            const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", job.args, {
-              stdio: ["ignore", "pipe", "pipe"],
-              windowsHide: true,
-            });
-            job.process = child;
-            job.running = true;
-            let responseStarted = false;
-            let errorOutput = "";
-            const stop = () => {
-              if (job.process === child) {
-                job.process = null;
-                job.running = false;
-              }
-              child.kill();
-            };
-            res.once("close", stop);
-            child.stderr.on("data", (chunk) => {
-              errorOutput = (errorOutput + chunk.toString()).slice(-2000);
-            });
-            child.stdout.once("data", (chunk) => {
-              if (res.destroyed) return stop();
-              responseStarted = true;
-              res.writeHead(200, downloadHeaders);
-              res.write(chunk);
-              child.stdout.pipe(res);
-            });
-            child.stdout.on("data", () => {
-              job.touched = Date.now();
-            });
-            child.once("error", () => {
-              if (responseStarted) res.destroy();
-              else if (!res.writableEnded)
-                send(502, {
-                  error:
-                    "The MP4 converter could not start. Try another source.",
-                });
-            });
-            child.once("exit", (code) => {
-              if (job.process === child) {
-                job.process = null;
-                job.running = false;
-              }
-              if (code && !res.destroyed && !res.writableEnded) {
-                if (responseStarted) res.destroy();
-                else
-                  send(502, {
-                    error: /401|403|forbidden|unauthorized/i.test(errorOutput)
-                      ? "The source rejected the download. Refresh its stream link and try again."
-                      : "This source could not be converted to MP4. Try another source.",
-                  });
-              } else if (!res.writableEnded) res.end();
-            });
+            res.writeHead(responseStatus, downloadHeaders);
+            await pipeline(createReadStream(job.file, { start, end }), res);
+            if (start === 0 && end === info.size - 1) {
+              job.deliveredAt = Date.now();
+              job.touched = job.deliveredAt;
+            }
             return;
           }
           if (job.kind === "webm") {
@@ -3447,8 +3554,14 @@ export function createService({ token, origins, authorizeAccount }) {
                 "0",
               ]
             : [];
-        jobs.set(id, {
+        await mkdir(downloadSpoolDir, { recursive: true, mode: 0o700 });
+        const dir = await mkdtemp(join(downloadSpoolDir, "job-"));
+        const file = join(dir, "download.mp4");
+        const now = Date.now();
+        const job = {
+          id,
           kind: "download",
+          owner: userId,
           filename: safeDownloadName(body.filename),
           args: [
             "-hide_banner",
@@ -3456,6 +3569,10 @@ export function createService({ token, origins, authorizeAccount }) {
             "error",
             "-nostdin",
             "-y",
+            "-stats_period",
+            "1",
+            "-progress",
+            "pipe:2",
             "-fflags",
             "+genpts+discardcorrupt",
             ...hlsInputArgs,
@@ -3480,16 +3597,28 @@ export function createService({ token, origins, authorizeAccount }) {
             "-ac",
             "2",
             "-movflags",
-            "frag_keyframe+empty_moov+default_base_moof",
-            "-f",
-            "mp4",
-            "pipe:1",
+            "+faststart",
+            file,
           ],
+          dir,
+          file,
           process: null,
-          touched: Date.now(),
+          touched: now,
+          createdAt: now,
+          updatedAt: now,
           running: false,
+          status: "preparing",
+          bytes: 0,
+          progressSeconds: 0,
+          errorOutput: "",
+        };
+        jobs.set(id, job);
+        startDownloadJob(job);
+        return send(202, {
+          status: "preparing",
+          statusPath: `/media/${id}/status.json`,
+          path: `/media/${id}/download.mp4`,
         });
-        return send(200, { path: `/media/${id}/download.mp4` });
       }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);

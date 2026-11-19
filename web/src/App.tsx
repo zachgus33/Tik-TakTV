@@ -1645,7 +1645,35 @@ function Detail({
     signal?: AbortSignal,
   ) {
     const filename = downloadFilename(ep);
-    const downloadUrl = await prepareDownload(url, filename, headers, signal);
+    const downloadUrl = await prepareDownload(
+      url,
+      filename,
+      headers,
+      signal,
+      (preparation) => {
+        if (!downloadJobId.current) return;
+        const megabytes = Number(preparation.bytes ?? 0) / 1_048_576;
+        updateDownloadJob({
+          id: downloadJobId.current,
+          name: filename,
+          status:
+            preparation.status === "failed"
+              ? "failed"
+              : preparation.status === "ready"
+                ? "ready"
+                : "preparing",
+          detail:
+            preparation.status === "failed"
+              ? (preparation.error ?? "MP4 preparation failed.")
+              : preparation.status === "ready"
+                ? `MP4 prepared on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB` : ""}.`
+                : `Preparing the complete MP4 on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB written` : ""}. You can leave this screen and follow it in Download Center.`,
+          at: Date.now(),
+          statusPath: preparation.statusPath,
+          bytes: preparation.bytes,
+        });
+      },
+    );
     if (signal?.aborted) return;
     const service = getService();
     const persistentUrl = (() => {
@@ -1671,6 +1699,7 @@ function Detail({
           "MP4 is ready. Use Download MP4 if the browser does not start it automatically.",
         at: Date.now(),
         url: managerUrl,
+        statusPath: undefined,
       });
     setDownloadMode(false);
     // iOS PWAs cannot reliably open an asynchronously prepared file without

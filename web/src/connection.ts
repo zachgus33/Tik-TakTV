@@ -318,13 +318,14 @@ export async function prepareDownload(
   filename: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
+  onStatus?: (status: DownloadPreparationStatus) => void,
 ) {
   const config = getService();
-  // A direct MP4 already has the most reliable download contract for mobile
-  // Safari/PWA. Sending it through a live FFmpeg pipe produces an indeterminate
-  // attachment there (often reported as -1 bytes), so only use the companion
-  // when headers or a non-MP4 source genuinely require conversion.
-  if (/\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) && !Object.keys(headers ?? {}).length)
+  if (
+    !config &&
+    /\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) &&
+    !Object.keys(headers ?? {}).length
+  )
     return url;
   if (!config)
     throw new Error(
@@ -344,10 +345,90 @@ export async function prepareDownload(
         : `Download service returned HTTP ${response.status}.`,
     );
   }
-  const data = await response.json();
-  if (typeof data.path !== "string" || !data.path.startsWith("/media/"))
+  const created = (await response.json()) as DownloadPreparationStatus;
+  if (
+    typeof created.statusPath !== "string" ||
+    !validDownloadPath(created.statusPath, "status.json")
+  )
     throw new Error("Invalid download service response.");
-  return `${config.url}${data.path}`;
+  onStatus?.(created);
+  let current = created;
+  while (current.status === "preparing") {
+    await abortableDelay(1_500, signal);
+    current = await downloadPreparationStatus(
+      created.statusPath,
+      signal,
+      config,
+    );
+    onStatus?.(current);
+  }
+  if (current.status === "failed")
+    throw new Error(
+      current.error ?? "This source could not be prepared as an MP4.",
+    );
+  if (
+    current.status !== "ready" ||
+    typeof current.path !== "string" ||
+    !validDownloadPath(current.path, "download.mp4")
+  )
+    throw new Error("Invalid completed download response.");
+  return `${config.url}${current.path}`;
+}
+
+export type DownloadPreparationStatus = {
+  status: "preparing" | "ready" | "failed";
+  statusPath?: string;
+  path?: string;
+  filename?: string;
+  bytes?: number;
+  progressSeconds?: number;
+  createdAt?: number;
+  updatedAt?: number;
+  error?: string;
+};
+
+function validDownloadPath(value: string, file: "status.json" | "download.mp4") {
+  return new RegExp(`^/media/[A-Za-z0-9_-]{32}/${file.replace(".", "\\.")}$`).test(
+    value,
+  );
+}
+
+function abortableDelay(milliseconds: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = window.setTimeout(resolve, milliseconds);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        window.clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
+}
+
+export async function downloadPreparationStatus(
+  statusPath: string,
+  signal?: AbortSignal,
+  config = getService(),
+): Promise<DownloadPreparationStatus> {
+  if (!validDownloadPath(statusPath, "status.json"))
+    throw new Error("Invalid download status path.");
+  if (!config) throw new Error("Connect the TikTak TV playback service first.");
+  const response = await serviceRequest(statusPath, undefined, signal, config);
+  if (!response.ok)
+    throw new Error(`Download status returned HTTP ${response.status}.`);
+  const status = (await response.json()) as DownloadPreparationStatus;
+  if (!["preparing", "ready", "failed"].includes(status.status))
+    throw new Error("Invalid download status response.");
+  return { ...status, statusPath };
+}
+
+export function completedDownloadUrl(path: string) {
+  const config = getService();
+  if (!config || !validDownloadPath(path, "download.mp4")) return undefined;
+  return `${config.url}${path}`;
 }
 
 async function friendRequest<T>(

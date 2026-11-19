@@ -5,6 +5,8 @@ import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import {
   createService,
   publicAddress,
@@ -747,8 +749,15 @@ test("does not report a successful download before the converter emits bytes", a
         filename: "video.mp4",
       }),
     });
-    assert.equal(prepared.status, 200);
-    const { path } = await prepared.json();
+    assert.equal(prepared.status, 202);
+    const { path, statusPath } = await prepared.json();
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      status = await (await fetch(base + statusPath)).json();
+      if (status.status !== "preparing") break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(status.status, "failed");
     const transfer = await fetch(base + path);
     assert.equal(transfer.status, 502);
     assert.match((await transfer.json()).error, /converted|source/i);
@@ -757,6 +766,78 @@ test("does not report a successful download before the converter emits bytes", a
     await new Promise((resolve) => server.close(resolve));
     if (previous === undefined) delete process.env.FFMPEG_PATH;
     else process.env.FFMPEG_PATH = previous;
+  }
+});
+
+test("spools a complete MP4 before serving a sized range-capable download", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-download-test-"));
+  const token = "s".repeat(40);
+  const body = Buffer.from("completed-mp4-file");
+  const spawnMedia = (_command, args) => {
+    const child = new EventEmitter();
+    child.stderr = new PassThrough();
+    child.kill = () => {};
+    setImmediate(async () => {
+      await writeFile(args.at(-1), body);
+      child.stderr.write("out_time_ms=2000000\nprogress=end\n");
+      child.stderr.end();
+      child.emit("exit", 0);
+    });
+    return child;
+  };
+  const server = createService({
+    token,
+    origins: ["https://site.example"],
+    spawnMedia,
+    downloadDirectory: directory,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const prepared = await fetch(base + "/download", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: "https://example.com/video.mkv",
+        filename: "Episode 1.mp4",
+      }),
+    });
+    assert.equal(prepared.status, 202);
+    const created = await prepared.json();
+    let status;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      status = await (await fetch(base + created.statusPath)).json();
+      if (status.status === "ready") break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(status.status, "ready");
+    assert.equal(status.bytes, body.length);
+    assert.equal(status.path, created.path);
+
+    const head = await fetch(base + created.path, { method: "HEAD" });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("content-length"), String(body.length));
+    assert.equal(head.headers.get("accept-ranges"), "bytes");
+    assert.match(head.headers.get("content-disposition"), /Episode%201\.mp4/);
+
+    const range = await fetch(base + created.path, {
+      headers: { Range: "bytes=2-8" },
+    });
+    assert.equal(range.status, 206);
+    assert.equal(range.headers.get("content-range"), `bytes 2-8/${body.length}`);
+    assert.equal(await range.text(), body.subarray(2, 9).toString());
+
+    const transfer = await fetch(base + created.path);
+    assert.equal(transfer.status, 200);
+    assert.equal(transfer.headers.get("content-length"), String(body.length));
+    assert.deepEqual(Buffer.from(await transfer.arrayBuffer()), body);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
   }
 });
 test("auth and origin gates, bounded paths and SSRF prevention apply to API and media preparation", async () => {
