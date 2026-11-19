@@ -127,6 +127,9 @@ fun HomeScreen(
     onContinueWatchingLongPress: ((ContinueWatchingItem) -> Unit)? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
+    onPosterFocusTargetActivated: ((String) -> Unit)? = null,
+    restorePosterFocusToken: String? = null,
+    restorePosterFocusRequestCount: Int = 0,
 ) {
     val isNativeTv = com.nuvio.app.core.ui.LocalTvMode.current
     LaunchedEffect(Unit) {
@@ -1109,6 +1112,9 @@ fun HomeScreen(
                                             fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                             onPosterClick = onPosterClick,
                                             onPosterLongClick = onPosterLongClick,
+                                            onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                                            restoreFocusToken = restorePosterFocusToken,
+                                            restoreFocusRequestCount = restorePosterFocusRequestCount,
                                         )
                                     }
                                 }

@@ -135,6 +135,8 @@ internal fun PlayerControlsShell(
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     primaryActionFocusRequester: FocusRequester? = null,
     lowerActionFocusRequester: FocusRequester? = null,
+    leftOverlayFocusRequester: FocusRequester? = null,
+    rightOverlayFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val internalLowerControlsFocusRequester = remember { FocusRequester() }
@@ -242,6 +244,8 @@ internal fun PlayerControlsShell(
                     onTogglePlayback = onTogglePlayback,
                     primaryActionFocusRequester = primaryActionFocusRequester,
                     lowerActionFocusRequester = lowerControlsFocusRequester,
+                    leftOverlayFocusRequester = leftOverlayFocusRequester,
+                    rightOverlayFocusRequester = rightOverlayFocusRequester,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(bottom = metrics.centerLift),
@@ -697,6 +701,8 @@ private fun CenterControls(
     onTogglePlayback: () -> Unit,
     primaryActionFocusRequester: FocusRequester? = null,
     lowerActionFocusRequester: FocusRequester? = null,
+    leftOverlayFocusRequester: FocusRequester? = null,
+    rightOverlayFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val internalPrimaryFocusRequester = remember { FocusRequester() }
@@ -723,8 +729,8 @@ private fun CenterControls(
             metrics = metrics,
             onClick = onTogglePlayback,
             focusRequester = resolvedPrimaryFocusRequester,
-            leftActionFocusRequester = seekBackFocusRequester,
-            rightActionFocusRequester = seekForwardFocusRequester,
+            leftActionFocusRequester = leftOverlayFocusRequester ?: seekBackFocusRequester,
+            rightActionFocusRequester = rightOverlayFocusRequester ?: seekForwardFocusRequester,
             lowerActionFocusRequester = lowerActionFocusRequester,
         )
         SideControlButton(

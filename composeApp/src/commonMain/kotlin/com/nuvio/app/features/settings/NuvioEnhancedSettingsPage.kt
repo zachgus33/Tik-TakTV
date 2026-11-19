@@ -1,6 +1,7 @@
 package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.ui.NuvioTvTextField
+import com.nuvio.app.core.ui.tikTakTvFocus
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -801,6 +802,7 @@ private fun AppIconPickerDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tikTakTvFocus()
                             .clickable { onSelected(option) },
                         color = if (isSelected) {
                             tokens.colors.accent.copy(alpha = 0.14f)
@@ -946,7 +948,9 @@ private fun <T> EnhancedChoiceRow(
             options.forEach { option ->
                 val isSelected = option.value == selected
                 Surface(
-                    modifier = Modifier.clickable { onSelected(option.value) },
+                    modifier = Modifier
+                        .tikTakTvFocus()
+                        .clickable { onSelected(option.value) },
                     color = if (isSelected) {
                         tokens.colors.accent
                     } else {
@@ -1050,6 +1054,7 @@ private fun EnhancedFooterLink(
     Surface(
         modifier = modifier
             .heightIn(min = 72.dp)
+            .tikTakTvFocus()
             .clickable(onClick = onClick),
         color = tokens.colors.accent.copy(alpha = 0.10f),
         shape = RoundedCornerShape(NuvioTokens.Radius.lg),

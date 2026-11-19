@@ -55,6 +55,7 @@ import com.nuvio.app.features.addons.firstEnabledManifestError
 import com.nuvio.app.features.addons.hasPendingEnabledManifests
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
 import com.nuvio.app.features.home.components.HomeCatalogRowSection
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
@@ -95,6 +96,9 @@ fun SearchScreen(
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     searchFocusRequestCount: Int = 0,
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
+    onPosterFocusTargetActivated: ((String) -> Unit)? = null,
+    restorePosterFocusToken: String? = null,
+    restorePosterFocusRequestCount: Int = 0,
 ) {
     val focusRequester = remember { FocusRequester() }
     val navigationScope = rememberCoroutineScope()
@@ -229,6 +233,15 @@ fun SearchScreen(
                 List(discoverColumns) { FocusRequester() }
             }
         }
+        val discoverRestoreIndex = remember(
+            discoverUiState.selectedCatalogKey,
+            discoverUiState.items,
+            restorePosterFocusToken,
+        ) {
+            discoverUiState.items.withIndex().indexOfFirst { (index, item) ->
+                discoverPosterFocusToken(discoverUiState.selectedCatalogKey, index, item) == restorePosterFocusToken
+            }
+        }
         val homeSectionPadding = remember(maxWidth) {
             homeSectionHorizontalPaddingForWidth(maxWidth.value)
         }
@@ -236,6 +249,27 @@ fun SearchScreen(
             query.isNotBlank() -> stringResource(Res.string.compose_nav_search)
             discoverInFocus -> stringResource(Res.string.compose_search_discover_title)
             else -> stringResource(Res.string.compose_nav_search)
+        }
+
+        LaunchedEffect(
+            restorePosterFocusRequestCount,
+            discoverRestoreIndex,
+            discoverColumns,
+            query,
+        ) {
+            if (
+                restorePosterFocusRequestCount <= 0 ||
+                query.isNotBlank() ||
+                discoverRestoreIndex < 0
+            ) return@LaunchedEffect
+            val rowIndex = discoverRestoreIndex / discoverColumns
+            val columnIndex = discoverRestoreIndex % discoverColumns
+            val gridStart = 3 +
+                (if (recentSearches.isNotEmpty()) 1 else 0) +
+                (if (discoverUiState.selectedCatalog != null) 1 else 0)
+            listState.scrollToItem(gridStart + rowIndex)
+            withFrameNanos { }
+            runCatching { discoverRowFocusRequesters[rowIndex][columnIndex].requestFocus() }
         }
 
         NuvioScreen(
@@ -318,6 +352,11 @@ fun SearchScreen(
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                     onPosterClick = onPosterClick,
                     onPosterLongClick = onPosterLongClick,
+                    onPosterActivated = { item, index ->
+                        onPosterFocusTargetActivated?.invoke(
+                            discoverPosterFocusToken(discoverUiState.selectedCatalogKey, index, item),
+                        )
+                    },
                     rowFocusRequesters = if (isTvMode) discoverRowFocusRequesters else emptyList(),
                     onPosterNavigateUp = if (isTvMode) { rowIndex, columnIndex ->
                         val previousRow = rowIndex - 1
@@ -392,6 +431,9 @@ fun SearchScreen(
                                 fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                                 onPosterClick = onPosterClick,
                                 onPosterLongClick = onPosterLongClick,
+                                onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                                restoreFocusToken = restorePosterFocusToken,
+                                restoreFocusRequestCount = restorePosterFocusRequestCount,
                             )
                         }
                         if (uiState.isLoading) {
@@ -407,6 +449,9 @@ fun SearchScreen(
         }
     }
 }
+
+private fun discoverPosterFocusToken(catalogKey: String?, index: Int, item: MetaPreview): String =
+    "discover:${catalogKey.orEmpty()}:$index:${item.stableKey()}"
 
 @Composable
 private fun SearchEmptyStateCard(

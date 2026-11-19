@@ -1,5 +1,7 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -319,6 +321,7 @@ private fun StyleControlsCard(
                         else colorScheme.surface.copy(alpha = 0.8f)
                     )
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
+                    .tikTakTvFocus()
                     .clickable { onStyleChanged(style.copy(outlineEnabled = !style.outlineEnabled)) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
@@ -412,6 +415,7 @@ private fun StyleControlsCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(colorScheme.surface.copy(alpha = 0.82f))
                     .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                    .tikTakTvFocus()
                     .clickable { onStyleChanged(SubtitleStyleState.DEFAULT) }
                     .padding(horizontal = if (isCompact) 8.dp else 12.dp, vertical = if (isCompact) 6.dp else 8.dp),
             ) {
@@ -448,6 +452,7 @@ private fun SubtitleFontFamilyChip(
                 else colorScheme.outlineVariant.copy(alpha = 0.75f),
                 shape = shape,
             )
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = if (isCompact) 10.dp else 12.dp, vertical = if (isCompact) 7.dp else 8.dp),
     ) {
@@ -483,6 +488,7 @@ private fun SubtitleFontActionChip(
             .clip(RoundedCornerShape(10.dp))
             .background(colorScheme.surface.copy(alpha = 0.82f))
             .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = if (isCompact) 10.dp else 12.dp, vertical = if (isCompact) 7.dp else 8.dp),
     ) {
@@ -601,6 +607,7 @@ private fun AutoSyncControls(
                                 else colorScheme.outlineVariant.copy(alpha = 0.18f),
                                 shape = RoundedCornerShape(8.dp),
                             )
+                            .tikTakTvFocus()
                             .clickable { onCueSelected(cue) }
                             .padding(horizontal = 8.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -684,6 +691,7 @@ private fun ColorPickerRow(
                             if (isSelected) colorScheme.primary else colorScheme.outlineVariant,
                             CircleShape,
                         )
+                        .tikTakTvFocus()
                         .clickable { onColorSelected(color) },
                 )
             }
@@ -710,6 +718,7 @@ private fun SmallActionPill(
                 }
             )
             .border(1.dp, colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 9.dp, vertical = 7.dp),
     ) {
@@ -748,6 +757,7 @@ private fun StepperControl(
                 .size(buttonSize)
                 .clip(RoundedCornerShape(buttonRadius))
                 .background(colorScheme.primaryContainer)
+                .tikTakTvFocus()
                 .clickable(onClick = onMinus),
             contentAlignment = Alignment.Center,
         ) {
@@ -781,6 +791,7 @@ private fun StepperControl(
                 .size(buttonSize)
                 .clip(RoundedCornerShape(buttonRadius))
                 .background(colorScheme.primaryContainer)
+                .tikTakTvFocus()
                 .clickable(onClick = onPlus),
             contentAlignment = Alignment.Center,
         ) {

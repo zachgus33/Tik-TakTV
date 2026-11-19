@@ -26,6 +26,7 @@ import com.nuvio.app.core.ui.NuvioDropdownChip
 import com.nuvio.app.core.ui.NuvioDropdownOption
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.home.components.PosterGridRow
 import com.nuvio.app.features.home.components.PosterGridSkeletonRow
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
@@ -45,6 +46,7 @@ internal fun LazyListScope.discoverContent(
     fullyWatchedSeriesKeys: Set<String> = emptySet(),
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    onPosterActivated: ((MetaPreview, Int) -> Unit)? = null,
     rowFocusRequesters: List<List<FocusRequester>> = emptyList(),
     onPosterNavigateUp: ((Int, Int) -> Unit)? = null,
 ) {
@@ -108,7 +110,15 @@ internal fun LazyListScope.discoverContent(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     watchedKeys = watchedKeys,
                     fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                    onPosterClick = onPosterClick,
+                    onPosterClick = if (onPosterClick != null || onPosterActivated != null) {
+                        { item ->
+                            val columnIndex = rowItems.indexOfFirst { it.stableKey() == item.stableKey() }
+                            onPosterActivated?.invoke(item, rowIndex * columns + columnIndex.coerceAtLeast(0))
+                            onPosterClick?.invoke(item)
+                        }
+                    } else {
+                        null
+                    },
                     onPosterLongClick = onPosterLongClick,
                     focusRequesters = rowFocusRequesters.getOrNull(rowIndex),
                     onNavigateUp = if (rowIndex > 0) {

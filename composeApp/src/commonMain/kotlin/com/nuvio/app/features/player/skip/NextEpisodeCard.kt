@@ -30,6 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +62,8 @@ fun NextEpisodeCard(
     autoPlayCountdownSec: Int?,
     onPlayNext: () -> Unit,
     onDismiss: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    leftFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     if (nextEpisode == null) return
@@ -82,6 +87,12 @@ fun NextEpisodeCard(
                 .background(Color(0xFF191919).copy(alpha = 0.89f))
                 .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
                 .tikTakTvFocus()
+                .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .then(
+                    leftFocusRequester?.let { target ->
+                        Modifier.focusProperties { left = target }
+                    } ?: Modifier,
+                )
                 .clickable { if (isPlayable) onPlayNext() }
                 .padding(horizontal = 9.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

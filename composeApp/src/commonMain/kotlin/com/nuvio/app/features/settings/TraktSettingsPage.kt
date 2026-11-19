@@ -310,6 +310,7 @@ private fun TraktSettingsActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         horizontalArrangement = Arrangement.Start,
@@ -624,6 +625,7 @@ private fun TraktDialogOption(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .tikTakTvFocus()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = containerColor,

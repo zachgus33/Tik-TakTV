@@ -14,6 +14,7 @@ import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.People
@@ -97,6 +98,7 @@ import nuvio.composeapp.generated.resources.compose_settings_root_advanced_descr
 import nuvio.composeapp.generated.resources.compose_settings_root_advanced_section
 import nuvio.composeapp.generated.resources.compose_settings_page_content_discovery
 import nuvio.composeapp.generated.resources.settings_playback_subtitle
+import nuvio.composeapp.generated.resources.settings_appearance_app_language
 import nuvio.composeapp.generated.resources.updates_debug_test_description
 import nuvio.composeapp.generated.resources.updates_debug_test_title
 import nuvio.composeapp.generated.resources.about_supporters_contributors_subtitle
@@ -108,6 +110,8 @@ internal fun LazyListScope.settingsRootContent(
     onPlaybackClick: () -> Unit,
     onSponsorBlockClick: () -> Unit,
     onAppearanceClick: () -> Unit,
+    onAppLanguageClick: () -> Unit,
+    selectedAppLanguage: AppLanguage,
     onAdvancedClick: () -> Unit,
     onHealthCheckClick: () -> Unit,
     onNotificationsClick: () -> Unit,
@@ -219,6 +223,14 @@ internal fun LazyListScope.settingsRootContent(
                         icon = Icons.Rounded.Palette,
                         isTablet = isTablet,
                         onClick = onAppearanceClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.settings_appearance_app_language),
+                        description = stringResource(selectedAppLanguage.labelRes),
+                        icon = Icons.Rounded.Language,
+                        isTablet = isTablet,
+                        onClick = onAppLanguageClick,
                     )
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(

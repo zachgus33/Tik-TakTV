@@ -123,6 +123,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     val tvFocusRequester = remember { FocusRequester() }
     val tvControlsFocusRequester = remember { FocusRequester() }
     val tvLowerControlsFocusRequester = remember { FocusRequester() }
+    val tvSkipActionFocusRequester = remember { FocusRequester() }
+    val tvNextEpisodeFocusRequester = remember { FocusRequester() }
     var tvSurfaceIsFocused by remember { mutableStateOf(false) }
     var tvControlsFocusRequest by remember { mutableStateOf(0) }
     var heldSeekKey by remember { mutableStateOf<Key?>(null) }
@@ -346,6 +348,17 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             isEpisode = isEpisode,
             primaryActionFocusRequester = if (isTvMode) tvControlsFocusRequester else null,
             lowerActionFocusRequester = if (isTvMode) tvLowerControlsFocusRequester else null,
+            leftOverlayFocusRequester = if (
+                isTvMode &&
+                activeSkipInterval != null &&
+                (!skipIntervalDismissed || controlsVisible)
+            ) tvSkipActionFocusRequester else null,
+            rightOverlayFocusRequester = if (
+                isTvMode &&
+                isSeries &&
+                showNextEpisodeCard &&
+                nextEpisodeInfo != null
+            ) tvNextEpisodeFocusRequester else null,
         )
         RenderPlaybackOverlays(
             runtime = runtime,
@@ -356,6 +369,9 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             showP2pRebufferStats = showP2pRebufferStats,
             p2pRebufferMessage = p2pRebufferMessage,
             p2pRebufferProgress = p2pRebufferProgress,
+            skipActionFocusRequester = if (isTvMode) tvSkipActionFocusRequester else null,
+            nextEpisodeActionFocusRequester = if (isTvMode) tvNextEpisodeFocusRequester else null,
+            primaryActionFocusRequester = if (isTvMode) tvControlsFocusRequester else null,
         )
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
     }
@@ -385,6 +401,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
     isEpisode: Boolean,
     primaryActionFocusRequester: FocusRequester?,
     lowerActionFocusRequester: FocusRequester?,
+    leftOverlayFocusRequester: FocusRequester?,
+    rightOverlayFocusRequester: FocusRequester?,
 ) {
     val showQuietDeviceStatusOverlay = nuvioEnhancedSettingsUiState.playerStatusOverlayEnabled &&
         !controlsVisible &&
@@ -518,6 +536,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(
             horizontalSafePadding = horizontalSafePadding,
             primaryActionFocusRequester = primaryActionFocusRequester,
             lowerActionFocusRequester = lowerActionFocusRequester,
+            leftOverlayFocusRequester = leftOverlayFocusRequester,
+            rightOverlayFocusRequester = rightOverlayFocusRequester,
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -533,6 +553,9 @@ private fun BoxScope.RenderPlaybackOverlays(
     showP2pRebufferStats: Boolean,
     p2pRebufferMessage: String?,
     p2pRebufferProgress: Float?,
+    skipActionFocusRequester: FocusRequester?,
+    nextEpisodeActionFocusRequester: FocusRequester?,
+    primaryActionFocusRequester: FocusRequester?,
 ) {
     runtime.run {
         PlayerPlaybackOverlays(
@@ -577,6 +600,9 @@ private fun BoxScope.RenderPlaybackOverlays(
         nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
         nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
         nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
+        skipActionFocusRequester = skipActionFocusRequester,
+        nextEpisodeActionFocusRequester = nextEpisodeActionFocusRequester,
+        primaryActionFocusRequester = primaryActionFocusRequester,
         onPlayNextEpisode = {
             nextEpisodeAutoPlayJob?.cancel()
             playNextEpisode()

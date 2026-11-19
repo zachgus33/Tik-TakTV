@@ -1,5 +1,7 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.core.ui.tikTakTvFocus
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -316,6 +318,7 @@ private fun EpisodeSeasonChip(
                 if (isSelected) Color.Transparent else tokens.colors.borderDefault,
                 shape,
             )
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 10.dp),
     ) {
@@ -367,6 +370,7 @@ private fun EpisodeRow(
             .semantics {
                 if (isCurrent) stateDescription = playingDescription
             }
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.Top,

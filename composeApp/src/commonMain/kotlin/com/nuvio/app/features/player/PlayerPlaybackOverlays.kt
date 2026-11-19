@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.features.p2p.P2pLoadingStatus
@@ -59,6 +60,9 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     nextEpisodeAutoPlaySearching: Boolean,
     nextEpisodeAutoPlaySourceName: String?,
     nextEpisodeAutoPlayCountdown: Int?,
+    skipActionFocusRequester: FocusRequester? = null,
+    nextEpisodeActionFocusRequester: FocusRequester? = null,
+    primaryActionFocusRequester: FocusRequester? = null,
     onPlayNextEpisode: () -> Unit,
     onDismissNextEpisode: () -> Unit,
     errorMessage: String?,
@@ -135,6 +139,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 activeSkipInterval?.let(onSkipInterval)
             },
             onDismiss = onDismissSkipInterval,
+            focusRequester = skipActionFocusRequester,
+            rightFocusRequester = primaryActionFocusRequester,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = sliderEdgePadding, bottom = overlayBottomPadding),
@@ -150,6 +156,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             autoPlayCountdownSec = nextEpisodeAutoPlayCountdown,
             onPlayNext = onPlayNextEpisode,
             onDismiss = onDismissNextEpisode,
+            focusRequester = nextEpisodeActionFocusRequester,
+            leftFocusRequester = primaryActionFocusRequester,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = sliderEdgePadding, bottom = overlayBottomPadding),

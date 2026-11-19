@@ -1,6 +1,7 @@
 package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.core.ui.tikTakTvFocus
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -1797,6 +1798,7 @@ private fun PlayerPreferenceDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tikTakTvFocus()
                             .clickable { onPreferenceSelected(false) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (internalSelected) {
@@ -1836,6 +1838,7 @@ private fun PlayerPreferenceDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tikTakTvFocus()
                             .clickable { onPreferenceSelected(true) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isExternal) {
@@ -1932,6 +1935,7 @@ private fun ExternalPlayerSelectionDialog(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .tikTakTvFocus()
                                     .clickable { onPlayerSelected(player.id) },
                                 shape = RoundedCornerShape(12.dp),
                                 color = containerColor,
@@ -2023,6 +2027,7 @@ private fun LanguageSelectionDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onSelect(option.value) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2118,6 +2123,7 @@ private fun ReuseCacheDurationDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onDurationSelected(hours) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2209,6 +2215,7 @@ private fun DecoderPriorityDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onPrioritySelected(priority) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2300,6 +2307,7 @@ private fun PlaybackEngineDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onEngineSelected(engine) },
                             shape = RoundedCornerShape(14.dp),
                             color = containerColor,
@@ -2392,6 +2400,7 @@ private fun <T> IosEnumSelectionDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onSelect(option) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2490,6 +2499,7 @@ private fun HoldToSpeedValueDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onSpeedSelected(speed) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2583,6 +2593,7 @@ private fun LibassRenderTypeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onRenderTypeSelected(value) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2686,6 +2697,7 @@ private fun AddonSubtitleStartupModeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onModeSelected(mode) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -2805,6 +2817,7 @@ private fun SubtitleFontOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (enabled) 1f else 0.45f)
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) {
@@ -2883,6 +2896,7 @@ private fun SubtitleColorDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onColorSelected(color) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -3000,6 +3014,7 @@ private fun StreamAutoPlayModeDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onModeSelected(mode) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -3127,6 +3142,7 @@ private fun StreamAutoPlaySourceDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onSourceSelected(source) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -3222,6 +3238,7 @@ private fun StreamAutoPlayProviderSelectionDialog(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .tikTakTvFocus()
                         .clickable { selected = emptySet() },
                     shape = RoundedCornerShape(12.dp),
                     color = allContainerColor,
@@ -3276,6 +3293,7 @@ private fun StreamAutoPlayProviderSelectionDialog(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .tikTakTvFocus()
                                     .clickable {
                                         selected = if (isSelected) selected - item else selected + item
                                     },
@@ -3385,10 +3403,12 @@ private fun StreamAutoPlayRegexDialog(
                     ) { index ->
                         val (label, pattern) = presets[index]
                         Surface(
-                            modifier = Modifier.clickable {
-                                regex = pattern
-                                regexError = null
-                            },
+                            modifier = Modifier
+                                .tikTakTvFocus()
+                                .clickable {
+                                    regex = pattern
+                                    regexError = null
+                                },
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         ) {
@@ -3673,6 +3693,7 @@ private fun NextEpisodeThresholdModeDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tikTakTvFocus()
                             .clickable { onSelect(mode) },
                         shape = RoundedCornerShape(12.dp),
                         color = containerColor,

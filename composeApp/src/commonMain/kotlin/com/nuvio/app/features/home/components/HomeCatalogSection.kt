@@ -3,10 +3,14 @@ package com.nuvio.app.features.home.components
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioShelfSection
@@ -31,6 +35,9 @@ fun HomeCatalogRowSection(
     onViewAllClick: (() -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
+    onPosterFocusTargetActivated: ((String) -> Unit)? = null,
+    restoreFocusToken: String? = null,
+    restoreFocusRequestCount: Int = 0,
 ) {
     if (sectionPadding != null) {
         HomeCatalogRowSectionContent(
@@ -44,6 +51,9 @@ fun HomeCatalogRowSection(
             onViewAllClick = onViewAllClick,
             onPosterClick = onPosterClick,
             onPosterLongClick = onPosterLongClick,
+            onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+            restoreFocusToken = restoreFocusToken,
+            restoreFocusRequestCount = restoreFocusRequestCount,
         )
     } else {
         BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
@@ -58,6 +68,9 @@ fun HomeCatalogRowSection(
                 onViewAllClick = onViewAllClick,
                 onPosterClick = onPosterClick,
                 onPosterLongClick = onPosterLongClick,
+                onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                restoreFocusToken = restoreFocusToken,
+                restoreFocusRequestCount = restoreFocusRequestCount,
             )
         }
     }
@@ -75,12 +88,30 @@ private fun HomeCatalogRowSectionContent(
     onViewAllClick: (() -> Unit)?,
     onPosterClick: ((MetaPreview) -> Unit)?,
     onPosterLongClick: ((MetaPreview) -> Unit)?,
+    onPosterFocusTargetActivated: ((String) -> Unit)?,
+    restoreFocusToken: String?,
+    restoreFocusRequestCount: Int,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
     val homeCatalogSettings by remember {
         HomeCatalogSettingsRepository.snapshot()
         HomeCatalogSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val rowState = rememberLazyListState()
+    val restoreFocusRequester = remember { FocusRequester() }
+    val restoreIndex = remember(section.key, entries, restoreFocusToken) {
+        entries.indexOfFirst { item ->
+            homeCatalogFocusToken(section.key, item) == restoreFocusToken
+        }
+    }
+
+    LaunchedEffect(restoreFocusRequestCount, restoreIndex) {
+        if (restoreFocusRequestCount <= 0 || restoreIndex < 0) return@LaunchedEffect
+        val resolvedRowCount = homeCatalogSettings.homeCatalogRowCount.coerceIn(1, 4)
+        rowState.scrollToItem(restoreIndex / resolvedRowCount)
+        withFrameNanos { }
+        runCatching { restoreFocusRequester.requestFocus() }
+    }
 
     NuvioShelfSection(
         title = section.title,
@@ -97,8 +128,10 @@ private fun HomeCatalogRowSectionContent(
         } else {
             null
         },
+        externalRowState = rowState,
         key = { item -> item.stableKey() },
     ) { item ->
+        val focusToken = homeCatalogFocusToken(section.key, item)
         HomePosterCard(
             item = item,
             useLandscapeBackdropMode = posterCardStyle.catalogLandscapeModeEnabled,
@@ -108,8 +141,19 @@ private fun HomeCatalogRowSectionContent(
                 fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
             ),
             hideReleaseDate = hideReleaseDates,
-            onClick = onPosterClick?.let { { it(item) } },
+            focusRequester = if (focusToken == restoreFocusToken) restoreFocusRequester else null,
+            onClick = if (onPosterClick != null || onPosterFocusTargetActivated != null) {
+                {
+                    onPosterFocusTargetActivated?.invoke(focusToken)
+                    onPosterClick?.invoke(item)
+                }
+            } else {
+                null
+            },
             onLongClick = onPosterLongClick?.let { { it(item) } },
         )
     }
 }
+
+private fun homeCatalogFocusToken(sectionKey: String, item: MetaPreview): String =
+    "catalog:$sectionKey:${item.stableKey()}"

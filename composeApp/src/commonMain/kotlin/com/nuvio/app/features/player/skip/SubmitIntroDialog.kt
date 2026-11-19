@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.nuvio.app.core.ui.tikTakTvFocus
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -189,6 +190,7 @@ fun SubmitIntroDialog(
                             .height(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .tikTakTvFocus()
                             .clickable(enabled = !isSubmitting, onClick = onDismiss),
                         contentAlignment = Alignment.Center
                     ) {
@@ -204,6 +206,7 @@ fun SubmitIntroDialog(
                             .height(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.primary)
+                            .tikTakTvFocus()
                             .clickable(enabled = !isSubmitting) {
                                 val start = parseTimeToSeconds(startTimeStr)
                                 val end = parseTimeToSeconds(endTimeStr)
@@ -264,6 +267,7 @@ private fun SegmentTypeButton(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -333,6 +337,7 @@ private fun TimeInputRow(
                 .height(48.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .tikTakTvFocus()
                 .clickable(onClick = onCapture)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center

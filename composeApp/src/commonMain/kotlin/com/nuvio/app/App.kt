@@ -891,10 +891,13 @@ private fun MainAppContent(
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
         var previousTvTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
+        var tvReturnedToPreviousTab by rememberSaveable { mutableStateOf(false) }
         var tvRailHasFocus by remember { mutableStateOf(false) }
         var tvRailFocusRequestKey by remember { mutableStateOf(0) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         var restoreTabFocusRequestCount by remember { mutableStateOf(0) }
+        var lastTvPosterFocusToken by rememberSaveable { mutableStateOf<String?>(null) }
+        var lastTvPosterFocusTab by rememberSaveable { mutableStateOf<String?>(null) }
         var leftTabsRoute by remember { mutableStateOf(false) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -1053,7 +1056,11 @@ private fun MainAppContent(
         }
         val wasAlreadySelected = selectedTab == tab
         val tabsRouteActive = currentBackStackEntry?.destination?.hasRoute<TabsRoute>() == true
-        if (isNativeTv && !wasAlreadySelected) previousTvTab = selectedTab
+        if (isNativeTv && !wasAlreadySelected) {
+            previousTvTab = selectedTab
+            tvReturnedToPreviousTab = false
+            showExitConfirmation = false
+        }
         selectedTab = tab
 
         if (!tabsRouteActive) {
@@ -2093,15 +2100,22 @@ private fun MainAppContent(
                     PlatformBackHandler(
                         enabled = true,
                         onBack = {
-                            if (isNativeTv && selectedTab != AppScreenTab.Home) {
-                                val destination = previousTvTab.takeIf { it != selectedTab } ?: AppScreenTab.Home
+                            if (isNativeTv && tvReturnedToPreviousTab) {
+                                showExitConfirmation = true
+                            } else if (isNativeTv && previousTvTab != selectedTab) {
+                                selectedTab = previousTvTab
                                 previousTvTab = selectedTab
-                                selectedTab = destination
+                                tvReturnedToPreviousTab = true
+                                restoreTabFocusRequestCount++
+                            } else if (isNativeTv && selectedTab != AppScreenTab.Home) {
+                                selectedTab = AppScreenTab.Home
+                                previousTvTab = AppScreenTab.Home
+                                tvReturnedToPreviousTab = true
                                 restoreTabFocusRequestCount++
                             } else if (selectedTab != AppScreenTab.Home) {
                                 selectedTab = AppScreenTab.Home
                             } else {
-                                showExitConfirmation = !showExitConfirmation
+                                showExitConfirmation = true
                             }
                         },
                     )
@@ -2200,6 +2214,14 @@ private fun MainAppContent(
                                     AppTabHost(
                                         isNativeTv = isNativeTv,
                                         restoreFocusRequestCount = restoreTabFocusRequestCount,
+                                        restorePosterFocusToken = lastTvPosterFocusToken,
+                                        restorePosterFocusTab = lastTvPosterFocusTab,
+                                        onPosterFocusTargetActivated = { token ->
+                                            if (isNativeTv) {
+                                                lastTvPosterFocusToken = token
+                                                lastTvPosterFocusTab = selectedTab.name
+                                            }
+                                        },
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(
@@ -3990,6 +4012,7 @@ private fun MainAppContent(
                 },
                 onDismiss = {
                     showExitConfirmation = false
+                    tvReturnedToPreviousTab = false
                 },
             )
 
@@ -4137,6 +4160,9 @@ private fun AppTabHost(
     selectedTab: AppScreenTab,
     isNativeTv: Boolean = false,
     restoreFocusRequestCount: Int = 0,
+    restorePosterFocusToken: String? = null,
+    restorePosterFocusTab: String? = null,
+    onPosterFocusTargetActivated: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     searchFocusRequestCount: Int = 0,
     rootActionsEnabled: Boolean = true,
@@ -4212,6 +4238,11 @@ private fun AppTabHost(
                         onContinueWatchingLongPress = onContinueWatchingLongPress,
                         onFolderClick = onFolderClick,
                         onFirstCatalogRendered = onInitialHomeContentRendered,
+                        onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                        restorePosterFocusToken = restorePosterFocusToken.takeIf {
+                            restorePosterFocusTab == AppScreenTab.Home.name
+                        },
+                        restorePosterFocusRequestCount = restoreFocusRequestCount,
                     )
                 }
 
@@ -4222,6 +4253,11 @@ private fun AppTabHost(
                         onPosterLongClick = onPosterLongClick,
                         searchFocusRequestCount = searchFocusRequestCount,
                         scrollToTopRequests = searchScrollToTopRequests,
+                        onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                        restorePosterFocusToken = restorePosterFocusToken.takeIf {
+                            restorePosterFocusTab == AppScreenTab.Search.name
+                        },
+                        restorePosterFocusRequestCount = restoreFocusRequestCount,
                     )
                 }
 
@@ -4258,6 +4294,11 @@ private fun AppTabHost(
                         onDownloadsClick = onDownloadsSettingsClick,
                         onOpenDownload = onLibraryDownloadClick,
                         downloadActionCommands = libraryDownloadActionCommands,
+                        onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                        restorePosterFocusToken = restorePosterFocusToken.takeIf {
+                            restorePosterFocusTab == AppScreenTab.Library.name
+                        },
+                        restorePosterFocusRequestCount = restoreFocusRequestCount,
                         onDownloadLongClick = onLibraryDownloadLongClick,
                     )
                 }

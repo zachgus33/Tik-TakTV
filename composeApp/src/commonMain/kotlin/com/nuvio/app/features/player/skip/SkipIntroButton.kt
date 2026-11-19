@@ -34,6 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +55,8 @@ fun SkipIntroButton(
     controlsVisible: Boolean,
     onSkip: () -> Unit,
     onDismiss: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    rightFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     var lastType by remember { mutableStateOf(interval?.type) }
@@ -107,6 +112,12 @@ fun SkipIntroButton(
                 .clip(shape)
                 .background(Color(0xFF1E1E1E).copy(alpha = 0.85f))
                 .tikTakTvFocus()
+                .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                .then(
+                    rightFocusRequester?.let { target ->
+                        Modifier.focusProperties { right = target }
+                    } ?: Modifier,
+                )
                 .clickable { onSkip() },
         ) {
             Row(

@@ -62,8 +62,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -150,6 +152,9 @@ fun LibraryScreen(
     onOpenDownload: ((DownloadItem) -> Unit)? = null,
     downloadActionCommands: Flow<LibraryDownloadActionCommand> = emptyFlow(),
     onDownloadLongClick: ((LibraryDownloadActionTarget, PosterZoomAnchor?) -> Unit)? = null,
+    onPosterFocusTargetActivated: ((String) -> Unit)? = null,
+    restorePosterFocusToken: String? = null,
+    restorePosterFocusRequestCount: Int = 0,
 ) {
     val uiState by remember {
         LibraryRepository.ensureLoaded()
@@ -521,6 +526,9 @@ fun LibraryScreen(
                             onSectionViewAllClick = onSectionViewAllClick,
                             onPosterLongClick = onPosterLongClick,
                             onDisintegrated = disintegration::onExited,
+                            onPosterFocusTargetActivated = onPosterFocusTargetActivated,
+                            restoreFocusToken = restorePosterFocusToken,
+                            restoreFocusRequestCount = restorePosterFocusRequestCount,
                         )
                     }
                 }
@@ -3026,11 +3034,27 @@ private fun LazyListScope.librarySections(
     onSectionViewAllClick: ((LibrarySection) -> Unit)?,
     onPosterLongClick: ((LibraryItem, LibrarySection) -> Unit)?,
     onDisintegrated: (String) -> Unit,
+    onPosterFocusTargetActivated: ((String) -> Unit)?,
+    restoreFocusToken: String?,
+    restoreFocusRequestCount: Int,
 ) {
     items(
         items = displaySections,
         key = { section -> section.type },
     ) { section ->
+        val rowState = rememberLazyListState()
+        val restoreFocusRequester = remember { FocusRequester() }
+        val restoreIndex = remember(section.type, section.previewEntries, restoreFocusToken) {
+            section.previewEntries.indexOfFirst { entry ->
+                libraryPosterFocusToken(section.type, entry.globalKey) == restoreFocusToken
+            }
+        }
+        LaunchedEffect(restoreFocusRequestCount, restoreIndex) {
+            if (restoreFocusRequestCount <= 0 || restoreIndex < 0) return@LaunchedEffect
+            rowState.scrollToItem(restoreIndex)
+            withFrameNanos { }
+            runCatching { restoreFocusRequester.requestFocus() }
+        }
         NuvioShelfSection(
             title = section.displayTitle,
             entries = section.previewEntries,
@@ -3043,9 +3067,11 @@ private fun LazyListScope.librarySections(
             viewAllPillSize = NuvioViewAllPillSize.Compact,
             key = { entry -> entry.globalKey },
             animatePlacement = true,
+            externalRowState = rowState,
         ) { entry ->
             val item = entry.item
             val posterItem = item.toMetaPreview()
+            val focusToken = libraryPosterFocusToken(section.type, entry.globalKey)
             val entrySource = entry.section
             DisintegratingContainer(
                 disintegrating = entry.exiting,
@@ -3057,7 +3083,21 @@ private fun LazyListScope.librarySections(
                         watchedKeys = watchedKeys,
                         item = posterItem,
                     ),
-                    onClick = if (entry.exiting) null else onPosterClick?.let { { it(item) } },
+                    focusRequester = if (focusToken == restoreFocusToken) {
+                        restoreFocusRequester
+                    } else {
+                        null
+                    },
+                    onClick = if (entry.exiting) {
+                        null
+                    } else if (onPosterClick != null || onPosterFocusTargetActivated != null) {
+                        {
+                            onPosterFocusTargetActivated?.invoke(focusToken)
+                            onPosterClick?.invoke(item)
+                        }
+                    } else {
+                        null
+                    },
                     onLongClick = if (entry.exiting || entrySource == null) {
                         null
                     } else {
@@ -3068,6 +3108,9 @@ private fun LazyListScope.librarySections(
         }
     }
 }
+
+private fun libraryPosterFocusToken(sectionType: String, entryKey: String): String =
+    "library:$sectionType:$entryKey"
 
 private const val LIBRARY_SECTION_PREVIEW_LIMIT = 18
 private const val LIBRARY_RELEASE_SUPPORT_DETAILS_RESOLUTION_LIMIT = 60

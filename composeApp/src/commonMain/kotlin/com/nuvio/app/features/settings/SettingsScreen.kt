@@ -671,6 +671,8 @@ private fun MobileSettingsScreen(
                             onPlaybackClick = { onPageChange(SettingsPage.Playback) },
                             onSponsorBlockClick = { onPageChange(SettingsPage.SponsorBlock) },
                             onAppearanceClick = { onPageChange(SettingsPage.Appearance) },
+                            onAppLanguageClick = { onPageChange(SettingsPage.Appearance) },
+                            selectedAppLanguage = selectedAppLanguage,
                             onAdvancedClick = { onPageChange(SettingsPage.Advanced) },
                             onHealthCheckClick = { onPageChange(SettingsPage.HealthCheck) },
                             onNotificationsClick = { onPageChange(SettingsPage.Notifications) },
@@ -990,22 +992,15 @@ private fun TabletSettingsScreen(
 ) {
     val focusManager = LocalFocusManager.current
     val pageFocusRequester = remember { FocusRequester() }
-    var lastInlinePage by remember { mutableStateOf(page) }
     LaunchedEffect(page, isTvMode) {
-        val returnedToParent = lastInlinePage != page &&
-            (lastInlinePage.previousPage() == page ||
-                (isTvMode && page == SettingsPage.Root && lastInlinePage in setOf(
-                    SettingsPage.TraktAuthentication, SettingsPage.Simkl,
-                    SettingsPage.AniList, SettingsPage.Debrid,
-                    SettingsPage.SponsorBlock,
-                )))
-        lastInlinePage = page
-        if (isTvMode && returnedToParent) {
+        if (isTvMode) {
+            withFrameNanos { }
             withFrameNanos { }
             pageFocusRequester.requestFocus()
         }
     }
     val uriHandler = LocalUriHandler.current
+    var showLanguageSheet by rememberSaveable { mutableStateOf(false) }
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.General.name) }
     val activeCategory = SettingsCategory.valueOf(selectedCategory)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -1014,6 +1009,14 @@ private fun TabletSettingsScreen(
     LaunchedEffect(page) {
         if (page.opensInlineOnTablet) {
             selectedCategory = page.category.name
+        }
+    }
+
+    LaunchedEffect(selectedCategory, page, isTvMode) {
+        if (isTvMode && page == SettingsPage.Root) {
+            withFrameNanos { }
+            withFrameNanos { }
+            pageFocusRequester.requestFocus()
         }
     }
 
@@ -1256,6 +1259,8 @@ private fun TabletSettingsScreen(
                                 onPlaybackClick = { openInlinePage(SettingsPage.Playback) },
                                 onSponsorBlockClick = { openInlinePage(SettingsPage.SponsorBlock) },
                                 onAppearanceClick = { openInlinePage(SettingsPage.Appearance) },
+                                onAppLanguageClick = { showLanguageSheet = true },
+                                selectedAppLanguage = selectedAppLanguage,
                                 onAdvancedClick = { openInlinePage(SettingsPage.Advanced) },
                                 onHealthCheckClick = { openInlinePage(SettingsPage.HealthCheck) },
                                 onNotificationsClick = { openInlinePage(SettingsPage.Notifications) },
@@ -1460,5 +1465,12 @@ private fun TabletSettingsScreen(
                 }
             }
         }
+    }
+    if (showLanguageSheet) {
+        AppearanceLanguageBottomSheet(
+            selectedLanguage = selectedAppLanguage,
+            onLanguageSelected = onAppLanguageSelected,
+            onDismiss = { showLanguageSheet = false },
+        )
     }
 }

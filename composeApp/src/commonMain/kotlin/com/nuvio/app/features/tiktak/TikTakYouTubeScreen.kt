@@ -346,6 +346,7 @@ fun TikTakYouTubeScreen(
                 Text(
                     text = if (accountConnected) "Connected: ${channelTitle.ifBlank { "YouTube" }}" else "No YouTube account connected to this profile",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.nuvio.colors.textPrimary,
                 )
                 Button(
                     onClick = if (accountConnected) ::disconnectAccount else ::connectAccount,
@@ -354,8 +355,35 @@ fun TikTakYouTubeScreen(
                 ) { Text(if (accountConnected) "Disconnect" else "Connect YouTube") }
             }
             deviceSignIn?.let { device ->
-                Text("On your phone, visit ${device.verificationUrl} and enter ${device.userCode}")
-                Text("Waiting for YouTube approval…")
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "On your phone, visit:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.nuvio.colors.textMuted,
+                    )
+                    Text(
+                        text = device.verificationUrl,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.nuvio.colors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Then enter this code:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.nuvio.colors.textMuted,
+                    )
+                    Text(
+                        text = device.userCode,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.nuvio.colors.accent,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        text = "Waiting for YouTube approval…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.nuvio.colors.textMuted,
+                    )
+                }
             }
         }
         item {

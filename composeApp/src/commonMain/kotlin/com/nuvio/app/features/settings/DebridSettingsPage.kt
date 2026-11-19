@@ -1,6 +1,7 @@
 package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.ui.NuvioTvTextField
+import com.nuvio.app.core.ui.tikTakTvFocus
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -654,6 +655,7 @@ private fun DebridPrepareCountDialog(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tikTakTvFocus()
                                 .clickable { onLimitSelected(limit) },
                             shape = RoundedCornerShape(12.dp),
                             color = containerColor,
@@ -783,6 +785,7 @@ private fun DebridPreferenceRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tikTakTvFocus()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         verticalAlignment = Alignment.CenterVertically,
@@ -1250,6 +1253,7 @@ private fun DebridDialogOptionRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .tikTakTvFocus()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = containerColor,
@@ -1611,6 +1615,7 @@ private fun DebridDeviceAuthDialog(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tikTakTvFocus()
                             .clickable {
                                 clipboardManager.setText(AnnotatedString(activeSession.userCode))
                                 statusMessage = codeCopiedMessage

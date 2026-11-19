@@ -1,6 +1,7 @@
 package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.ui.NuvioTvTextField
+import com.nuvio.app.core.ui.tikTakTvFocus
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
@@ -357,7 +358,7 @@ private data class AppLanguageSheetOption(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppearanceLanguageBottomSheet(
+internal fun AppearanceLanguageBottomSheet(
     selectedLanguage: AppLanguage,
     onLanguageSelected: (AppLanguage) -> Unit,
     onDismiss: () -> Unit,
@@ -501,6 +502,7 @@ private fun ThemeChip(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
+            .tikTakTvFocus()
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -692,6 +694,7 @@ private fun CustomThemeColorPicker(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(pickerShape)
+                .tikTakTvFocus()
                 .clickable { expanded = !expanded }
                 .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -743,6 +746,7 @@ private fun CustomThemeColorPicker(
                         .padding(4.dp)
                         .clip(CircleShape)
                         .background(option.color)
+                        .tikTakTvFocus()
                         .clickable { onColorSelected(option.color) },
                     contentAlignment = Alignment.Center,
                 ) {
