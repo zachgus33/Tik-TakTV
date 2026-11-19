@@ -3624,7 +3624,14 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
     expect("suggestedFilename" in result && result.suggestedFilename()).toBe(
       "The Test Movie.mp4",
     );
-  } else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
+  } else {
+    const appleTouchBrowser = await page.evaluate(() =>
+      /iPad|iPhone|iPod/i.test(navigator.userAgent),
+    );
+    if (appleTouchBrowser)
+      await expect(page.getByRole("button", { name: "View download manager" })).toBeVisible();
+    else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
+  }
 });
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,

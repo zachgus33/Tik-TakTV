@@ -56,15 +56,8 @@ export default function DownloadCenter() {
                   className="download-job-action"
                   href={job.url}
                   download={job.name}
-                  target="_blank"
                   rel="noopener"
                   onClick={(event) => {
-                    if (appleTouchBrowser) {
-                      event.preventDefault();
-                      const opened = window.open(job.url!, "_blank");
-                      if (opened) opened.opener = null;
-                      else window.location.assign(job.url!);
-                    }
                     updateDownloadJob({
                       ...job,
                       status: "started",
@@ -73,7 +66,8 @@ export default function DownloadCenter() {
                     });
                   }}
                 >
-                  <Download size={16} /> Download MP4
+                  <Download size={16} />
+                  {appleTouchBrowser ? "Open MP4 / Save to Files" : "Download MP4"}
                 </a>
               )}
             </article>

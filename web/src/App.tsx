@@ -1672,8 +1672,13 @@ function Detail({
         url: persistentUrl,
       });
     setDownloadMode(false);
-    handoffDownload(downloadUrl, filename);
-    markDownloadStarted(filename, persistentUrl);
+    // iOS PWAs cannot reliably open an asynchronously prepared file without
+    // producing an about:blank tab. Keep the user in TikTak TV and let the
+    // Download Center's explicit, user-initiated link open the MP4 instead.
+    if (!appleTouchBrowser()) {
+      handoffDownload(downloadUrl, filename);
+      markDownloadStarted(filename, persistentUrl);
+    }
   }
   function markDownloadStarted(filename: string, url?: string) {
     if (!downloadJobId.current) return;
@@ -1688,12 +1693,6 @@ function Detail({
     });
   }
   function handoffDownload(downloadUrl: string, filename: string) {
-    // iOS standalone PWAs ignore asynchronous <a download> clicks. Navigate
-    // to the prepared MP4 so the native media/share UI can save it to Files.
-    if (appleTouchBrowser()) {
-      window.location.assign(downloadUrl);
-      return;
-    }
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = filename;
@@ -1705,7 +1704,8 @@ function Detail({
   function openReadyDownload(event: React.MouseEvent<HTMLAnchorElement>) {
     if (appleTouchBrowser()) {
       event.preventDefault();
-      window.location.assign(readyDownload!.url);
+      onOpenDownloads();
+      return;
     }
     markDownloadStarted(readyDownload!.filename, readyDownload!.persistentUrl);
   }
@@ -2273,7 +2273,7 @@ function Detail({
               <strong>Your MP4 is ready</strong>
               <p>
                 {appleTouchBrowser()
-                  ? "Tap below to open the file, then use Share → Save to Files if Safari shows the video."
+                  ? "Use View download manager, then tap Open MP4 / Save to Files when you are ready."
                   : "If your browser did not start automatically, download it here."}
               </p>
             </div>
@@ -2286,7 +2286,7 @@ function Detail({
               onClick={openReadyDownload}
             >
               <Download size={18} />
-              {appleTouchBrowser() ? "Open MP4 / Save to Files" : "Save MP4"}
+              {appleTouchBrowser() ? "View download manager" : "Save MP4"}
             </a>
           </div>
         )}
