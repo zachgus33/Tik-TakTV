@@ -1610,7 +1610,7 @@ test("Friends resume history shows watched icons on earlier episodes", async ({
     }),
   ).not.toContainText("Watched");
   await page.getByRole("button", {
-    name: "Mark The One with the Thumb watched",
+    name: "Mark episode 3 watched",
   }).click();
   await expect(
     page.getByRole("button", {

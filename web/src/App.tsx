@@ -2392,7 +2392,7 @@ function Detail({
                         type="button"
                         className="episode-watch-toggle"
                         disabled={busy}
-                        aria-label={`Mark ${ep.name} ${episodeWatched ? "unwatched" : "watched"}`}
+                        aria-label={`Mark episode ${ep.episode} ${episodeWatched ? "unwatched" : "watched"}`}
                         onClick={() =>
                           onSetWatched(item, ep, !isWatched(watched, item, ep))
                         }
