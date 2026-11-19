@@ -24,14 +24,36 @@ export function shiftWebVtt(text: string, offsetSeconds: number) {
   );
 }
 
-export function subtitleOffsetFromMarkers(
-  currentOffset: number,
-  audioTime: number,
-  subtitleTime: number,
-) {
-  if (![currentOffset, audioTime, subtitleTime].every(Number.isFinite))
-    return currentOffset;
-  return Math.round((currentOffset + audioTime - subtitleTime) * 10) / 10;
+export type ParsedSubtitleCue = {
+  startTime: number;
+  endTime: number;
+  text: string;
+};
+
+export function parseWebVttCues(text: string): ParsedSubtitleCue[] {
+  const cues: ParsedSubtitleCue[] = [];
+  const blocks = text.replace(/^\uFEFF/, "").split(/\r?\n\r?\n/);
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).filter(Boolean);
+    const timingIndex = lines.findIndex((line) => line.includes("-->"));
+    if (timingIndex < 0) continue;
+    const match = /((?:\d{2}:)?\d{2}:\d{2}\.\d{3})\s+-->\s+((?:\d{2}:)?\d{2}:\d{2}\.\d{3})/.exec(
+      lines[timingIndex],
+    );
+    if (!match) continue;
+    const body = lines
+      .slice(timingIndex + 1)
+      .join(" ")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    if (!body) continue;
+    cues.push({
+      startTime: timestampSeconds(match[1]),
+      endTime: timestampSeconds(match[2]),
+      text: body,
+    });
+  }
+  return cues;
 }
 
 export function runtimeSeconds(runtime?: string) {

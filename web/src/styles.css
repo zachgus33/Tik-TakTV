@@ -3598,6 +3598,29 @@ body:has(dialog[open]:not(.mini-live-player)) {
   color: #fff;
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+.subtitle-cue-picker {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  width: min(520px, 100%);
+  padding: 6px;
+  border-top: 1px solid var(--border);
+}
+.subtitle-cue-picker small {
+  padding: 3px 5px;
+  color: var(--muted);
+}
+.subtitle-cue-picker button {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+.subtitle-cue-picker time {
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
 .subtitle-sync button {
   min-height: 34px;
   padding: 7px 10px;

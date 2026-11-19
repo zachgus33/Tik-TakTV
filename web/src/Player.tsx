@@ -23,8 +23,9 @@ import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
   runtimeSeconds,
+  parseWebVttCues,
   shiftWebVtt,
-  subtitleOffsetFromMarkers,
+  type ParsedSubtitleCue,
 } from "./player-utils";
 import { readNextEpisodeAutoAdvance } from "./next-episode";
 import NextEpisodeSetting from "./NextEpisodeSetting";
@@ -72,6 +73,15 @@ function savedSubtitleOffset(playback: Playback) {
   const saved = Number(localStorage.getItem(subtitleOffsetKey(playback)) || 0);
   return Number.isFinite(saved) ? saved : 0;
 }
+function subtitleSelectionKey(playback: Playback) {
+  return `tiktak:subtitle-selection:${playback.item.id}`;
+}
+type SubtitleSelectionPreference = {
+  type: "embedded" | "external" | "off";
+  label?: string;
+  language?: string;
+  url?: string;
+};
 function srtToVtt(text: string) {
   return `WEBVTT\n\n${text
     .replace(/^\uFEFF/, "")
@@ -183,7 +193,13 @@ function VideoPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [seekEnd, setSeekEnd] = useState(0);
   const [subtitles, setSubtitles] = useState<
-    { url: string; name: string; sourceText: string }[]
+    {
+      url: string;
+      name: string;
+      sourceText: string;
+      sourceUrl: string;
+      language: string;
+    }[]
   >([]);
   const [subtitleCandidates, setSubtitleCandidates] = useState<Subtitle[]>(
     playback.subtitles ?? [],
@@ -192,8 +208,9 @@ function VideoPlayer({
     { key: string; label: string; track: TextTrack }[]
   >([]);
   const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState("auto");
-  const [subtitleAudioAt, setSubtitleAudioAt] = useState<number | null>(null);
-  const [subtitleSeenAt, setSubtitleSeenAt] = useState<number | null>(null);
+  const [subtitleSyncCapturedAt, setSubtitleSyncCapturedAt] = useState<
+    number | null
+  >(null);
   const [quality, setQuality] = useState<{ label: string; value: number }[]>(
     [],
   );
@@ -223,6 +240,7 @@ function VideoPlayer({
   const embeddedCueTimesRef = useRef(
     new WeakMap<TextTrackCue, { start: number; end: number }>(),
   );
+  const subtitlePreferenceRestoredRef = useRef(false);
   subtitleRef.current = subtitles;
   playingRef.current = playing;
   function currentEmbeddedTracks() {
@@ -278,24 +296,57 @@ function VideoPlayer({
       video.textTracks[index].mode = "disabled";
     if (value.startsWith("embedded:")) {
       const selected = embeddedSubtitles[Number(value.split(":")[1])];
-      if (selected) selected.track.mode = "showing";
+      if (selected) {
+        selected.track.mode = "showing";
+        const preference: SubtitleSelectionPreference = {
+          type: "embedded",
+          label: selected.label,
+          language: selected.track.language,
+        };
+        localStorage.setItem(
+          subtitleSelectionKey(playback),
+          JSON.stringify(preference),
+        );
+      }
     } else if (value.startsWith("external:")) {
-      const selected = video.querySelectorAll("track")[
-        Number(value.split(":")[1])
-      ];
-      if (selected) selected.track.mode = "showing";
+      const index = Number(value.split(":")[1]);
+      const selected = video.querySelectorAll("track")[index];
+      const subtitle = subtitles[index];
+      if (selected && subtitle) {
+        selected.track.mode = "showing";
+        const preference: SubtitleSelectionPreference = {
+          type: "external",
+          label: subtitle.name,
+          language: subtitle.language,
+          url: subtitle.sourceUrl,
+        };
+        localStorage.setItem(
+          subtitleSelectionKey(playback),
+          JSON.stringify(preference),
+        );
+      }
+    } else if (value === "off") {
+      localStorage.setItem(
+        subtitleSelectionKey(playback),
+        JSON.stringify({ type: "off" } satisfies SubtitleSelectionPreference),
+      );
     } else if (value === "auto") {
       const preferred = localStorage.getItem("tiktak:subtitle-language");
       const embedded =
         embeddedSubtitles.find((track) => track.label === preferred) ??
         embeddedSubtitles[0];
       const externalIndex = subtitles.findIndex((track) => track.name === preferred);
-      if (embedded) embedded.track.mode = "showing";
+      if (embedded) {
+        embedded.track.mode = "showing";
+        value = embedded.key;
+      }
       else {
-        const selected = video.querySelectorAll("track")[
-          externalIndex >= 0 ? externalIndex : 0
-        ];
-        if (selected) selected.track.mode = "showing";
+        const index = externalIndex >= 0 ? externalIndex : 0;
+        const selected = video.querySelectorAll("track")[index];
+        if (selected) {
+          selected.track.mode = "showing";
+          value = `external:${index}`;
+        }
       }
     }
     setSelectedSubtitleTrack(value);
@@ -440,11 +491,11 @@ function VideoPlayer({
     const saved = savedSubtitleOffset(playback);
     subtitleOffsetRef.current = saved;
     setSubtitleOffset(saved);
-    setSubtitleAudioAt(null);
-    setSubtitleSeenAt(null);
+    setSubtitleSyncCapturedAt(null);
     setSelectedSubtitleTrack("auto");
     setEmbeddedSubtitles([]);
     embeddedCueTimesRef.current = new WeakMap();
+    subtitlePreferenceRestoredRef.current = false;
   }, [playback.item.id, playback.episode?.id]);
   useEffect(() => {
     const c = new AbortController();
@@ -481,6 +532,8 @@ function VideoPlayer({
           ),
           name: candidate.name ?? `Subtitle ${index + 1}`,
           sourceText: text,
+          sourceUrl: candidate.url,
+          language: candidate.lang ?? "und",
         };
       }),
     ).then((results) => {
@@ -499,6 +552,50 @@ function VideoPlayer({
     });
     return () => c.abort();
   }, [subtitleCandidates]);
+  useEffect(() => {
+    if (
+      subtitlePreferenceRestoredRef.current ||
+      (!embeddedSubtitles.length && !subtitles.length)
+    )
+      return;
+    let preference: SubtitleSelectionPreference | null = null;
+    try {
+      preference = JSON.parse(
+        localStorage.getItem(subtitleSelectionKey(playback)) ?? "null",
+      );
+    } catch {}
+    const restore = () => {
+      if (preference?.type === "off") selectSubtitleTrack("off");
+      else if (preference?.type === "embedded") {
+      const index = embeddedSubtitles.findIndex(
+        (track) =>
+          track.label === preference?.label ||
+          (!!preference?.language &&
+            track.track.language === preference.language),
+      );
+      selectSubtitleTrack(index >= 0 ? `embedded:${index}` : "auto");
+      } else if (preference?.type === "external") {
+      const index = subtitles.findIndex(
+        (track) =>
+          track.sourceUrl === preference?.url ||
+          track.name === preference?.label ||
+          (!!preference?.language && track.language === preference.language),
+      );
+      selectSubtitleTrack(index >= 0 ? `external:${index}` : "auto");
+      } else selectSubtitleTrack("auto");
+      subtitlePreferenceRestoredRef.current = true;
+    };
+    if (
+      preference?.type === "off" ||
+      preference?.type === "external" ||
+      embeddedSubtitles.length
+    ) {
+      restore();
+      return;
+    }
+    const timer = window.setTimeout(restore, 2_000);
+    return () => window.clearTimeout(timer);
+  }, [embeddedSubtitles, subtitles, playback.item.id]);
   function changeSubtitleOffset(value: number) {
     // Subtitle files can be arbitrarily early or late. Preserve half-second
     // precision without imposing a misleading fixed maximum.
@@ -521,24 +618,48 @@ function VideoPlayer({
     );
     applyEmbeddedSubtitleOffset(next);
   }
-  function captureSubtitleSync(kind: "audio" | "subtitle") {
+  function selectedSubtitleSyncCues(): ParsedSubtitleCue[] {
+    if (selectedSubtitleTrack.startsWith("external:")) {
+      const subtitle =
+        subtitles[Number(selectedSubtitleTrack.split(":")[1])];
+      return subtitle ? parseWebVttCues(subtitle.sourceText) : [];
+    }
+    if (selectedSubtitleTrack.startsWith("embedded:")) {
+      const track =
+        embeddedSubtitles[Number(selectedSubtitleTrack.split(":")[1])]?.track;
+      if (!track?.cues) return [];
+      return Array.from(
+        { length: track.cues.length },
+        (_, index) => track.cues![index],
+      ).map((cue) => {
+        const original = embeddedCueTimesRef.current.get(cue) ?? {
+          start: cue.startTime,
+          end: cue.endTime,
+        };
+        return {
+          startTime: original.start,
+          endTime: original.end,
+          text: "text" in cue ? String((cue as VTTCue).text) : "Subtitle line",
+        };
+      });
+    }
+    return [];
+  }
+  function captureSubtitleSync() {
     const position = videoRef.current?.currentTime;
-    if (!Number.isFinite(position)) return;
-    const time = Number(position);
-    const audioAt = kind === "audio" ? time : subtitleAudioAt;
-    const seenAt = kind === "subtitle" ? time : subtitleSeenAt;
-    if (kind === "audio") setSubtitleAudioAt(time);
-    else setSubtitleSeenAt(time);
-    if (audioAt == null || seenAt == null) return;
-    const previous = subtitleOffsetRef.current;
-    const next = subtitleOffsetFromMarkers(previous, audioAt, seenAt);
-    changeSubtitleOffset(next);
-    setSubtitleAudioAt(null);
-    setSubtitleSeenAt(null);
-    const adjustment = next - previous;
+    if (typeof position !== "number" || !Number.isFinite(position)) return;
+    videoRef.current?.pause();
+    setSubtitleSyncCapturedAt(position);
     setNotice(
-      `Subtitle timing adjusted ${adjustment >= 0 ? "+" : ""}${adjustment.toFixed(1)}s.`,
+      "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
     );
+  }
+  function applySubtitleSyncCue(cue: ParsedSubtitleCue) {
+    if (subtitleSyncCapturedAt == null) return;
+    const next = Math.round((subtitleSyncCapturedAt - cue.startTime) * 10) / 10;
+    changeSubtitleOffset(next);
+    setSubtitleSyncCapturedAt(null);
+    setNotice(`Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`);
   }
   useEffect(() => {
     const video = videoRef.current!;
@@ -1181,14 +1302,13 @@ function VideoPlayer({
         poster={playback.item.background}
         aria-label={playback.item.name}
       >
-        {subtitles.map((s, index) => (
+        {subtitles.map((s) => (
           <track
             key={s.url}
             src={s.url}
             kind="subtitles"
             label={s.name}
-            srcLang={s.name.match(/\b[a-z]{2,3}\b/i)?.[0] ?? "und"}
-            default={index === 0}
+            srcLang={s.language}
           />
         ))}
       </video>
@@ -1511,23 +1631,40 @@ function VideoPlayer({
             <span className="subtitle-auto-sync">
               <button
                 type="button"
-                className={subtitleAudioAt != null ? "selected" : undefined}
-                aria-label="Mark when dialogue is heard"
-                onClick={() => captureSubtitleSync("audio")}
+                className={
+                  subtitleSyncCapturedAt != null ? "selected" : undefined
+                }
+                aria-label="Capture dialogue for subtitle sync"
+                onClick={captureSubtitleSync}
               >
-                {subtitleAudioAt != null ? "Audio marked" : "I hear the line"}
-              </button>
-              <button
-                type="button"
-                className={subtitleSeenAt != null ? "selected" : undefined}
-                aria-label="Mark when subtitle appears"
-                onClick={() => captureSubtitleSync("subtitle")}
-              >
-                {subtitleSeenAt != null
-                  ? "Subtitle marked"
-                  : "I see the subtitle"}
+                {subtitleSyncCapturedAt != null
+                  ? "Dialogue captured"
+                  : "Sync from dialogue"}
               </button>
             </span>
+            {subtitleSyncCapturedAt != null && (
+              <span className="subtitle-cue-picker">
+                <small>Select the matching subtitle line</small>
+                {selectedSubtitleSyncCues()
+                  .sort(
+                    (left, right) =>
+                      Math.abs(left.startTime - subtitleSyncCapturedAt) -
+                      Math.abs(right.startTime - subtitleSyncCapturedAt),
+                  )
+                  .slice(0, 7)
+                  .sort((left, right) => left.startTime - right.startTime)
+                  .map((cue) => (
+                    <button
+                      type="button"
+                      key={`${cue.startTime}-${cue.text}`}
+                      onClick={() => applySubtitleSyncCue(cue)}
+                    >
+                      <time>{formatPlayerTime(cue.startTime)}</time>
+                      {cue.text}
+                    </button>
+                  ))}
+              </span>
+            )}
           </div>
         )}
         <label className="button file-button">
@@ -1557,6 +1694,8 @@ function VideoPlayer({
                   ),
                   name: file.name,
                   sourceText: text,
+                  sourceUrl: file.name,
+                  language: "und",
                 },
               ]);
             }}

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   runtimeSeconds,
+  parseWebVttCues,
   shiftWebVtt,
-  subtitleOffsetFromMarkers,
 } from "../src/player-utils";
 import { streamAudioLanguages } from "../src/stream-selection";
 
@@ -23,9 +23,15 @@ describe("player timing helpers", () => {
     expect(runtimeSeconds("90")).toBe(5400);
   });
 
-  it("calculates subtitle delay from the heard and seen moments", () => {
-    expect(subtitleOffsetFromMarkers(0, 10, 15.2)).toBe(-5.2);
-    expect(subtitleOffsetFromMarkers(-1, 20, 18)).toBe(1);
+  it("parses subtitle lines for TV-style synchronization", () => {
+    expect(
+      parseWebVttCues(
+        "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello there\n\n00:04.500 --> 00:05.500\nGeneral <i>Kenobi</i>",
+      ),
+    ).toEqual([
+      { startTime: 1, endTime: 3, text: "Hello there" },
+      { startTime: 4.5, endTime: 5.5, text: "General Kenobi" },
+    ]);
   });
 });
 

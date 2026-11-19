@@ -3358,31 +3358,41 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.getByRole("button", { name: "Reset subtitle timing" }).click();
   const video = page.locator("video");
   await video.evaluate((element) => {
+    element.addTextTrack("subtitles", "Embedded English", "en");
     Object.defineProperty(element, "currentTime", {
       configurable: true,
       writable: true,
       value: 10,
     });
   });
-  await page.getByRole("button", { name: "Mark when dialogue is heard" }).click();
-  await video.evaluate((element) => {
-    element.currentTime = 15.2;
-    element.addTextTrack("subtitles", "Embedded English", "en");
-  });
-  await page.getByRole("button", { name: "Mark when subtitle appears" }).click();
-  await expect(
-    page.getByRole("button", { name: "Reset subtitle timing" }),
-  ).toHaveText("-5.2s");
   await expect(page.getByLabel("Subtitle language")).toContainText(
     "Built-in · Embedded English",
   );
+  await page.getByLabel("Subtitle language").selectOption("embedded:0");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(
+          localStorage.getItem("tiktak:subtitle-selection:tt-test") ?? "null",
+        )?.type,
+      ),
+    )
+    .toBe("embedded");
+  await page.getByLabel("Subtitle language").selectOption("external:0");
+  await page
+    .getByRole("button", { name: "Capture dialogue for subtitle sync" })
+    .click();
+  await page.getByRole("button", { name: /0:01 Hello/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Reset subtitle timing" }),
+  ).toHaveText("+9.0s");
   await expect
     .poll(() =>
       page.evaluate(() =>
         localStorage.getItem("tiktak:subtitle-offset:tt-test:movie"),
       ),
     )
-    .toBe("-5.2");
+    .toBe("9");
 });
 test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fallback", async ({
   page,
