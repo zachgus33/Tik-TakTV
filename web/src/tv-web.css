@@ -364,14 +364,9 @@ body {
 }
 
 .tv-web-player.controls-hidden .player-top,
-.tv-web-player.controls-hidden .vod-controls,
-.tv-web-player.controls-hidden .player-tools {
+.tv-web-player.controls-hidden .vod-controls {
   opacity: 0;
   pointer-events: none;
-}
-
-.tv-web-player.controls-hidden .player-tools {
-  transform: translateY(12px);
 }
 
 @media (max-width: 760px) {

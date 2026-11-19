@@ -2560,6 +2560,18 @@ test("autoplay selects highest quality first and seeders break quality ties", as
 }) => {
   await streamingAddon(page);
   await page.addInitScript(() => {
+    // Empty MP4 route fixtures can fail decoding immediately on WebKit. This
+    // test owns ranking and full-screen layout, not media-error fallback, so
+    // keep the player mounted long enough to assert those two behaviors.
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
     const attempted: string[] = [];
     Object.defineProperty(window, "__testMediaSources", { value: attempted });
     const capture = (node: Node) => {
