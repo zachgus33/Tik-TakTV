@@ -1,6 +1,6 @@
 ﻿import {
   getService,
-  prepareDownload,
+  queueDownload,
   refreshPlaybackEndpoint,
 } from "./connection";
 import { storeProvider } from "./storage";
@@ -1645,36 +1645,26 @@ function Detail({
     signal?: AbortSignal,
   ) {
     const filename = downloadFilename(ep);
-    const downloadUrl = await prepareDownload(
-      url,
-      filename,
-      headers,
-      signal,
-      (preparation) => {
-        if (!downloadJobId.current) return;
-        const megabytes = Number(preparation.bytes ?? 0) / 1_048_576;
+    const preparation = await queueDownload(url, filename, headers, signal);
+    if (signal?.aborted) return;
+    if (preparation.status === "preparing" && preparation.statusPath) {
+      if (downloadJobId.current)
         updateDownloadJob({
           id: downloadJobId.current,
           name: filename,
-          status:
-            preparation.status === "failed"
-              ? "failed"
-              : preparation.status === "ready"
-                ? "ready"
-                : "preparing",
+          status: "preparing",
           detail:
-            preparation.status === "failed"
-              ? (preparation.error ?? "MP4 preparation failed.")
-              : preparation.status === "ready"
-                ? `MP4 prepared on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB` : ""}.`
-                : `Preparing the complete MP4 on the playback service${megabytes ? ` · ${megabytes.toFixed(1)} MB written` : ""}. You can leave this screen and follow it in Download Center.`,
+            "Preparing in the background. You can keep watching or browse TikTak and follow progress in Download Center.",
           at: Date.now(),
           statusPath: preparation.statusPath,
-          bytes: preparation.bytes,
         });
-      },
-    );
-    if (signal?.aborted) return;
+      setDownloadMode(false);
+      setReadyDownload(null);
+      setDownloadNotice(true);
+      return;
+    }
+    const downloadUrl = preparation.url;
+    if (!downloadUrl) throw new Error("Invalid completed download response.");
     const service = getService();
     const persistentUrl = (() => {
       try {
@@ -1836,8 +1826,8 @@ function Detail({
     controller.current?.abort();
     const c = new AbortController();
     controller.current = c;
-    setBusy(true);
-    setPreparing(auto || downloadBest);
+    setBusy(!downloadBest);
+    setPreparing(auto);
     try {
       let autoStarted = false;
       const startFirstPlayable = (partial: Stream[]) => {

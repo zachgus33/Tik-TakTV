@@ -313,20 +313,19 @@ export async function prepareMedia(
   return `${config.url}${data.path}`;
 }
 
-export async function prepareDownload(
+export async function queueDownload(
   url: string,
   filename: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
-  onStatus?: (status: DownloadPreparationStatus) => void,
-) {
+): Promise<DownloadPreparationStatus> {
   const config = getService();
   if (
     !config &&
     /\.(?:mp4|m4v)(?:[?#]|$)/i.test(url) &&
     !Object.keys(headers ?? {}).length
   )
-    return url;
+    return { status: "ready", url, filename };
   if (!config)
     throw new Error(
       "This source needs the TikTak TV playback service to convert it to MP4. Connect the service in Settings, or choose a direct MP4 source.",
@@ -350,6 +349,21 @@ export async function prepareDownload(
     typeof created.statusPath !== "string" ||
     !validDownloadPath(created.statusPath, "status.json")
   )
+    throw new Error("Invalid download service response.");
+  return created;
+}
+
+export async function prepareDownload(
+  url: string,
+  filename: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+  onStatus?: (status: DownloadPreparationStatus) => void,
+) {
+  const created = await queueDownload(url, filename, headers, signal);
+  if (created.status === "ready" && created.url) return created.url;
+  const config = getService();
+  if (!config || !created.statusPath)
     throw new Error("Invalid download service response.");
   onStatus?.(created);
   let current = created;
@@ -385,6 +399,7 @@ export type DownloadPreparationStatus = {
   createdAt?: number;
   updatedAt?: number;
   error?: string;
+  url?: string;
 };
 
 function validDownloadPath(value: string, file: "status.json" | "download.mp4") {

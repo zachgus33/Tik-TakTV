@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { setPriority, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import http from "node:http";
@@ -1599,6 +1599,9 @@ export function createService({
     job.process = child;
     job.running = true;
     job.status = "preparing";
+    try {
+      if (child.pid) setPriority(child.pid, 10);
+    } catch {}
     const updateProgress = (chunk) => {
       const text = chunk.toString();
       job.errorOutput = (job.errorOutput + text).slice(-4000);
@@ -1626,27 +1629,34 @@ export function createService({
     child.once("error", () => {
       fail("The MP4 converter could not start. Try another source.");
     });
-    child.once("exit", (code) => {
+    child.once("exit", async (code) => {
       if (job.status !== "preparing") return;
       job.process = null;
       job.running = false;
-      void stat(job.file)
-        .then((value) => {
-          if (code || value.size < 1)
-            throw new Error("The completed MP4 was empty.");
-          job.status = "ready";
-          job.bytes = value.size;
-          job.completedAt = Date.now();
-          job.updatedAt = job.completedAt;
-          job.touched = job.completedAt;
-        })
-        .catch(() => {
-          fail(
-            /401|403|forbidden|unauthorized/i.test(job.errorOutput)
-              ? "The source rejected the download. Refresh its stream link and try again."
-              : "This source could not be converted to MP4. Try another source.",
-          );
-        });
+      const value = await stat(job.file).catch(() => null);
+      if (!code && value?.size) {
+        job.status = "ready";
+        job.bytes = value.size;
+        job.completedAt = Date.now();
+        job.updatedAt = job.completedAt;
+        job.touched = job.completedAt;
+        return;
+      }
+      if (job.attempt === "copy") {
+        await rm(job.file, { force: true }).catch(() => {});
+        job.attempt = "transcode";
+        job.args = job.transcodeArgs;
+        job.errorOutput = "";
+        job.bytes = 0;
+        job.updatedAt = Date.now();
+        startDownloadJob(job);
+        return;
+      }
+      fail(
+        /401|403|forbidden|unauthorized/i.test(job.errorOutput)
+          ? "The source rejected the download. Refresh its stream link and try again."
+          : "This source could not be converted to MP4. Try another source.",
+      );
     });
   }
   const ttl = 4 * 60 * 60 * 1000;
@@ -3522,6 +3532,11 @@ export function createService({
             error:
               "Two media conversions are already active. Wait for one to finish and retry.",
           });
+        if (runningJobs.some((job) => job.kind === "download"))
+          return send(429, {
+            error:
+              "A download is already being prepared. Follow it in Download Center before starting another.",
+          });
         const headers = sourceHeaders(body.headers);
         if (
           !Object.keys(headers).some(
@@ -3558,48 +3573,64 @@ export function createService({
         const dir = await mkdtemp(join(downloadSpoolDir, "job-"));
         const file = join(dir, "download.mp4");
         const now = Date.now();
+        const commonArgs = [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-nostdin",
+          "-y",
+          "-stats_period",
+          "1",
+          "-progress",
+          "pipe:2",
+          "-fflags",
+          "+genpts+discardcorrupt",
+          ...hlsInputArgs,
+          "-i",
+          inputUrl,
+          "-map",
+          "0:v:0?",
+          "-map",
+          "0:a:0?",
+        ];
+        const copyArgs = [
+          ...commonArgs,
+          "-c",
+          "copy",
+          "-movflags",
+          "+faststart",
+          file,
+        ];
+        const transcodeArgs = [
+          ...commonArgs,
+          "-c:v",
+          "libx264",
+          "-threads",
+          "1",
+          "-preset",
+          "veryfast",
+          "-crf",
+          "23",
+          "-pix_fmt",
+          "yuv420p",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-movflags",
+          "+faststart",
+          file,
+        ];
         const job = {
           id,
           kind: "download",
           owner: userId,
           filename: safeDownloadName(body.filename),
-          args: [
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-nostdin",
-            "-y",
-            "-stats_period",
-            "1",
-            "-progress",
-            "pipe:2",
-            "-fflags",
-            "+genpts+discardcorrupt",
-            ...hlsInputArgs,
-            "-i",
-            inputUrl,
-            "-map",
-            "0:v:0?",
-            "-map",
-            "0:a:0?",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "160k",
-            "-ac",
-            "2",
-            "-movflags",
-            "+faststart",
-            file,
-          ],
+          args: copyArgs,
+          transcodeArgs,
+          attempt: "copy",
           dir,
           file,
           process: null,

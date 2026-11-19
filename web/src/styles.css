@@ -3580,11 +3580,23 @@ body:has(dialog[open]:not(.mini-live-player)) {
 }
 .subtitle-sync {
   display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--input);
+}
+.subtitle-auto-sync {
+  display: inline-flex;
+  gap: 4px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+.subtitle-auto-sync button.selected {
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .subtitle-sync button {
   min-height: 34px;

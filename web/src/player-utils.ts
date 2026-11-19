@@ -24,6 +24,16 @@ export function shiftWebVtt(text: string, offsetSeconds: number) {
   );
 }
 
+export function subtitleOffsetFromMarkers(
+  currentOffset: number,
+  audioTime: number,
+  subtitleTime: number,
+) {
+  if (![currentOffset, audioTime, subtitleTime].every(Number.isFinite))
+    return currentOffset;
+  return Math.round((currentOffset + audioTime - subtitleTime) * 10) / 10;
+}
+
 export function runtimeSeconds(runtime?: string) {
   if (!runtime) return 0;
   const value = runtime.trim();

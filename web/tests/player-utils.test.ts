@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { runtimeSeconds, shiftWebVtt } from "../src/player-utils";
+import {
+  runtimeSeconds,
+  shiftWebVtt,
+  subtitleOffsetFromMarkers,
+} from "../src/player-utils";
 import { streamAudioLanguages } from "../src/stream-selection";
 
 describe("player timing helpers", () => {
@@ -17,6 +21,11 @@ describe("player timing helpers", () => {
     expect(runtimeSeconds("01:30:00")).toBe(5400);
     expect(runtimeSeconds("2700")).toBe(2700);
     expect(runtimeSeconds("90")).toBe(5400);
+  });
+
+  it("calculates subtitle delay from the heard and seen moments", () => {
+    expect(subtitleOffsetFromMarkers(0, 10, 15.2)).toBe(-5.2);
+    expect(subtitleOffsetFromMarkers(-1, 20, 18)).toBe(1);
   });
 });
 

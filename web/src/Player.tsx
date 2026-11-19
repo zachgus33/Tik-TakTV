@@ -21,7 +21,11 @@ import type { Addon, Episode, Item, Subtitle } from "./types";
 import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
-import { runtimeSeconds, shiftWebVtt } from "./player-utils";
+import {
+  runtimeSeconds,
+  shiftWebVtt,
+  subtitleOffsetFromMarkers,
+} from "./player-utils";
 import { readNextEpisodeAutoAdvance } from "./next-episode";
 import NextEpisodeSetting from "./NextEpisodeSetting";
 import { createTraktScrobbler } from "./trakt-scrobble";
@@ -61,6 +65,13 @@ export type Playback = {
   sourceDetail?: string;
   mediaOffset?: number;
 };
+function subtitleOffsetKey(playback: Playback) {
+  return `tiktak:subtitle-offset:${playback.item.id}:${playback.episode?.id ?? "movie"}`;
+}
+function savedSubtitleOffset(playback: Playback) {
+  const saved = Number(localStorage.getItem(subtitleOffsetKey(playback)) || 0);
+  return Number.isFinite(saved) ? saved : 0;
+}
 function srtToVtt(text: string) {
   return `WEBVTT\n\n${text
     .replace(/^\uFEFF/, "")
@@ -177,6 +188,12 @@ function VideoPlayer({
   const [subtitleCandidates, setSubtitleCandidates] = useState<Subtitle[]>(
     playback.subtitles ?? [],
   );
+  const [embeddedSubtitles, setEmbeddedSubtitles] = useState<
+    { key: string; label: string; track: TextTrack }[]
+  >([]);
+  const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState("auto");
+  const [subtitleAudioAt, setSubtitleAudioAt] = useState<number | null>(null);
+  const [subtitleSeenAt, setSubtitleSeenAt] = useState<number | null>(null);
   const [quality, setQuality] = useState<{ label: string; value: number }[]>(
     [],
   );
@@ -189,10 +206,9 @@ function VideoPlayer({
   const [playbackRate, setPlaybackRate] = useState(() =>
     Number(localStorage.getItem("tiktak:playback-rate") || 1),
   );
-  const [subtitleOffset, setSubtitleOffset] = useState(() => {
-    const saved = Number(localStorage.getItem("tiktak:subtitle-offset") || 0);
-    return Number.isFinite(saved) ? Math.max(-30, Math.min(30, saved)) : 0;
-  });
+  const [subtitleOffset, setSubtitleOffset] = useState(() =>
+    savedSubtitleOffset(playback),
+  );
   const [subtitleIncrement, setSubtitleIncrement] = useState(() => {
     const saved = Number(localStorage.getItem("tiktak:subtitle-increment") || 0.5);
     return saved === 1 || saved === 2 ? saved : 0.5;
@@ -204,8 +220,96 @@ function VideoPlayer({
   const tvControlsTimerRef = useRef<number>(0);
   const playingRef = useRef(false);
   const subtitleRef = useRef(subtitles);
+  const embeddedCueTimesRef = useRef(
+    new WeakMap<TextTrackCue, { start: number; end: number }>(),
+  );
   subtitleRef.current = subtitles;
   playingRef.current = playing;
+  function currentEmbeddedTracks() {
+    const video = videoRef.current;
+    if (!video) return [];
+    const external = new Set(
+      Array.from(video.querySelectorAll("track")).map((track) => track.track),
+    );
+    return Array.from(
+      { length: video.textTracks.length },
+      (_, index) => video.textTracks[index],
+    ).filter(
+      (track) =>
+        !external.has(track) &&
+        (track.kind === "subtitles" || track.kind === "captions"),
+    );
+  }
+  function applyEmbeddedSubtitleOffset(offset: number) {
+    for (const track of currentEmbeddedTracks()) {
+      const cues = track.cues;
+      if (!cues) continue;
+      for (let index = 0; index < cues.length; index += 1) {
+        const cue = cues[index];
+        const original = embeddedCueTimesRef.current.get(cue) ?? {
+          start: cue.startTime,
+          end: cue.endTime,
+        };
+        embeddedCueTimesRef.current.set(cue, original);
+        cue.startTime = Math.max(0, original.start + offset);
+        cue.endTime = Math.max(cue.startTime, original.end + offset);
+      }
+    }
+  }
+  function refreshEmbeddedSubtitles() {
+    const tracks = currentEmbeddedTracks();
+    const next = tracks.map((track, index) => ({
+      key: `embedded:${index}`,
+      label: track.label || track.language || `Built-in ${index + 1}`,
+      track,
+    }));
+    setEmbeddedSubtitles((current) =>
+      current.length === next.length &&
+      current.every((entry, index) => entry.track === next[index].track)
+        ? current
+        : next,
+    );
+    applyEmbeddedSubtitleOffset(subtitleOffsetRef.current);
+  }
+  function selectSubtitleTrack(value: string) {
+    const video = videoRef.current;
+    if (!video) return;
+    for (let index = 0; index < video.textTracks.length; index += 1)
+      video.textTracks[index].mode = "disabled";
+    if (value.startsWith("embedded:")) {
+      const selected = embeddedSubtitles[Number(value.split(":")[1])];
+      if (selected) selected.track.mode = "showing";
+    } else if (value.startsWith("external:")) {
+      const selected = video.querySelectorAll("track")[
+        Number(value.split(":")[1])
+      ];
+      if (selected) selected.track.mode = "showing";
+    } else if (value === "auto") {
+      const preferred = localStorage.getItem("tiktak:subtitle-language");
+      const embedded =
+        embeddedSubtitles.find((track) => track.label === preferred) ??
+        embeddedSubtitles[0];
+      const externalIndex = subtitles.findIndex((track) => track.name === preferred);
+      if (embedded) embedded.track.mode = "showing";
+      else {
+        const selected = video.querySelectorAll("track")[
+          externalIndex >= 0 ? externalIndex : 0
+        ];
+        if (selected) selected.track.mode = "showing";
+      }
+    }
+    setSelectedSubtitleTrack(value);
+    if (value.startsWith("embedded:"))
+      localStorage.setItem(
+        "tiktak:subtitle-language",
+        embeddedSubtitles[Number(value.split(":")[1])]?.label ?? "",
+      );
+    if (value.startsWith("external:"))
+      localStorage.setItem(
+        "tiktak:subtitle-language",
+        subtitles[Number(value.split(":")[1])]?.name ?? "",
+      );
+  }
   const revealTvControls = useCallback(() => {
     if (!tvMode) return;
     window.clearTimeout(tvControlsTimerRef.current);
@@ -333,6 +437,16 @@ function VideoPlayer({
     };
   }, []);
   useEffect(() => {
+    const saved = savedSubtitleOffset(playback);
+    subtitleOffsetRef.current = saved;
+    setSubtitleOffset(saved);
+    setSubtitleAudioAt(null);
+    setSubtitleSeenAt(null);
+    setSelectedSubtitleTrack("auto");
+    setEmbeddedSubtitles([]);
+    embeddedCueTimesRef.current = new WeakMap();
+  }, [playback.item.id, playback.episode?.id]);
+  useEffect(() => {
     const c = new AbortController();
     setSubtitleCandidates(playback.subtitles ?? []);
     if (playback.subtitleRequest)
@@ -388,10 +502,10 @@ function VideoPlayer({
   function changeSubtitleOffset(value: number) {
     // Subtitle files can be arbitrarily early or late. Preserve half-second
     // precision without imposing a misleading fixed maximum.
-    const next = Math.round(value * 2) / 2;
+    const next = Math.round(value * 10) / 10;
     subtitleOffsetRef.current = next;
     setSubtitleOffset(next);
-    localStorage.setItem("tiktak:subtitle-offset", String(next));
+    localStorage.setItem(subtitleOffsetKey(playback), String(next));
     setSubtitles((current) =>
       current.map((subtitle) => {
         URL.revokeObjectURL(subtitle.url);
@@ -404,6 +518,26 @@ function VideoPlayer({
           ),
         };
       }),
+    );
+    applyEmbeddedSubtitleOffset(next);
+  }
+  function captureSubtitleSync(kind: "audio" | "subtitle") {
+    const position = videoRef.current?.currentTime;
+    if (!Number.isFinite(position)) return;
+    const time = Number(position);
+    const audioAt = kind === "audio" ? time : subtitleAudioAt;
+    const seenAt = kind === "subtitle" ? time : subtitleSeenAt;
+    if (kind === "audio") setSubtitleAudioAt(time);
+    else setSubtitleSeenAt(time);
+    if (audioAt == null || seenAt == null) return;
+    const previous = subtitleOffsetRef.current;
+    const next = subtitleOffsetFromMarkers(previous, audioAt, seenAt);
+    changeSubtitleOffset(next);
+    setSubtitleAudioAt(null);
+    setSubtitleSeenAt(null);
+    const adjustment = next - previous;
+    setNotice(
+      `Subtitle timing adjusted ${adjustment >= 0 ? "+" : ""}${adjustment.toFixed(1)}s.`,
     );
   }
   useEffect(() => {
@@ -523,6 +657,7 @@ function VideoPlayer({
                 index === selected.value;
           return tracks;
         });
+      refreshEmbeddedSubtitles();
     };
     const failed = () => {
       if (onFailure?.()) return;
@@ -647,6 +782,10 @@ function VideoPlayer({
     window.addEventListener("pagehide", persist);
     document.addEventListener("visibilitychange", persistVisible);
     const stallTimer = window.setInterval(recoverStall, 3_000);
+    const subtitleTrackTimer = window.setInterval(
+      refreshEmbeddedSubtitles,
+      1_000,
+    );
     const isHls = playback.hls || /\.m3u8(?:[?#]|$)/i.test(playback.url);
     const nativeHls =
       video.canPlayType("application/vnd.apple.mpegurl") !== "" &&
@@ -759,6 +898,7 @@ function VideoPlayer({
       window.removeEventListener("pagehide", persist);
       document.removeEventListener("visibilitychange", persistVisible);
       window.clearInterval(stallTimer);
+      window.clearInterval(subtitleTrackTimer);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       video.pause();
@@ -1309,31 +1449,28 @@ function VideoPlayer({
             ))}
           </select>
         )}
-        {subtitles.length > 1 && (
+        {(subtitles.length > 0 || embeddedSubtitles.length > 0) && (
           <select
             aria-label="Subtitle language"
-            defaultValue="0"
-            onChange={(event) => {
-              const tracks = videoRef.current?.textTracks;
-              if (!tracks) return;
-              const selected = Number(event.target.value);
-              for (let index = 0; index < tracks.length; index += 1)
-                tracks[index].mode =
-                  index === selected ? "showing" : "disabled";
-              localStorage.setItem(
-                "tiktak:subtitle-language",
-                subtitles[selected]?.name ?? "",
-              );
-            }}
+            value={selectedSubtitleTrack}
+            onChange={(event) => selectSubtitleTrack(event.target.value)}
           >
+            <option value="auto">Subtitles · Auto</option>
+            <option value="off">Subtitles · Off</option>
+            {embeddedSubtitles.map((subtitle, index) => (
+              <option key={subtitle.key} value={`embedded:${index}`}>
+                Built-in · {subtitle.label}
+              </option>
+            ))}
             {subtitles.map((subtitle, index) => (
-              <option key={subtitle.url} value={index}>
-                {subtitle.name}
+              <option key={subtitle.url} value={`external:${index}`}>
+                Add-on · {subtitle.name}
               </option>
             ))}
           </select>
         )}
-        {subtitles.length > 0 && (
+        {(subtitles.length > 0 || embeddedSubtitles.length > 0) &&
+          selectedSubtitleTrack !== "off" && (
           <div className="subtitle-sync" aria-label="Subtitle timing">
             <select
               aria-label="Subtitle timing increment"
@@ -1371,6 +1508,26 @@ function VideoPlayer({
             >
               Later
             </button>
+            <span className="subtitle-auto-sync">
+              <button
+                type="button"
+                className={subtitleAudioAt != null ? "selected" : undefined}
+                aria-label="Mark when dialogue is heard"
+                onClick={() => captureSubtitleSync("audio")}
+              >
+                {subtitleAudioAt != null ? "Audio marked" : "I hear the line"}
+              </button>
+              <button
+                type="button"
+                className={subtitleSeenAt != null ? "selected" : undefined}
+                aria-label="Mark when subtitle appears"
+                onClick={() => captureSubtitleSync("subtitle")}
+              >
+                {subtitleSeenAt != null
+                  ? "Subtitle marked"
+                  : "I see the subtitle"}
+              </button>
+            </span>
           </div>
         )}
         <label className="button file-button">

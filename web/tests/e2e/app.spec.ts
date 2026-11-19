@@ -3342,7 +3342,9 @@ test("subtitle timing controls persist the selected offset", async ({
   ).toHaveText("+1.0s");
   await expect
     .poll(() =>
-      page.evaluate(() => localStorage.getItem("tiktak:subtitle-offset")),
+      page.evaluate(() =>
+        localStorage.getItem("tiktak:subtitle-offset:tt-test:movie"),
+      ),
     )
     .toBe("1");
   await page.getByLabel("Subtitle timing increment").selectOption("2");
@@ -3353,6 +3355,34 @@ test("subtitle timing controls persist the selected offset", async ({
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("tiktak:subtitle-increment")))
     .toBe("2");
+  await page.getByRole("button", { name: "Reset subtitle timing" }).click();
+  const video = page.locator("video");
+  await video.evaluate((element) => {
+    Object.defineProperty(element, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 10,
+    });
+  });
+  await page.getByRole("button", { name: "Mark when dialogue is heard" }).click();
+  await video.evaluate((element) => {
+    element.currentTime = 15.2;
+    element.addTextTrack("subtitles", "Embedded English", "en");
+  });
+  await page.getByRole("button", { name: "Mark when subtitle appears" }).click();
+  await expect(
+    page.getByRole("button", { name: "Reset subtitle timing" }),
+  ).toHaveText("-5.2s");
+  await expect(page.getByLabel("Subtitle language")).toContainText(
+    "Built-in · Embedded English",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("tiktak:subtitle-offset:tt-test:movie"),
+      ),
+    )
+    .toBe("-5.2");
 });
 test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fallback", async ({
   page,
@@ -3564,9 +3594,8 @@ test("a Watch Together invite opens the host source and timeline", async ({
     "https://cdn.example/party.mp4",
   );
 });
-test("downloads the best ranked movie stream automatically as an MP4", async ({
+test("queues the best ranked movie download without blocking the app", async ({
   page,
-  browserName,
 }) => {
   await streamingAddon(page);
   await page.addInitScript(() =>
@@ -3613,14 +3642,17 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
       json: { status: "preparing", statusPath, path: downloadPath },
     });
   });
+  let statusReady = false;
   await page.route(`https://playback.example${statusPath}`, (route) =>
     route.fulfill({
-      json: {
-        status: "ready",
-        statusPath,
-        path: downloadPath,
-        bytes: 3,
-      },
+      json: statusReady
+        ? {
+            status: "ready",
+            statusPath,
+            path: downloadPath,
+            bytes: 3,
+          }
+        : { status: "preparing", statusPath, bytes: 1 },
     }),
   );
   let mediaRequests = 0;
@@ -3640,32 +3672,24 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
     });
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  const transfer =
-    browserName === "chromium" ? page.waitForEvent("download") : null;
   await page.getByRole("button", { name: "Download", exact: true }).click();
+  await expect(page.locator(".detail-preparing")).toHaveCount(0);
   await expect.poll(() => requested.url).toBe("https://cdn.example/4k.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
-  if (browserName === "chromium") {
-    const result = await transfer!;
-    expect("suggestedFilename" in result && result.suggestedFilename()).toBe(
-      "The Test Movie.mp4",
-    );
-  } else {
-    const appleTouchBrowser = await page.evaluate(() =>
-      /iPad|iPhone|iPod/i.test(navigator.userAgent),
-    );
-    if (appleTouchBrowser) {
-      const before = page.url();
-      await page.getByRole("button", { name: "View download manager" }).click();
-      await expect(
-        page.getByRole("link", { name: "Open MP4 / Save to Files" }),
-      ).toHaveAttribute("href", `https://playback.example${downloadPath}`);
-      expect(new URL(page.url()).origin).toBe(new URL(before).origin);
-      expect(new URL(page.url()).hash).toBe("#settings");
-      expect(page.url()).not.toContain("about:blank");
-      expect(mediaRequests).toBe(0);
-    } else await expect.poll(() => mediaRequests).toBeGreaterThan(0);
-  }
+  const before = page.url();
+  await page.getByRole("button", { name: "View download manager" }).click();
+  await expect(page.getByText("Preparing the complete MP4", { exact: false })).toBeVisible();
+  expect(mediaRequests).toBe(0);
+  await page.reload();
+  statusReady = true;
+  await page.getByRole("button", { name: /^Downloads/ }).click();
+  await expect(
+    page.getByRole("link", { name: /Download MP4|Open MP4 \/ Save to Files/ }),
+  ).toHaveAttribute("href", `https://playback.example${downloadPath}`);
+  expect(new URL(page.url()).origin).toBe(new URL(before).origin);
+  expect(new URL(page.url()).hash).toBe("#settings");
+  expect(page.url()).not.toContain("about:blank");
+  expect(mediaRequests).toBe(0);
 });
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,
