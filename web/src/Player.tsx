@@ -192,6 +192,10 @@ function VideoPlayer({
     const saved = Number(localStorage.getItem("tiktak:subtitle-offset") || 0);
     return Number.isFinite(saved) ? Math.max(-30, Math.min(30, saved)) : 0;
   });
+  const [subtitleIncrement, setSubtitleIncrement] = useState(() => {
+    const saved = Number(localStorage.getItem("tiktak:subtitle-increment") || 0.5);
+    return saved === 1 || saved === 2 ? saved : 0.5;
+  });
   const subtitleOffsetRef = useRef(subtitleOffset);
   subtitleOffsetRef.current = subtitleOffset;
   const hlsRef = useRef<Hls | null>(null);
@@ -381,7 +385,9 @@ function VideoPlayer({
     return () => c.abort();
   }, [subtitleCandidates]);
   function changeSubtitleOffset(value: number) {
-    const next = Math.max(-30, Math.min(30, Math.round(value * 2) / 2));
+    // Subtitle files can be arbitrarily early or late. Preserve half-second
+    // precision without imposing a misleading fixed maximum.
+    const next = Math.round(value * 2) / 2;
     subtitleOffsetRef.current = next;
     setSubtitleOffset(next);
     localStorage.setItem("tiktak:subtitle-offset", String(next));
@@ -1328,10 +1334,23 @@ function VideoPlayer({
         )}
         {subtitles.length > 0 && (
           <div className="subtitle-sync" aria-label="Subtitle timing">
+            <select
+              aria-label="Subtitle timing increment"
+              value={subtitleIncrement}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                setSubtitleIncrement(value);
+                localStorage.setItem("tiktak:subtitle-increment", String(value));
+              }}
+            >
+              {[0.5, 1, 2].map((increment) => (
+                <option key={increment} value={increment}>{increment}s steps</option>
+              ))}
+            </select>
             <button
               type="button"
               aria-label="Show subtitles earlier"
-              onClick={() => changeSubtitleOffset(subtitleOffset - 0.5)}
+              onClick={() => changeSubtitleOffset(subtitleOffset - subtitleIncrement)}
             >
               Earlier
             </button>
@@ -1347,7 +1366,7 @@ function VideoPlayer({
             <button
               type="button"
               aria-label="Show subtitles later"
-              onClick={() => changeSubtitleOffset(subtitleOffset + 0.5)}
+              onClick={() => changeSubtitleOffset(subtitleOffset + subtitleIncrement)}
             >
               Later
             </button>

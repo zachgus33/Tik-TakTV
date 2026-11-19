@@ -3345,6 +3345,14 @@ test("subtitle timing controls persist the selected offset", async ({
       page.evaluate(() => localStorage.getItem("tiktak:subtitle-offset")),
     )
     .toBe("1");
+  await page.getByLabel("Subtitle timing increment").selectOption("2");
+  await page.getByRole("button", { name: "Show subtitles later" }).click();
+  await expect(
+    page.getByRole("button", { name: "Reset subtitle timing" }),
+  ).toHaveText("+3.0s");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("tiktak:subtitle-increment")))
+    .toBe("2");
 });
 test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fallback", async ({
   page,
