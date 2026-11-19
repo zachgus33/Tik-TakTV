@@ -1609,6 +1609,14 @@ test("Friends resume history shows watched icons on earlier episodes", async ({
       name: /3 The One with the Thumb/,
     }),
   ).not.toContainText("Watched");
+  await page.getByRole("button", {
+    name: "Mark The One with the Thumb watched",
+  }).click();
+  await expect(
+    page.getByRole("button", {
+      name: /3 The One with the Thumb Watched/,
+    }),
+  ).toBeVisible();
 });
 test("catalog manager creates, renames, reorders and hides Home rows", async ({
   page,
@@ -3611,11 +3619,6 @@ test("downloads the best ranked movie stream automatically as an MP4", async ({
   await page.getByRole("button", { name: "Download", exact: true }).click();
   await expect.poll(() => requested.url).toBe("https://cdn.example/4k.mkv");
   expect(requested.filename).toBe("The Test Movie.mp4");
-  const appleTouchBrowser = await page.evaluate(() =>
-    /iPad|iPhone|iPod/i.test(navigator.userAgent),
-  );
-  if (appleTouchBrowser)
-    await page.getByRole("link", { name: "Open MP4 / Save to Files" }).click();
   if (browserName === "chromium") {
     const result = await transfer!;
     expect("suggestedFilename" in result && result.suggestedFilename()).toBe(
@@ -4257,7 +4260,10 @@ test.describe("authenticated integrations", () => {
             watched_at: Date.now(),
           },
         ];
-      else if (url.pathname.includes("/sync_push_")) {
+      else if (
+        url.pathname.includes("/sync_push_") ||
+        url.pathname.includes("/sync_delete_")
+      ) {
         pushes.push({
           path: url.pathname,
           body: route.request().postDataJSON(),
@@ -4329,6 +4335,32 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByRole("dialog").locator(".title-watched-badge"),
     ).toHaveText("Watched");
+    await page.getByRole("button", { name: "Mark unwatched" }).click();
+    await expect(page.getByRole("button", { name: "Mark watched" })).toBeVisible();
+    await expect
+      .poll(() =>
+        pushes.some(
+          (entry) =>
+            entry.path.endsWith("sync_delete_watched_items") &&
+            entry.body.p_profile_id === 2 &&
+            entry.body.p_keys?.[0]?.content_id === meta.id,
+        ),
+      )
+      .toBe(true);
+    await page.getByRole("button", { name: "Mark watched" }).click();
+    await expect(
+      page.getByRole("dialog").locator(".title-watched-badge"),
+    ).toHaveText("Watched");
+    await expect
+      .poll(() =>
+        pushes.some(
+          (entry) =>
+            entry.path.endsWith("sync_push_watched_items") &&
+            entry.body.p_profile_id === 2 &&
+            entry.body.p_items?.[0]?.content_id === meta.id,
+        ),
+      )
+      .toBe(true);
     await page.getByRole("button", { name: "Close details" }).click();
     await expect
       .poll(() =>

@@ -3404,6 +3404,10 @@ body:has(dialog[open]:not(.mini-live-player)) {
   max-height: 340px;
   overflow: auto;
 }
+.episode-row {
+  display: flex;
+  gap: 7px;
+}
 .episodes button {
   justify-content: flex-start;
   text-align: left;
@@ -3411,6 +3415,21 @@ body:has(dialog[open]:not(.mini-live-player)) {
   padding: 12px;
   min-height: 52px;
   background: #ffffff03;
+}
+.episodes .episode-play {
+  flex: 1;
+  min-width: 0;
+}
+.episodes .episode-watch-toggle {
+  width: 52px;
+  flex: 0 0 52px;
+  justify-content: center;
+  padding: 0;
+  color: #bfa1ff;
+}
+.episodes .episode-watch-toggle[aria-label*="unwatched"] {
+  background: color-mix(in srgb, var(--accent) 13%, #15121a);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 .episodes button > svg {
   margin-left: auto;

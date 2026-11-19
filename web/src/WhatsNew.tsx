@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.18.3";
+export const latestRelease = "2026.11.18.4";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 18, 2026",
+    title: "Mobile downloads and watched controls",
+    changes: [
+      "Downloads now hand a prepared MP4 to iPhone and iPad so you can use the native Share → Save to Files flow instead of seeing a completed no-op.",
+      "Movies, series, and individual episodes can now be marked watched or unwatched manually; checkmarks update immediately and sync to the selected Nuvio profile.",
+    ],
+  },
+  {
+    version: "2026.11.18.3",
     date: "November 18, 2026",
     title: "Landing screen fits shorter desktops",
     changes: [

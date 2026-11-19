@@ -100,7 +100,12 @@ import {
   type Stream,
   type WatchedItem,
 } from "./types";
-import { isEpisodeWatched, isWatched } from "./watched";
+import {
+  isEpisodeWatched,
+  isWatched,
+  markWatched,
+  unmarkWatched,
+} from "./watched";
 import type { Playback } from "./Player";
 import { findNextEpisode } from "./next-episode";
 import {
@@ -1251,6 +1256,7 @@ function Detail({
   onPlay,
   onSelectItem,
   onRemoveProgress,
+  onSetWatched,
   watched,
   resume,
   torboxKey,
@@ -1267,6 +1273,7 @@ function Detail({
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
   onRemoveProgress: (item: Item) => void;
+  onSetWatched: (item: Item, episode: Episode | undefined, watched: boolean) => void;
   watched: WatchedItem[];
   resume?: Progress;
   torboxKey: string;
@@ -1662,7 +1669,6 @@ function Detail({
         url: persistentUrl,
       });
     setDownloadMode(false);
-    if (appleTouchBrowser()) return;
     handoffDownload(downloadUrl, filename);
     markDownloadStarted(filename, persistentUrl);
   }
@@ -1679,11 +1685,16 @@ function Detail({
     });
   }
   function handoffDownload(downloadUrl: string, filename: string) {
+    // iOS standalone PWAs ignore asynchronous <a download> clicks. Navigate
+    // to the prepared MP4 so the native media/share UI can save it to Files.
+    if (appleTouchBrowser()) {
+      window.location.assign(downloadUrl);
+      return;
+    }
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = filename;
     link.rel = "noopener";
-    if (appleTouchBrowser()) link.target = "_blank";
     document.body.append(link);
     link.click();
     link.remove();
@@ -1691,9 +1702,7 @@ function Detail({
   function openReadyDownload(event: React.MouseEvent<HTMLAnchorElement>) {
     if (appleTouchBrowser()) {
       event.preventDefault();
-      const opened = window.open(readyDownload!.url, "_blank");
-      if (opened) opened.opener = null;
-      else window.location.assign(readyDownload!.url);
+      window.location.assign(readyDownload!.url);
     }
     markDownloadStarted(readyDownload!.filename, readyDownload!.persistentUrl);
   }
@@ -2122,7 +2131,18 @@ function Detail({
             {saved ? <Check size={18} /> : <Plus size={18} />}{" "}
             {saved ? "In my library" : "My library"}
           </button>
-          {item.type === "movie" && isWatched(watched, item) && (
+          {item.type !== "live" && (
+            <button
+              type="button"
+              onClick={() =>
+                onSetWatched(item, undefined, !isWatched(watched, item))
+              }
+            >
+              <CheckCircle2 size={18} />
+              {isWatched(watched, item) ? "Mark unwatched" : "Mark watched"}
+            </button>
+          )}
+          {item.type !== "live" && isWatched(watched, item) && (
             <span className="title-watched-badge" aria-label="Watched">
               <CheckCircle2 size={18} /> Watched
             </span>
@@ -2337,30 +2357,51 @@ function Detail({
             <div className="episodes">
               {episodes
                 .filter((e) => e.season === season)
-                .map((ep) => (
-                  <button
-                    key={ep.id}
-                    disabled={busy}
-                    onClick={() =>
-                      downloadMode ? download(ep) : void play(ep)
-                    }
-                  >
-                    <span className="episode-number">{ep.episode}</span>
-                    <span>{ep.name}</span>
-                    <span className="episode-row-status">
-                      {isEpisodeWatched(watched, item, ep, resume?.episode) && (
-                        <span className="episode-watched-badge">
-                          <CheckCircle2 size={16} /> Watched
+                .map((ep) => {
+                  const episodeWatched = isEpisodeWatched(
+                    watched,
+                    item,
+                    ep,
+                    resume?.episode,
+                  );
+                  return (
+                    <div className="episode-row" key={ep.id}>
+                      <button
+                        className="episode-play"
+                        disabled={busy}
+                        onClick={() =>
+                          downloadMode ? download(ep) : void play(ep)
+                        }
+                      >
+                        <span className="episode-number">{ep.episode}</span>
+                        <span>{ep.name}</span>
+                        <span className="episode-row-status">
+                          {episodeWatched && (
+                            <span className="episode-watched-badge">
+                              <CheckCircle2 size={16} /> Watched
+                            </span>
+                          )}
+                          {downloadMode ? (
+                            <Download size={18} />
+                          ) : (
+                            <Play size={18} />
+                          )}
                         </span>
-                      )}
-                      {downloadMode ? (
-                        <Download size={18} />
-                      ) : (
-                        <Play size={18} />
-                      )}
-                    </span>
-                  </button>
-                ))}
+                      </button>
+                      <button
+                        type="button"
+                        className="episode-watch-toggle"
+                        disabled={busy}
+                        aria-label={`Mark ${ep.name} ${episodeWatched ? "unwatched" : "watched"}`}
+                        onClick={() =>
+                          onSetWatched(item, ep, !isWatched(watched, item, ep))
+                        }
+                      >
+                        <CheckCircle2 size={17} />
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}
@@ -3329,6 +3370,32 @@ export default function App() {
     save("progress", next);
     setProgress(next);
     setToast(`${item.name} was removed from your watch history.`);
+  };
+  const setWatchedStatus = (
+    item: Item,
+    episode: Episode | undefined,
+    nextWatched: boolean,
+  ) => {
+    setWatched((current) => {
+      const next = nextWatched
+        ? markWatched(current, item, episode)
+        : unmarkWatched(current, item, episode);
+      save("watched", next);
+      return next;
+    });
+    if (nextWatched)
+      setProgress((current) => {
+        const next = current.filter(
+          (entry) =>
+            itemKey(entry.item) !== itemKey(item) ||
+            (episode && entry.episode?.id !== episode.id),
+        );
+        save("progress", next);
+        return next;
+      });
+    setToast(
+      `${episode ? `${item.name} · ${episode.name}` : item.name} was marked ${nextWatched ? "watched" : "unwatched"}.`,
+    );
   };
   const guideState = useGuide(
     provider,
@@ -4774,6 +4841,7 @@ export default function App() {
           }}
           onSelectItem={setDetail}
           onRemoveProgress={removeFromHistory}
+          onSetWatched={setWatchedStatus}
           watched={watched}
           resume={progress.find((p) => itemKey(p.item) === itemKey(detail))}
         />
