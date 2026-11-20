@@ -1394,8 +1394,9 @@ function VideoPlayer({
       onClick={(event) => {
         const target = event.target as Element;
         if (
-          target === videoRef.current ||
-          target.closest(".player-control-toggle-surface")
+          !tvMode &&
+          (target === videoRef.current ||
+            target.closest(".player-control-toggle-surface"))
         )
           togglePlayerControls();
       }}
@@ -1514,17 +1515,17 @@ function VideoPlayer({
           />
         )}
       </video>
-      <button
-        type="button"
-        className="player-control-toggle-surface"
-        aria-label={
-          tvControlsVisible ? "Hide controls" : "Show controls"
-        }
-        onClick={(event) => {
-          event.stopPropagation();
-          togglePlayerControls();
-        }}
-      />
+      {!tvMode && (
+        <button
+          type="button"
+          className="player-control-toggle-surface"
+          aria-label={tvControlsVisible ? "Hide controls" : "Show controls"}
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePlayerControls();
+          }}
+        />
+      )}
       {(playback.item.type !== "live" || tvMode) && (
         <div
           className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}
