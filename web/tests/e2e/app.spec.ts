@@ -4058,9 +4058,53 @@ test("subtitle timing controls persist the selected offset", async ({
       ),
     )
     .toBe("embedded");
+  await expect
+    .poll(() =>
+      video.evaluate((element) =>
+        Array.from(element.textTracks).find(
+          (track) => track.label === "Embedded English",
+        )?.mode,
+      ),
+    )
+    .toBe("hidden");
+  await video.evaluate((element) => {
+    const track = Array.from(element.textTracks).find(
+      (candidate) => candidate.label === "Embedded English",
+    )!;
+    const oldCue = new VTTCue(0, 30, "Transcribed: Old overlapping line");
+    const latestCue = new VTTCue(
+      9,
+      30,
+      "<00:00:09.000><c.green>Transcribed: Newest centered line</c>",
+    );
+    Object.defineProperty(track, "activeCues", {
+      configurable: true,
+      value: { 0: oldCue, 1: latestCue, length: 2 },
+    });
+    track.dispatchEvent(new Event("cuechange"));
+  });
+  const renderedCue = page.locator(".player-subtitle-overlay");
+  await expect(renderedCue).toHaveText("Newest centered line");
+  await expect(renderedCue).not.toContainText("Transcribed:");
+  await expect(renderedCue).not.toContainText("Old overlapping line");
+  const cueBox = await renderedCue.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(
+    Math.abs((cueBox?.x ?? 0) + (cueBox?.width ?? 0) / 2 - viewport.width / 2),
+  ).toBeLessThan(3);
   await page.getByLabel("Subtitle language").selectOption("external:0");
   await expect(video.locator("track")).toHaveCount(1);
   await expect(video.locator("track")).toHaveAttribute("src", /^blob:/);
+  await expect
+    .poll(() =>
+      video.evaluate(
+        (element) =>
+          Array.from(element.textTracks).find(
+            (track) => track.label === "Source English",
+          )?.mode,
+      ),
+    )
+    .toBe("hidden");
   await expect
     .poll(() =>
       page.evaluate(

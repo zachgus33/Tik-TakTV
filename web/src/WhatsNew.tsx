@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.6";
+export const latestRelease = "2026.11.20.7";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Nuvio-style subtitle rendering",
+    changes: [
+      "TikTak now follows Nuvio Mobile Enhanced by keeping the selected track active only for timing and rendering normalized captions itself instead of trusting Safari's embedded positioning.",
+      "Only the newest active cue is shown, transcription labels and timestamp/style tags are removed, and stale cues are forcibly cleared after six seconds.",
+      "Caption placement is calculated from the fitted video picture, keeping subtitles centered inside letterboxed video on iPhone and iPad rotations.",
+    ],
+  },
+  {
+    version: "2026.11.20.6",
     date: "November 20, 2026",
     title: "Trakt stays connected to your profile",
     changes: [

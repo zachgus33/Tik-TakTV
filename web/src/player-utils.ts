@@ -32,8 +32,22 @@ export type ParsedSubtitleCue = {
 
 export function cleanSubtitleText(text: string) {
   return text
-    .replace(/^(\s*(?:<[^>]+>\s*)*)(?:transcribed|transcript):\s*/i, "$1")
-    .trim();
+    .replace(/<(?:\d+:)?\d{1,2}:\d{2}(?:[.,]\d+)?>/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replaceAll("&nbsp;", " ")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .split(/\r?\n/)
+    .map((line) =>
+      line
+        .replace(/^\s*(?:transcribed|transcript)\s*[:\-]\s*/i, "")
+        .replace(/[ \t]+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**

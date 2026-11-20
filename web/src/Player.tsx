@@ -22,6 +22,7 @@ import { addonSubtitles, safeUrl } from "./api";
 import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
+  cleanSubtitleText,
   normalizeWebVtt,
   runtimeSeconds,
   parseWebVttCues,
@@ -245,6 +246,13 @@ function VideoPlayer({
     { key: string; label: string; track: TextTrack }[]
   >([]);
   const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState("auto");
+  const [activeSubtitleText, setActiveSubtitleText] = useState("");
+  const [subtitleTrackRevision, setSubtitleTrackRevision] = useState(0);
+  const [subtitleBox, setSubtitleBox] = useState<{
+    left: number;
+    width: number;
+    bottom: number;
+  } | null>(null);
   const [subtitleSyncCapturedAt, setSubtitleSyncCapturedAt] = useState<
     number | null
   >(null);
@@ -288,6 +296,7 @@ function VideoPlayer({
     new WeakMap<TextTrackCue, { start: number; end: number }>(),
   );
   const subtitlePreferenceRestoredRef = useRef(false);
+  const activeSubtitleTimerRef = useRef<number>(0);
   const subtitleSyncCapturedAtRef = useRef<number | null>(null);
   const subtitleSyncWasPlayingRef = useRef(false);
   subtitleRef.current = subtitles;
@@ -342,12 +351,14 @@ function VideoPlayer({
   function selectSubtitleTrack(value: string) {
     const video = videoRef.current;
     if (!video) return;
+    window.clearTimeout(activeSubtitleTimerRef.current);
+    setActiveSubtitleText("");
     for (let index = 0; index < video.textTracks.length; index += 1)
       video.textTracks[index].mode = "disabled";
     if (value.startsWith("embedded:")) {
       const selected = embeddedSubtitles[Number(value.split(":")[1])];
       if (selected) {
-        selected.track.mode = "showing";
+        selected.track.mode = "hidden";
         const preference: SubtitleSelectionPreference = {
           type: "embedded",
           label: selected.label,
@@ -387,7 +398,7 @@ function VideoPlayer({
         (track) => track.name === preferred,
       );
       if (embedded) {
-        embedded.track.mode = "showing";
+        embedded.track.mode = "hidden";
         value = embedded.key;
       } else {
         const index = externalIndex >= 0 ? externalIndex : 0;
@@ -409,17 +420,108 @@ function VideoPlayer({
       );
   }
   useEffect(() => {
-    if (!selectedSubtitleTrack.startsWith("external:")) return;
     const video = videoRef.current;
     if (!video) return;
-    const track = video.querySelector<HTMLTrackElement>(
-      "track[data-active-subtitle='true']",
-    );
-    if (!track) return;
+    window.clearTimeout(activeSubtitleTimerRef.current);
+    setActiveSubtitleText("");
     for (let index = 0; index < video.textTracks.length; index += 1)
       video.textTracks[index].mode = "disabled";
-    track.track.mode = "showing";
-  }, [selectedSubtitleTrack, subtitles]);
+    const track = selectedSubtitleTrack.startsWith("embedded:")
+      ? embeddedSubtitles[Number(selectedSubtitleTrack.split(":")[1])]?.track
+      : selectedSubtitleTrack.startsWith("external:")
+        ? video.querySelector<HTMLTrackElement>(
+            "track[data-active-subtitle='true']",
+          )?.track
+        : undefined;
+    if (!track) return;
+    // Match Nuvio Mobile Enhanced's cue-normalizing output: keep the selected
+    // track active for timing, but never let the platform draw its positioning
+    // or embedded styles. TikTak renders one normalized cue below instead.
+    track.mode = "hidden";
+    const update = () => {
+      window.clearTimeout(activeSubtitleTimerRef.current);
+      const cues = track.activeCues
+        ? Array.from(
+            { length: track.activeCues.length },
+            (_, index) => track.activeCues![index],
+          )
+        : [];
+      const latest = cues
+        .filter((cue) => "text" in cue)
+        .sort((left, right) => left.startTime - right.startTime)
+        .at(-1) as VTTCue | undefined;
+      const text = latest ? cleanSubtitleText(String(latest.text)) : "";
+      setActiveSubtitleText(text);
+      if (!latest || !text) return;
+      const remaining = Math.max(
+        80,
+        Math.min(6_000, (latest.endTime - video.currentTime) * 1_000),
+      );
+      activeSubtitleTimerRef.current = window.setTimeout(
+        () => setActiveSubtitleText((current) => (current === text ? "" : current)),
+        remaining,
+      );
+    };
+    track.addEventListener("cuechange", update);
+    video.addEventListener("seeked", update);
+    update();
+    return () => {
+      window.clearTimeout(activeSubtitleTimerRef.current);
+      track.removeEventListener("cuechange", update);
+      video.removeEventListener("seeked", update);
+    };
+  }, [
+    selectedSubtitleTrack,
+    embeddedSubtitles,
+    subtitles,
+    subtitleTrackRevision,
+  ]);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const update = () => {
+      const viewWidth = video.clientWidth;
+      const viewHeight = video.clientHeight;
+      if (!viewWidth || !viewHeight) return;
+      const mediaWidth = video.videoWidth;
+      const mediaHeight = video.videoHeight;
+      const scale =
+        mediaWidth > 0 && mediaHeight > 0
+          ? Math.min(viewWidth / mediaWidth, viewHeight / mediaHeight)
+          : 0;
+      const contentWidth = scale ? mediaWidth * scale : viewWidth;
+      const contentHeight = scale ? mediaHeight * scale : viewHeight;
+      const next = {
+        left: Math.round((viewWidth - contentWidth) / 2),
+        width: Math.round(contentWidth),
+        bottom: Math.round(
+          (viewHeight - contentHeight) / 2 +
+            Math.max(48, Math.min(96, contentHeight * 0.08)),
+        ),
+      };
+      setSubtitleBox((current) =>
+        current &&
+        current.left === next.left &&
+        current.width === next.width &&
+        current.bottom === next.bottom
+          ? current
+          : next,
+      );
+    };
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(video);
+    video.addEventListener("loadedmetadata", update);
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    requestAnimationFrame(update);
+    return () => {
+      observer?.disconnect();
+      video.removeEventListener("loadedmetadata", update);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, [playback.url]);
   const revealTvControls = useCallback(() => {
     window.clearTimeout(tvControlsTimerRef.current);
     setTvControlsVisible(true);
@@ -544,6 +646,8 @@ function VideoPlayer({
     setSubtitleOffset(saved);
     setSubtitleSyncCapturedAt(null);
     setSelectedSubtitleTrack("auto");
+    setActiveSubtitleText("");
+    setSubtitleBox(null);
     setEmbeddedSubtitles([]);
     embeddedCueTimesRef.current = new WeakMap();
     subtitlePreferenceRestoredRef.current = false;
@@ -708,7 +812,10 @@ function VideoPlayer({
         return {
           startTime: original.start,
           endTime: original.end,
-          text: "text" in cue ? String((cue as VTTCue).text) : "Subtitle line",
+          text:
+            "text" in cue
+              ? cleanSubtitleText(String((cue as VTTCue).text))
+              : "Subtitle line",
         };
       });
     }
@@ -1541,17 +1648,30 @@ function VideoPlayer({
             kind="subtitles"
             label={selectedExternalSubtitle.name}
             srcLang={selectedExternalSubtitle.language}
-            default
             onLoad={(event) => {
               const video = videoRef.current;
               if (!video) return;
               for (let index = 0; index < video.textTracks.length; index += 1)
                 video.textTracks[index].mode = "disabled";
-              event.currentTarget.track.mode = "showing";
+              event.currentTarget.track.mode = "hidden";
+              setSubtitleTrackRevision((value) => value + 1);
             }}
           />
         )}
       </video>
+      {activeSubtitleText && subtitleBox && (
+        <div
+          className="player-subtitle-overlay"
+          aria-live="off"
+          style={{
+            left: subtitleBox.left,
+            width: subtitleBox.width,
+            bottom: subtitleBox.bottom,
+          }}
+        >
+          <span>{activeSubtitleText}</span>
+        </div>
+      )}
       {(playback.item.type !== "live" || tvMode) && (
         <div
           className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}

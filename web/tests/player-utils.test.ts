@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanSubtitleText,
   normalizeWebVtt,
   runtimeSeconds,
   parseWebVttCues,
@@ -54,6 +55,14 @@ describe("player timing helpers", () => {
       "WEBVTT\n\n00:00:10.000 --> 00:00:40.000\nA generated caption that lasts too long",
     );
     expect(normalized).toContain("00:00:10.000 --> 00:00:16.000");
+  });
+
+  it("cleans embedded-style timestamp tags and transcription labels", () => {
+    expect(
+      cleanSubtitleText(
+        "<00:01:02.300><c.green>Transcribed: &quot;Centered&nbsp;text&quot;</c>",
+      ),
+    ).toBe('"Centered text"');
   });
 });
 
