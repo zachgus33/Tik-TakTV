@@ -193,29 +193,87 @@ function activeProfileId() {
   return id;
 }
 
-export async function saveTraktCredential(credential: TraktCredential) {
-  await rpc("sync_push_provider_credentials", {
-    p_profile_id: activeProfileId(),
-    p_credentials: [{ provider: "trakt", credential_json: credential }],
-    p_origin_client_id: origin,
-  });
-}
-
-export async function pullActiveTraktCredential() {
-  const rows = await rpc<
-    { provider: string; credential_json: Record<string, unknown> }[]
-  >("sync_pull_provider_credentials", { p_profile_id: activeProfileId() });
-  return parseTraktCredential(
-    rows.find((row) => row.provider.toLowerCase() === "trakt")?.credential_json,
+function unsupportedTraktCredential(reason: unknown) {
+  return (
+    reason instanceof Error &&
+    /unsupported provider credential:\s*trakt/i.test(reason.message)
   );
 }
 
-export async function deleteTraktCredential() {
-  await rpc("sync_delete_provider_credentials", {
-    p_profile_id: activeProfileId(),
-    p_provider: "trakt",
+function webSetupFromBlob(blob: Record<string, unknown>) {
+  const value = blob[field];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+async function saveTraktCredentialFallback(
+  credential: TraktCredential | null,
+) {
+  const profileId = activeProfileId();
+  const blob = await settings(profileId);
+  const web = { ...webSetupFromBlob(blob) };
+  if (credential) web.trakt = credential;
+  else delete web.trakt;
+  await rpc("sync_push_profile_settings_blob", {
+    p_profile_id: profileId,
+    p_platform: platform,
+    p_settings_json: { ...blob, [field]: web },
     p_origin_client_id: origin,
   });
+}
+
+async function pullTraktCredentialFallback() {
+  const blob = await settings(activeProfileId());
+  return parseTraktCredential(
+    webSetupFromBlob(blob).trakt as Record<string, unknown> | undefined,
+  );
+}
+
+export async function saveTraktCredential(credential: TraktCredential) {
+  try {
+    await rpc("sync_push_provider_credentials", {
+      p_profile_id: activeProfileId(),
+      p_credentials: [{ provider: "trakt", credential_json: credential }],
+      p_origin_client_id: origin,
+    });
+  } catch (reason) {
+    if (!unsupportedTraktCredential(reason)) throw reason;
+    await saveTraktCredentialFallback(credential);
+  }
+}
+
+export async function pullActiveTraktCredential() {
+  let providerError: unknown;
+  try {
+    const rows = await rpc<
+      { provider: string; credential_json: Record<string, unknown> }[]
+    >("sync_pull_provider_credentials", { p_profile_id: activeProfileId() });
+    const credential = parseTraktCredential(
+      rows.find((row) => row.provider.toLowerCase() === "trakt")
+        ?.credential_json,
+    );
+    if (credential) return credential;
+  } catch (reason) {
+    providerError = reason;
+  }
+  const fallback = await pullTraktCredentialFallback().catch(() => null);
+  if (fallback) return fallback;
+  if (providerError) throw providerError;
+  return null;
+}
+
+export async function deleteTraktCredential() {
+  try {
+    await rpc("sync_delete_provider_credentials", {
+      p_profile_id: activeProfileId(),
+      p_provider: "trakt",
+      p_origin_client_id: origin,
+    });
+  } catch (reason) {
+    if (!unsupportedTraktCredential(reason)) throw reason;
+  }
+  await saveTraktCredentialFallback(null);
 }
 
 /** Store third-party tracker credentials with the selected Nuvio profile. */
@@ -587,12 +645,16 @@ export async function loadSetup(
       progress: mergedProgress,
       watched,
       trakt:
-        credentials === null
+        credentials === null && !web.trakt
           ? undefined
-          : parseTraktCredential(
-              credentials.find((row) => row.provider.toLowerCase() === "trakt")
-                ?.credential_json,
-            ),
+          : (parseTraktCredential(
+              credentials?.find(
+                (row) => row.provider.toLowerCase() === "trakt",
+              )?.credential_json,
+            ) ??
+            parseTraktCredential(
+              web.trakt as Record<string, unknown> | undefined,
+            )),
       provider: sharedProvider,
       epgUrl: safeSourceUrl(web.epgUrl) ?? "",
       torboxKey: typeof key === "string" && key ? key : (web.torboxKey ?? ""),
@@ -628,8 +690,12 @@ export async function saveSetup(
   const blob = await settings(id);
   const profileSetup =
     id === 1
-      ? { ...safeSetup, accountProvider: safeSetup.provider }
-      : safeSetup;
+      ? {
+          ...webSetupFromBlob(blob),
+          ...safeSetup,
+          accountProvider: safeSetup.provider,
+        }
+      : { ...webSetupFromBlob(blob), ...safeSetup };
   await rpc("sync_push_profile_settings_blob", {
     p_profile_id: id,
     p_platform: platform,

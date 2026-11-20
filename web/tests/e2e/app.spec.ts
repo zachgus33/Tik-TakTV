@@ -4993,6 +4993,25 @@ test.describe("authenticated integrations", () => {
       ) +
       ".fake";
     const pushes: Array<{ path: string; body: any }> = [];
+    const traktCredential = {
+      access_token: "profile-trakt-access",
+      refresh_token: "profile-trakt-refresh",
+      token_type: "bearer",
+      created_at: Math.floor(Date.now() / 1000),
+      expires_in: 86_400,
+      username: "profile-viewer",
+    };
+    let profileSettings: Record<string, any> = {
+      unrelatedSetting: "preserve",
+      tikTakWebV1: {
+        playbackService: {
+          url: "https://playback.example",
+          token: "fake-private-key-for-browser-sync",
+          mode: "direct",
+        },
+        trakt: traktCredential,
+      },
+    };
     const collection = {
       id: "services",
       title: "Streaming Services",
@@ -5043,34 +5062,9 @@ test.describe("authenticated integrations", () => {
       else if (url.pathname.endsWith("/sync_pull_collections"))
         data = [{ collections_json: [collection] }];
       else if (url.pathname.endsWith("/sync_pull_profile_settings_blob"))
-        data = [
-          {
-            settings_json: {
-              unrelatedSetting: "preserve",
-              tikTakWebV1: {
-                playbackService: {
-                  url: "https://playback.example",
-                  token: "fake-private-key-for-browser-sync",
-                  mode: "direct",
-                },
-              },
-            },
-          },
-        ];
+        data = [{ settings_json: profileSettings }];
       else if (url.pathname.endsWith("/sync_pull_provider_credentials"))
-        data = [
-          {
-            provider: "trakt",
-            credential_json: {
-              access_token: "profile-trakt-access",
-              refresh_token: "profile-trakt-refresh",
-              token_type: "bearer",
-              created_at: Math.floor(Date.now() / 1000),
-              expires_in: 86_400,
-              username: "profile-viewer",
-            },
-          },
-        ];
+        data = [];
       else if (url.pathname.endsWith("/sync_pull_watched_items"))
         data = [
           {
@@ -5080,7 +5074,24 @@ test.describe("authenticated integrations", () => {
             watched_at: Date.now(),
           },
         ];
-      else if (
+      else if (url.pathname.endsWith("/sync_push_provider_credentials")) {
+        pushes.push({
+          path: url.pathname,
+          body: route.request().postDataJSON(),
+        });
+        return route.fulfill({
+          status: 400,
+          json: {
+            code: "P0001",
+            message: "Unsupported provider credential: trakt",
+          },
+        });
+      } else if (url.pathname.endsWith("/sync_push_profile_settings_blob")) {
+        const body = route.request().postDataJSON();
+        pushes.push({ path: url.pathname, body });
+        profileSettings = body.p_settings_json;
+        data = null;
+      } else if (
         url.pathname.includes("/sync_push_") ||
         url.pathname.includes("/sync_delete_")
       ) {
@@ -5214,6 +5225,16 @@ test.describe("authenticated integrations", () => {
     await expect(page.getByText("Connected as")).toContainText(
       "profile-viewer",
     );
+    const scrobble = page.getByRole("checkbox", {
+      name: /Scrobble movies and episodes/,
+    });
+    await scrobble.check();
+    await expect
+      .poll(() => profileSettings.tikTakWebV1?.trakt?.scrobbling_enabled)
+      .toBe(true);
+    await expect(
+      page.getByText(/Unsupported provider credential: trakt/),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
@@ -5242,6 +5263,10 @@ test.describe("authenticated integrations", () => {
         ),
       )
       .toBe(true);
+    expect(profileSettings.tikTakWebV1?.trakt).toMatchObject({
+      access_token: "profile-trakt-access",
+      scrobbling_enabled: true,
+    });
     await page.goto("/#account");
     await page.locator(".preference-card .switch-control").click();
     await page.goto("/#home");
@@ -5257,6 +5282,14 @@ test.describe("authenticated integrations", () => {
         name: "Open Streaming Services: Folder 1",
       }),
     ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.access_token,
+          `tiktak:trakt:${encodeURIComponent(`profile:${user.id}:2`)}`,
+        ),
+      )
+      .toBe("profile-trakt-access");
     await expect(page.locator(".account-hero-card h2")).toHaveText("Home");
     // Let AccountPanel's post-render effect capture the freshly loaded profile
     // before changing a setting; otherwise the change can become its baseline.
@@ -5283,6 +5316,10 @@ test.describe("authenticated integrations", () => {
       )!;
     expect(saved.body.p_settings_json.unrelatedSetting).toBe("preserve");
     expect(saved.body.p_settings_json.tikTakWebV1.autoplay).toBe(false);
+    expect(saved.body.p_settings_json.tikTakWebV1.trakt).toMatchObject({
+      access_token: "profile-trakt-access",
+      scrobbling_enabled: true,
+    });
   });
 
   test("TorBox requests use the configured playback service instead of browser CORS", async ({

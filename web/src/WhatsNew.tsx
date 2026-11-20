@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.5";
+export const latestRelease = "2026.11.20.6";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Trakt stays connected to your profile",
+    changes: [
+      "A Nuvio backend rejection for Trakt credentials now falls back to the authenticated profile settings record instead of showing an unsupported-provider error.",
+      "Profile reloads and PWA updates no longer erase a valid local Trakt login merely because remote credential storage returned no Trakt row.",
+      "Trakt fallback credentials survive unrelated profile-setting saves and still clear when you explicitly disconnect.",
+    ],
+  },
+  {
+    version: "2026.11.20.5",
     date: "November 20, 2026",
     title: "Player controls without the white flash",
     changes: [

@@ -62,9 +62,14 @@ export async function reconcileTraktCredential(
     return;
   }
   const local = loadToken(profile);
-  if (local && localStorage.getItem(migratedKey(profile)) !== "1") {
-    await saveTraktCredential(local);
-    localStorage.setItem(migratedKey(profile), "1");
+  if (local) {
+    try {
+      await saveTraktCredential(local);
+      localStorage.setItem(migratedKey(profile), "1");
+    } catch {
+      // A profile refresh or deployment must never erase a still-valid local
+      // Trakt session merely because remote credential storage is unavailable.
+    }
     return;
   }
   storeLocalToken(profile, null);
