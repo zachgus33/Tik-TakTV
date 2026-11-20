@@ -3849,34 +3849,19 @@ test("tapping the video surface hides and restores web player controls", async (
   await page.getByRole("button", { name: "Play", exact: true }).click();
   const player = page.locator("dialog.tv-web-player");
   await expect(player).toBeVisible();
-  const surface = player.getByRole("button", {
-    name: "Hide controls",
-  });
+  const video = player.locator("video");
+  await expect(player.locator(".player-control-toggle-surface")).toHaveCount(0);
   const viewport = page.viewportSize()!;
   const point = {
     x: Math.round(viewport.width / 2),
     y: Math.round(viewport.height * 0.35),
   };
-  await expect
-    .poll(() =>
-      page.evaluate(
-        ({ x, y }) =>
-          document.elementFromPoint(x, y)?.classList.contains(
-            "player-control-toggle-surface",
-          ),
-        point,
-      ),
-    )
-    .toBe(true);
   if (testInfo.project.name === "iphone" || testInfo.project.name === "ipad")
-    await surface.tap({ position: point });
-  else await surface.click({ position: point });
+    await video.tap({ position: point });
+  else await video.click({ position: point });
   await expect(player).toHaveClass(/controls-hidden/);
-  const hiddenSurface = player.getByRole("button", {
-    name: "Show controls",
-  });
   if (testInfo.project.name === "iphone" || testInfo.project.name === "ipad") {
-    await hiddenSurface.tap({ position: point });
+    await video.tap({ position: point });
   } else {
     await page.mouse.move(point.x + 8, point.y + 8);
   }

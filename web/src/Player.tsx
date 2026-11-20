@@ -276,6 +276,12 @@ function VideoPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tvControlsTimerRef = useRef<number>(0);
+  const playerTouchStartRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const lastTouchToggleRef = useRef(0);
   const playingRef = useRef(false);
   const subtitleRef = useRef(subtitles);
   const embeddedCueTimesRef = useRef(
@@ -1368,6 +1374,14 @@ function VideoPlayer({
     }
     setTvControlsVisible((visible) => !visible);
   }
+  function playerTapHitsControl(target: EventTarget | null) {
+    return (
+      target instanceof Element &&
+      !!target.closest(
+        "button, input, select, label, a, .player-tools, .subtitle-cue-overlay, .party-status, .error, .muted",
+      )
+    );
+  }
   const selectedExternalSubtitle = selectedSubtitleTrack.startsWith("external:")
     ? subtitles[Number(selectedSubtitleTrack.split(":")[1])]
     : undefined;
@@ -1392,13 +1406,14 @@ function VideoPlayer({
       }}
       aria-label={`${playback.item.name} player`}
       onClick={(event) => {
-        const target = event.target as Element;
         if (
-          !tvMode &&
-          (target === videoRef.current ||
-            target.closest(".player-control-toggle-surface"))
+          tvMode ||
+          playback.item.type === "live" ||
+          Date.now() - lastTouchToggleRef.current < 700 ||
+          playerTapHitsControl(event.target)
         )
-          togglePlayerControls();
+          return;
+        togglePlayerControls();
       }}
       onPointerMove={(event) => {
         if (
@@ -1408,13 +1423,35 @@ function VideoPlayer({
           revealTvControls();
       }}
       onPointerDown={(event) => {
-        if (
-          tvMode &&
-          !(event.target as Element).closest(
-            ".subtitle-cue-overlay, .player-control-toggle-surface",
-          )
-        )
+        if (tvMode && !playerTapHitsControl(event.target))
           revealTvControls();
+        if (
+          !tvMode &&
+          playback.item.type !== "live" &&
+          (event.pointerType === "touch" || event.pointerType === "pen") &&
+          !playerTapHitsControl(event.target)
+        )
+          playerTouchStartRef.current = {
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+          };
+      }}
+      onPointerUp={(event) => {
+        const start = playerTouchStartRef.current;
+        playerTouchStartRef.current = null;
+        if (
+          !start ||
+          start.pointerId !== event.pointerId ||
+          playerTapHitsControl(event.target) ||
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12
+        )
+          return;
+        lastTouchToggleRef.current = Date.now();
+        togglePlayerControls();
+      }}
+      onPointerCancel={() => {
+        playerTouchStartRef.current = null;
       }}
       onKeyDownCapture={(event) => {
         if (!tvMode) return;
@@ -1515,17 +1552,6 @@ function VideoPlayer({
           />
         )}
       </video>
-      {!tvMode && (
-        <button
-          type="button"
-          className="player-control-toggle-surface"
-          aria-label={tvControlsVisible ? "Hide controls" : "Show controls"}
-          onClick={(event) => {
-            event.stopPropagation();
-            togglePlayerControls();
-          }}
-        />
-      )}
       {(playback.item.type !== "live" || tvMode) && (
         <div
           className={`vod-controls${tvMode ? " tv-player-controls" : ""}`}

@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.4";
+export const latestRelease = "2026.11.20.5";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Player controls without the white flash",
+    changes: [
+      "The full-screen transparent button was removed, eliminating the gray or white flash when tapping the iPhone and iPad player.",
+      "Touch taps now toggle controls directly on the video surface, while desktop mouse movement still reveals controls and lets them auto-hide after inactivity.",
+    ],
+  },
+  {
+    version: "2026.11.20.4",
     date: "November 20, 2026",
     title: "Clean subtitles and mobile dialogue sync",
     changes: [
