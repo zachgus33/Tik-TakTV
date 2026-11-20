@@ -4839,7 +4839,7 @@ test.describe("authenticated integrations", () => {
     await page.goto("/#settings");
     await page.getByRole("button", { name: /Playback/ }).click();
     await page
-      .getByLabel("Automatically play the best 720p-or-higher stream")
+      .getByLabel("Smart autoplay for this device")
       .uncheck();
     await expect
       .poll(() =>

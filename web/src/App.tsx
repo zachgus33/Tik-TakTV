@@ -1869,8 +1869,23 @@ function Detail({
         ),
       };
       const service = getService();
+      const insecureProvider = new URL(provider.server).protocol === "http:";
       onPlay(
-        item.type === "live" && service
+        item.type === "live" && service && insecureProvider
+          ? {
+              ...directLive,
+              url: streamUrl(
+                provider,
+                item.type,
+                ep?.id ?? item.id,
+                ep?.extension ?? item.extension ?? "ts",
+              ),
+              requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
+              mode: "transcode",
+              hls: false,
+              relay: true,
+            }
+          : item.type === "live" && service
           ? {
               ...directLive,
               automaticFallbackCount: 1,
@@ -3598,8 +3613,25 @@ export default function App() {
           hls: true,
         };
         const service = getService();
+        const insecureProvider = new URL(provider.server).protocol === "http:";
         setPlayback(
-          service
+          service && insecureProvider
+            ? {
+                ...direct,
+                url: streamUrl(
+                  provider,
+                  "live",
+                  item.id,
+                  item.extension ?? "ts",
+                ),
+                requestHeaders: {
+                  "User-Agent": "VLC/3.0.0 LibVLC/3.0.0",
+                },
+                mode: "transcode",
+                hls: false,
+                relay: true,
+              }
+            : service
             ? {
                 ...direct,
                 automaticFallbackCount: 1,
