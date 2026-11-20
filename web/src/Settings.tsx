@@ -750,13 +750,11 @@ export default function Settings(props: Props) {
                   checked={props.autoplay}
                   onChange={(e) => props.onAutoplay(e.target.checked)}
                 />
-                Smart autoplay for this device
+                Automatic playback
               </label>
               <p className="hint">
-                Waits for active streaming sources, then ranks direct playback,
-                browser-safe audio, screen-appropriate quality, preferred
-                language, source subtitles, and reported availability. Every
-                compatible result remains available in the source picker.
+                Starts the best compatible 720p+ option in the background,
+                preferring built-in/source subtitles and maximum availability.
               </p>
             </section>
           </div>

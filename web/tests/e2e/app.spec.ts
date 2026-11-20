@@ -1454,7 +1454,7 @@ test("discovery, library persistence, accessible modal and mobile layout", async
   await expect(
     page.getByRole("button", { name: "In my library" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Find streams" }).click();
+  await page.getByRole("button", { name: "Sources" }).click();
   await expect(
     page.getByText("No streams found. Try another source."),
   ).toBeVisible();
@@ -2641,7 +2641,7 @@ async function streamingAddon(page: Page) {
 }
 test("smart autoplay matches source quality and compatibility to the device", async ({
   page,
-}, testInfo) => {
+}) => {
   await streamingAddon(page);
   await page.addInitScript(() => {
     // Empty MP4 route fixtures can fail decoding immediately on WebKit. This
@@ -2701,7 +2701,7 @@ test("smart autoplay matches source quality and compatibility to the device", as
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const player = page.locator("dialog.tv-web-player");
   await expect(player).toBeVisible();
   const playerBox = await player.boundingBox();
@@ -2717,6 +2717,25 @@ test("smart autoplay matches source quality and compatibility to the device", as
   expect(Math.round(videoBox?.height ?? 0)).toBe(viewport?.height);
   await expect(player.locator(".tv-web-center-controls")).toBeVisible();
   await expect(player.locator(".tv-web-progress-controls")).toBeVisible();
+  await expect(page.getByText(/Checking stream|SMART SOURCE SEARCH/)).toHaveCount(
+    0,
+  );
+  await expect
+    .poll(() =>
+      player
+        .locator(".tv-web-center-controls button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const label = button.getAttribute("aria-label");
+            return label === "Play" || label === "Pause" ? "Play/Pause" : label;
+          }),
+        ),
+    )
+    .toEqual([
+      "Rewind 10 seconds",
+      "Play/Pause",
+      "Fast forward 10 seconds",
+    ]);
   const transportBox = await player
     .locator(".tv-web-center-controls")
     .boundingBox();
@@ -2744,11 +2763,7 @@ test("smart autoplay matches source quality and compatibility to the device", as
             .__testMediaSources?.[0],
       ),
     )
-    .toBe(
-      ["iphone", "ipad"].includes(testInfo.project.name)
-        ? "https://cdn.example/best.mp4"
-        : "https://cdn.example/4k.mp4",
-    );
+    .toBe("https://cdn.example/best.mp4");
 });
 test("autoplay waits for active sources before choosing the ranked result", async ({
   page,
@@ -2826,10 +2841,10 @@ test("autoplay waits for active sources before choosing the ranked result", asyn
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).first().click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.locator("video")).toHaveAttribute(
     "src",
-    "https://cdn.example/better-1080.mp4",
+    "https://cdn.example/fast-720.mp4",
   );
 });
 test("autoplay shows a top loading state without opening the manual stream list", async ({
@@ -2859,9 +2874,12 @@ test("autoplay shows a top loading state without opening the manual stream list"
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const openingPlayer = page.locator(".detail-preparing");
-  await expect(page.getByText("Preparing The Test Movie")).toBeVisible();
+  await expect(openingPlayer).toContainText("NOW PLAYING");
+  await expect(openingPlayer).toContainText("The Test Movie");
+  await expect(openingPlayer).toContainText("Starting video");
+  await expect(openingPlayer).not.toContainText(/source|stream/i);
   const openingBounds = await openingPlayer.boundingBox();
   const openingViewport = page.viewportSize();
   expect(Math.round(openingBounds?.x ?? -1)).toBe(0);
@@ -2926,9 +2944,9 @@ test("playback preparation errors use a full-screen retryable mobile surface", a
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const opening = page.locator("dialog.mobile-opening-player");
-  await expect(opening).toContainText("Could not start this source");
+  await expect(opening).toContainText("Could not start playback");
   await expect(opening).toContainText("Two video transcodes are already active");
   const bounds = await opening.boundingBox();
   const viewport = page.viewportSize();
@@ -2936,7 +2954,7 @@ test("playback preparation errors use a full-screen retryable mobile surface", a
   expect(Math.round(bounds?.y ?? -1)).toBe(0);
   expect(Math.round(bounds?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(bounds?.height ?? 0)).toBe(viewport?.height);
-  await opening.getByRole("button", { name: "Retry source" }).click();
+  await opening.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator("dialog.tv-web-player video")).toBeVisible();
   expect(attempts).toBe(2);
 });
@@ -2978,7 +2996,7 @@ test("iPhone retries user-selected playback once media is ready", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const video = page.locator("video");
   await expect(video).toBeVisible();
   await video.evaluate((element) =>
@@ -3022,7 +3040,7 @@ test("the player exposes every compatible stream while automatic fallback stays 
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await openPlaybackOptions(page);
   await expect(
     page.getByRole("button", { name: "Choose stream" }),
@@ -3079,7 +3097,7 @@ test("TV remote users can open the in-player stream chooser and switch sources",
   );
   await page.goto("/?tv=1");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const choose = page.getByRole("button", { name: "Choose stream" });
   await choose.focus();
   await page.keyboard.press("Enter");
@@ -3128,7 +3146,7 @@ test("autoplay falls back to the next ranked source when playback fails", async 
   const fallbackRequested = page.waitForRequest(
     "https://cdn.example/fallback.mp4",
   );
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await fallbackRequested;
 });
 test("an independent user's configured Torrentio debrid stream converts only after browser playback fails", async ({
@@ -3178,7 +3196,7 @@ test("an independent user's configured Torrentio debrid stream converts only aft
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => preparations.length).toBeGreaterThan(0);
   // Direct requests are preferred; the aborted browser request represents a
   // CORS/network block, after which the authenticated companion takes over.
@@ -3244,7 +3262,7 @@ test("configured add-on streams retain query settings with direct-first loading"
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect
     .poll(() =>
       direct.some((url) =>
@@ -3510,7 +3528,7 @@ test("browser-incompatible MKV is normalized before playback", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => prepared[0]?.mode).toBe("transcode");
   expect(prepared[0].live).toBe(false);
   expect(prepared[0].start).toBe(0);
@@ -3530,6 +3548,8 @@ test("browser-incompatible MKV is normalized before playback", async ({
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
+  await expect(page.getByLabel("Preparing playback")).toHaveCount(0);
+  await expect(page.locator("dialog.tv-web-player")).toBeVisible();
   await expect.poll(() => prepared.at(-1)?.start).toBe(3600);
   await expect(page.locator("video")).not.toHaveAttribute("controls", "");
 });
@@ -3558,7 +3578,7 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
   );
   await page.goto("/?tv=1");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await page
     .getByRole("button", { name: /TV test stream Direct play/ })
     .click();
@@ -3586,7 +3606,7 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
     page.getByRole("button", { name: /^(Pause|Play)$/ }),
   ).toBeFocused();
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByLabel("Rewind 10 seconds")).toBeFocused();
+  await expect(page.getByLabel("Fast forward 10 seconds")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(player).toBeHidden();
 });
@@ -3644,7 +3664,8 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.route("https://subs.example/**", (route) =>
     route.fulfill({
       contentType: "text/vtt",
-      body: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello",
+      body:
+        "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:20:00.000 --> 00:20:03.000\nThe distant matching line",
     }),
   );
   await page.route("https://cdn.example/subtitle-test.mp4", (route) =>
@@ -3652,7 +3673,7 @@ test("subtitle timing controls persist the selected offset", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await openPlaybackOptions(page);
   await expect.poll(() => subtitleRequestUrl).toContain(
     "videoHash=0123456789abcdef",
@@ -3723,6 +3744,16 @@ test("subtitle timing controls persist the selected offset", async ({
     name: "Choose the matching subtitle line",
   });
   await expect(cuePicker).toBeVisible();
+  await expect(
+    cuePicker.getByRole("button", { name: /20:00 The distant matching line/ }),
+  ).toHaveCount(0);
+  await cuePicker
+    .getByLabel("Search subtitle dialogue")
+    .fill("distant matching");
+  await expect(
+    cuePicker.getByRole("button", { name: /20:00 The distant matching line/ }),
+  ).toBeVisible();
+  await cuePicker.getByLabel("Search subtitle dialogue").fill("");
   const matchingCue = cuePicker.getByRole("button", { name: /0:01 Hello/ });
   await expect(matchingCue).toBeInViewport();
   await matchingCue.click();
@@ -3810,7 +3841,7 @@ test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fa
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -3880,7 +3911,7 @@ test("Watch Together creates a shareable room from the resolved source", async (
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await openPlaybackOptions(page);
   await page.getByRole("button", { name: "Watch Together" }).click();
   await expect(
@@ -4223,7 +4254,7 @@ test("manual raw torrent is resolved cached-only without autoplaying it", async 
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
-  await page.getByRole("button", { name: "Play best stream" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.locator("video")).toHaveCount(0);
   expect(cachedOnly).toBe(false);
   await page.locator(".stream-results button").first().click();
@@ -4864,9 +4895,7 @@ test.describe("authenticated integrations", () => {
     await page.waitForTimeout(250);
     await page.goto("/#settings");
     await page.getByRole("button", { name: /Playback/ }).click();
-    await page
-      .getByLabel("Smart autoplay for this device")
-      .uncheck();
+    await page.getByLabel("Automatic playback").uncheck();
     await expect
       .poll(() =>
         pushes.some(

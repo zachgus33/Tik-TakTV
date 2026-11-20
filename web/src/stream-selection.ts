@@ -81,6 +81,16 @@ function streamDescriptor(stream: Stream): string {
     .filter(Boolean)
     .join(" ");
 }
+
+export function streamSubtitlePriority(stream: Stream): number {
+  const descriptor = streamDescriptor(stream);
+  if (/\b(?:embedded|multi[ ._-]?subs?|multiple[ ._-]?subs?)\b/i.test(descriptor))
+    return 3;
+  if ((stream.subtitles?.length ?? 0) > 0) return 2;
+  if (/\b(?:subs?|subtitles?|closed[ ._-]?captions?|cc)\b/i.test(descriptor))
+    return 1;
+  return 0;
+}
 export type StreamAudioCodec =
   "aac" | "mp3" | "opus" | "ac3" | "eac3" | "dts" | "truehd";
 export function streamAudioCodec(stream: Stream): StreamAudioCodec | undefined {
@@ -277,16 +287,24 @@ export function autoplayStreams(
     return true;
   });
   const browserReady = eligible.filter((stream) => !compatibilityPlaybackMode(stream));
-  const ordered = browserReady.length
-    ? [
-        ...browserReady,
-        ...eligible.filter((stream) => !!compatibilityPlaybackMode(stream)),
-      ]
-    : eligible;
-  return mobilePlaybackDevice()
-    ? ordered.sort(
-        (left, right) =>
-          mobileAutoPlayScore(right) - mobileAutoPlayScore(left),
-      )
-    : ordered;
+  const conversionFallbacks = eligible.filter((stream) =>
+    compatibilityPlaybackMode(stream),
+  );
+  const mobile = mobilePlaybackDevice();
+  const byPlaybackPriority = (left: Stream, right: Stream) =>
+    streamSubtitlePriority(right) - streamSubtitlePriority(left) ||
+    seeders(right) - seeders(left) ||
+    audioCompatibility(right) - audioCompatibility(left) ||
+    (mobile
+      ? mobileAutoPlayScore(right) - mobileAutoPlayScore(left)
+      : streamQuality(right) - streamQuality(left)) ||
+    codecCompatibility(right) - codecCompatibility(left);
+  // Direct browser playback remains the first requirement. Within that safe
+  // group, prefer 720p+ sources that already advertise subtitles, then the
+  // healthiest swarm. This mirrors the TV behavior without exposing source
+  // selection as a step the viewer has to manage.
+  return [
+    ...browserReady.sort(byPlaybackPriority),
+    ...conversionFallbacks.sort(byPlaybackPriority),
+  ];
 }

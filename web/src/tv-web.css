@@ -469,7 +469,7 @@ body {
   box-shadow: 0 12px 36px #0009;
 }
 
-.tv-web-center-controls button:first-child {
+.tv-web-center-controls button.primary-play-control {
   width: clamp(72px, 10vw, 100px);
   height: clamp(72px, 10vw, 100px);
   color: #111;
@@ -637,7 +637,7 @@ body {
   width: min(560px, calc(100vw - 32px));
   max-height: min(62dvh, 520px);
   padding: 14px;
-  overflow-y: auto;
+  overflow: hidden;
   border: 1px solid #ffffff26;
   border-radius: 18px;
   color: #fff;
@@ -645,6 +645,27 @@ body {
   box-shadow: 0 24px 80px #000c;
   backdrop-filter: blur(22px);
   transform: translateX(-50%);
+}
+
+.tv-web-player .subtitle-cue-search {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff24;
+  border-radius: 11px;
+  color: #fff;
+  background: #ffffff0c;
+}
+
+.tv-web-player .subtitle-cue-search:focus {
+  border-color: #a855f7;
+  outline: 2px solid #a855f74d;
+}
+
+.tv-web-player .subtitle-cue-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .tv-web-player .subtitle-cue-overlay header {
@@ -666,7 +687,7 @@ body {
   color: #aaa6b2;
 }
 
-.tv-web-player .subtitle-cue-overlay > div > button {
+.tv-web-player .subtitle-cue-list > button {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 10px;
@@ -681,8 +702,8 @@ body {
   background: #ffffff0a;
 }
 
-.tv-web-player .subtitle-cue-overlay > div > button:hover,
-.tv-web-player .subtitle-cue-overlay > div > button:focus-visible {
+.tv-web-player .subtitle-cue-list > button:hover,
+.tv-web-player .subtitle-cue-list > button:focus-visible {
   border-color: #a855f7;
   background: #a855f726;
 }
@@ -986,7 +1007,7 @@ body {
     height: 56px;
   }
 
-  .tv-web-center-controls button:first-child {
+  .tv-web-center-controls button.primary-play-control {
     width: 68px;
     height: 68px;
   }

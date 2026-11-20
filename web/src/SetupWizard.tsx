@@ -253,8 +253,8 @@ export default function SetupWizard(props: {
               </h1>
               <p>
                 {streamingAddons.length
-                  ? "Press Play best stream on any title. TikTak TV will rank sources by quality and seeders, then automatically fall back if the first compatible source fails."
-                  : "You can browse now. Install a streaming add-on and connect its required provider before pressing Play best stream."}
+                  ? "Press Play on any title. TikTak TV starts the best compatible 720p+ option automatically, preferring subtitles and strong availability."
+                  : "You can browse now. Install a streaming add-on and connect its required provider before pressing Play."}
               </p>
               <div className="setup-ready-note">
                 <ShieldCheck />

@@ -247,6 +247,7 @@ function VideoPlayer({
   const [subtitleSyncCapturedAt, setSubtitleSyncCapturedAt] = useState<
     number | null
   >(null);
+  const [subtitleSyncQuery, setSubtitleSyncQuery] = useState("");
   const [quality, setQuality] = useState<{ label: string; value: number }[]>(
     [],
   );
@@ -699,6 +700,7 @@ function VideoPlayer({
     const position = videoRef.current?.currentTime;
     if (typeof position !== "number" || !Number.isFinite(position)) return;
     videoRef.current?.pause();
+    setSubtitleSyncQuery("");
     setSubtitleSyncCapturedAt(position);
     setNotice(
       "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
@@ -708,6 +710,7 @@ function VideoPlayer({
     if (subtitleSyncCapturedAt == null) return;
     const next = Math.round((subtitleSyncCapturedAt - cue.startTime) * 10) / 10;
     changeSubtitleOffset(next);
+    setSubtitleSyncQuery("");
     setSubtitleSyncCapturedAt(null);
     setNotice(
       `Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`,
@@ -723,6 +726,7 @@ function VideoPlayer({
     let sourceAttached = false;
     let lastAdvanceAt = Date.now();
     let lastMediaTime = 0;
+    let intentionalSeekUntil = 0;
     setError("");
     setNotice("");
     setQuality([]);
@@ -854,6 +858,8 @@ function VideoPlayer({
     const playingStarted = () => {
       lastAdvanceAt = Date.now();
       lastMediaTime = video.currentTime;
+      intentionalSeekUntil = 0;
+      stallRecoveries = 0;
       setPlaying(true);
       setNotice((current) =>
         current === autoplayBlockedNotice ? "" : current,
@@ -911,7 +917,7 @@ function VideoPlayer({
     // iOS PWA can reject an immediate play() while it is still attaching an
     // asynchronously resolved movie URL, then leave the fully buffered video
     // paused. Retry once when media is actually ready; the original tap on
-    // Play best stream/source remains the user gesture that started playback.
+    // The title's Play action remains the user gesture that started playback.
     const playWhenReady = () => {
       if (video.paused && !video.ended) void play(true);
     };
@@ -919,8 +925,18 @@ function VideoPlayer({
       lastAdvanceAt = Date.now();
       lastMediaTime = video.currentTime;
     };
+    const seekStarted = () => {
+      intentionalSeekUntil = Date.now() + 15_000;
+      resetStallClock();
+    };
+    const seekFinished = () => {
+      intentionalSeekUntil = Date.now() + 8_000;
+      stallRecoveries = 0;
+      resetStallClock();
+    };
     const recoverStall = () => {
       if (stallFailed) return;
+      if (Date.now() < intentionalSeekUntil) return;
       if (
         !playbackNeedsRecovery({
           now: Date.now(),
@@ -943,9 +959,7 @@ function VideoPlayer({
         return;
       }
       stallFailed = true;
-      setNotice(
-        "Playback stopped responding. Trying another compatible source…",
-      );
+      setNotice("Playback stopped responding. Recovering…");
       failed();
     };
     video.addEventListener("loadedmetadata", loaded);
@@ -957,7 +971,8 @@ function VideoPlayer({
     video.addEventListener("pause", persist);
     video.addEventListener("ended", playbackEnded);
     video.addEventListener("error", failed);
-    video.addEventListener("seeking", resetStallClock);
+    video.addEventListener("seeking", seekStarted);
+    video.addEventListener("seeked", seekFinished);
     video.addEventListener("canplay", resetStallClock);
     video.addEventListener("canplay", playWhenReady);
     window.addEventListener("pagehide", persist);
@@ -1080,7 +1095,8 @@ function VideoPlayer({
       video.removeEventListener("pause", persist);
       video.removeEventListener("ended", playbackEnded);
       video.removeEventListener("error", failed);
-      video.removeEventListener("seeking", resetStallClock);
+      video.removeEventListener("seeking", seekStarted);
+      video.removeEventListener("seeked", seekFinished);
       video.removeEventListener("canplay", resetStallClock);
       video.removeEventListener("canplay", playWhenReady);
       window.removeEventListener("pagehide", persist);
@@ -1409,8 +1425,19 @@ function VideoPlayer({
           aria-label="Playback controls"
         >
           <div className="tv-web-center-controls">
+            {playback.item.type !== "live" && (
+              <button
+                type="button"
+                aria-label="Rewind 10 seconds"
+                onClick={() => seekTo(currentTime - 10)}
+              >
+                <RotateCcw size={18} />
+                <span>10</span>
+              </button>
+            )}
             {(playback.item.type !== "live" || tvMode) && (
               <button
+                className="primary-play-control"
                 data-tv-initial-focus={tvMode ? true : undefined}
                 type="button"
                 aria-label={playing ? "Pause" : "Play"}
@@ -1425,28 +1452,14 @@ function VideoPlayer({
               </button>
             )}
             {playback.item.type !== "live" && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Rewind 10 seconds"
-                  onClick={() => {
-                    const video = videoRef.current;
-                    if (video)
-                      video.currentTime = Math.max(0, video.currentTime - 10);
-                  }}
-                >
-                  <RotateCcw size={18} />
-                  <span>10</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Fast forward 10 seconds"
-                  onClick={() => seekTo(currentTime + 10)}
-                >
-                  <RotateCw size={18} />
-                  <span>10</span>
-                </button>
-              </>
+              <button
+                type="button"
+                aria-label="Fast forward 10 seconds"
+                onClick={() => seekTo(currentTime + 10)}
+              >
+                <RotateCw size={18} />
+                <span>10</span>
+              </button>
             )}
           </div>
           <div className="tv-web-progress-controls">
@@ -1861,26 +1874,39 @@ function VideoPlayer({
           <header>
             <div>
               <strong>Select the matching subtitle line</strong>
-              <small>Choose the text you just heard</small>
+              <small>
+                Browse 15 minutes either side, or search the whole subtitle file
+              </small>
             </div>
             <button
               type="button"
               className="icon-button"
               aria-label="Cancel subtitle sync"
-              onClick={() => setSubtitleSyncCapturedAt(null)}
+              onClick={() => {
+                setSubtitleSyncQuery("");
+                setSubtitleSyncCapturedAt(null);
+              }}
             >
               <X size={18} />
             </button>
           </header>
-          <div>
+          <input
+            className="subtitle-cue-search"
+            type="search"
+            aria-label="Search subtitle dialogue"
+            placeholder="Search words you just heard"
+            value={subtitleSyncQuery}
+            onChange={(event) => setSubtitleSyncQuery(event.target.value)}
+          />
+          <div className="subtitle-cue-list">
             {selectedSubtitleSyncCues()
-              .sort(
-                (left, right) =>
-                  Math.abs(left.startTime - subtitleSyncCapturedAt) -
-                  Math.abs(right.startTime - subtitleSyncCapturedAt),
-              )
-              .slice(0, 7)
+              .filter((cue) => {
+                const query = subtitleSyncQuery.trim().toLocaleLowerCase();
+                if (query) return cue.text.toLocaleLowerCase().includes(query);
+                return Math.abs(cue.startTime - subtitleSyncCapturedAt) <= 900;
+              })
               .sort((left, right) => left.startTime - right.startTime)
+              .slice(0, subtitleSyncQuery.trim() ? 200 : 600)
               .map((cue) => (
                 <button
                   type="button"
@@ -1930,7 +1956,6 @@ export default function Player({
   const fallbackController = useRef<AbortController | null>(null);
   const alternatives = playback.alternatives ?? [];
   const selected = attempt === 0 ? playback : alternatives[attempt - 1];
-  const totalSources = alternatives.length + 1;
   const automaticFallbackEnd = Math.min(
     playback.automaticFallbackCount ?? alternatives.length,
     alternatives.length,
@@ -2085,7 +2110,6 @@ export default function Player({
     fallbackController.current?.abort();
     const controller = new AbortController();
     fallbackController.current = controller;
-    setReady(null);
     setError("");
     void prepareMedia(
       selected.url,
@@ -2241,18 +2265,11 @@ export default function Player({
         <section className="player-opening-content">
           {!error && <span className="spinner" />}
           <span className="eyebrow">
-            {error ? "PLAYBACK NEEDS ATTENTION" : "GETTING THINGS READY"}
+            {error ? "PLAYBACK NEEDS ATTENTION" : "NOW PLAYING"}
           </span>
-          <h2>
-            {error
-              ? "Could not start this source"
-              : totalSources > 1
-                ? `Checking stream ${attempt + 1} of ${automaticFallbackEnd + 1}`
-                : `Preparing ${selected.item.name}`}
-          </h2>
+          <h2>{error ? "Could not start playback" : selected.item.name}</h2>
           <p role={error ? "alert" : "status"}>
-            {error ||
-              "Matching this source to your device, audio, and subtitle support…"}
+            {error || "Starting video…"}
           </p>
           <div className="player-opening-actions">
             {error && (
@@ -2266,7 +2283,7 @@ export default function Player({
                   setPrepareRetry((value) => value + 1);
                 }}
               >
-                Retry source
+                Try again
               </button>
             )}
             {sourceChoices.length > 1 && (

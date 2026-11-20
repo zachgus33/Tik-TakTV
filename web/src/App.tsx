@@ -1914,10 +1914,8 @@ function Detail({
     setBusy(!downloadBest);
     setPreparing(auto);
     try {
-      // Enhanced waits for the active source search to settle before ranking.
-      // Picking the first partial response made mobile autoplay depend on which
-      // add-on happened to answer first, often choosing a worse or incompatible
-      // source and leaving too few useful fallbacks.
+      // Source discovery stays behind the title artwork. Wait for active
+      // providers before choosing so arrival order never becomes the ranking.
       const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
       const incompatible = Math.max(
@@ -1943,7 +1941,7 @@ function Detail({
               id: downloadJobId.current,
               name: downloadFilename(ep),
               status: "failed",
-              detail: "No eligible stream was found. Try Find streams or check Playback health.",
+              detail: "No eligible stream was found. Open Sources or check Playback health.",
               at: Date.now(),
             });
           setError("No eligible stream was found to download.");
@@ -2048,14 +2046,16 @@ function Detail({
           <div className="detail-preparing-shade" />
           <section>
             <span className="spinner" />
-            <span className="eyebrow">SMART SOURCE SEARCH</span>
+            <span className="eyebrow">
+              {downloadMode ? "DOWNLOAD" : "NOW PLAYING"}
+            </span>
             <strong>
-              {downloadMode ? "Preparing download" : `Preparing ${item.name}`}
+              {downloadMode ? "Preparing download" : item.name}
             </strong>
             <span>
               {downloadMode
                 ? "Choosing the best source and creating a compatible MP4…"
-                : "Waiting for active sources, then matching quality, audio, and subtitles to this device…"}
+                : "Starting video…"}
             </span>
             {!downloadMode && (
               <button
@@ -2066,7 +2066,7 @@ function Detail({
                   setBusy(false);
                 }}
               >
-                Cancel source search
+                Close
               </button>
             )}
           </section>
@@ -2229,8 +2229,8 @@ function Detail({
               {resume
                 ? "Resume"
                 : autoplay
-                  ? "Play best stream"
-                  : "Find streams"}
+                  ? "Play"
+                  : "Sources"}
             </button>
           )}
           {resume?.episode && (
@@ -2245,7 +2245,7 @@ function Detail({
           )}
           {autoplay && item.source === "addon" && item.type === "movie" && (
             <button disabled={busy} onClick={() => void play(undefined, false)}>
-              Find streams
+              Sources
             </button>
           )}
           {item.source === "addon" && (

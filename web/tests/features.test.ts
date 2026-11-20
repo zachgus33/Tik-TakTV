@@ -30,6 +30,7 @@ import {
   needsCompatibilityTranscode,
   seeders,
   streamAudioCodec,
+  streamSubtitlePriority,
 } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
@@ -814,6 +815,43 @@ describe("720p+ preference and safe episode matching", () => {
       "720p",
     ]);
     expect(seeders({ title: "Seeders: 1,200" })).toBe(1200);
+  });
+  it("autoplay prioritizes 720p+ subtitle sources and then maximum seeders", () => {
+    const noSubs = {
+      name: "2160p",
+      seeders: 20_000,
+      url: "https://cdn.example/4k.mp4",
+    };
+    const embeddedSubs = {
+      name: "1080p MULTI-SUB",
+      seeders: 300,
+      url: "https://cdn.example/subbed.mp4",
+    };
+    const suppliedSubs = {
+      name: "720p",
+      seeders: 800,
+      url: "https://cdn.example/source-subs.mp4",
+      subtitles: [{ url: "https://subs.example/en.vtt", lang: "eng" }],
+    };
+    const suppliedSubsLowSeeders = {
+      name: "1080p",
+      seeders: 10,
+      url: "https://cdn.example/source-subs-low.mp4",
+      subtitles: [{ url: "https://subs.example/en-2.vtt", lang: "eng" }],
+    };
+    expect(streamSubtitlePriority(suppliedSubs)).toBe(2);
+    expect(streamSubtitlePriority(embeddedSubs)).toBe(3);
+    expect(
+      autoplayStreams(
+        [noSubs, embeddedSubs, suppliedSubsLowSeeders, suppliedSubs],
+        false,
+      ).map((stream) => stream.url),
+    ).toEqual([
+      "https://cdn.example/subbed.mp4",
+      "https://cdn.example/source-subs.mp4",
+      "https://cdn.example/source-subs-low.mp4",
+      "https://cdn.example/4k.mp4",
+    ]);
   });
   it("only enables raw torrents when TorBox is connected", () => {
     expect(

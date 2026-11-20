@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.19.1";
+export const latestRelease = "2026.11.19.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,12 +9,12 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 19, 2026",
-    title: "iPhone, iPad, and PWA rebuilt",
+    title: "Playback now starts like the TV app",
     changes: [
-      "Touch devices now use one app-style shell with safe-area bottom navigation, full-screen details, smart source search, and responsive player sheets.",
-      "Smart autoplay waits for active sources and ranks device compatibility, audio, screen-appropriate quality, preferred language, availability, and source subtitles before playback.",
-      "Source-provided and multilingual add-on subtitles are preserved, source-match extras are sent to subtitle add-ons, and compatible conversions expose embedded text tracks as HLS subtitles.",
-      "Live TV tries native HLS first and only spends a transcode slot after a real playback failure; preparation errors now have a full-screen Retry source action.",
+      "Play now opens the title artwork immediately while TikTak TV chooses a compatible stream privately in the background.",
+      "Automatic playback prioritizes browser-safe 720p+ streams with built-in/source subtitles, then the highest reported seeders.",
+      "Subtitle dialogue sync now browses 15 minutes in either direction and can search the complete subtitle file for the line you heard.",
+      "Rewind, play/pause, and fast-forward are in the expected order, and seeking no longer replaces the player with another source-loading screen.",
     ],
   },
   {
