@@ -16,6 +16,8 @@ expect object AppFeaturePolicy {
     val trailerPlaybackMode: TrailerPlaybackMode
     val heroTrailerPlaybackSupported: Boolean
     val inAppUpdaterEnabled: Boolean
+    /** Whether the app may save third-party media for offline playback. */
+    val offlineDownloadsEnabled: Boolean
     val imdbRatingLogoEnabled: Boolean
     val mediaPlaybackForegroundServiceEnabled: Boolean
     val customServerConnectionsEnabled: Boolean

@@ -1,5 +1,6 @@
 package com.nuvio.app.features.downloads
 
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.streams.StreamItem
@@ -118,6 +119,9 @@ object DownloadsRepository {
         episodeOverview: String? = null,
         stream: StreamItem,
     ): DownloadEnqueueResult {
+        if (!AppFeaturePolicy.offlineDownloadsEnabled) {
+            return DownloadEnqueueResult.UnsupportedFormat
+        }
         ensureLoaded()
 
         val sourceUrl = stream.playableDirectUrl

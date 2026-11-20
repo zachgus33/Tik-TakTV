@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppVersionConfig
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.NuvioTvTextField
 import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.SharedAddonSetup
@@ -274,14 +275,16 @@ internal fun LazyListScope.settingsRootContent(
                         isTablet = isTablet,
                         onClick = onNotificationsClick,
                     )
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsNavigationRow(
-                        title = "Downloads",
-                        description = "Offline activity and history",
-                        icon = Icons.Rounded.CloudDownload,
-                        isTablet = isTablet,
-                        onClick = onDownloadsClick,
-                    )
+                    if (AppFeaturePolicy.offlineDownloadsEnabled) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsNavigationRow(
+                            title = "Downloads",
+                            description = "Offline activity and history",
+                            icon = Icons.Rounded.CloudDownload,
+                            isTablet = isTablet,
+                            onClick = onDownloadsClick,
+                        )
+                    }
                 }
             }
         }

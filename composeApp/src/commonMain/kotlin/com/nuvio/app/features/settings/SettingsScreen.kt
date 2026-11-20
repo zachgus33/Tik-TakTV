@@ -1104,7 +1104,9 @@ private fun TabletSettingsScreen(
                     item { SettingsSidebarItem("Health check", Icons.Rounded.Tune, page == SettingsPage.HealthCheck) {
                         openInlinePage(SettingsPage.HealthCheck)
                     } }
-                    item { SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick) }
+                    if (AppFeaturePolicy.offlineDownloadsEnabled) {
+                        item { SettingsSidebarItem("Downloads", Icons.Rounded.Info, false, onDownloadsClick) }
+                    }
                     item { SettingsSidebarItem("Feedback", Icons.Rounded.Info, false) {
                         uriHandler.openUri("https://github.com/zachgus33/Tik-TakTV/issues/new/choose")
                     } }

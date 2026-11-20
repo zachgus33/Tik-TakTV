@@ -13,6 +13,7 @@ actual object AppFeaturePolicy {
     actual val trailerPlaybackMode: TrailerPlaybackMode = TrailerPlaybackMode.IN_APP
     actual val heroTrailerPlaybackSupported: Boolean = true
     actual val inAppUpdaterEnabled: Boolean get() = !NativeTvHostMode.isAppStoreBuild
+    actual val offlineDownloadsEnabled: Boolean get() = !NativeTvHostMode.isAppStoreBuild
     actual val imdbRatingLogoEnabled: Boolean = true
     actual val mediaPlaybackForegroundServiceEnabled: Boolean = true
     actual val customServerConnectionsEnabled: Boolean = true

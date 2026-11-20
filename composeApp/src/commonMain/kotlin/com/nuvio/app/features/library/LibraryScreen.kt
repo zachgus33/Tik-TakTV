@@ -105,6 +105,7 @@ import com.nuvio.app.features.cloud.CloudLibraryItem
 import com.nuvio.app.features.cloud.CloudLibraryItemType
 import com.nuvio.app.features.cloud.CloudLibraryRepository
 import com.nuvio.app.features.cloud.CloudLibraryUiState
+import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.features.debrid.DebridSettingsRepository
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaDetailsRepository
@@ -180,8 +181,13 @@ fun LibraryScreen(
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var observedOfflineState by remember { mutableStateOf(false) }
     var sourceModeName by rememberSaveable { mutableStateOf(LibraryViewMode.Saved.name) }
-    val sourceMode = remember(sourceModeName) {
-        runCatching { LibraryViewMode.valueOf(sourceModeName) }.getOrDefault(LibraryViewMode.Saved)
+    val sourceMode = remember(sourceModeName, AppFeaturePolicy.offlineDownloadsEnabled) {
+        runCatching { LibraryViewMode.valueOf(sourceModeName) }
+            .getOrDefault(LibraryViewMode.Saved)
+            .takeUnless {
+                it == LibraryViewMode.Downloads && !AppFeaturePolicy.offlineDownloadsEnabled
+            }
+            ?: LibraryViewMode.Saved
     }
     var downloadsFilterName by rememberSaveable { mutableStateOf(LibraryDownloadsFilter.All.name) }
     val downloadsFilter = remember(downloadsFilterName) {
@@ -1333,11 +1339,13 @@ private fun LibrarySourceSwitch(
             selected = selectedMode == LibraryViewMode.Saved,
             onClick = { onModeSelected(LibraryViewMode.Saved) },
         )
-        LibraryChip(
-            label = stringResource(Res.string.compose_settings_root_downloads_title),
-            selected = selectedMode == LibraryViewMode.Downloads,
-            onClick = { onModeSelected(LibraryViewMode.Downloads) },
-        )
+        if (AppFeaturePolicy.offlineDownloadsEnabled) {
+            LibraryChip(
+                label = stringResource(Res.string.compose_settings_root_downloads_title),
+                selected = selectedMode == LibraryViewMode.Downloads,
+                onClick = { onModeSelected(LibraryViewMode.Downloads) },
+            )
+        }
         LibraryChip(
             label = stringResource(Res.string.library_source_cloud),
             selected = selectedMode == LibraryViewMode.Cloud,
