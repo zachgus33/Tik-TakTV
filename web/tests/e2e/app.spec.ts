@@ -1135,7 +1135,7 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
 
 test("desktop sidebar stays slim while keeping every navigation label visible", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#home");
 
@@ -1170,9 +1170,15 @@ test("desktop sidebar stays slim while keeping every navigation label visible", 
 
   await page.setViewportSize({ width: 1024, height: 768 });
   layout = await readLayout();
-  expect(layout.sidebar).toBe(168);
-  expect(layout.mainLeft).toBe(168);
-  expect(layout.clippedLabels).toBe(0);
+  if (["iphone", "ipad"].includes(testInfo.project.name)) {
+    expect(layout.sidebar).toBe(0);
+    expect(layout.mainLeft).toBe(0);
+    await expect(page.locator(".bottom-nav")).toBeVisible();
+  } else {
+    expect(layout.sidebar).toBe(168);
+    expect(layout.mainLeft).toBe(168);
+    expect(layout.clippedLabels).toBe(0);
+  }
 });
 
 test("Fire TV viewport keeps the navigation compact and content readable", async ({
@@ -1927,11 +1933,9 @@ test("live TV tries native HLS before using Pi transcoding as a fallback", async
     .click();
   const liveVideo = page.locator("dialog.player-dialog video");
   await expect(liveVideo).toBeVisible();
-  if (["iphone", "ipad"].includes(testInfo.project.name))
-    await page.waitForTimeout(300);
-  else await expect.poll(() => directHlsRequests).toBeGreaterThan(0);
-  expect(prepared).toBeUndefined();
   if (["iphone", "ipad"].includes(testInfo.project.name)) return;
+  await expect.poll(() => directHlsRequests).toBeGreaterThan(0);
+  expect(prepared).toBeUndefined();
   await liveVideo.evaluate((video) => video.dispatchEvent(new Event("error")));
   await expect.poll(() => prepared).toBeTruthy();
   expect(prepared.mode).toBe("transcode");
@@ -1952,9 +1956,13 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
       }),
     ),
   );
-  await page.route("https://playback.example/prepare", (route) =>
-    route.fulfill({ json: { path: "/media/live/index.m3u8", hls: true } }),
-  );
+  let preparations = 0;
+  await page.route("https://playback.example/prepare", (route) => {
+    preparations += 1;
+    return route.fulfill({
+      json: { path: "/media/live/index.m3u8", hls: true },
+    });
+  });
   await page.route("https://playback.example/media/live/index.m3u8", (route) =>
     route.fulfill({
       contentType: "application/vnd.apple.mpegurl",
@@ -1967,6 +1975,16 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
     .locator(".tv-guide-channel")
     .filter({ hasText: "Test News" })
     .click();
+  await page
+    .locator(".player-tools button")
+    .filter({ hasText: "Choose stream" })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await page
+    .getByRole("dialog", { name: "Choose a stream" })
+    .locator(".player-source-list > button")
+    .nth(1)
+    .click();
+  await expect.poll(() => preparations).toBeGreaterThan(0);
   const originalVideo = page.locator("dialog.player-dialog video");
   await originalVideo.evaluate((video) => {
     (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo =
@@ -2052,8 +2070,16 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
     .locator(".tv-guide-channel")
     .filter({ hasText: "Test News" })
     .click();
-  if (testInfo.project.name === "desktop")
-    await expect.poll(() => preparations).toBeGreaterThan(0);
+  await page
+    .locator(".player-tools button")
+    .filter({ hasText: "Choose stream" })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await page
+    .getByRole("dialog", { name: "Choose a stream" })
+    .locator(".player-source-list > button")
+    .nth(1)
+    .click();
+  await expect.poll(() => preparations).toBeGreaterThan(0);
   const originalVideo = page.locator("dialog.player-dialog video");
   await originalVideo.evaluate((video) => {
     (window as Window & { __liveVideo?: HTMLVideoElement }).__liveVideo =

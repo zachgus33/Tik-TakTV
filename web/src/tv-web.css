@@ -699,22 +699,22 @@ body {
 }
 
 @media (max-width: 1100px) and (pointer: coarse) {
-  .sidebar {
+  html:not(.tv-mode) .sidebar {
     display: none;
   }
 
-  .main-shell {
+  html:not(.tv-mode) .main-shell {
     margin-left: 0;
     padding-bottom: calc(104px + env(safe-area-inset-bottom));
   }
 
-  .topbar {
+  html:not(.tv-mode) .topbar {
     left: 0;
     padding-right: max(22px, env(safe-area-inset-right));
     padding-left: max(22px, env(safe-area-inset-left));
   }
 
-  .bottom-nav {
+  html:not(.tv-mode) .bottom-nav {
     position: fixed;
     z-index: 90;
     right: auto;
@@ -732,7 +732,7 @@ body {
     transform: translateX(-50%);
   }
 
-  .bottom-nav a {
+  html:not(.tv-mode) .bottom-nav a {
     position: relative;
     display: flex;
     flex: 1 1 0;
@@ -747,18 +747,18 @@ body {
     font-size: 0.74rem;
   }
 
-  .bottom-nav a.active {
+  html:not(.tv-mode) .bottom-nav a.active {
     color: #fff;
     background: #8b5cf626;
   }
 
-  .home-content,
-  .page-content {
+  html:not(.tv-mode) .home-content,
+  html:not(.tv-mode) .page-content {
     padding-right: max(24px, env(safe-area-inset-right));
     padding-left: max(24px, env(safe-area-inset-left));
   }
 
-  .detail-dialog {
+  html:not(.tv-mode) .detail-dialog {
     width: 100%;
     max-width: none;
     max-height: 100dvh;
