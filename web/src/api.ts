@@ -598,6 +598,11 @@ export async function addonSubtitles(
   addons: Addon[],
   item: Item,
   id: string,
+  extras?: {
+    filename?: string;
+    videoHash?: string;
+    videoSize?: number;
+  },
   signal?: AbortSignal,
 ): Promise<Subtitle[]> {
   const eligible = addons.filter(
@@ -605,8 +610,8 @@ export async function addonSubtitles(
       a.enabled !== false &&
       a.manifest.resources?.some((r) =>
         typeof r === "string"
-          ? r === "subtitles"
-          : r.name === "subtitles" &&
+          ? r === "subtitles" || r === "subtitle"
+          : (r.name === "subtitles" || r.name === "subtitle") &&
             (!r.types?.length || r.types.includes(item.type)) &&
             (!r.idPrefixes?.length ||
               r.idPrefixes.some((p) => id.startsWith(p))),
@@ -614,13 +619,40 @@ export async function addonSubtitles(
   );
   const results = await Promise.allSettled(
     eligible.map(async (a) => {
+      const extra = [
+        extras?.videoHash
+          ? `videoHash=${encodeURIComponent(extras.videoHash)}`
+          : "",
+        extras?.videoSize && extras.videoSize > 0
+          ? `videoSize=${Math.round(extras.videoSize)}`
+          : "",
+        extras?.filename
+          ? `filename=${encodeURIComponent(extras.filename)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("&");
       const data = await json<{ subtitles?: Subtitle[] }>(
-        addonResourceUrl(a.base, "subtitles", item.type, id),
+        addonResourceUrl(
+          a.base,
+          "subtitles",
+          item.type,
+          id,
+          extra || undefined,
+        ),
         signal,
       );
-      return (data.subtitles ?? []).filter(
-        (s) => !!safeUrl(s.url) && /^(en|eng|english)$/i.test(s.lang ?? ""),
-      );
+      return (data.subtitles ?? [])
+        .filter((s) => !!safeUrl(s.url))
+        .map((subtitle) => ({
+          ...subtitle,
+          source: "addon" as const,
+          name:
+            subtitle.name ??
+            subtitle.id ??
+            subtitle.lang ??
+            a.manifest.name,
+        }));
     }),
   );
   return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));

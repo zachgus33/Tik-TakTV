@@ -30,8 +30,47 @@ import {
   safeDownloadName,
   sourceHeaders,
   nativeAddonFetch,
+  addSubtitleRenditionsToMaster,
   youtubeVideoAllowed,
 } from "./server.mjs";
+
+test("builds a browser HLS master with embedded text subtitle renditions", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "tiktak-subtitle-master-"));
+  try {
+    await writeFile(
+      join(directory, "index.m3u8"),
+      "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nsegment0.ts\n",
+    );
+    await writeFile(
+      join(directory, "subtitle0.m3u8"),
+      "#EXTM3U\n#EXTINF:6,\nsubtitle0-0.vtt\n",
+    );
+    assert.equal(
+      await addSubtitleRenditionsToMaster(
+        directory,
+        "index.m3u8",
+        [
+          {
+            subtitleIndex: 0,
+            language: "eng",
+            title: "English",
+            forced: false,
+            default: true,
+          },
+        ],
+        false,
+      ),
+      true,
+    );
+    const master = await readFile(join(directory, "playback.m3u8"), "utf8");
+    assert.match(master, /TYPE=SUBTITLES/);
+    assert.match(master, /LANGUAGE="eng"/);
+    assert.match(master, /URI="subtitle0\.m3u8"/);
+    assert.match(master, /SUBTITLES="subs"\nindex\.m3u8/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("add-on JSON uses Nuvio-style HTTP headers and preserves source 403", async () => {
   const seen = [];

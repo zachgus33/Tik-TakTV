@@ -1,13 +1,24 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.18.4";
+export const latestRelease = "2026.11.19.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 19, 2026",
+    title: "iPhone, iPad, and PWA rebuilt",
+    changes: [
+      "Touch devices now use one app-style shell with safe-area bottom navigation, full-screen details, smart source search, and responsive player sheets.",
+      "Smart autoplay waits for active sources and ranks device compatibility, audio, screen-appropriate quality, preferred language, availability, and source subtitles before playback.",
+      "Source-provided and multilingual add-on subtitles are preserved, source-match extras are sent to subtitle add-ons, and compatible conversions expose embedded text tracks as HLS subtitles.",
+      "Live TV tries native HLS first and only spends a transcode slot after a real playback failure; preparation errors now have a full-screen Retry source action.",
+    ],
+  },
+  {
+    version: "2026.11.18.4",
     date: "November 18, 2026",
     title: "Mobile downloads and watched controls",
     changes: [

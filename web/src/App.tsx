@@ -190,6 +190,37 @@ const SetupWizard = lazy(() => import("./SetupWizard"));
 
 const futureAvailability = new Map<string, boolean>();
 
+function playbackSubtitleData(
+  addons: Addon[],
+  item: Item,
+  videoId: string,
+  stream: Stream,
+  sourceUrl?: string,
+): Pick<Playback, "subtitles" | "subtitleRequest"> {
+  let filename = stream.behaviorHints?.filename;
+  if (!filename && sourceUrl)
+    try {
+      filename = decodeURIComponent(
+        new URL(sourceUrl).pathname.split("/").filter(Boolean).at(-1) ?? "",
+      );
+    } catch {}
+  return {
+    subtitles: (stream.subtitles ?? []).map((subtitle) => ({
+      ...subtitle,
+      source: "stream" as const,
+    })),
+    subtitleRequest: {
+      addons,
+      id: videoId,
+      extras: {
+        filename: filename || undefined,
+        videoHash: stream.behaviorHints?.videoHash,
+        videoSize: stream.behaviorHints?.videoSize,
+      },
+    },
+  };
+}
+
 async function hideUnavailableFutureTitles<
   T extends { title: string; items: Item[] },
 >(rows: T[], addons: Addon[], signal: AbortSignal) {
@@ -1561,7 +1592,13 @@ function Detail({
             candidate.behaviorHints?.proxyHeaders as
               { request?: Record<string, string> } | undefined
           )?.request,
-          subtitleRequest: { addons, id: ep?.id ?? item.id },
+          ...playbackSubtitleData(
+            addons,
+            item,
+            ep?.id ?? item.id,
+            candidate,
+            candidate.url,
+          ),
           // Resolved debrid video is regular HTTPS media from the browser's
           // perspective. Try it directly first; Player switches to the
           // compatibility service only after a real playback failure.
@@ -1596,7 +1633,13 @@ function Detail({
           episode: ep,
           url: resolved.url,
           resume: position,
-          subtitleRequest: { addons, id: ep?.id ?? item.id },
+          ...playbackSubtitleData(
+            addons,
+            item,
+            ep?.id ?? item.id,
+            stream,
+            resolved.url,
+          ),
           mode: undefined,
           relay: false,
           compatibilityFallback: true,
@@ -1621,7 +1664,13 @@ function Detail({
         episode: ep,
         url,
         resume: position,
-        subtitleRequest: { addons, id: ep?.id ?? item.id },
+        ...playbackSubtitleData(
+          addons,
+          item,
+          ep?.id ?? item.id,
+          stream,
+          url,
+        ),
         mode: undefined,
         compatibilityFallback: true,
       });
@@ -1806,21 +1855,42 @@ function Detail({
         setError("Connect the IPTV account for this title in Settings.");
         return;
       }
-      onPlay({
+      const directLive: Playback = {
         item,
         episode: ep,
         resume: position,
-        mode: item.type === "live" && getService() ? "transcode" : undefined,
+        mode: item.type === "live" ? "direct" : undefined,
         hls: item.type === "live",
         url: streamUrl(
           provider,
           item.type,
           ep?.id ?? item.id,
-          item.type === "live" && !getService()
-            ? "m3u8"
-            : (ep?.extension ?? item.extension),
+          item.type === "live" ? "m3u8" : (ep?.extension ?? item.extension),
         ),
-      });
+      };
+      const service = getService();
+      onPlay(
+        item.type === "live" && service
+          ? {
+              ...directLive,
+              automaticFallbackCount: 1,
+              alternatives: [
+                {
+                  ...directLive,
+                  url: streamUrl(
+                    provider,
+                    item.type,
+                    ep?.id ?? item.id,
+                    ep?.extension ?? item.extension ?? "ts",
+                  ),
+                  mode: "transcode",
+                  hls: false,
+                  relay: true,
+                },
+              ],
+            }
+          : directLive,
+      );
       return;
     }
     controller.current?.abort();
@@ -1829,25 +1899,11 @@ function Detail({
     setBusy(!downloadBest);
     setPreparing(auto);
     try {
-      let autoStarted = false;
-      const startFirstPlayable = (partial: Stream[]) => {
-        if (!auto || downloadBest || autoStarted || c.signal.aborted) return;
-        const hasDebrid = !!torboxKey || !!realDebridKey;
-        const candidates = autoplayStreams(partial, hasDebrid);
-        if (!candidates.length) return;
-        autoStarted = true;
-        void chooseStream(candidates[0], ep, c.signal, candidates.slice(1)).catch(
-          () => {
-            autoStarted = false;
-          },
-        );
-      };
-      const result = await requestStreams(
-        item,
-        ep?.id ?? item.id,
-        c.signal,
-        startFirstPlayable,
-      );
+      // Enhanced waits for the active source search to settle before ranking.
+      // Picking the first partial response made mobile autoplay depend on which
+      // add-on happened to answer first, often choosing a worse or incompatible
+      // source and leaving too few useful fallbacks.
+      const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
       if (c.signal.aborted) return;
       const incompatible = Math.max(
         0,
@@ -1878,7 +1934,7 @@ function Detail({
           setError("No eligible stream was found to download.");
         }
       } else {
-        if (auto && autoplayRanked.length && !autoStarted) {
+        if (auto && autoplayRanked.length) {
           try {
             await chooseStream(
               autoplayRanked[0],
@@ -1964,16 +2020,41 @@ function Detail({
   return (
     <dialog ref={ref} className="detail-dialog" onCancel={onClose}>
       {preparing && (
-        <div className="detail-preparing" role="status" aria-live="polite">
-          <span className="spinner" />
-          <strong>
-            {downloadMode ? "Preparing download" : `Preparing ${item.name}`}
-          </strong>
-          <span>
-            {downloadMode
-              ? "Choosing the best source and creating a compatible MP4…"
-              : "Choosing the best source and opening the player…"}
-          </span>
+        <div
+          className="detail-preparing"
+          role="status"
+          aria-live="polite"
+          style={
+            safeUrl(item.background)
+              ? { backgroundImage: `url("${safeUrl(item.background)}")` }
+              : undefined
+          }
+        >
+          <div className="detail-preparing-shade" />
+          <section>
+            <span className="spinner" />
+            <span className="eyebrow">SMART SOURCE SEARCH</span>
+            <strong>
+              {downloadMode ? "Preparing download" : `Preparing ${item.name}`}
+            </strong>
+            <span>
+              {downloadMode
+                ? "Choosing the best source and creating a compatible MP4…"
+                : "Waiting for active sources, then matching quality, audio, and subtitles to this device…"}
+            </span>
+            {!downloadMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  controller.current?.abort();
+                  setPreparing(false);
+                  setBusy(false);
+                }}
+              >
+                Cancel source search
+              </button>
+            )}
+          </section>
         </div>
       )}
       <button
@@ -2809,7 +2890,13 @@ export default function App() {
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
         )?.request,
-        subtitleRequest: { addons, id: episode.id },
+        ...playbackSubtitleData(
+          addons,
+          item,
+          episode.id,
+          stream,
+          stream.url,
+        ),
         relay: false,
         compatibilityFallback: debridStream(stream),
       });
@@ -3504,27 +3591,62 @@ export default function App() {
           setToast("Connect this channel’s IPTV account in Settings.");
           return;
         }
-        setPlayback({
+        const direct: Playback = {
           item,
-          url:
-            item.url ??
-            streamUrl(
-              provider,
-              "live",
-              item.id,
-              getService() ? (item.extension ?? "ts") : "m3u8",
-            ),
-          requestHeaders: { "User-Agent": "VLC/3.0.0 LibVLC/3.0.0" },
-          mode: getService() ? "transcode" : undefined,
+          url: item.url ?? streamUrl(provider, "live", item.id, "m3u8"),
+          mode: "direct",
           hls: true,
-        });
-      } else if (item.url)
-        setPlayback({
+        };
+        const service = getService();
+        setPlayback(
+          service
+            ? {
+                ...direct,
+                automaticFallbackCount: 1,
+                alternatives: [
+                  {
+                    ...direct,
+                    url: streamUrl(
+                      provider,
+                      "live",
+                      item.id,
+                      item.extension ?? "ts",
+                    ),
+                    requestHeaders: {
+                      "User-Agent": "VLC/3.0.0 LibVLC/3.0.0",
+                    },
+                    mode: "transcode",
+                    hls: false,
+                    relay: true,
+                  },
+                ],
+              }
+            : direct,
+        );
+      } else if (item.url) {
+        const direct: Playback = {
           item,
           url: item.url,
-          mode: getService() ? "transcode" : undefined,
-          hls: /\.m3u8(?:[?#]|$)/i.test(item.url) || !!getService(),
-        });
+          mode: "direct",
+          hls: /\.m3u8(?:[?#]|$)/i.test(item.url),
+        };
+        setPlayback(
+          getService()
+            ? {
+                ...direct,
+                automaticFallbackCount: 1,
+                alternatives: [
+                  {
+                    ...direct,
+                    mode: "transcode",
+                    hls: false,
+                    relay: true,
+                  },
+                ],
+              }
+            : direct,
+        );
+      }
     },
     [provider, setRecentChannels],
   );

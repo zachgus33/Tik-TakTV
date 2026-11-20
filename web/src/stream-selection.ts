@@ -205,6 +205,53 @@ export function rankedStreams(streams: Stream[], hasTorbox: boolean): Stream[] {
         codecCompatibility(b) - codecCompatibility(a),
     );
 }
+
+export function mobilePlaybackDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod|Android.+Mobile/i.test(ua)) return true;
+  return (
+    navigator.maxTouchPoints > 1 &&
+    typeof screen !== "undefined" &&
+    Math.min(screen.width, screen.height) <= 1024
+  );
+}
+
+export function mobileAutoPlayScore(stream: Stream): number {
+  const reportedQuality = streamQuality(stream);
+  const directReady = compatibilityPlaybackMode(stream) === undefined;
+  const preferredAudio =
+    typeof localStorage === "undefined"
+      ? ""
+      : (localStorage.getItem("tiktak:audio-language") ?? "").toLowerCase();
+  const languages = streamAudioLanguages(stream).map((value) =>
+    value.toLowerCase(),
+  );
+  const languageBonus =
+    preferredAudio &&
+    languages.some(
+      (language) =>
+        language.includes(preferredAudio) || preferredAudio.includes(language),
+    )
+      ? 18
+      : 0;
+  const qualityScore = !reportedQuality
+    ? 8
+    : reportedQuality <= 1080
+      ? (reportedQuality / 1080) * 60
+      : Math.max(5, 60 - ((reportedQuality - 1080) / 1080) * 45);
+  const seederScore = Math.log10(Math.max(0, seeders(stream)) + 1) * 5;
+  return (
+    (directReady ? 100 : 0) +
+    audioCompatibility(stream) * 18 +
+    qualityScore +
+    seederScore +
+    languageBonus +
+    (debridStream(stream) ? 8 : 0) +
+    ((stream.subtitles?.length ?? 0) > 0 ? 4 : 0)
+  );
+}
+
 export function autoplayStreams(
   streams: Stream[],
   hasTorbox: boolean,
@@ -230,5 +277,16 @@ export function autoplayStreams(
     return true;
   });
   const browserReady = eligible.filter((stream) => !compatibilityPlaybackMode(stream));
-  return browserReady.length ? [...browserReady, ...eligible.filter((stream) => !!compatibilityPlaybackMode(stream))] : eligible;
+  const ordered = browserReady.length
+    ? [
+        ...browserReady,
+        ...eligible.filter((stream) => !!compatibilityPlaybackMode(stream)),
+      ]
+    : eligible;
+  return mobilePlaybackDevice()
+    ? ordered.sort(
+        (left, right) =>
+          mobileAutoPlayScore(right) - mobileAutoPlayScore(left),
+      )
+    : ordered;
 }

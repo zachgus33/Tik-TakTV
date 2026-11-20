@@ -77,6 +77,120 @@ function probeAudioTracks(inputUrl, inputArgs = []) {
     });
   });
 }
+
+function probeSubtitleTracks(inputUrl, inputArgs = []) {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.env.FFPROBE_PATH ?? "ffprobe",
+      [
+        "-v",
+        "error",
+        ...inputArgs,
+        "-select_streams",
+        "s",
+        "-show_entries",
+        "stream=index,codec_name:stream_tags=language,title:stream_disposition=default,forced,hearing_impaired",
+        "-of",
+        "json",
+        inputUrl,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
+    );
+    let output = "";
+    const timer = setTimeout(() => child.kill(), 15_000);
+    child.stdout.on("data", (chunk) => {
+      if (output.length < 1_000_000) output += chunk;
+    });
+    const finish = (value) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+    child.once("error", () => finish([]));
+    child.once("exit", (code) => {
+      if (code) return finish([]);
+      try {
+        const supported = new Set(["ass", "ssa", "subrip", "webvtt", "mov_text", "text"]);
+        const streams = JSON.parse(output).streams ?? [];
+        finish(
+          streams
+            .filter((stream) => supported.has(String(stream.codec_name ?? "").toLowerCase()))
+            .slice(0, 8)
+            .map((stream, subtitleIndex) => ({
+              subtitleIndex,
+              streamIndex: Number(stream.index),
+              language:
+                String(stream.tags?.language ?? "und")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9-]/g, "") || "und",
+              title: String(stream.tags?.title ?? "").trim(),
+              forced: stream.disposition?.forced === 1,
+              default: stream.disposition?.default === 1,
+              hearingImpaired: stream.disposition?.hearing_impaired === 1,
+            }))
+            .filter((stream) => Number.isInteger(stream.streamIndex)),
+        );
+      } catch {
+        finish([]);
+      }
+    });
+  });
+}
+
+function hlsAttribute(value) {
+  return String(value ?? "").replace(/["\r\n]/g, " ").trim();
+}
+
+export async function addSubtitleRenditionsToMaster(
+  dir,
+  videoPlaylist,
+  subtitleTracks,
+  existingMaster,
+) {
+  if (!subtitleTracks.length) return false;
+  const available = [];
+  for (let attempt = 0; attempt < 50 && !available.length; attempt += 1) {
+    for (const track of subtitleTracks) {
+      if (available.some((entry) => entry.subtitleIndex === track.subtitleIndex))
+        continue;
+      try {
+        if ((await stat(join(dir, `subtitle${track.subtitleIndex}.m3u8`))).size)
+          available.push(track);
+      } catch {}
+    }
+    if (!available.length)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (!available.length) return false;
+  const media = available
+    .map((track, index) => {
+      const name = hlsAttribute(
+        track.title ||
+          `${track.language === "und" ? "Subtitle" : track.language.toUpperCase()}${track.forced ? " Forced" : ""}`,
+      );
+      return (
+        `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${name}",` +
+        `LANGUAGE="${track.language}",AUTOSELECT=YES,DEFAULT=${track.default || index === 0 ? "YES" : "NO"},` +
+        `FORCED=${track.forced ? "YES" : "NO"},URI="subtitle${track.subtitleIndex}.m3u8"`
+      );
+    })
+    .join("\n");
+  let master;
+  if (existingMaster) {
+    master = await readFile(join(dir, videoPlaylist), "utf8");
+    master = master.replace(
+      /#EXT-X-STREAM-INF:([^\r\n]*)/g,
+      (_line, attributes) =>
+        `#EXT-X-STREAM-INF:${attributes}${/\bSUBTITLES=/.test(attributes) ? "" : ',SUBTITLES="subs"'}`,
+    );
+    master = master.replace(/^#EXTM3U\s*/, `#EXTM3U\n${media}\n`);
+  } else {
+    master =
+      `#EXTM3U\n#EXT-X-VERSION:3\n${media}\n` +
+      `#EXT-X-STREAM-INF:BANDWIDTH=5000000,SUBTITLES="subs"\n${videoPlaylist}\n`;
+  }
+  await writeFile(join(dir, "playback.m3u8"), master);
+  return true;
+}
 import ipaddr from "ipaddr.js";
 
 // Supabase's public anonymous client key; this is not a service-role secret.
@@ -1867,7 +1981,7 @@ export function createService({
           !Number.isInteger(index) ||
           index < 0 ||
           index >= vault.template.addons.length ||
-          !/^(?:manifest\.json|catalog\/[^/]+\/[^/]+(?:\/[^/]+)?\.json|(?:meta|stream|subtitles)\/[^/]+\/[^/]+\.json)$/.test(
+          !/^(?:manifest\.json|catalog\/[^/]+\/[^/]+(?:\/[^/]+)?\.json|(?:meta|stream)\/[^/]+\/[^/]+\.json|subtitles?\/[^/]+\/[^/]+(?:\/[^/]+)?\.json)$/.test(
             resourcePath,
           )
         )
@@ -2019,7 +2133,7 @@ export function createService({
             return;
           }
           if (
-            !/^(?:index|master|stream[a-z0-9_-]+)\.m3u8$|^(?:init|segment[a-z0-9_-]*\d*)\.(?:ts|m4s|mp4)$/.test(
+            !/^(?:index|master|playback|stream[a-z0-9_-]+|subtitle\d+)\.m3u8$|^(?:init|segment[a-z0-9_-]*\d*)\.(?:ts|m4s|mp4)$|^subtitle\d+-\d+\.vtt$/.test(
               file,
             )
           )
@@ -2034,6 +2148,8 @@ export function createService({
           res.writeHead(200, {
             "Content-Type": file.endsWith(".m3u8")
               ? "application/vnd.apple.mpegurl"
+              : file.endsWith(".vtt")
+                ? "text/vtt; charset=utf-8"
               : file.endsWith(".ts")
                 ? "video/mp2t"
                 : "video/mp4",
@@ -3733,9 +3849,12 @@ export function createService({
           const start = body.live
             ? 0
             : Math.min(24 * 60 * 60, Math.max(0, Number(body.start) || 0));
-          const audioTracks = body.live
-            ? []
-            : await probeAudioTracks(inputUrl, hlsInputArgs);
+          const [audioTracks, subtitleTracks] = body.live
+            ? [[], []]
+            : await Promise.all([
+                probeAudioTracks(inputUrl, hlsInputArgs),
+                probeSubtitleTracks(inputUrl, hlsInputArgs),
+              ]);
           const multiAudio = audioTracks.length > 1;
           if (body.audioCodec === "webm") {
             const args = [
@@ -3794,6 +3913,7 @@ export function createService({
             });
             return send(200, { path: `/media/${id}/stream.webm`, hls: false });
           }
+          const videoPlaylist = multiAudio ? "master.m3u8" : "index.m3u8";
           const args = [
             "-hide_banner",
             "-loglevel",
@@ -3901,6 +4021,23 @@ export function createService({
             "-hls_segment_filename",
             join(dir, multiAudio ? "segment%v-%d.ts" : "segment%d.ts"),
             join(dir, multiAudio ? "stream%v.m3u8" : "index.m3u8"),
+            ...subtitleTracks.flatMap((track) => [
+              "-map",
+              `0:${track.streamIndex}?`,
+              "-c:s",
+              "webvtt",
+              "-f",
+              "hls",
+              "-hls_time",
+              "6",
+              "-hls_list_size",
+              "0",
+              "-hls_playlist_type",
+              "event",
+              "-hls_segment_filename",
+              join(dir, `subtitle${track.subtitleIndex}-%d.vtt`),
+              join(dir, `subtitle${track.subtitleIndex}.m3u8`),
+            ]),
           ];
           const child = spawn(process.env.FFMPEG_PATH ?? "ffmpeg", args, {
             stdio: ["ignore", "ignore", "ignore"],
@@ -3939,7 +4076,7 @@ export function createService({
           ) {
             try {
               const info = await stat(
-                join(dir, multiAudio ? "master.m3u8" : "index.m3u8"),
+                join(dir, videoPlaylist),
               );
               if (info.size) {
                 ready = true;
@@ -3958,11 +4095,24 @@ export function createService({
                 "Conversion could not start. Check the source and FFmpeg installation.",
             });
           }
+          const subtitleMaster = await addSubtitleRenditionsToMaster(
+            dir,
+            videoPlaylist,
+            subtitleTracks,
+            multiAudio,
+          ).catch(() => false);
           return send(200, {
             path:
-              "/media/" + id + (multiAudio ? "/master.m3u8" : "/index.m3u8"),
+              "/media/" +
+              id +
+              (subtitleMaster
+                ? "/playback.m3u8"
+                : multiAudio
+                  ? "/master.m3u8"
+                  : "/index.m3u8"),
             hls: true,
             audioTracks,
+            subtitleTracks,
           });
         }
         const id = ticket(body.url, headers);

@@ -750,15 +750,13 @@ export default function Settings(props: Props) {
                   checked={props.autoplay}
                   onChange={(e) => props.onAutoplay(e.target.checked)}
                 />
-                Automatically play the best 720p-or-higher stream
+                Smart autoplay for this device
               </label>
               <p className="hint">
-                Quality is matched from add-on labels (720p, 1080p, 1440p,
-                2160p/4K, 4320p/8K). The highest quality wins, then the highest
-                reported seeder count. Episode files must match the selected
-                season and episode. Unknown quality or ambiguous files stay in
-                the picker. Safari may still require a tap on its video play
-                button.
+                Waits for active streaming sources, then ranks direct playback,
+                browser-safe audio, screen-appropriate quality, preferred
+                language, source subtitles, and reported availability. Every
+                compatible result remains available in the source picker.
               </p>
             </section>
           </div>

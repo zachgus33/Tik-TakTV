@@ -52,7 +52,15 @@ export type Playback = {
   hls?: boolean;
   mode?: "direct" | "remux" | "transcode";
   subtitles?: Subtitle[];
-  subtitleRequest?: { addons: Addon[]; id: string };
+  subtitleRequest?: {
+    addons: Addon[];
+    id: string;
+    extras?: {
+      filename?: string;
+      videoHash?: string;
+      videoSize?: number;
+    };
+  };
   prepared?: boolean;
   relay?: boolean;
   /** Permit conversion only after direct debrid playback actually fails. */
@@ -66,6 +74,32 @@ export type Playback = {
   sourceDetail?: string;
   mediaOffset?: number;
 };
+const autoplayBlockedNotice = "Tap the video’s play button to start.";
+
+function mergeSubtitles(...groups: Subtitle[][]): Subtitle[] {
+  const seen = new Set<string>();
+  return groups.flat().filter((subtitle) => {
+    const key = subtitle.url || subtitle.id || "";
+    return !!key && !seen.has(key) && !!seen.add(key);
+  });
+}
+
+function preferredSubtitleScore(subtitle: Subtitle): number {
+  const stored = localStorage.getItem("tiktak:subtitle-language") ?? "";
+  const preferred = [stored, ...(navigator.languages ?? [])]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const values = [subtitle.lang, subtitle.name, subtitle.id]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const preferredIndex = preferred.findIndex((language) => {
+    const primary = language.split("-")[0];
+    return values.includes(language) || (primary.length > 1 && values.includes(primary));
+  });
+  const forced = /\bforced\b/i.test(values) ? 2 : 0;
+  return (preferredIndex < 0 ? 0 : 20 - preferredIndex) + forced;
+}
 function subtitleOffsetKey(playback: Playback) {
   return `tiktak:subtitle-offset:${playback.item.id}:${playback.episode?.id ?? "movie"}`;
 }
@@ -200,6 +234,7 @@ function VideoPlayer({
       sourceText: string;
       sourceUrl: string;
       language: string;
+          source: "stream" | "addon" | "local";
     }[]
   >([]);
   const [subtitleCandidates, setSubtitleCandidates] = useState<Subtitle[]>(
@@ -504,21 +539,37 @@ function VideoPlayer({
         playback.subtitleRequest.addons,
         playback.item,
         playback.subtitleRequest.id,
+        playback.subtitleRequest.extras,
         c.signal,
       ).then((loaded) => {
-        if (!c.signal.aborted) setSubtitleCandidates(loaded);
+        if (!c.signal.aborted)
+          setSubtitleCandidates(
+            mergeSubtitles(playback.subtitles ?? [], loaded),
+          );
       });
     return () => c.abort();
-  }, [playback]);
+  }, [
+    playback.item.id,
+    playback.episode?.id,
+    playback.url,
+    playback.subtitles,
+    playback.subtitleRequest,
+  ]);
   useEffect(() => {
     const c = new AbortController();
-    const candidates = subtitleCandidates.slice(0, 12);
+    const candidates = [...subtitleCandidates]
+      .sort(
+        (left, right) =>
+          preferredSubtitleScore(right) - preferredSubtitleScore(left),
+      )
+      .slice(0, 24);
     if (!candidates.length) return () => c.abort();
     void Promise.allSettled(
       candidates.map(async (candidate, index) => {
         const response = await sourceFetch(candidate.url, {
           signal: c.signal,
           cache: "force-cache",
+          headers: candidate.headers,
         });
         if (!response.ok) throw new Error();
         const raw = await response.text();
@@ -533,6 +584,7 @@ function VideoPlayer({
           sourceText: text,
           sourceUrl: candidate.url,
           language: candidate.lang ?? "und",
+          source: candidate.source ?? "addon",
         };
       }),
     ).then((results) => {
@@ -668,6 +720,7 @@ function VideoPlayer({
     let hlsRecoveries = 0;
     let stallRecoveries = 0;
     let stallFailed = false;
+    let sourceAttached = false;
     let lastAdvanceAt = Date.now();
     let lastMediaTime = 0;
     setError("");
@@ -781,6 +834,7 @@ function VideoPlayer({
       refreshEmbeddedSubtitles();
     };
     const failed = () => {
+      if (!sourceAttached) return;
       if (onFailure?.()) return;
       reportMediaActivity(playbackMetricId, {
         active: false,
@@ -801,6 +855,9 @@ function VideoPlayer({
       lastAdvanceAt = Date.now();
       lastMediaTime = video.currentTime;
       setPlaying(true);
+      setNotice((current) =>
+        current === autoplayBlockedNotice ? "" : current,
+      );
       scrobbler.start(scrobbleProgress());
       simklScrobbler.start(scrobbleProgress());
       reportMediaActivity(playbackMetricId, {
@@ -845,7 +902,10 @@ function VideoPlayer({
         await video.play();
       } catch {
         if (!disposed && showBlockedNotice)
-          setNotice("Tap the video’s play button to start.");
+          window.setTimeout(() => {
+            if (!disposed && video.paused && !video.ended)
+              setNotice(autoplayBlockedNotice);
+          }, 250);
       }
     };
     // iOS PWA can reject an immediate play() while it is still attaching an
@@ -957,6 +1017,9 @@ function VideoPlayer({
             }
             void play();
           });
+          hls.on(HlsClass.Events.SUBTITLE_TRACKS_UPDATED, () => {
+            refreshEmbeddedSubtitles();
+          });
           hls.on(HlsClass.Events.ERROR, (_, data) => {
             if (data.fatal) {
               if (
@@ -982,7 +1045,10 @@ function VideoPlayer({
               failed();
             }
           });
-          hls.loadSource(url);
+          hls.on(HlsClass.Events.MEDIA_ATTACHED, () => {
+            sourceAttached = true;
+            hls.loadSource(url);
+          });
           hls.attachMedia(video);
         })
         .catch(() => {
@@ -995,6 +1061,7 @@ function VideoPlayer({
           );
         });
     } else {
+      sourceAttached = true;
       video.src = url;
       void play();
     }
@@ -1646,7 +1713,12 @@ function VideoPlayer({
             ))}
             {subtitles.map((subtitle, index) => (
               <option key={subtitle.url} value={`external:${index}`}>
-                Add-on · {subtitle.name}
+                {subtitle.source === "stream"
+                  ? "Source"
+                  : subtitle.source === "local"
+                    ? "Local"
+                    : "Add-on"} ·{" "}
+                {subtitle.name}
               </option>
             ))}
           </select>
@@ -1744,6 +1816,7 @@ function VideoPlayer({
                   sourceText: text,
                   sourceUrl: file.name,
                   language: "und",
+                  source: "local",
                 },
               ]);
             }}
@@ -1847,6 +1920,7 @@ export default function Player({
   const [ready, setReady] = useState<Playback | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [prepareRetry, setPrepareRetry] = useState(0);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
   const playbackMetricId = useRef(
     crypto.randomUUID().replaceAll("-", ""),
@@ -1875,6 +1949,7 @@ export default function Player({
   }, [playbackMetricId]);
   useEffect(() => {
     setAttempt(0);
+    setPrepareRetry(0);
     setMinimized(false);
     setSourcePickerOpen(false);
   }, [playback.item.id, playback.episode?.id]);
@@ -1944,7 +2019,7 @@ export default function Player({
       },
     );
     return cleanup;
-  }, [selected, attempt]);
+  }, [selected, attempt, prepareRetry]);
   const tryNextSource = () => {
     if (attempt >= automaticFallbackEnd) return false;
     setReady(null);
@@ -2144,21 +2219,69 @@ export default function Player({
     <>
       <dialog
         open
-        className="player-dialog player-preparing"
+        className="player-dialog player-preparing mobile-opening-player"
         aria-label="Preparing playback"
+        style={
+          safeUrl(selected.item.background)
+            ? {
+                backgroundImage: `url("${safeUrl(selected.item.background)}")`,
+              }
+            : undefined
+        }
       >
-        <span className="spinner" />
-        <h2>
-          {error
-            ? "Could not prepare playback"
-            : totalSources > 1
-              ? `Trying automatic stream ${attempt + 1} of ${automaticFallbackEnd + 1}`
-              : `Preparing ${selected.item.name}`}
-        </h2>
-        <p role={error ? "alert" : "status"}>
-          {error || "Optimizing the selected source for your browser…"}
-        </p>
-        <button onClick={onClose}>{error ? "Close player" : "Cancel"}</button>
+        <div className="player-opening-shade" />
+        <button
+          type="button"
+          className="icon-button player-opening-close"
+          aria-label="Dismiss player"
+          onClick={onClose}
+        >
+          <X />
+        </button>
+        <section className="player-opening-content">
+          {!error && <span className="spinner" />}
+          <span className="eyebrow">
+            {error ? "PLAYBACK NEEDS ATTENTION" : "GETTING THINGS READY"}
+          </span>
+          <h2>
+            {error
+              ? "Could not start this source"
+              : totalSources > 1
+                ? `Checking stream ${attempt + 1} of ${automaticFallbackEnd + 1}`
+                : `Preparing ${selected.item.name}`}
+          </h2>
+          <p role={error ? "alert" : "status"}>
+            {error ||
+              "Matching this source to your device, audio, and subtitle support…"}
+          </p>
+          <div className="player-opening-actions">
+            {error && (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setError("");
+                  setReady(null);
+                  fallbackStarted.current = false;
+                  setPrepareRetry((value) => value + 1);
+                }}
+              >
+                Retry source
+              </button>
+            )}
+            {sourceChoices.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setSourcePickerOpen(true)}
+              >
+                Choose another source
+              </button>
+            )}
+            <button type="button" onClick={onClose}>
+              {error ? "Close player" : "Cancel"}
+            </button>
+          </div>
+        </section>
       </dialog>
       {sourcePicker}
     </>

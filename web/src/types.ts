@@ -39,10 +39,13 @@ export type Stream = {
   seeders?: number;
   sources?: string[];
   externalUrl?: string;
+  subtitles?: Subtitle[];
   behaviorHints?: {
     notWebReady?: boolean;
     proxyHeaders?: unknown;
     filename?: string;
+    videoHash?: string;
+    videoSize?: number;
     language?: string;
     audioLanguages?: string[];
   };
@@ -52,6 +55,8 @@ export type Subtitle = {
   url: string;
   lang?: string;
   name?: string;
+  headers?: Record<string, string>;
+  source?: "stream" | "addon";
 };
 export type Provider = {
   server: string;
