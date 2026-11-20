@@ -855,7 +855,7 @@ body {
     border-radius: 0;
   }
 
-  .bottom-nav {
+  html:not(.tv-mode) .bottom-nav {
     right: 0;
     bottom: 0;
     left: 0;
@@ -870,7 +870,7 @@ body {
     transform: none;
   }
 
-  .bottom-nav a {
+  html:not(.tv-mode) .bottom-nav a {
     min-height: 48px;
     font-size: 0.68rem;
   }
