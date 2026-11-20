@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeWebVtt,
   runtimeSeconds,
   parseWebVttCues,
   shiftWebVtt,
@@ -32,6 +33,27 @@ describe("player timing helpers", () => {
       { startTime: 1, endTime: 3, text: "Hello there" },
       { startTime: 4.5, endTime: 5.5, text: "General Kenobi" },
     ]);
+  });
+
+  it("normalizes generated captions for centered single-line PWA playback", () => {
+    const normalized = normalizeWebVtt(
+      "WEBVTT\n\n00:00:01.000 --> 00:00:08.000 line:20% position:95% align:end\nTranscribed: Hello there\n\n00:00:03.000 --> 00:00:05.000\nGeneral Kenobi",
+    );
+    expect(normalized).not.toContain("Transcribed:");
+    expect(normalized).not.toContain("position:");
+    expect(normalized).not.toContain("align:end");
+    expect(normalized).toContain("00:00:01.000 --> 00:00:02.960");
+    expect(parseWebVttCues(normalized)).toEqual([
+      { startTime: 1, endTime: 2.96, text: "Hello there" },
+      { startTime: 3, endTime: 5, text: "General Kenobi" },
+    ]);
+  });
+
+  it("caps stale generated cues so old dialogue fades before piling up", () => {
+    const normalized = normalizeWebVtt(
+      "WEBVTT\n\n00:00:10.000 --> 00:00:40.000\nA generated caption that lasts too long",
+    );
+    expect(normalized).toContain("00:00:10.000 --> 00:00:16.000");
   });
 });
 

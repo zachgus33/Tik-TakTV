@@ -405,6 +405,37 @@ body {
   background: #000;
 }
 
+.tv-web-player > video::cue {
+  color: #fff;
+  background: #08070bcf;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: clamp(1rem, 2.2vw, 1.65rem);
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 2px 5px #000;
+}
+
+.player-control-toggle-surface {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.player-control-toggle-surface:focus,
+.player-control-toggle-surface:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
 .tv-web-player .player-top {
   position: absolute;
   z-index: 10;
@@ -657,6 +688,20 @@ body {
   background: #ffffff0c;
 }
 
+.tv-web-player .subtitle-cue-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.tv-web-player .subtitle-cue-search-row > button {
+  min-width: 84px;
+  min-height: 46px;
+  border-color: #a855f7;
+  color: #fff;
+  background: #7433b9;
+}
+
 .tv-web-player .subtitle-cue-search:focus {
   border-color: #a855f7;
   outline: 2px solid #a855f74d;
@@ -666,6 +711,13 @@ body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.tv-web-player .subtitle-cue-empty {
+  margin: 0;
+  padding: 18px 12px;
+  color: #aaa6b2;
+  text-align: center;
 }
 
 .tv-web-player .subtitle-cue-overlay header {
@@ -1043,6 +1095,22 @@ body {
   .tv-web-player:not(.tv-player-surface) .next-episode-setting {
     min-height: 52px;
     font-size: 0.82rem;
+  }
+
+  .tv-web-player .subtitle-cue-overlay {
+    top: max(10px, env(safe-area-inset-top));
+    bottom: auto;
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - 10px);
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .tv-web-player .subtitle-cue-search,
+  .tv-web-player .subtitle-cue-search-row > button,
+  .tv-web-player .subtitle-cue-list > button {
+    min-height: 50px;
+    font-size: 1rem;
   }
 }
 

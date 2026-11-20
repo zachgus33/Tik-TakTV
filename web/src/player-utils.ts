@@ -30,6 +30,72 @@ export type ParsedSubtitleCue = {
   text: string;
 };
 
+export function cleanSubtitleText(text: string) {
+  return text
+    .replace(/^(\s*(?:<[^>]+>\s*)*)(?:transcribed|transcript):\s*/i, "$1")
+    .trim();
+}
+
+/**
+ * Produce a browser-safe WebVTT track. Generated subtitle providers sometimes
+ * include right-edge cue positioning, a visible "Transcribed:" label, and
+ * long overlapping cue windows. Those are especially disruptive in iOS PWA
+ * playback, where Safari can stack every active cue off the side of the video.
+ */
+export function normalizeWebVtt(text: string) {
+  const parsed = text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n\r?\n/)
+    .flatMap((block) => {
+      const lines = block.split(/\r?\n/).filter(Boolean);
+      const timingIndex = lines.findIndex((line) => line.includes("-->"));
+      if (timingIndex < 0) return [];
+      const match = /((?:\d{2}:)?\d{2}:\d{2}\.\d{3})\s+-->\s+((?:\d{2}:)?\d{2}:\d{2}\.\d{3})/.exec(
+        lines[timingIndex],
+      );
+      if (!match) return [];
+      const body = lines
+        .slice(timingIndex + 1)
+        .map(cleanSubtitleText)
+        .filter(Boolean)
+        .join("\n");
+      if (!body) return [];
+      return [
+        {
+          startTime: timestampSeconds(match[1]),
+          endTime: timestampSeconds(match[2]),
+          body,
+          includeHours: match[1].split(":").length === 3,
+        },
+      ];
+    })
+    .sort((left, right) => left.startTime - right.startTime);
+  const cues = parsed.filter(
+    (cue, index) =>
+      !parsed
+        .slice(0, index)
+        .some(
+          (earlier) =>
+            earlier.body.toLocaleLowerCase() === cue.body.toLocaleLowerCase() &&
+            earlier.endTime > cue.startTime,
+        ),
+  );
+  return `WEBVTT\n\n${cues
+    .map((cue, index) => {
+      const nextStart = cues[index + 1]?.startTime;
+      const naturalEnd = Math.min(cue.endTime, cue.startTime + 6);
+      const endTime =
+        nextStart != null && naturalEnd > nextStart
+          ? Math.max(cue.startTime + 0.04, nextStart - 0.04)
+          : naturalEnd;
+      return `${formatTimestamp(cue.startTime, cue.includeHours)} --> ${formatTimestamp(
+        Math.max(cue.startTime + 0.04, endTime),
+        cue.includeHours,
+      )}\n${cue.body}`;
+    })
+    .join("\n\n")}`;
+}
+
 export function parseWebVttCues(text: string): ParsedSubtitleCue[] {
   const cues: ParsedSubtitleCue[] = [];
   const blocks = text.replace(/^\uFEFF/, "").split(/\r?\n\r?\n/);
@@ -41,11 +107,9 @@ export function parseWebVttCues(text: string): ParsedSubtitleCue[] {
       lines[timingIndex],
     );
     if (!match) continue;
-    const body = lines
-      .slice(timingIndex + 1)
-      .join(" ")
-      .replace(/<[^>]+>/g, "")
-      .trim();
+    const body = cleanSubtitleText(
+      lines.slice(timingIndex + 1).join(" ").replace(/<[^>]+>/g, ""),
+    );
     if (!body) continue;
     cues.push({
       startTime: timestampSeconds(match[1]),

@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.3";
+export const latestRelease = "2026.11.20.4";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Clean subtitles and mobile dialogue sync",
+    changes: [
+      "iPhone, iPad, and PWA playback now mounts only the selected subtitle track, centers generated captions, removes transcription labels, and ends stale cues before they stack up.",
+      "Dialogue sync now has a working mobile Search action, focuses the first result after Enter, and cleanly closes its paused instruction when cancelled, completed, or playback resumes.",
+      "Tapping the video surface now hides or restores playback controls without changing playback.",
+    ],
+  },
+  {
+    version: "2026.11.20.3",
     date: "November 20, 2026",
     title: "Instant, stable episode resume",
     changes: [

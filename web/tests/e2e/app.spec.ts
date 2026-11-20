@@ -3814,6 +3814,83 @@ test("browser-incompatible MKV is normalized before playback", async ({
   await expect.poll(() => prepared.at(-1)?.start).toBe(3600);
   await expect(page.locator("video")).not.toHaveAttribute("controls", "");
 });
+test("tapping the video surface hides and restores web player controls", async ({
+  page,
+}, testInfo) => {
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            url: "https://cdn.example/control-toggle.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/control-toggle.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const player = page.locator("dialog.tv-web-player");
+  await expect(player).toBeVisible();
+  const surface = player.getByRole("button", {
+    name: "Hide controls",
+  });
+  const viewport = page.viewportSize()!;
+  const point = {
+    x: Math.round(viewport.width / 2),
+    y: Math.round(viewport.height * 0.35),
+  };
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ x, y }) =>
+          document.elementFromPoint(x, y)?.classList.contains(
+            "player-control-toggle-surface",
+          ),
+        point,
+      ),
+    )
+    .toBe(true);
+  if (testInfo.project.name === "iphone" || testInfo.project.name === "ipad")
+    await surface.tap({ position: point });
+  else await surface.click({ position: point });
+  await expect(player).toHaveClass(/controls-hidden/);
+  const hiddenSurface = player.getByRole("button", {
+    name: "Show controls",
+  });
+  if (testInfo.project.name === "iphone" || testInfo.project.name === "ipad") {
+    await hiddenSurface.tap({ position: point });
+  } else {
+    await page.mouse.move(point.x + 8, point.y + 8);
+  }
+  await expect(player).not.toHaveClass(/controls-hidden/);
+  if (testInfo.project.name === "desktop" || testInfo.project.name === "firefox") {
+    await player
+      .locator("video")
+      .evaluate((video) => video.dispatchEvent(new Event("play")));
+    await page.mouse.move(point.x + 4, point.y + 4);
+    await expect(player).not.toHaveClass(/controls-hidden/);
+    await page.waitForTimeout(3700);
+    await expect(player).toHaveClass(/controls-hidden/);
+  }
+});
 test("TV playback opens as a full-screen remote-controlled surface", async ({
   page,
 }, testInfo) => {
@@ -3925,7 +4002,7 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.route("https://subs.example/**", (route) =>
     route.fulfill({
       contentType: "text/vtt",
-      body: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:20:00.000 --> 00:20:03.000\nThe distant matching line",
+      body: "WEBVTT\n\n00:00:01.000 --> 00:00:18.000 line:20% position:95% align:end\nTranscribed: Hello\n\n00:00:03.000 --> 00:00:12.000\nTranscribed: Next line\n\n00:20:00.000 --> 00:20:20.000\nTranscribed: The distant matching line",
     }),
   );
   await page.route("https://cdn.example/subtitle-test.mp4", (route) =>
@@ -3997,6 +4074,18 @@ test("subtitle timing controls persist the selected offset", async ({
     )
     .toBe("embedded");
   await page.getByLabel("Subtitle language").selectOption("external:0");
+  await expect(video.locator("track")).toHaveCount(1);
+  await expect(video.locator("track")).toHaveAttribute("src", /^blob:/);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("tiktak:subtitle-selection:tt-test") ?? "null",
+          )?.type,
+      ),
+    )
+    .toBe("external");
   await page
     .getByRole("button", { name: "Capture dialogue for subtitle sync" })
     .click();
@@ -4010,13 +4099,23 @@ test("subtitle timing controls persist the selected offset", async ({
   await cuePicker
     .getByLabel("Search subtitle dialogue")
     .fill("distant matching");
-  await expect(
-    cuePicker.getByRole("button", { name: /20:00 The distant matching line/ }),
-  ).toBeVisible();
+  await cuePicker.getByLabel("Search subtitle dialogue").press("Enter");
+  const distantResult = cuePicker.getByRole("button", {
+    name: /20:00 The distant matching line/,
+  });
+  await expect(distantResult).toBeVisible();
+  await expect(distantResult).toBeFocused();
   await cuePicker.getByLabel("Search subtitle dialogue").fill("");
   const matchingCue = cuePicker.getByRole("button", { name: /0:01 Hello/ });
   await expect(matchingCue).toBeInViewport();
   await matchingCue.click();
+  await expect(cuePicker).toBeHidden();
+  await expect(
+    page.getByText(
+      "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
+    ),
+  ).toHaveCount(0);
+  await openPlaybackOptions(page);
   await expect(
     page.getByRole("button", { name: "Reset subtitle timing" }),
   ).toHaveText("+9.0s");
@@ -4027,6 +4126,15 @@ test("subtitle timing controls persist the selected offset", async ({
       ),
     )
     .toBe("9");
+  await page.getByRole("button", { name: "Capture dialogue for subtitle sync" }).click();
+  await expect(cuePicker).toBeVisible();
+  await video.evaluate((element) => element.dispatchEvent(new Event("play")));
+  await expect(cuePicker).toBeHidden();
+  await expect(
+    page.getByText(
+      "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
+    ),
+  ).toHaveCount(0);
 });
 test("autoplay skips resolved HEVC and MKV files when a browser-ready MP4 exists", async ({
   page,
