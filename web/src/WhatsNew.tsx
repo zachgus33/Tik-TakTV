@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.1";
+export const latestRelease = "2026.11.20.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Fast startup without source hopping",
+    changes: [
+      "Playback now starts from the first ranked playable add-on response instead of waiting for every slow provider to finish.",
+      "Source requests time out sooner, startup fallback is limited, and the selected source locks after real playback progress so stalls and seeking cannot silently switch streams.",
+      "Compatible alternatives from the selected response remain available for manual selection in Playback options.",
+    ],
+  },
+  {
+    version: "2026.11.20.1",
     date: "November 20, 2026",
     title: "Self-hosted HTTP add-ons",
     changes: [

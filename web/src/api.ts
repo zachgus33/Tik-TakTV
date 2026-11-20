@@ -520,11 +520,9 @@ export async function addonStreams(
       ),
   );
   const active = eligible.filter((addon) => !addonQuarantined(addon));
-  // Several add-ons share the same companion or debrid provider. Starting all
-  // of them at once causes 429s and makes an otherwise usable first stream
-  // fail. Keep a small pool: it still starts playback as soon as a source
-  // responds, while the remaining candidates continue loading in the
-  // background for the stream picker and fallback.
+  // Query a small parallel pool so one slow provider cannot block every other
+  // source. Autoplay consumes onSource immediately; the complete result remains
+  // available for the manual source list and downloads.
   const results: PromiseSettledResult<Stream[]>[] = Array(active.length);
   let next = 0;
   const loadOne = async () => {
@@ -536,7 +534,7 @@ export async function addonStreams(
         const data = await json<{ streams?: Stream[] }>(
           addonResourceUrl(addon.base, "stream", item.type, id),
           signal,
-          20000,
+          6500,
         );
         recordAddonSuccess(addon);
         const streams = (data.streams ?? []).map((s) => ({
@@ -553,7 +551,7 @@ export async function addonStreams(
     }
   };
   await Promise.all(
-    Array.from({ length: Math.min(3, active.length) }, () => loadOne()),
+    Array.from({ length: Math.min(4, active.length) }, () => loadOne()),
   );
   const failureReason = (error: unknown) => {
     const detail = error instanceof Error ? error.message : "";

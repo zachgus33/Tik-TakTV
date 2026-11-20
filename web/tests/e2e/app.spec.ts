@@ -2765,7 +2765,7 @@ test("smart autoplay matches source quality and compatibility to the device", as
     )
     .toBe("https://cdn.example/best.mp4");
 });
-test("autoplay waits for active sources before choosing the ranked result", async ({
+test("autoplay starts without waiting for slow add-ons", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -2822,8 +2822,10 @@ test("autoplay waits for active sources before choosing the ranked result", asyn
       json: path.includes("/meta/") ? { meta } : { metas: [meta] },
     });
   });
+  let slowFinished = false;
   await page.route("https://slow.example/**", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 650));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    slowFinished = true;
     return route.fulfill({
       json: {
         streams: [
@@ -2846,6 +2848,7 @@ test("autoplay waits for active sources before choosing the ranked result", asyn
     "src",
     "https://cdn.example/fast-720.mp4",
   );
+  expect(slowFinished).toBe(false);
 });
 test("autoplay shows a top loading state without opening the manual stream list", async ({
   page,
@@ -3048,7 +3051,7 @@ test("the player exposes every compatible stream while automatic fallback stays 
   await page.getByRole("button", { name: "Choose stream" }).click();
   const chooser = page.getByRole("dialog", { name: "Choose a stream" });
   await expect(chooser).toContainText(
-    "Automatic playback tries up to 5 streams",
+    "The selected source stays locked unless you choose another one here",
   );
   await expect(chooser.locator(".player-source-list > button")).toHaveCount(7);
   await chooser
@@ -3148,6 +3151,75 @@ test("autoplay falls back to the next ranked source when playback fails", async 
   );
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await fallbackRequested;
+});
+test("playback stays on its selected source after making progress", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "This test controls Chromium media events directly.",
+  );
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") {
+        (
+          window as Window & {
+            __tiktakMediaError?: EventListenerOrEventListenerObject;
+          }
+        ).__tiktakMediaError = listener;
+        return;
+      }
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          { name: "1080p", seeders: 100, url: "https://cdn.example/locked.mp4" },
+          { name: "1080p", seeders: 90, url: "https://cdn.example/unwanted.mp4" },
+        ],
+      },
+    }),
+  );
+  let unwantedRequests = 0;
+  await page.route("https://cdn.example/**", (route) => {
+    if (route.request().url().endsWith("/unwanted.mp4")) unwantedRequests += 1;
+    return route.fulfill({ status: 200, contentType: "video/mp4", body: "" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const video = page.locator("video");
+  await expect(video).toHaveAttribute("src", "https://cdn.example/locked.mp4");
+  await video.evaluate(async (element) => {
+    Object.defineProperty(element, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    element.dispatchEvent(new Event("play"));
+    await new Promise((resolve) => setTimeout(resolve, 2700));
+    element.currentTime = 4;
+    element.dispatchEvent(new Event("timeupdate"));
+    const listener = (
+      window as Window & {
+        __tiktakMediaError?: EventListenerOrEventListenerObject;
+      }
+    ).__tiktakMediaError;
+    const event = new Event("error");
+    if (typeof listener === "function") listener.call(element, event);
+    else listener?.handleEvent(event);
+  });
+  await expect(page.locator(".player-dialog .error")).toBeVisible();
+  expect(unwantedRequests).toBe(0);
+  await expect(video).toHaveAttribute("src", "https://cdn.example/locked.mp4");
 });
 test("an independent user's configured Torrentio debrid stream converts only after browser playback fails", async ({
   page,

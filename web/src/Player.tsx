@@ -727,6 +727,8 @@ function VideoPlayer({
     let lastAdvanceAt = Date.now();
     let lastMediaTime = 0;
     let intentionalSeekUntil = 0;
+    let playbackStartedAt = 0;
+    let playbackCommitted = false;
     setError("");
     setNotice("");
     setQuality([]);
@@ -782,6 +784,8 @@ function VideoPlayer({
         lastMediaTime = video.currentTime;
         lastAdvanceAt = Date.now();
         stallRecoveries = 0;
+        if (playbackStartedAt && Date.now() - playbackStartedAt >= 2500)
+          playbackCommitted = true;
       }
       setCurrentTime(absoluteTime());
       const available = video.seekable.length
@@ -839,7 +843,7 @@ function VideoPlayer({
     };
     const failed = () => {
       if (!sourceAttached) return;
-      if (onFailure?.()) return;
+      if (!playbackCommitted && onFailure?.()) return;
       reportMediaActivity(playbackMetricId, {
         active: false,
         event: "failed",
@@ -858,6 +862,7 @@ function VideoPlayer({
     const playingStarted = () => {
       lastAdvanceAt = Date.now();
       lastMediaTime = video.currentTime;
+      if (!playbackStartedAt) playbackStartedAt = Date.now();
       intentionalSeekUntil = 0;
       stallRecoveries = 0;
       setPlaying(true);
@@ -2174,8 +2179,8 @@ export default function Player({
             <span>Playback source</span>
             <h2>Choose a stream</h2>
             <p>
-              Automatic playback tries up to {automaticFallbackEnd + 1} streams.
-              Every compatible result remains available here.
+              Startup fallbacks stop once playback begins. The selected source
+              stays locked unless you choose another one here.
             </p>
           </div>
           <button

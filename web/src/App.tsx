@@ -221,6 +221,31 @@ function playbackSubtitleData(
   };
 }
 
+type StreamSearchResult = Awaited<ReturnType<typeof addonStreams>>;
+
+function firstAutoplayResult(
+  search: (
+    onSource: (streams: Stream[]) => void,
+  ) => Promise<StreamSearchResult>,
+  hasDebrid: boolean,
+): Promise<{ streams: Stream[]; result?: StreamSearchResult }> {
+  let resolveFirst!: (streams: Stream[]) => void;
+  const first = new Promise<Stream[]>((resolve) => {
+    resolveFirst = resolve;
+  });
+  const request = search((streams) => {
+    const ranked = autoplayStreams(streams, hasDebrid);
+    if (ranked.length) resolveFirst(ranked);
+  });
+  return Promise.race([
+    first.then((streams) => ({ streams })),
+    request.then((result) => ({
+      streams: autoplayStreams(result.streams, hasDebrid),
+      result,
+    })),
+  ]);
+}
+
 async function hideUnavailableFutureTitles<
   T extends { title: string; items: Item[] },
 >(rows: T[], addons: Addon[], signal: AbortSignal) {
@@ -1523,14 +1548,6 @@ function Detail({
         setItem(result.item);
         setEpisodes(result.episodes);
         setSeason(result.episodes[0]?.season ?? null);
-        if (result.item.source === "addon") {
-          const preloadId =
-            result.item.type === "movie" ? result.item.id : resume?.episode?.id;
-          if (preloadId)
-            void requestStreams(result.item, preloadId, c.signal).catch(
-              () => undefined,
-            );
-        }
         if (result.item.type !== "live")
           void import("./tmdb")
             .then(async ({ peopleByName, titleCredits }) => {
@@ -1608,7 +1625,7 @@ function Detail({
       };
       onPlay({
         ...playbackForStream(stream),
-        automaticFallbackCount: 4,
+        automaticFallbackCount: 2,
         alternatives: fallbackStreams
           .filter((candidate) => directStream(candidate))
           .slice(0, 49)
@@ -1914,9 +1931,31 @@ function Detail({
     setBusy(!downloadBest);
     setPreparing(auto);
     try {
-      // Source discovery stays behind the title artwork. Wait for active
-      // providers before choosing so arrival order never becomes the ranking.
-      const result = await requestStreams(item, ep?.id ?? item.id, c.signal);
+      const hasDebrid = !!torboxKey || !!realDebridKey;
+      let result: StreamSearchResult;
+      if (auto && !downloadBest) {
+        const selection = await firstAutoplayResult(
+          (onSource) =>
+            requestStreams(item, ep?.id ?? item.id, c.signal, onSource),
+          hasDebrid,
+        );
+        if (c.signal.aborted) return;
+        if (selection.streams.length) {
+          await chooseStream(
+            selection.streams[0],
+            ep,
+            c.signal,
+            selection.streams.slice(1),
+          );
+          c.abort();
+          return;
+        }
+        if (!selection.result)
+          throw new Error("No automatically playable stream was found.");
+        result = selection.result;
+      } else {
+        result = await requestStreams(item, ep?.id ?? item.id, c.signal);
+      }
       if (c.signal.aborted) return;
       const incompatible = Math.max(
         0,
@@ -1929,7 +1968,6 @@ function Detail({
           `${incompatible ? `; ${incompatible} do not support this title ID/type` : ""}.`,
       );
       setStreamSources(result.sources);
-      const hasDebrid = !!torboxKey || !!realDebridKey;
       const ranked = rankedStreams(result.streams, hasDebrid);
       const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
       if (downloadBest) {
@@ -2878,17 +2916,19 @@ export default function App() {
         url: streamUrl(provider, "series", episode.id, episode.extension),
       };
     } else if (item.source === "addon") {
-      const result = await addonStreams(
-        addons,
-        item,
-        episode.id,
-        controller.signal,
-      );
-      if (controller.signal.aborted) return;
-      const ranked = autoplayStreams(
-        result.streams,
+      const selection = await firstAutoplayResult(
+        (onSource) =>
+          addonStreams(
+            addons,
+            item,
+            episode.id,
+            controller.signal,
+            (streams) => onSource(streams),
+          ),
         !!torboxKey || !!realDebridKey,
       );
+      if (controller.signal.aborted) return;
+      const ranked = selection.streams;
       const candidate = ranked[0];
       if (!candidate?.url || !directStream(candidate))
         throw new Error(
@@ -2917,7 +2957,7 @@ export default function App() {
       });
       next = {
         ...toPlayback(candidate),
-        automaticFallbackCount: 4,
+        automaticFallbackCount: 2,
         alternatives: ranked.slice(1, 50).filter(directStream).map(toPlayback),
       };
     } else {
@@ -2926,6 +2966,7 @@ export default function App() {
     if (controller.signal.aborted) return;
     setNextEpisode(null);
     setPlayback(next);
+    controller.abort();
   }
   const [youtubeResumeRequest, setYoutubeResumeRequest] =
     useState<YouTubeResumeRequest | null>(null);
