@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.2";
+export const latestRelease = "2026.11.20.3";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Instant, stable episode resume",
+    changes: [
+      "Episode resume now recognizes MKV and HEVC debrid files as conversion sources instead of repeatedly trying them as browser-ready video.",
+      "When the first add-on only returns conversion sources, TikTak TV briefly races the other active add-ons and starts a direct MP4 as soon as it appears.",
+      "The selected episode source stays fixed during resume and seeking; source discovery is not restarted by timeline changes.",
+    ],
+  },
+  {
+    version: "2026.11.20.2",
     date: "November 20, 2026",
     title: "Fast startup without source hopping",
     changes: [

@@ -84,7 +84,9 @@ function streamDescriptor(stream: Stream): string {
 
 export function streamSubtitlePriority(stream: Stream): number {
   const descriptor = streamDescriptor(stream);
-  if (/\b(?:embedded|multi[ ._-]?subs?|multiple[ ._-]?subs?)\b/i.test(descriptor))
+  if (
+    /\b(?:embedded|multi[ ._-]?subs?|multiple[ ._-]?subs?)\b/i.test(descriptor)
+  )
     return 3;
   if ((stream.subtitles?.length ?? 0) > 0) return 2;
   if (/\b(?:subs?|subtitles?|closed[ ._-]?captions?|cc)\b/i.test(descriptor))
@@ -158,23 +160,10 @@ export function codecCompatibility(stream: Stream): number {
 export function compatibilityPlaybackMode(
   stream: Stream,
 ): "remux" | "transcode" | undefined {
-  // A Torrentio/debrid resolver can return a browser-playable CDN response
-  // whose filename still advertises the original container or codecs. Do not
-  // turn that hint into a conversion requirement before the browser has even
-  // tried the resolved URL. Player recovery can request conversion after an
-  // actual decode/load failure.
-  const protectedHeaders = (
-    stream.behaviorHints?.proxyHeaders as
-      | { request?: Record<string, string> }
-      | undefined
-  )?.request;
-  if (
-    stream.url &&
-    debridStream(stream) &&
-    stream.behaviorHints?.notWebReady !== true &&
-    !Object.keys(protectedHeaders ?? {}).length
-  )
-    return undefined;
+  // A resolved debrid URL serves the original media file; resolving it does
+  // not change an MKV container or an HEVC/DTS codec into browser-safe media.
+  // Respect the filename/codec hints so autoplay can choose a real MP4 first
+  // instead of failing direct playback and entering a preparation loop.
   const source = streamDescriptor(stream);
   if (audioCompatibility(stream) < 0) return "transcode";
   if (
@@ -286,7 +275,9 @@ export function autoplayStreams(
       return false;
     return true;
   });
-  const browserReady = eligible.filter((stream) => !compatibilityPlaybackMode(stream));
+  const browserReady = eligible.filter(
+    (stream) => !compatibilityPlaybackMode(stream),
+  );
   const conversionFallbacks = eligible.filter((stream) =>
     compatibilityPlaybackMode(stream),
   );

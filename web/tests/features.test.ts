@@ -62,42 +62,121 @@ describe("custom collection catalog resolution", () => {
     const disabled = {
       base: "https://default.example",
       enabled: false,
-      manifest: { id: "catalog", name: "Default", catalogs: [{ id: "arabic", type: "movie" }] },
+      manifest: {
+        id: "catalog",
+        name: "Default",
+        catalogs: [{ id: "arabic", type: "movie" }],
+      },
     };
     const configured = {
       base: "https://configured.example",
       enabled: true,
-      manifest: { id: "catalog", name: "Configured", catalogs: [{ id: "arabic", type: "movie" }] },
+      manifest: {
+        id: "catalog",
+        name: "Configured",
+        catalogs: [{ id: "arabic", type: "movie" }],
+      },
     };
-    expect(sourceCatalog(
-      { provider: "addon", addonId: "catalog", type: "movie", catalogId: "arabic,genre" },
-      [disabled, configured],
-    )).toEqual({ addon: configured, catalog: configured.manifest.catalogs[0] });
+    expect(
+      sourceCatalog(
+        {
+          provider: "addon",
+          addonId: "catalog",
+          type: "movie",
+          catalogId: "arabic,genre",
+        },
+        [disabled, configured],
+      ),
+    ).toEqual({ addon: configured, catalog: configured.manifest.catalogs[0] });
   });
   it("loads a saved ArabCinemeta row on a new profile without copied add-ons", () => {
-    const resolved = sourceCatalog({ provider: "addon", addonId: "community.elcinema.metadata", type: "series", catalogId: "elcinema-shahid-series" }, []);
+    const resolved = sourceCatalog(
+      {
+        provider: "addon",
+        addonId: "community.elcinema.metadata",
+        type: "series",
+        catalogId: "elcinema-shahid-series",
+      },
+      [],
+    );
     expect(resolved?.addon.base).toBe("https://arabcinemeta.osamayousry.com");
     expect(resolved?.catalog.id).toBe("elcinema-shahid-series");
   });
   it("restores any configured add-on URL without a copied manifest", () => {
-    const resolved = sourceCatalog({ provider: "addon", addonId: "https://example.com/private/config?token=abc", type: "movie", catalogId: "curated" }, []);
-    expect(resolved?.addon.base).toBe("https://example.com/private/config?token=abc");
+    const resolved = sourceCatalog(
+      {
+        provider: "addon",
+        addonId: "https://example.com/private/config?token=abc",
+        type: "movie",
+        catalogId: "curated",
+      },
+      [],
+    );
+    expect(resolved?.addon.base).toBe(
+      "https://example.com/private/config?token=abc",
+    );
     expect(resolved?.catalog.id).toBe("curated");
   });
   it("uses the named add-on when another add-on has the same catalog ID", () => {
-    const named = { base: "https://named.example", manifest: { id: "named", name: "Named", catalogs: [] } };
-    const other = { base: "https://other.example", manifest: { id: "other", name: "Other", catalogs: [{ type: "movie", id: "curated" }] } };
-    const resolved = sourceCatalog({ provider: "addon", addonId: "named", type: "movie", catalogId: "curated" }, [named, other]);
+    const named = {
+      base: "https://named.example",
+      manifest: { id: "named", name: "Named", catalogs: [] },
+    };
+    const other = {
+      base: "https://other.example",
+      manifest: {
+        id: "other",
+        name: "Other",
+        catalogs: [{ type: "movie", id: "curated" }],
+      },
+    };
+    const resolved = sourceCatalog(
+      {
+        provider: "addon",
+        addonId: "named",
+        type: "movie",
+        catalogId: "curated",
+      },
+      [named, other],
+    );
     expect(resolved?.addon).toBe(named);
   });
   it("recovers a saved collection when its add-on manifest ID changed", () => {
-    const addon = { base: "https://arabic.example", manifest: { id: "new-id", name: "Arabic", catalogs: [{ type: "series", id: "shahid" }] } };
-    const resolved = sourceCatalog({ provider: "addon", addonId: "old-id", type: "series", catalogId: "shahid" }, [addon]);
+    const addon = {
+      base: "https://arabic.example",
+      manifest: {
+        id: "new-id",
+        name: "Arabic",
+        catalogs: [{ type: "series", id: "shahid" }],
+      },
+    };
+    const resolved = sourceCatalog(
+      {
+        provider: "addon",
+        addonId: "old-id",
+        type: "series",
+        catalogId: "shahid",
+      },
+      [addon],
+    );
     expect(resolved?.addon).toBe(addon);
   });
   it("does not guess between two add-ons with the same catalog", () => {
-    const addons = ["one", "two"].map((id) => ({ base: `https://${id}.example`, manifest: { id, name: id, catalogs: [{ type: "movie", id: "popular" }] } }));
-    expect(sourceCatalog({ provider: "addon", addonId: "old-id", type: "movie", catalogId: "popular" }, addons)).toBeUndefined();
+    const addons = ["one", "two"].map((id) => ({
+      base: `https://${id}.example`,
+      manifest: { id, name: id, catalogs: [{ type: "movie", id: "popular" }] },
+    }));
+    expect(
+      sourceCatalog(
+        {
+          provider: "addon",
+          addonId: "old-id",
+          type: "movie",
+          catalogId: "popular",
+        },
+        addons,
+      ),
+    ).toBeUndefined();
   });
 });
 
@@ -307,7 +386,10 @@ describe("browser downloads", () => {
     const values = new Map<string, string>([
       [
         "nuvio:playback-service",
-        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "x".repeat(40),
+        }),
       ],
     ]);
     vi.stubGlobal("localStorage", {
@@ -359,7 +441,10 @@ describe("browser downloads", () => {
     const values = new Map<string, string>([
       [
         "nuvio:playback-service",
-        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "x".repeat(40),
+        }),
       ],
     ]);
     vi.stubGlobal("localStorage", {
@@ -383,7 +468,10 @@ describe("browser downloads", () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ status: "failed", error: "The source rejected the download." }),
+          JSON.stringify({
+            status: "failed",
+            error: "The source rejected the download.",
+          }),
         ),
       );
     await expect(
@@ -395,7 +483,10 @@ describe("browser downloads", () => {
     const values = new Map<string, string>([
       [
         "nuvio:playback-service",
-        JSON.stringify({ url: "https://playback.example", token: "x".repeat(40) }),
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "x".repeat(40),
+        }),
       ],
     ]);
     vi.stubGlobal("localStorage", {
@@ -404,7 +495,9 @@ describe("browser downloads", () => {
       removeItem: (key: string) => values.delete(key),
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Download expired." }), { status: 410 }),
+      new Response(JSON.stringify({ error: "Download expired." }), {
+        status: 410,
+      }),
     );
     await expect(
       downloadPreparationStatus(
@@ -506,24 +599,32 @@ describe("automatic Xtream XMLTV guide", () => {
     const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
       ids: ["wanted"],
     });
-    parser.write('<tv><channel id="wanted"><display-name>Wanted</display-name></channel><channel id="other"><display-name>Other</display-name></channel><programme channel="wanted" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Wanted show</title></programme><programme channel="other" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Other show</title></programme></tv>');
+    parser.write(
+      '<tv><channel id="wanted"><display-name>Wanted</display-name></channel><channel id="other"><display-name>Other</display-name></channel><programme channel="wanted" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Wanted show</title></programme><programme channel="other" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Other show</title></programme></tv>',
+    );
     expect(Object.keys(parser.finish())).toEqual(["wanted"]);
   });
   it("matches provider guide identifiers despite case and quality decoration", () => {
     const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
       ids: ["US| ESPN HD"],
     });
-    parser.write('<tv><channel id="us-espn"><display-name>ESPN</display-name></channel><programme channel="us-espn" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Live Sports</title></programme></tv>');
+    parser.write(
+      '<tv><channel id="us-espn"><display-name>ESPN</display-name></channel><programme channel="us-espn" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Live Sports</title></programme></tv>',
+    );
     expect(parser.finish()["us-espn"]?.[0]?.title).toBe("Live Sports");
   });
   it("drains only newly changed guide rows for cheap worker updates", () => {
     const parser = createGuideParser(Date.UTC(2026, 9, 23, 18), {
       ids: ["one", "two"],
     });
-    parser.write('<tv><channel id="one"><display-name>One</display-name></channel><channel id="two"><display-name>Two</display-name></channel><programme channel="one" start="20261023180000 +0000" stop="20261023190000 +0000"><title>First</title></programme>');
+    parser.write(
+      '<tv><channel id="one"><display-name>One</display-name></channel><channel id="two"><display-name>Two</display-name></channel><programme channel="one" start="20261023180000 +0000" stop="20261023190000 +0000"><title>First</title></programme>',
+    );
     expect(Object.keys(parser.drain().programmes)).toEqual(["one"]);
     expect(Object.keys(parser.drain().programmes)).toEqual([]);
-    parser.write('<programme channel="two" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Second</title></programme></tv>');
+    parser.write(
+      '<programme channel="two" start="20261023180000 +0000" stop="20261023190000 +0000"><title>Second</title></programme></tv>',
+    );
     expect(Object.keys(parser.drain().programmes)).toEqual(["two"]);
     expect(Object.keys(parser.finish()).sort()).toEqual(["one", "two"]);
   });
@@ -551,24 +652,49 @@ describe("home catalog management", () => {
   it("shows Trakt add-on catalogs while keeping search-only catalogs off Home", () => {
     const traktAddon = {
       base: "https://trakt.example/config",
-      manifest: { id: "trakt-addon", name: "Trakt", catalogs: [
-        { id: "trakt_trending_movies", type: "trakt", name: "Trending movies" },
-        { id: "trakt_search_movies", type: "trakt", name: "Search", extra: [{ name: "search", isRequired: true }] },
-      ] },
+      manifest: {
+        id: "trakt-addon",
+        name: "Trakt",
+        catalogs: [
+          {
+            id: "trakt_trending_movies",
+            type: "trakt",
+            name: "Trending movies",
+          },
+          {
+            id: "trakt_search_movies",
+            type: "trakt",
+            name: "Search",
+            extra: [{ name: "search", isRequired: true }],
+          },
+        ],
+      },
     };
-    expect(catalogChoices([traktAddon]).map((choice) => choice.catalogId)).toEqual(["trakt_trending_movies"]);
-    expect(homeCatalogEntries([traktAddon], []).map((entry) => entry.catalog.id)).toEqual(["trakt_trending_movies"]);
+    expect(
+      catalogChoices([traktAddon]).map((choice) => choice.catalogId),
+    ).toEqual(["trakt_trending_movies"]);
+    expect(
+      homeCatalogEntries([traktAddon], []).map((entry) => entry.catalog.id),
+    ).toEqual(["trakt_trending_movies"]);
   });
 
   it("includes AIO Metadata catalogs with the shared all type", () => {
     const addon = {
       base: "https://metadata.example/config",
-      manifest: { id: "aio-metadata", name: "AIO Metadata", catalogs: [
-        { id: "trakt.list.30828647", type: "all", name: "Trending Movies" },
-      ] },
+      manifest: {
+        id: "aio-metadata",
+        name: "AIO Metadata",
+        catalogs: [
+          { id: "trakt.list.30828647", type: "all", name: "Trending Movies" },
+        ],
+      },
     };
-    expect(catalogChoices([addon]).map((choice) => choice.catalogId)).toEqual(["trakt.list.30828647"]);
-    expect(homeCatalogEntries([addon], []).map((entry) => entry.catalog.type)).toEqual(["all"]);
+    expect(catalogChoices([addon]).map((choice) => choice.catalogId)).toEqual([
+      "trakt.list.30828647",
+    ]);
+    expect(
+      homeCatalogEntries([addon], []).map((entry) => entry.catalog.type),
+    ).toEqual(["all"]);
   });
 
   it("keeps separately configured copies of the same add-on distinct", () => {
@@ -649,8 +775,9 @@ describe("home catalog management", () => {
   it("honors hidden rows in a custom Home layout", () => {
     const settings = completeCatalogSettings(catalogChoices(addons), []);
     settings[0].enabled = false;
-    expect(homeCatalogEntries(addons, settings).map((entry) => entry.addon.base))
-      .toEqual([addons[1].base]);
+    expect(
+      homeCatalogEntries(addons, settings).map((entry) => entry.addon.base),
+    ).toEqual([addons[1].base]);
   });
 
   it("keeps removed default rows gone while showing newly installed catalogs", () => {
@@ -660,24 +787,39 @@ describe("home catalog management", () => {
       removed: true,
       enabled: false,
     };
-    expect(homeCatalogEntries(addons, [removed]).map((entry) => entry.addon.base))
-      .toEqual([addons[1].base]);
+    expect(
+      homeCatalogEntries(addons, [removed]).map((entry) => entry.addon.base),
+    ).toEqual([addons[1].base]);
     expect(homeCatalogEntries([addons[0]], [removed])).toEqual([]);
   });
 
   it("does not hide a personal installation when a legacy default catalog is disabled", () => {
     const choices = catalogChoices(addons);
     const legacy = {
-      addon_id: "torrentio", type: "movie", catalog_id: "popular",
-      enabled: false, order: 0, key: "torrentio:movie:popular",
+      addon_id: "torrentio",
+      type: "movie",
+      catalog_id: "popular",
+      enabled: false,
+      order: 0,
+      key: "torrentio:movie:popular",
     };
-    expect(homeCatalogEntries(addons, [legacy]).map((entry) => entry.addon.base))
-      .toEqual([addons[1].base]);
-    expect(completeCatalogSettings(choices, [legacy]).map((row) => row.enabled))
-      .toEqual([false, true]);
-    expect(homeCatalogEntries(addons, [legacy, {
-      ...legacy, key: choices[1].key, enabled: true, order: 1,
-    }]).map((entry) => entry.addon.base)).toEqual([addons[1].base]);
+    expect(
+      homeCatalogEntries(addons, [legacy]).map((entry) => entry.addon.base),
+    ).toEqual([addons[1].base]);
+    expect(
+      completeCatalogSettings(choices, [legacy]).map((row) => row.enabled),
+    ).toEqual([false, true]);
+    expect(
+      homeCatalogEntries(addons, [
+        legacy,
+        {
+          ...legacy,
+          key: choices[1].key,
+          enabled: true,
+          order: 1,
+        },
+      ]).map((entry) => entry.addon.base),
+    ).toEqual([addons[1].base]);
   });
 });
 describe("Nuvio collections and add-on transfer", () => {
@@ -956,7 +1098,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
     expect(rankedStreams([mkv, mp4], true)[0]).toBe(mkv);
   });
-  it("keeps resolved Torrentio codecs direct-first while preserving quality ranking", () => {
+  it("keeps resolved Torrentio containers and codecs out of direct playback", () => {
     const h264 = {
       name: "[TB+] Torrentio 720p",
       title: "Show.720p.x264 seeders: 170",
@@ -968,11 +1110,18 @@ describe("720p+ preference and safe episode matching", () => {
       title: "Show.1080p.x265 seeders: 230",
       url: "https://cdn.example/Show.S01E01.x265.mp4",
     };
+    const webReady = {
+      name: "[TB+] Torrentio 720p",
+      title: "Show.720p.x264.AAC seeders: 120",
+      url: "https://cdn.example/Show.S01E01.x264.mp4",
+    };
     expect(codecCompatibility(h264)).toBe(2);
     expect(codecCompatibility(hevc)).toBe(-2);
-    expect(compatibilityPlaybackMode(h264)).toBeUndefined();
-    expect(compatibilityPlaybackMode(hevc)).toBeUndefined();
+    expect(compatibilityPlaybackMode(h264)).toBe("transcode");
+    expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
+    expect(compatibilityPlaybackMode(webReady)).toBeUndefined();
     expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
+    expect(autoplayStreams([hevc, h264, webReady], true)[0]).toBe(webReady);
   });
   it("prefers browser-safe audio and converts Shield-risky audio formats", () => {
     const dts = {
@@ -1009,7 +1158,7 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
   });
-    it("prefers direct playback and keeps conversion as a fallback", () => {
+  it("prefers direct playback and keeps conversion as a fallback", () => {
     const mkv = { name: "1080p", url: "https://cdn.example/movie.mkv" };
     const webReady = { name: "720p", url: "https://cdn.example/movie.mp4" };
     const flagged = {
@@ -1017,8 +1166,11 @@ describe("720p+ preference and safe episode matching", () => {
       url: "https://cdn.example/movie.mp4",
       behaviorHints: { notWebReady: true },
     };
-      expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([webReady, mkv]);
-      expect(autoplayStreams([mkv], false)).toEqual([mkv]);
+    expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([
+      webReady,
+      mkv,
+    ]);
+    expect(autoplayStreams([mkv], false)).toEqual([mkv]);
   });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [

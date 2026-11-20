@@ -229,21 +229,47 @@ function firstAutoplayResult(
   ) => Promise<StreamSearchResult>,
   hasDebrid: boolean,
 ): Promise<{ streams: Stream[]; result?: StreamSearchResult }> {
-  let resolveFirst!: (streams: Stream[]) => void;
-  const first = new Promise<Stream[]>((resolve) => {
-    resolveFirst = resolve;
+  const accumulated: Stream[] = [];
+  const seen = new Set<string>();
+  let conversionGrace: ReturnType<typeof setTimeout> | undefined;
+  let settled = false;
+  return new Promise((resolve, reject) => {
+    const finish = (streams: Stream[], result?: StreamSearchResult) => {
+      if (settled) return;
+      settled = true;
+      if (conversionGrace) clearTimeout(conversionGrace);
+      resolve({ streams, result });
+    };
+    const rankedAccumulated = () => autoplayStreams(accumulated, hasDebrid);
+    const request = search((streams) => {
+      for (const stream of streams) {
+        const key = `${stream.url ?? ""}|${stream.infoHash ?? ""}|${stream.fileIdx ?? ""}|${stream.title ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        accumulated.push(stream);
+      }
+      const ranked = rankedAccumulated();
+      if (!ranked.length) return;
+      if (
+        ranked.some((stream) => compatibilityPlaybackMode(stream) === undefined)
+      ) {
+        finish(ranked);
+        return;
+      }
+      // Conversion-only results are often returned a fraction of a second
+      // before a directly playable MP4 from another add-on. Give that source
+      // a tiny head start, then fall back instead of waiting for every add-on.
+      conversionGrace ??= setTimeout(() => finish(rankedAccumulated()), 900);
+    });
+    request
+      .then((result) =>
+        finish(autoplayStreams(result.streams, hasDebrid), result),
+      )
+      .catch((error) => {
+        if (conversionGrace) clearTimeout(conversionGrace);
+        if (!settled) reject(error);
+      });
   });
-  const request = search((streams) => {
-    const ranked = autoplayStreams(streams, hasDebrid);
-    if (ranked.length) resolveFirst(ranked);
-  });
-  return Promise.race([
-    first.then((streams) => ({ streams })),
-    request.then((result) => ({
-      streams: autoplayStreams(result.streams, hasDebrid),
-      result,
-    })),
-  ]);
 }
 
 async function hideUnavailableFutureTitles<
@@ -728,7 +754,9 @@ function ProfileGate({
                     <button
                       type="button"
                       key={avatar.id}
-                      className={profileAvatar?.id === avatar.id ? "selected" : ""}
+                      className={
+                        profileAvatar?.id === avatar.id ? "selected" : ""
+                      }
                       aria-pressed={profileAvatar?.id === avatar.id}
                       aria-label={`Use ${avatar.display_name} avatar`}
                       onClick={() => setProfileAvatar(avatar)}
@@ -989,9 +1017,9 @@ function ProfileGate({
                   ? "Please wait…"
                   : authCooldownSeconds > 0
                     ? `Try again in ${authCooldownSeconds}s`
-                  : authMode === "signup"
-                    ? "Create free account"
-                    : "Sign in"}
+                    : authMode === "signup"
+                      ? "Create free account"
+                      : "Sign in"}
               </button>
               {authMode === "signup" && (
                 <p className="profile-auth-note">
@@ -1330,7 +1358,11 @@ function Detail({
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
   onRemoveProgress: (item: Item) => void;
-  onSetWatched: (item: Item, episode: Episode | undefined, watched: boolean) => void;
+  onSetWatched: (
+    item: Item,
+    episode: Episode | undefined,
+    watched: boolean,
+  ) => void;
   onOpenDownloads: () => void;
   watched: WatchedItem[];
   resume?: Progress;
@@ -1681,13 +1713,7 @@ function Detail({
         episode: ep,
         url,
         resume: position,
-        ...playbackSubtitleData(
-          addons,
-          item,
-          ep?.id ?? item.id,
-          stream,
-          url,
-        ),
+        ...playbackSubtitleData(addons, item, ep?.id ?? item.id, stream, url),
         mode: undefined,
         compatibilityFallback: true,
       });
@@ -1903,25 +1929,25 @@ function Detail({
               relay: true,
             }
           : item.type === "live" && service
-          ? {
-              ...directLive,
-              automaticFallbackCount: 1,
-              alternatives: [
-                {
-                  ...directLive,
-                  url: streamUrl(
-                    provider,
-                    item.type,
-                    ep?.id ?? item.id,
-                    ep?.extension ?? item.extension ?? "ts",
-                  ),
-                  mode: "transcode",
-                  hls: false,
-                  relay: true,
-                },
-              ],
-            }
-          : directLive,
+            ? {
+                ...directLive,
+                automaticFallbackCount: 1,
+                alternatives: [
+                  {
+                    ...directLive,
+                    url: streamUrl(
+                      provider,
+                      item.type,
+                      ep?.id ?? item.id,
+                      ep?.extension ?? item.extension ?? "ts",
+                    ),
+                    mode: "transcode",
+                    hls: false,
+                    relay: true,
+                  },
+                ],
+              }
+            : directLive,
       );
       return;
     }
@@ -1979,7 +2005,8 @@ function Detail({
               id: downloadJobId.current,
               name: downloadFilename(ep),
               status: "failed",
-              detail: "No eligible stream was found. Open Sources or check Playback health.",
+              detail:
+                "No eligible stream was found. Open Sources or check Playback health.",
               at: Date.now(),
             });
           setError("No eligible stream was found to download.");
@@ -2087,9 +2114,7 @@ function Detail({
             <span className="eyebrow">
               {downloadMode ? "DOWNLOAD" : "NOW PLAYING"}
             </span>
-            <strong>
-              {downloadMode ? "Preparing download" : item.name}
-            </strong>
+            <strong>{downloadMode ? "Preparing download" : item.name}</strong>
             <span>
               {downloadMode
                 ? "Choosing the best source and creating a compatible MP4…"
@@ -2264,11 +2289,7 @@ function Detail({
               onClick={() => void play()}
             >
               <Play size={18} fill="currentColor" />
-              {resume
-                ? "Resume"
-                : autoplay
-                  ? "Play"
-                  : "Sources"}
+              {resume ? "Resume" : autoplay ? "Play" : "Sources"}
             </button>
           )}
           {resume?.episode && (
@@ -2445,13 +2466,24 @@ function Detail({
           </div>
         )}
         {downloadNotice && (
-          <div className="download-queued-popup" role="dialog" aria-label="Download added">
+          <div
+            className="download-queued-popup"
+            role="dialog"
+            aria-label="Download added"
+          >
             <div>
               <strong>Download added</strong>
-              <p>Preparation and any available MP4 action are in your download manager.</p>
+              <p>
+                Preparation and any available MP4 action are in your download
+                manager.
+              </p>
             </div>
-            <button className="primary" onClick={onOpenDownloads}>View download manager</button>
-            <button onClick={() => setDownloadNotice(false)}>Continue browsing</button>
+            <button className="primary" onClick={onOpenDownloads}>
+              View download manager
+            </button>
+            <button onClick={() => setDownloadNotice(false)}>
+              Continue browsing
+            </button>
           </div>
         )}
         {busy && <Loading />}
@@ -2918,12 +2950,8 @@ export default function App() {
     } else if (item.source === "addon") {
       const selection = await firstAutoplayResult(
         (onSource) =>
-          addonStreams(
-            addons,
-            item,
-            episode.id,
-            controller.signal,
-            (streams) => onSource(streams),
+          addonStreams(addons, item, episode.id, controller.signal, (streams) =>
+            onSource(streams),
           ),
         !!torboxKey || !!realDebridKey,
       );
@@ -2945,13 +2973,7 @@ export default function App() {
           stream.behaviorHints?.proxyHeaders as
             { request?: Record<string, string> } | undefined
         )?.request,
-        ...playbackSubtitleData(
-          addons,
-          item,
-          episode.id,
-          stream,
-          stream.url,
-        ),
+        ...playbackSubtitleData(addons, item, episode.id, stream, stream.url),
         relay: false,
         compatibilityFallback: debridStream(stream),
       });
@@ -3673,28 +3695,28 @@ export default function App() {
                 relay: true,
               }
             : service
-            ? {
-                ...direct,
-                automaticFallbackCount: 1,
-                alternatives: [
-                  {
-                    ...direct,
-                    url: streamUrl(
-                      provider,
-                      "live",
-                      item.id,
-                      item.extension ?? "ts",
-                    ),
-                    requestHeaders: {
-                      "User-Agent": "VLC/3.0.0 LibVLC/3.0.0",
+              ? {
+                  ...direct,
+                  automaticFallbackCount: 1,
+                  alternatives: [
+                    {
+                      ...direct,
+                      url: streamUrl(
+                        provider,
+                        "live",
+                        item.id,
+                        item.extension ?? "ts",
+                      ),
+                      requestHeaders: {
+                        "User-Agent": "VLC/3.0.0 LibVLC/3.0.0",
+                      },
+                      mode: "transcode",
+                      hls: false,
+                      relay: true,
                     },
-                    mode: "transcode",
-                    hls: false,
-                    relay: true,
-                  },
-                ],
-              }
-            : direct,
+                  ],
+                }
+              : direct,
         );
       } else if (item.url) {
         const direct: Playback = {

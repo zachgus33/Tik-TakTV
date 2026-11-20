@@ -12,14 +12,16 @@ const meta = {
   runtime: "120 min",
 };
 async function mockSources(page: Page) {
-  await page.context().route("https://vpn.trx-pro-iptvstore.cc/live/**", (route) =>
-    route.request().url().endsWith(".m3u8")
-      ? route.fulfill({
-          contentType: "application/vnd.apple.mpegurl",
-          body: "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2,\nsegment0.ts\n#EXT-X-ENDLIST\n",
-        })
-      : route.fulfill({ status: 200, contentType: "video/mp2t", body: "" }),
-  );
+  await page
+    .context()
+    .route("https://vpn.trx-pro-iptvstore.cc/live/**", (route) =>
+      route.request().url().endsWith(".m3u8")
+        ? route.fulfill({
+            contentType: "application/vnd.apple.mpegurl",
+            body: "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:2,\nsegment0.ts\n#EXT-X-ENDLIST\n",
+          })
+        : route.fulfill({ status: 200, contentType: "video/mp2t", body: "" }),
+    );
   await page
     .context()
     .route("https://vpn.trx-pro-iptvstore.cc/xmltv.php**", (route) =>
@@ -1908,9 +1910,7 @@ test("live TV tries native HLS before using Pi transcoding as a fallback", async
   let prepared: any;
   let directHlsRequests = 0;
   page.on("request", (request) => {
-    if (
-      request.url().includes("/live/test-user/test-password/10.m3u8")
-    )
+    if (request.url().includes("/live/test-user/test-password/10.m3u8"))
       directHlsRequests += 1;
   });
   await page.route("https://playback.example/prepare", async (route) => {
@@ -2717,25 +2717,19 @@ test("smart autoplay matches source quality and compatibility to the device", as
   expect(Math.round(videoBox?.height ?? 0)).toBe(viewport?.height);
   await expect(player.locator(".tv-web-center-controls")).toBeVisible();
   await expect(player.locator(".tv-web-progress-controls")).toBeVisible();
-  await expect(page.getByText(/Checking stream|SMART SOURCE SEARCH/)).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByText(/Checking stream|SMART SOURCE SEARCH/),
+  ).toHaveCount(0);
   await expect
     .poll(() =>
-      player
-        .locator(".tv-web-center-controls button")
-        .evaluateAll((buttons) =>
-          buttons.map((button) => {
-            const label = button.getAttribute("aria-label");
-            return label === "Play" || label === "Pause" ? "Play/Pause" : label;
-          }),
-        ),
+      player.locator(".tv-web-center-controls button").evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const label = button.getAttribute("aria-label");
+          return label === "Play" || label === "Pause" ? "Play/Pause" : label;
+        }),
+      ),
     )
-    .toEqual([
-      "Rewind 10 seconds",
-      "Play/Pause",
-      "Fast forward 10 seconds",
-    ]);
+    .toEqual(["Rewind 10 seconds", "Play/Pause", "Fast forward 10 seconds"]);
   const transportBox = await player
     .locator(".tv-web-center-controls")
     .boundingBox();
@@ -2765,9 +2759,7 @@ test("smart autoplay matches source quality and compatibility to the device", as
     )
     .toBe("https://cdn.example/best.mp4");
 });
-test("autoplay starts without waiting for slow add-ons", async ({
-  page,
-}) => {
+test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       "nuvio:addons",
@@ -2849,6 +2841,145 @@ test("autoplay starts without waiting for slow add-ons", async ({
     "https://cdn.example/fast-720.mp4",
   );
   expect(slowFinished).toBe(false);
+});
+test("episode resume briefly races an incompatible first result and starts the direct MP4", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const item = {
+      id: "tt-resume-race",
+      name: "Resume Race Series",
+      type: "series",
+      source: "addon",
+      provider: "https://conversion-first.example",
+    };
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item,
+          seconds: 420,
+          duration: 1320,
+          at: Date.now(),
+          episode: {
+            id: "tt-resume-race:2:11",
+            name: "The Resume Test",
+            season: 2,
+            episode: 11,
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://conversion-first.example",
+          manifest: {
+            id: "conversion-first",
+            name: "Conversion first",
+            types: ["series"],
+            resources: ["meta", "stream"],
+            catalogs: [],
+          },
+        },
+        {
+          base: "https://direct-second.example",
+          manifest: {
+            id: "direct-second",
+            name: "Direct second",
+            types: ["series"],
+            resources: ["stream"],
+            catalogs: [],
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "fake-private-key",
+        mode: "direct",
+      }),
+    );
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://conversion-first.example/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes("/meta/"))
+      return route.fulfill({
+        json: {
+          meta: {
+            id: "tt-resume-race",
+            name: "Resume Race Series",
+            type: "series",
+            videos: [
+              {
+                id: "tt-resume-race:2:11",
+                title: "The Resume Test",
+                season: 2,
+                episode: 11,
+              },
+            ],
+          },
+        },
+      });
+    return route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "[TB+] Conversion first 1080p",
+            title: "Episode.1080p.x265 seeders: 500",
+            url: "https://cdn.example/episode-resolved",
+            behaviorHints: { filename: "Episode.S02E11.1080p.x265.mkv" },
+          },
+        ],
+      },
+    });
+  });
+  await page.route("https://direct-second.example/**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    return route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "[TB+] Direct 720p",
+            title: "Episode.720p.x264.AAC seeders: 120",
+            url: "https://cdn.example/episode-direct.mp4",
+          },
+        ],
+      },
+    });
+  });
+  let prepareRequests = 0;
+  await page.route("https://playback.example/prepare", async (route) => {
+    prepareRequests += 1;
+    return route.fulfill({ json: { path: "/media/unwanted/index.m3u8" } });
+  });
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/#library");
+  await page
+    .getByRole("button", { name: /Resume Race Series/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: /Resume S2 E11/ }).click();
+  await expect(page.locator(".player-dialog video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/episode-direct.mp4",
+    { timeout: 2500 },
+  );
+  expect(prepareRequests).toBe(0);
 });
 test("autoplay shows a top loading state without opening the manual stream list", async ({
   page,
@@ -2933,24 +3064,30 @@ test("playback preparation errors use a full-screen retryable mobile surface", a
     return attempts === 1
       ? route.fulfill({
           status: 429,
-          json: { error: "Two video transcodes are already active. Retry shortly." },
+          json: {
+            error: "Two video transcodes are already active. Retry shortly.",
+          },
         })
       : route.fulfill({
           json: { path: "/media/retried/index.m3u8", hls: true },
         });
   });
-  await page.route("https://playback.example/media/retried/index.m3u8", (route) =>
-    route.fulfill({
-      contentType: "application/vnd.apple.mpegurl",
-      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
-    }),
+  await page.route(
+    "https://playback.example/media/retried/index.m3u8",
+    (route) =>
+      route.fulfill({
+        contentType: "application/vnd.apple.mpegurl",
+        body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+      }),
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   const opening = page.locator("dialog.mobile-opening-player");
   await expect(opening).toContainText("Could not start playback");
-  await expect(opening).toContainText("Two video transcodes are already active");
+  await expect(opening).toContainText(
+    "Two video transcodes are already active",
+  );
   const bounds = await opening.boundingBox();
   const viewport = page.viewportSize();
   expect(Math.round(bounds?.x ?? -1)).toBe(0);
@@ -3014,7 +3151,9 @@ test("iPhone retries user-selected playback once media is ready", async ({
       ),
     )
     .toBeGreaterThan(1);
-  await expect(page.getByText("Tap the video’s play button to start.")).toBeVisible();
+  await expect(
+    page.getByText("Tap the video’s play button to start."),
+  ).toBeVisible();
   await video.evaluate((element) => element.dispatchEvent(new Event("play")));
   await expect(
     page.getByText("Tap the video’s play button to start."),
@@ -3182,8 +3321,16 @@ test("playback stays on its selected source after making progress", async ({
     route.fulfill({
       json: {
         streams: [
-          { name: "1080p", seeders: 100, url: "https://cdn.example/locked.mp4" },
-          { name: "1080p", seeders: 90, url: "https://cdn.example/unwanted.mp4" },
+          {
+            name: "1080p",
+            seeders: 100,
+            url: "https://cdn.example/locked.mp4",
+          },
+          {
+            name: "1080p",
+            seeders: 90,
+            url: "https://cdn.example/unwanted.mp4",
+          },
         ],
       },
     }),
@@ -3431,11 +3578,12 @@ test("self-hosted HTTP add-ons install through companion fallback", async ({
   await expect(page.getByText("LAN streams installed.")).toBeVisible();
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(localStorage.getItem("nuvio:addons") ?? "[]").find(
-          (addon: { manifest?: { id?: string } }) =>
-            addon.manifest?.id === "lan.addon",
-        )?.base,
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("nuvio:addons") ?? "[]").find(
+            (addon: { manifest?: { id?: string } }) =>
+              addon.manifest?.id === "lan.addon",
+          )?.base,
       ),
     )
     .toBe("http://192.168.4.56:3000");
@@ -3777,8 +3925,7 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.route("https://subs.example/**", (route) =>
     route.fulfill({
       contentType: "text/vtt",
-      body:
-        "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:20:00.000 --> 00:20:03.000\nThe distant matching line",
+      body: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:20:00.000 --> 00:20:03.000\nThe distant matching line",
     }),
   );
   await page.route("https://cdn.example/subtitle-test.mp4", (route) =>
@@ -3788,9 +3935,9 @@ test("subtitle timing controls persist the selected offset", async ({
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await openPlaybackOptions(page);
-  await expect.poll(() => subtitleRequestUrl).toContain(
-    "videoHash=0123456789abcdef",
-  );
+  await expect
+    .poll(() => subtitleRequestUrl)
+    .toContain("videoHash=0123456789abcdef");
   expect(decodeURIComponent(subtitleRequestUrl)).toContain(
     "filename=The.Test.Movie.1080p.mkv",
   );
@@ -3881,7 +4028,7 @@ test("subtitle timing controls persist the selected offset", async ({
     )
     .toBe("9");
 });
-test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fallback", async ({
+test("autoplay skips resolved HEVC and MKV files when a browser-ready MP4 exists", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -3906,6 +4053,18 @@ test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fa
       attributeFilter: ["src"],
     });
     Object.defineProperty(window, "__testMediaSources", { value: sources });
+    // Empty MP4 route fixtures cannot decode. This test verifies source
+    // selection, so keep that synthetic decode error from exercising the
+    // separate runtime recovery path.
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
   });
   await page.addInitScript(() =>
     localStorage.setItem(
@@ -3932,13 +4091,18 @@ test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fa
             url: "https://cdn.example/resolve",
             behaviorHints: { filename: "Episode.720p.x264.mkv" },
           },
+          {
+            name: "[TB+] Torrentio 720p",
+            title: "Episode.720p.x264.AAC seeders: 120",
+            url: "https://cdn.example/episode.x264.mp4",
+          },
         ],
       },
     }),
   );
-  let prepared: Record<string, unknown> = {};
+  let prepareRequests = 0;
   await page.route("https://playback.example/prepare", async (route) => {
-    prepared = route.request().postDataJSON();
+    prepareRequests += 1;
     await route.fulfill({ json: { path: "/media/rookie/index.m3u8" } });
   });
   await page.route(
@@ -3949,9 +4113,9 @@ test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fa
         body: "#EXTM3U\n#EXT-X-ENDLIST\n",
       }),
   );
-  await page.route("https://cdn.example/episode.x265.mp4", (route) => {
-    return route.fulfill({ status: 500, body: "browser decode failed" });
-  });
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
@@ -3963,10 +4127,8 @@ test("phone autoplay tries a resolved Torrentio HEVC stream before conversion fa
             .__testMediaSources,
       ),
     )
-    .toContain("https://cdn.example/episode.x265.mp4");
-  await expect.poll(() => prepared.mode).toBe("transcode");
-  expect(prepared.live).toBe(false);
-  expect(prepared.url).toBe("https://cdn.example/episode.x265.mp4");
+    .toContain("https://cdn.example/episode.x264.mp4");
+  expect(prepareRequests).toBe(0);
 });
 test("Watch Together creates a shareable room from the resolved source", async ({
   page,
