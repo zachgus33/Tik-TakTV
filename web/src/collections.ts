@@ -1,4 +1,4 @@
-import { safeUrl } from "./api";
+import { safeSourceUrl, safeUrl } from "./api";
 import { baseFromManifest, manifestUrl } from "./addon-urls";
 import { itemKey, type Item, type Addon, type Progress } from "./types";
 
@@ -208,14 +208,14 @@ export function addonUrls(text: string): string[] {
     urls.some(
       (url) =>
         typeof url !== "string" ||
-        !safeUrl(url.replace(/^stremio:\/\//, "https://")) ||
+        !safeSourceUrl(url.replace(/^stremio:\/\//, "https://")) ||
         !new URL(url.replace(/^stremio:\/\//, "https://")).pathname.endsWith(
           "/manifest.json",
         ),
     )
   )
     throw new Error(
-      "Every add-on needs its HTTPS or stremio:// manifest.json URL. Copy configured URLs from your existing add-ons.",
+      "Every add-on needs its HTTP, HTTPS or stremio:// manifest.json URL. Copy configured URLs from your existing add-ons.",
     );
   return [...new Set(urls)];
 }

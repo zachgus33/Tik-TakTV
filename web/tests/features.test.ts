@@ -744,9 +744,9 @@ describe("Nuvio collections and add-on transfer", () => {
   it("accepts configured addon URLs and native managed add-on records", () => {
     expect(
       addonUrls(
-        "stremio://addon.example/torbox=private/manifest.json\nhttps://second.example/manifest.json",
+        "stremio://addon.example/torbox=private/manifest.json\nhttps://second.example/manifest.json\nhttp://192.168.1.50:3000/manifest.json",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       addonUrls(
         JSON.stringify([

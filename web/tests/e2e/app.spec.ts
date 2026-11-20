@@ -3327,6 +3327,47 @@ test("refresh and test preserve a configured add-on manifest URL", async ({
     ),
   ).toBe(true);
 });
+test("self-hosted HTTP add-ons install through companion fallback", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({ url: "https://playback.example", token: "test" }),
+    ),
+  );
+  const manifestUrl = "http://192.168.4.56:3000/manifest.json";
+  await page.route(manifestUrl, (route) => route.abort("blockedbyclient"));
+  await page.route("https://playback.example/request", async (route) => {
+    expect(route.request().postDataJSON().url).toBe(manifestUrl);
+    await route.fulfill({
+      json: {
+        id: "lan.addon",
+        name: "LAN streams",
+        types: ["movie"],
+        resources: ["stream"],
+        catalogs: [],
+      },
+    });
+  });
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /Add-ons/ }).click();
+  await page
+    .getByRole("textbox", { name: "Manifest URL", exact: true })
+    .fill(manifestUrl);
+  await page.getByRole("button", { name: "Install add-on" }).click();
+  await expect(page.getByText("LAN streams installed.")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("nuvio:addons") ?? "[]").find(
+          (addon: { manifest?: { id?: string } }) =>
+            addon.manifest?.id === "lan.addon",
+        )?.base,
+      ),
+    )
+    .toBe("http://192.168.4.56:3000");
+});
 test("search uses every searchable catalog even when a trending catalog is selected", async ({
   page,
 }) => {

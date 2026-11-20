@@ -1,13 +1,22 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.19.2";
+export const latestRelease = "2026.11.20.1";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Self-hosted HTTP add-ons",
+    changes: [
+      "HTTP and HTTPS Stremio manifest URLs can now be installed, tested, imported, and synced without rewriting the original address.",
+      "TikTak TV tries HTTP add-ons directly and then through the configured companion, with a clear HTTPS tunnel/local bridge explanation when a browser cannot reach a private LAN address.",
+    ],
+  },
+  {
+    version: "2026.11.19.2",
     date: "November 19, 2026",
     title: "Playback now starts like the TV app",
     changes: [

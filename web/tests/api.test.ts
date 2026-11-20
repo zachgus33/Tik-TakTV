@@ -295,4 +295,42 @@ describe("playlists and addons", () => {
     );
     expect(addon.base).toBe("https://addon.example/config");
   });
+  it("accepts a self-hosted HTTP add-on manifest URL", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: "lan", name: "LAN add-on", resources: ["stream"] }),
+      ),
+    );
+    const addon = await installAddon(
+      "http://192.168.4.56:3000/stremio/config/manifest.json",
+    );
+    expect(request).toHaveBeenCalledWith(
+      "http://192.168.4.56:3000/stremio/config/manifest.json",
+      expect.anything(),
+    );
+    expect(addon.base).toBe("http://192.168.4.56:3000/stremio/config");
+  });
+  it("explains when the hosted companion cannot reach a private HTTP add-on", async () => {
+    const source = "http://192.168.4.56:3000/manifest.json";
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) =>
+        key === "nuvio:playback-service"
+          ? JSON.stringify({ url: "https://playback.example", token: "test" })
+          : null,
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === source) throw new TypeError("Mixed content blocked");
+      return new Response(
+        JSON.stringify({ error: "Private destinations are not allowed" }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    try {
+      await expect(json(source)).rejects.toThrow(
+        "hosted companion cannot reach devices inside your LAN",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

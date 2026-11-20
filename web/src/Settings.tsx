@@ -978,7 +978,8 @@ export default function Settings(props: Props) {
                 <div>
                   <h2>Add-ons</h2>
                   <p>
-                    Bring your Stremio catalogs and HTTPS streaming sources.
+                    Bring your Stremio catalogs and HTTP or HTTPS streaming
+                    sources.
                   </p>
                 </div>
               </div>
@@ -1141,7 +1142,7 @@ export default function Settings(props: Props) {
                   Manifest URL
                   <input
                     name="manifest"
-                    placeholder="https://addon.example/manifest.json"
+                    placeholder="https:// or http://…/manifest.json"
                     required
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -1152,6 +1153,11 @@ export default function Settings(props: Props) {
                   {busy === "addon" ? "Installing…" : "Install add-on"}
                 </button>
               </form>
+              <p className="hint">
+                HTTP add-ons are supported through direct browser access or the
+                configured companion. In an HTTPS PWA, private LAN addresses may
+                still need an HTTPS tunnel or a same-network companion.
+              </p>
               <details>
                 <summary>Install several add-ons from Nuvio</summary>
                 <form

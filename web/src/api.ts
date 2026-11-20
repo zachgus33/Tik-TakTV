@@ -94,13 +94,22 @@ export async function json<T>(
       cache: "no-store",
     });
     if (!r.ok) {
+      const problem = (await r.clone().json().catch(() => null)) as {
+        error?: unknown;
+      } | null;
       if (r.status === 403 && new URL(url).hostname === "friend.tiktaktv.invalid") {
-        const problem = (await r.clone().json().catch(() => null)) as { error?: unknown } | null;
         if (problem?.error === "Shared add-on access expired.")
           throw new Error(
             "Shared add-on access expired. Re-enter the friend code in Settings → Playback → Friend setup to refresh the shared setup.",
           );
       }
+      if (
+        new URL(url).protocol === "http:" &&
+        /private destinations?|local network/i.test(String(problem?.error ?? ""))
+      )
+        throw new Error(
+          "This private HTTP add-on is valid, but TikTak TV's hosted companion cannot reach devices inside your LAN. Give the add-on an HTTPS tunnel/reverse proxy, or use a same-network companion.",
+        );
       throw new Error(
         `The add-on source returned HTTP ${r.status}. Check its connection in Settings → Add-ons and try again.`,
       );
@@ -368,9 +377,11 @@ export const defaultSubtitleAddon: Addon = {
 };
 export const defaultAddons: Addon[] = [defaultAddon, defaultSubtitleAddon];
 export async function installAddon(input: string): Promise<Addon> {
-  const normalized = safeUrl(input.trim().replace(/^stremio:\/\//, "https://"));
+  const normalized = safeSourceUrl(
+    input.trim().replace(/^stremio:\/\//, "https://"),
+  );
   if (!normalized)
-    throw new Error("Enter the HTTPS add-on URL supplied by your add-on.");
+    throw new Error("Enter the HTTP or HTTPS add-on URL supplied by your add-on.");
   const parsed = new URL(normalized);
   if (!parsed.pathname.endsWith("/manifest.json"))
     parsed.pathname = `${parsed.pathname.replace(/\/$/, "")}/manifest.json`;

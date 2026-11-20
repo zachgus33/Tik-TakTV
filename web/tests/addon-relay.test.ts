@@ -75,3 +75,29 @@ it("falls back once for an add-on that requires protected headers", async () => 
     "https://playback.example/request",
   ]);
 });
+
+it("tries a self-hosted HTTP add-on directly before companion relay", async () => {
+  const service = JSON.stringify({
+    url: "https://playback.example",
+    token: "test",
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) =>
+      key === "nuvio:playback-service" ? service : null,
+  });
+  const source = "http://192.168.4.56:3000/manifest.json";
+  const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === source) throw new TypeError("Mixed content blocked");
+    expect(url).toBe("https://playback.example/request");
+    expect(JSON.parse(String(options?.body)).url).toBe(source);
+    return Response.json({ id: "lan-addon" });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await sourceFetch(source);
+  expect(await response.json()).toEqual({ id: "lan-addon" });
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+    source,
+    "https://playback.example/request",
+  ]);
+});

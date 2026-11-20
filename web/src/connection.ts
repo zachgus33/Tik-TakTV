@@ -209,13 +209,11 @@ export async function sourceFetch(
       config,
     );
   };
-  if (parsed?.protocol === "http:") {
-    if (!config)
-      throw new Error(
-        "Sign in to use this HTTP source through TikTak TV's secure companion.",
-      );
-    return relay();
-  }
+  // Try HTTP add-ons directly first. This works in native shells, local HTTP
+  // deployments, localhost secure contexts, and browsers where the user has
+  // explicitly allowed local insecure content. An HTTPS PWA normally rejects
+  // the request as mixed content; the TypeError path below then uses the
+  // configured companion without rejecting the add-on during installation.
   const providerApi =
     parsed && /\/(?:player_api|xmltv|get)\.php$/i.test(parsed.pathname);
   // Xtream credentials live in the query string and many providers do not
@@ -246,6 +244,10 @@ export async function sourceFetch(
     // normal HTTPS request genuinely cannot be used in the browser.
     if (e instanceof TypeError && config && !options.signal?.aborted)
       return relay();
+    if (e instanceof TypeError && parsed?.protocol === "http:")
+      throw new Error(
+        "This browser blocked the HTTP add-on. Use an HTTPS tunnel/reverse proxy, or connect a same-network TikTak companion that can reach it.",
+      );
     throw e;
   }
 }
