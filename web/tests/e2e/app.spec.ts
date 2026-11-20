@@ -1454,7 +1454,7 @@ test("discovery, library persistence, accessible modal and mobile layout", async
   await expect(
     page.getByRole("button", { name: "In my library" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Sources" }).click();
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
   await expect(
     page.getByText("No streams found. Try another source."),
   ).toBeVisible();
