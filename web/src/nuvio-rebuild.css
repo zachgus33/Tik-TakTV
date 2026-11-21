@@ -1261,6 +1261,29 @@ html:not(.tv-mode)[data-nuvio-subtitle-outline="false"]
 .player-gesture-feedback.seek-back small {
   color: #ff9a76;
 }
+.player-skip-segment {
+  position: absolute;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 74px));
+  z-index: 26;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 15px;
+  border: 1px solid #ffffff35;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 800;
+  background: #0a090ee8;
+  box-shadow: 0 12px 40px #000a;
+  backdrop-filter: blur(16px);
+}
+.player-skip-segment:hover,
+.player-skip-segment:focus-visible {
+  border-color: #c084fc;
+  background: #54218b;
+}
 .tv-web-player > video {
   touch-action: none;
 }

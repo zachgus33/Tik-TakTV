@@ -58,6 +58,7 @@ export type NuvioWebSettings = {
   subtitleBackgroundColor: string;
   subtitleOutline: boolean;
   subtitleOutlineColor: string;
+  skipIntroEnabled: boolean;
   autoPlayNextEpisode: boolean;
   nextEpisodeThresholdMode: "percentage" | "minutes";
   nextEpisodeThresholdPercent: number;
@@ -143,6 +144,7 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   subtitleBackgroundColor: "#08070b",
   subtitleOutline: true,
   subtitleOutlineColor: "#000000",
+  skipIntroEnabled: true,
   autoPlayNextEpisode: false,
   nextEpisodeThresholdMode: "percentage",
   nextEpisodeThresholdPercent: 97,
@@ -339,6 +341,7 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
     )
       ? String(saved.subtitleOutlineColor)
       : "#000000",
+    skipIntroEnabled: boolean("skipIntroEnabled"),
     autoPlayNextEpisode: boolean("autoPlayNextEpisode"),
     nextEpisodeThresholdMode: oneOf(
       saved.nextEpisodeThresholdMode,

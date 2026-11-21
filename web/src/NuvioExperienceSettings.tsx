@@ -754,6 +754,12 @@ export default function NuvioExperienceSettings({
           description="TikTakTV automatic next-episode behavior."
         >
           <SwitchRow
+            title="Skip intro, recap and credits"
+            description="Show native-style skip buttons when IntroDB has timing data."
+            checked={value.skipIntroEnabled}
+            onChange={(next) => update("skipIntroEnabled", next)}
+          />
+          <SwitchRow
             title="Auto-play next episode"
             description="Advance to the next episode near the end of playback."
             checked={value.autoPlayNextEpisode}

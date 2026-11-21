@@ -267,6 +267,130 @@ test("series player offers next episode and optional auto-advance", async ({
   await expect(page.getByRole("button", { name: /Play next:/ })).toHaveCount(0);
 });
 
+test("series player shows native IntroDB skip controls without changing source", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const item = {
+      id: "tt1234567",
+      name: "Skip Segment Test",
+      type: "series",
+      source: "addon",
+      provider: "https://v3-cinemeta.strem.io",
+    };
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item,
+          seconds: 20,
+          duration: 1_800,
+          at: Date.now(),
+          episode: {
+            id: "tt1234567:1:1",
+            name: "Pilot",
+            season: 1,
+            episode: 1,
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://v3-cinemeta.strem.io",
+          manifest: {
+            id: "skip-test",
+            name: "Skip test streams",
+            types: ["series"],
+            resources: ["catalog", "meta", "stream"],
+            catalogs: [{ id: "top", type: "series" }],
+          },
+        },
+      ]),
+    );
+  });
+  await page.unroute("https://v3-cinemeta.strem.io/**");
+  let streamRequests = 0;
+  await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes("/meta/series/"))
+      return route.fulfill({
+        json: {
+          meta: {
+            id: "tt1234567",
+            name: "Skip Segment Test",
+            type: "series",
+            videos: [
+              {
+                id: "tt1234567:1:1",
+                title: "Pilot",
+                season: 1,
+                episode: 1,
+              },
+            ],
+          },
+        },
+      });
+    if (path.includes("/stream/series/")) {
+      streamRequests += 1;
+      return route.fulfill({
+        json: {
+          streams: [
+            {
+              name: "1080p direct",
+              url: "https://cdn.example/skip-segment.mp4",
+            },
+          ],
+        },
+      });
+    }
+    return route.fulfill({ json: { metas: [] } });
+  });
+  await page.route("https://api.introdb.app/segments**", (route) =>
+    route.fulfill({
+      json: {
+        intro: { start_sec: 10, end_sec: 45 },
+        recap: null,
+        outro: { start_sec: 1_700, end_sec: 1_790 },
+      },
+    }),
+  );
+  await page.route("https://cdn.example/skip-segment.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+
+  await page.goto("/#library");
+  await page
+    .getByRole("button", { name: /Skip Segment Test/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: /Resume S1 E1/ }).click();
+  const video = page.locator("dialog.tv-web-player video");
+  await video.evaluate((element) => {
+    Object.defineProperty(element, "duration", {
+      configurable: true,
+      value: 1_800,
+    });
+    Object.defineProperty(element, "seekable", {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 1_800 },
+    });
+    element.currentTime = 20;
+    element.dispatchEvent(new Event("durationchange"));
+    element.dispatchEvent(new Event("timeupdate"));
+  });
+  const skip = page.getByRole("button", { name: "Skip intro" });
+  await expect(skip).toBeVisible();
+  await skip.click();
+  await expect
+    .poll(() => video.evaluate((element) => element.currentTime))
+    .toBeGreaterThan(45);
+  await expect(skip).toBeHidden();
+  expect(streamRequests).toBe(1);
+});
+
 test("series search merges year-range duplicates and fills a missing first season", async ({
   page,
 }) => {

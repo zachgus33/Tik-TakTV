@@ -55,6 +55,7 @@ import {
   type PartyIdentity,
   type PartySession,
 } from "./watch-party";
+import { introDbSkipSegments, type SkipSegment } from "./skip-segments";
 
 export type Playback = {
   item: Item;
@@ -196,6 +197,11 @@ function formatPlayerTime(value: number) {
     ? `${hours}:${minutes.toString().padStart(2, "0")}:${seconds}`
     : `${minutes}:${seconds}`;
 }
+function skipSegmentLabel(type: SkipSegment["type"]) {
+  if (type === "intro") return "Skip intro";
+  if (type === "recap") return "Skip recap";
+  return "Skip credits";
+}
 
 function reportMediaActivity(
   playbackId: string,
@@ -251,6 +257,7 @@ function VideoPlayer({
   );
   const [nextError, setNextError] = useState("");
   const [nextBusy, setNextBusy] = useState(false);
+  const [skipSegments, setSkipSegments] = useState<SkipSegment[]>([]);
   const nextBusyRef = useRef(false);
   const nextAdvanceTriggeredRef = useRef(false);
   const nextEpisodeRef = useRef(nextEpisode);
@@ -260,6 +267,29 @@ function VideoPlayer({
   useEffect(() => {
     nextAdvanceTriggeredRef.current = false;
   }, [playback.item.id, playback.episode?.id]);
+  useEffect(() => {
+    const episode = playback.episode;
+    if (!experienceSettings.skipIntroEnabled || !episode) {
+      setSkipSegments([]);
+      return;
+    }
+    const controller = new AbortController();
+    void introDbSkipSegments(
+      playback.item.id,
+      episode.season,
+      episode.episode,
+      controller.signal,
+    ).then((segments) => {
+      if (!controller.signal.aborted) setSkipSegments(segments);
+    });
+    return () => controller.abort();
+  }, [
+    playback.item.id,
+    playback.episode?.id,
+    playback.episode?.season,
+    playback.episode?.episode,
+    experienceSettings.skipIntroEnabled,
+  ]);
   useEffect(() => {
     const visible =
       experienceSettings.showParentalGuide && !!playback.item.certification;
@@ -1819,6 +1849,10 @@ function VideoPlayer({
   const selectedExternalSubtitle = selectedSubtitleTrack.startsWith("external:")
     ? subtitles[Number(selectedSubtitleTrack.split(":")[1])]
     : undefined;
+  const activeSkipSegment = skipSegments.find(
+    (segment) =>
+      currentTime >= segment.startTime && currentTime < segment.endTime - 0.25,
+  );
   const preferredSubtitleLanguageCodes = preferredSubtitleLanguages(
     experienceSettings.preferredSubtitleLanguage,
     experienceSettings.secondaryPreferredSubtitleLanguage,
@@ -2198,6 +2232,21 @@ function VideoPlayer({
             )}
           </span>
         </div>
+      )}
+      {activeSkipSegment && (
+        <button
+          type="button"
+          className="player-skip-segment"
+          onClick={() => {
+            const target = activeSkipSegment.endTime + 0.05;
+            seekTo(target);
+            setCurrentTime(target);
+            navigator.vibrate?.(12);
+          }}
+        >
+          {skipSegmentLabel(activeSkipSegment.type)}
+          <FastForward size={18} />
+        </button>
       )}
       {experienceSettings.playerStatusOverlay && (
         <div className="player-status-overlay" role="status">
