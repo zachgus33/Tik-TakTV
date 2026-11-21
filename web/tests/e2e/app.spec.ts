@@ -4053,8 +4053,8 @@ test("holding the mobile video temporarily applies the configured speed", async 
   page,
 }, testInfo) => {
   test.skip(
-    testInfo.project.name !== "iphone",
-    "Hold-to-speed is a touch player gesture.",
+    testInfo.project.name !== "iphone" && testInfo.project.name !== "ipad",
+    "Hold-to-speed is an iPhone/iPad touch player gesture.",
   );
   await streamingAddon(page);
   await page.addInitScript(() => {
@@ -4974,8 +4974,8 @@ test("Home motion preview loads muted and enables sound after a click", async ({
   page,
 }, testInfo) => {
   test.skip(
-    testInfo.project.name !== "desktop" && testInfo.project.name !== "iphone",
-    "Desktop and iPhone cover browser and PWA behavior.",
+    !["desktop", "iphone", "ipad"].includes(testInfo.project.name),
+    "Desktop, iPhone, and iPad cover browser and PWA behavior.",
   );
   const illustrated = {
     ...meta,
@@ -6060,13 +6060,13 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByText(/Unsupported provider credential: trakt/),
     ).toHaveCount(0);
-    if ((page.viewportSize()?.width ?? Infinity) <= 1100)
+    if ((page.viewportSize()?.width ?? Infinity) <= 800)
       await page.getByRole("button", { name: "Back to settings" }).click();
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
-    if ((page.viewportSize()?.width ?? Infinity) <= 1100)
+    if ((page.viewportSize()?.width ?? Infinity) <= 800)
       await page.getByRole("button", { name: "Back to settings" }).click();
     await page.getByRole("button", { name: /^Collections/ }).click();
     await expect(
