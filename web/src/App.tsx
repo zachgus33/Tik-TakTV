@@ -6058,7 +6058,9 @@ export default function App() {
           {toast}
         </div>
       )}
-      <WhatsNewPrompt enabled={nuvioWebSettings.featureHighlights} />
+      <WhatsNewPrompt
+        enabled={nuvioWebSettings.featureHighlights && !setupWizardKey}
+      />
       {updateReady && (
         <div className="update-banner" role="status">
           <span>A new TikTak TV version is ready.</span>
