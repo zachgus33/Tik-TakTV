@@ -87,6 +87,18 @@ sudo docker compose --profile quick stop quick-tunnel
 sudo docker compose --profile tunnel up -d tunnel
 ```
 
+For a locally managed tunnel created with `cloudflared tunnel create`, put its
+UUID in `TUNNEL_ID` and the absolute credential JSON path in
+`TUNNEL_CREDENTIALS_FILE`, then run:
+
+```sh
+sudo docker compose --profile local-tunnel up -d local-tunnel
+```
+
+This mode supplies `http://playback:3101` as the named tunnel's ingress and
+does not require dashboard-managed public-hostname configuration. The
+credential JSON stays mounted read-only and must never be committed.
+
 Set the permanent HTTPS address in the website. When the website itself moves to a custom domain, add its exact origin to `ALLOWED_ORIGINS` in `.env`, comma-separated, then recreate the playback container:
 
 ```sh

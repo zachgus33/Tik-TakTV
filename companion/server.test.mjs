@@ -1225,6 +1225,12 @@ test("Docker stack keeps companion runtime writable and persistent", async () =>
   assert.match(compose, /^name: tiktaktv-companion$/m);
   assert.match(compose, /^\s+- runtime:\/app\/runtime$/m);
   assert.match(compose, /^volumes:\s*\n\s+runtime:/m);
+  assert.match(compose, /^\s+local-tunnel:$/m);
+  assert.match(compose, /http:\/\/playback:3101/);
+  assert.match(
+    compose,
+    /TUNNEL_CREDENTIALS_FILE[^\n]+credentials\.json:ro/,
+  );
   assert.match(
     dockerfile,
     /mkdir -p \/app\/runtime && chown -R node:node \/app\/runtime/,

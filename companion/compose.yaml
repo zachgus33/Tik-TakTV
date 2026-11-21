@@ -34,6 +34,23 @@ services:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
     depends_on:
       - playback
+  local-tunnel:
+    profiles: [local-tunnel]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --credentials-file
+      - /etc/cloudflared/credentials.json
+      - --url
+      - http://playback:3101
+      - run
+      - ${TUNNEL_ID}
+    volumes:
+      - ${TUNNEL_CREDENTIALS_FILE:-./runtime/missing-tunnel.json}:/etc/cloudflared/credentials.json:ro
+    depends_on:
+      - playback
   quick-tunnel:
     image: cloudflare/cloudflared:latest
     profiles: [quick]
