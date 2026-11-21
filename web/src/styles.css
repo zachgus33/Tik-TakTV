@@ -857,14 +857,14 @@ body {
 
 .profile-first-setup legend {
   color: var(--muted);
-  font-size: .84rem;
+  font-size: 0.84rem;
   font-weight: 700;
-  margin-bottom: .7rem;
+  margin-bottom: 0.7rem;
 }
 
 .profile-avatar-picker {
   display: grid;
-  gap: .65rem;
+  gap: 0.65rem;
   grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
 }
 
@@ -2308,6 +2308,15 @@ button.selected {
 .inline-form button {
   font-size: 12px;
 }
+.friend-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.friend-code-actions button {
+  font-size: 12px;
+}
 .grow {
   flex: 1;
   min-width: 0;
@@ -2353,6 +2362,18 @@ button.selected {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin: 16px 0;
+}
+.source-regex-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 14px;
+}
+.source-regex-presets button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
 }
 .recent-channels {
   margin: 18px 0 8px;
@@ -3800,6 +3821,10 @@ body:has(dialog[open]:not(.mini-live-player)) {
   color: var(--muted);
   font-size: 11px;
 }
+.player-source-picker-heading .player-source-status {
+  margin-top: 8px;
+  color: var(--accent-2);
+}
 .player-source-list {
   display: grid;
   gap: 8px;
@@ -4369,6 +4394,9 @@ body:has(dialog[open]:not(.mini-live-player)) {
     flex-basis: 100%;
   }
   .inline-form button {
+    width: 100%;
+  }
+  .friend-code-actions button {
     width: 100%;
   }
   .settings-card .primary {
@@ -5131,8 +5159,19 @@ body:has(dialog[open]:not(.mini-live-player)) {
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent) 12%, #15121a);
 }
-.download-queued-popup p { margin: 3px 0 0; color: var(--muted); font-size: .85rem; }
-@media (max-width: 640px) { .download-queued-popup { grid-template-columns: 1fr; } .download-queued-popup button { width: 100%; } }
+.download-queued-popup p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+@media (max-width: 640px) {
+  .download-queued-popup {
+    grid-template-columns: 1fr;
+  }
+  .download-queued-popup button {
+    width: 100%;
+  }
+}
 .download-ready p {
   margin: 4px 0 0;
   color: var(--muted);
@@ -7082,11 +7121,10 @@ button.primary:hover,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 0.75rem;
 }
-.tv-mode .profile-auth-card .profile-login:has(.signup-avatar-colors) > :is(
-  .signup-avatar-colors,
-  .primary,
-  .profile-auth-note
-) {
+.tv-mode
+  .profile-auth-card
+  .profile-login:has(.signup-avatar-colors)
+  > :is(.signup-avatar-colors, .primary, .profile-auth-note) {
   grid-column: 1 / -1;
 }
 .tv-mode .signup-avatar-colors > div {

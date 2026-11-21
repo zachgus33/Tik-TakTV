@@ -2778,7 +2778,7 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
           base: "https://slow.example",
           manifest: {
             id: "slow",
-            name: "Better source",
+            name: "Debridio",
             types: ["movie"],
             resources: ["stream"],
             catalogs: [],
@@ -2822,9 +2822,9 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
       json: {
         streams: [
           {
-            name: "1080p AAC",
+            name: "Debridio cached 1440p AAC",
             seeders: 100,
-            url: "https://cdn.example/better-1080.mp4",
+            url: "https://cdn.example/debridio-1440.mp4",
           },
         ],
       },
@@ -2841,6 +2841,20 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
     "https://cdn.example/fast-720.mp4",
   );
   expect(slowFinished).toBe(false);
+  await expect.poll(() => slowFinished).toBe(true);
+  // Completing the remaining add-ons must enrich the manual list without
+  // replacing or restarting the stream that already began playing.
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/fast-720.mp4",
+  );
+  await openPlaybackOptions(page);
+  await page.getByRole("button", { name: "Choose stream" }).click();
+  const chooser = page.getByRole("dialog", { name: "Choose a stream" });
+  await expect(chooser).toContainText(
+    "2 sources loaded from completed add-ons",
+  );
+  await expect(chooser).toContainText("Debridio cached 1440p AAC");
 });
 test("episode resume briefly races an incompatible first result and starts the direct MP4", async ({
   page,
@@ -3866,7 +3880,10 @@ test("tapping the video surface hides and restores web player controls", async (
     await page.mouse.move(point.x + 8, point.y + 8);
   }
   await expect(player).not.toHaveClass(/controls-hidden/);
-  if (testInfo.project.name === "desktop" || testInfo.project.name === "firefox") {
+  if (
+    testInfo.project.name === "desktop" ||
+    testInfo.project.name === "firefox"
+  ) {
     await player
       .locator("video")
       .evaluate((video) => video.dispatchEvent(new Event("play")));
@@ -4060,10 +4077,11 @@ test("subtitle timing controls persist the selected offset", async ({
     .toBe("embedded");
   await expect
     .poll(() =>
-      video.evaluate((element) =>
-        Array.from(element.textTracks).find(
-          (track) => track.label === "Embedded English",
-        )?.mode,
+      video.evaluate(
+        (element) =>
+          Array.from(element.textTracks).find(
+            (track) => track.label === "Embedded English",
+          )?.mode,
       ),
     )
     .toBe("hidden");
@@ -4139,6 +4157,11 @@ test("subtitle timing controls persist the selected offset", async ({
   await expect(matchingCue).toBeInViewport();
   await matchingCue.click();
   await expect(cuePicker).toBeHidden();
+  const timingNotice = page.getByText("Subtitle timing set to +9.0s.", {
+    exact: true,
+  });
+  await expect(timingNotice).toBeVisible();
+  await expect(timingNotice).toHaveCount(0, { timeout: 4_000 });
   await expect(
     page.getByText(
       "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
@@ -4155,7 +4178,9 @@ test("subtitle timing controls persist the selected offset", async ({
       ),
     )
     .toBe("9");
-  await page.getByRole("button", { name: "Capture dialogue for subtitle sync" }).click();
+  await page
+    .getByRole("button", { name: "Capture dialogue for subtitle sync" })
+    .click();
   await expect(cuePicker).toBeVisible();
   await video.evaluate((element) => element.dispatchEvent(new Event("play")));
   await expect(cuePicker).toBeHidden();
@@ -4494,13 +4519,24 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
   page,
 }) => {
   await page.addInitScript(() =>
-    localStorage.setItem(
-      "nuvio:playback-service",
-      JSON.stringify({
-        url: "https://playback.example",
-        token: "x".repeat(40),
-      }),
-    ),
+    (() => {
+      localStorage.setItem(
+        "nuvio:playback-service",
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "x".repeat(40),
+        }),
+      );
+      localStorage.setItem(
+        "nuvio:addons",
+        JSON.stringify([
+          {
+            base: "https://obsolete.example",
+            manifest: { id: "obsolete", name: "Old setup" },
+          },
+        ]),
+      );
+    })(),
   );
   await page.route("https://playback.example/friend/status", (route) =>
     route.fulfill({ json: { available: true, owner: false } }),
@@ -4561,6 +4597,12 @@ test("friend code installs the shared add-ons, catalogs and TorBox grant", async
   }));
   expect(stored.addons[0].manifest.name).toBe("Owner catalog");
   expect(stored.addons[0].base).toBe("https://v3-cinemeta.strem.io");
+  expect(stored.addons).toHaveLength(1);
+  expect(
+    stored.addons.some((addon: { base: string }) =>
+      addon.base.includes("obsolete"),
+    ),
+  ).toBe(false);
   expect(stored.catalogs[0].custom_title).toBe("Owner picks");
   expect(stored.torbox).toBe("friend:signed-grant");
   expect(stored.provider?.server).toBe("https://iptv.example:8080");
@@ -4590,20 +4632,30 @@ test("a signed-in user can publish and revoke an isolated TorBox and Real-Debrid
     }),
   );
   let published: Record<string, unknown> = {};
+  let publishCount = 0;
   await page.route("https://playback.example/friend/setup", async (route) => {
+    publishCount += 1;
     published = JSON.parse(route.request().postData() ?? "{}");
     await route.fulfill({
       json: {
         ok: true,
         torboxKey: "friend:owner-grant",
         realDebridKey: "friend-rd:owner-grant",
+        ownerTorboxKey: "own-torbox",
+        ownerRealDebridKey: "own-real-debrid",
       },
     });
   });
-  let revoked = false;
+  let revoked = 0;
   await page.route("https://playback.example/friend/revoke", async (route) => {
-    revoked = true;
-    await route.fulfill({ json: { ok: true } });
+    revoked += 1;
+    await route.fulfill({
+      json: {
+        ok: true,
+        torboxKey: "own-torbox",
+        realDebridKey: "own-real-debrid",
+      },
+    });
   });
   await page.goto("/#settings");
   await page.getByRole("button", { name: /Playback/ }).click();
@@ -4613,13 +4665,31 @@ test("a signed-in user can publish and revoke an isolated TorBox and Real-Debrid
   expect(published.code).toBe("654321");
   expect(published.torboxKey).toBe("own-torbox");
   expect(published.realDebridKey).toBe("own-real-debrid");
+  expect(publishCount).toBe(1);
   expect(
     Array.isArray((published.template as { addons?: unknown[] }).addons),
   ).toBe(true);
   await page.getByText("Manage your friend code", { exact: true }).click();
+  await page.getByRole("button", { name: "Reset and remake code" }).click();
+  await expect(page.getByText(/Friend code reset/)).toBeVisible();
+  const recovered = await page.evaluate(() => ({
+    torbox: JSON.parse(localStorage.getItem("nuvio:torbox-key") ?? '""'),
+    realDebrid: JSON.parse(
+      localStorage.getItem("nuvio:realdebrid-key") ?? '""',
+    ),
+  }));
+  expect(recovered).toEqual({
+    torbox: "own-torbox",
+    realDebrid: "own-real-debrid",
+  });
+  await page.getByLabel("Your private share code").fill("654321");
+  await page.getByRole("button", { name: "Create code" }).click();
+  await expect.poll(() => publishCount).toBe(2);
+  expect(published.code).toBe("654321");
+  await page.getByText("Manage your friend code", { exact: true }).click();
   await page.getByRole("button", { name: "Revoke my code" }).click();
   await expect(page.getByText(/friend code was revoked/)).toBeVisible();
-  expect(revoked).toBe(true);
+  expect(revoked).toBe(2);
 });
 test("manual raw torrent is resolved cached-only without autoplaying it", async ({
   page,
@@ -5329,7 +5399,8 @@ test.describe("authenticated integrations", () => {
     await expect
       .poll(() =>
         page.evaluate(
-          (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.access_token,
+          (key) =>
+            JSON.parse(localStorage.getItem(key) ?? "null")?.access_token,
           `tiktak:trakt:${encodeURIComponent(`profile:${user.id}:2`)}`,
         ),
       )

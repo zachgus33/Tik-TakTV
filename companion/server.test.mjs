@@ -647,6 +647,8 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     const ownerAccess = await published.json();
     assert.match(ownerAccess.torboxKey, /^friend:/);
     assert.match(ownerAccess.realDebridKey, /^friend-rd:/);
+    assert.equal(ownerAccess.ownerTorboxKey, "owner-one-torbox");
+    assert.equal(ownerAccess.ownerRealDebridKey, "owner-one-rd");
 
     const collision = await request("owner-two", "/friend/setup", {
       code: "123456",
@@ -701,7 +703,48 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
       ],
     });
 
-    assert.equal((await request("owner-one", "/friend/revoke")).status, 200);
+    const revisedTemplate = {
+      ...template,
+      addons: [
+        {
+          base: "https://debridio.example/new-setup",
+          manifest: {
+            id: "debridio",
+            name: "Debridio 1440p",
+            resources: ["stream"],
+          },
+        },
+      ],
+    };
+    const republished = await request("owner-one", "/friend/setup", {
+      code: "123456",
+      torboxKey: ownerAccess.torboxKey,
+      realDebridKey: ownerAccess.realDebridKey,
+      template: revisedTemplate,
+    });
+    assert.equal(republished.status, 200);
+    const revised = await request("guest", "/friend/redeem", {
+      code: "123456",
+    });
+    assert.equal(revised.status, 200);
+    assert.equal(
+      (await revised.json()).template.addons[0].base,
+      "https://debridio.example/new-setup",
+    );
+    const staleGrant = await request("guest", "/friend/restore-addons", {
+      urls: [
+        `https://friend.tiktaktv.invalid/${guestGrant}/0/manifest.json`,
+      ],
+    });
+    assert.deepEqual(await staleGrant.json(), { addons: [] });
+
+    const revoked = await request("owner-one", "/friend/revoke");
+    assert.equal(revoked.status, 200);
+    assert.deepEqual(await revoked.json(), {
+      ok: true,
+      torboxKey: "owner-one-torbox",
+      realDebridKey: "owner-one-rd",
+    });
     assert.equal(
       (await request("guest", "/friend/redeem", { code: "123456" })).status,
       403,

@@ -50,7 +50,7 @@ import CollectionManager from "./CollectionManager";
 import HealthPanel from "./HealthPanel";
 import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
-import { streamPreferences } from "./stream-selection";
+import { streamPreferences, validStreamRegex } from "./stream-selection";
 import {
   clearRequestedWhatsNewSection,
   requestedWhatsNewSection,
@@ -202,11 +202,17 @@ const sections = [
 ] as const;
 export default function Settings(props: Props) {
   const [section, setSection] = useState<SettingsSection>(() =>
-    sessionStorage.getItem("tiktak:open-settings-section") === "downloads" ? "downloads" :
-    localStorage.getItem("tiktak:trakt-callback") ? "trakt" :
-      localStorage.getItem("tiktak:simkl-callback") ? "simkl" :
-        localStorage.getItem("tiktak:anilist-callback") ? "anilist" :
-          requestedWhatsNewSection() ? "whatsnew" : "addons",
+    sessionStorage.getItem("tiktak:open-settings-section") === "downloads"
+      ? "downloads"
+      : localStorage.getItem("tiktak:trakt-callback")
+        ? "trakt"
+        : localStorage.getItem("tiktak:simkl-callback")
+          ? "simkl"
+          : localStorage.getItem("tiktak:anilist-callback")
+            ? "anilist"
+            : requestedWhatsNewSection()
+              ? "whatsnew"
+              : "addons",
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -220,7 +226,10 @@ export default function Settings(props: Props) {
     published: boolean;
   } | null>(null);
   useEffect(() => clearRequestedWhatsNewSection(), []);
-  useEffect(() => sessionStorage.removeItem("tiktak:open-settings-section"), []);
+  useEffect(
+    () => sessionStorage.removeItem("tiktak:open-settings-section"),
+    [],
+  );
   useEffect(() => setEpgDraft(props.epgUrl), [props.epgUrl]);
   useEffect(() => {
     if (!props.playbackConnected) {
@@ -244,6 +253,40 @@ export default function Settings(props: Props) {
     } finally {
       setBusy("");
     }
+  }
+  function restoreFriendOwnerCredentials(result: {
+    torboxKey?: string;
+    realDebridKey?: string;
+    ownerTorboxKey?: string;
+    ownerRealDebridKey?: string;
+  }) {
+    const torboxKey = result.ownerTorboxKey ?? result.torboxKey ?? "";
+    const realDebridKey =
+      result.ownerRealDebridKey ?? result.realDebridKey ?? "";
+    if (torboxKey || props.torboxKey.startsWith("friend:")) {
+      save("torbox-key", torboxKey);
+      sessionStorage.removeItem("nuvio:torbox-key");
+      props.onTorboxKey(torboxKey);
+    }
+    if (realDebridKey || props.realDebridKey.startsWith("friend-rd:")) {
+      save("realdebrid-key", realDebridKey);
+      sessionStorage.removeItem("nuvio:realdebrid-key");
+      props.onRealDebridKey(realDebridKey);
+    }
+  }
+  async function revokePublishedFriendCode(remake: boolean) {
+    const result = await revokeFriendSetup();
+    restoreFriendOwnerCredentials(result);
+    setFriendStatus((current) =>
+      current
+        ? { ...current, owner: false, published: false }
+        : { available: false, owner: false, published: false },
+    );
+    setSuccess(
+      remake
+        ? "Friend code reset. Enter the same code or a new one below to publish the current setup as a fresh revision."
+        : "Your friend code was revoked. Existing shared access has expired.",
+    );
   }
   return (
     <div className="settings-page">
@@ -349,10 +392,11 @@ export default function Settings(props: Props) {
               </div>
               <p>
                 Enter a private code to install its add-ons, catalog order,
-                collections, filters, playback preferences, IPTV server credentials,
-                and protected debrid access. Original add-on manifest addresses are preserved exactly
-                so the shared profile remains compatible with TikTak TV, Nuvio,
-                and other Stremio-compatible clients.
+                collections, filters, playback preferences, IPTV server
+                credentials, and protected debrid access. Original add-on
+                manifest addresses are preserved exactly so the shared profile
+                remains compatible with TikTak TV, Nuvio, and other
+                Stremio-compatible clients.
               </p>
               <form
                 className="inline-form"
@@ -406,11 +450,15 @@ export default function Settings(props: Props) {
                 </summary>
                 <p className="hint">
                   Choose a private code to share your current add-ons, catalogs,
-                  collections, settings, your IPTV server address, username and password,
-                  and your own TorBox or Real-Debrid access. Anyone with the code receives
-                  the original add-on manifest addresses and IPTV connection. Personal
-                  library items, watch history, profiles, YouTube and Trakt accounts are excluded. Publishing a new code
-                  immediately replaces your previous one.
+                  collections, settings, your IPTV server address, username and
+                  password, and your own TorBox or Real-Debrid access. Anyone
+                  with the code receives the original add-on manifest addresses
+                  and IPTV connection. Personal library items, watch history,
+                  profiles, YouTube and Trakt accounts are excluded. Publishing
+                  a new code immediately replaces your previous one. Reusing the
+                  same code creates a new revision; installing it again replaces
+                  the recipient&apos;s old add-ons and setup instead of merging
+                  them.
                 </p>
                 <form
                   className="inline-form"
@@ -430,14 +478,7 @@ export default function Settings(props: Props) {
                           unknown
                         >,
                       );
-                      if (result.torboxKey) {
-                        save("torbox-key", result.torboxKey);
-                        props.onTorboxKey(result.torboxKey);
-                      }
-                      if (result.realDebridKey) {
-                        save("realdebrid-key", result.realDebridKey);
-                        props.onRealDebridKey(result.realDebridKey);
-                      }
+                      restoreFriendOwnerCredentials(result);
                       setFriendStatus({
                         available: true,
                         owner: true,
@@ -488,26 +529,33 @@ export default function Settings(props: Props) {
                     </p>
                   )}
                 {friendStatus?.published && (
-                  <button
-                    className="danger-button"
-                    disabled={!!busy}
-                    onClick={() =>
-                      void run("friend-revoke", async () => {
-                        await revokeFriendSetup();
-                        setFriendStatus((current) =>
-                          current
-                            ? { ...current, owner: false, published: false }
-                            : current,
-                        );
-                        setSuccess(
-                          "Your friend code was revoked. Existing shared access has expired.",
-                        );
-                      })
-                    }
-                  >
-                    <Trash2 size={17} />
-                    Revoke my code
-                  </button>
+                  <div className="friend-code-actions">
+                    <button
+                      disabled={!!busy}
+                      onClick={() =>
+                        void run("friend-reset", () =>
+                          revokePublishedFriendCode(true),
+                        )
+                      }
+                    >
+                      <KeyRound size={17} />
+                      {busy === "friend-reset"
+                        ? "Resetting…"
+                        : "Reset and remake code"}
+                    </button>
+                    <button
+                      className="danger-button"
+                      disabled={!!busy}
+                      onClick={() =>
+                        void run("friend-revoke", () =>
+                          revokePublishedFriendCode(false),
+                        )
+                      }
+                    >
+                      <Trash2 size={17} />
+                      Revoke my code
+                    </button>
+                  </div>
                 )}
               </details>
             </section>
@@ -639,6 +687,41 @@ export default function Settings(props: Props) {
                     </select>
                   </label>
                   <label>
+                    Automatic source selection
+                    <select
+                      value={sourcePreferences.autoPlayMode}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          autoPlayMode:
+                            event.target.value === "first" ||
+                            event.target.value === "regex"
+                              ? event.target.value
+                              : "smart",
+                        }))
+                      }
+                    >
+                      <option value="smart">Smart compatibility ranking</option>
+                      <option value="first">First compatible stream</option>
+                      <option value="regex">Custom regex match</option>
+                    </select>
+                  </label>
+                  {sourcePreferences.autoPlayMode === "regex" && (
+                    <label className="grow">
+                      Custom stream regex
+                      <input
+                        value={sourcePreferences.autoPlayRegex}
+                        placeholder="(?=.*Debridio)(?=.*1440p)"
+                        onChange={(event) =>
+                          setSourcePreferences((current) => ({
+                            ...current,
+                            autoPlayRegex: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  )}
+                  <label>
                     Excluded terms (comma separated)
                     <input
                       value={sourcePreferences.excludedTerms.join(", ")}
@@ -655,9 +738,52 @@ export default function Settings(props: Props) {
                     />
                   </label>
                 </div>
+                {sourcePreferences.autoPlayMode === "regex" && (
+                  <div
+                    className="source-regex-presets"
+                    aria-label="Regex presets"
+                  >
+                    {[
+                      ["1440p or better", "(1440p|2160p|4k)"],
+                      ["Debridio 1440p", "(?=.*Debridio)(?=.*1440p)"],
+                      ["1080p or better", "(1080p|1440p|2160p|4k)"],
+                      ["Web sources", "(web[-\\s]?dl|webrip)"],
+                      ["Blu-ray / remux", "(bluray|b[dr]rip|remux)"],
+                      ["HEVC / x265", "(hevc|x265|h\\.265)"],
+                      [
+                        "No CAM / telesync",
+                        "^(?!.*\\b(cam|hdcam|ts|telesync)\\b).*$",
+                      ],
+                    ].map(([label, pattern]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() =>
+                          setSourcePreferences((current) => ({
+                            ...current,
+                            autoPlayRegex: pattern,
+                          }))
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => {
+                    if (
+                      sourcePreferences.autoPlayMode === "regex" &&
+                      !validStreamRegex(sourcePreferences.autoPlayRegex)
+                    ) {
+                      setSuccess("");
+                      setError(
+                        "Enter a valid stream regex containing at least one word or number.",
+                      );
+                      return;
+                    }
+                    setError("");
                     localStorage.setItem(
                       "tiktak:stream-preferences",
                       JSON.stringify(sourcePreferences),
@@ -670,8 +796,10 @@ export default function Settings(props: Props) {
                   Save source controls
                 </button>
                 <p className="hint">
-                  Ranking remains quality first and seeders second within these
-                  limits. H.264 is the safest option for Safari and older TVs.
+                  Regex matching follows Nuvio Mobile Enhanced and searches the
+                  add-on name, stream name, description, filename, and URL.
+                  These rules affect automatic selection only; every playable
+                  add-on result remains visible in Choose stream.
                 </p>
               </details>
               {props.realDebridKey && (
@@ -753,8 +881,9 @@ export default function Settings(props: Props) {
                 Automatic playback
               </label>
               <p className="hint">
-                Starts the best compatible 720p+ option in the background,
-                preferring built-in/source subtitles and maximum availability.
+                Starts playback in the background using your source-selection
+                mode above. Smart mode prefers compatible 720p+ streams with
+                subtitles and availability; regex mode uses your own pattern.
               </p>
             </section>
           </div>
@@ -767,9 +896,21 @@ export default function Settings(props: Props) {
             />
           )}
           {section === "downloads" && <DownloadCenter />}
-          {section === "trakt" && <TraktSettings profileName={props.profileName} />}
-          {section === "simkl" && <ExternalTrackingSettings provider="simkl" profileName={props.profileName} />}
-          {section === "anilist" && <ExternalTrackingSettings provider="anilist" profileName={props.profileName} />}
+          {section === "trakt" && (
+            <TraktSettings profileName={props.profileName} />
+          )}
+          {section === "simkl" && (
+            <ExternalTrackingSettings
+              provider="simkl"
+              profileName={props.profileName}
+            />
+          )}
+          {section === "anilist" && (
+            <ExternalTrackingSettings
+              provider="anilist"
+              profileName={props.profileName}
+            />
+          )}
           {section === "privacy" && (
             <PrivacyStatus onOpenFeedback={() => setSection("feedback")} />
           )}

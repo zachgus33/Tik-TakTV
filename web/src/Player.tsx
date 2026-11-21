@@ -69,6 +69,8 @@ export type Playback = {
   compatibilityFallback?: boolean;
   party?: { id: string; host: boolean };
   alternatives?: Playback[];
+  /** Remaining add-ons continue loading after fast autoplay starts. */
+  alternativesRequest?: Promise<Playback[]>;
   /** Number of alternatives that may be tried automatically. */
   automaticFallbackCount?: number;
   /** Privacy-safe stream/add-on details for the in-player chooser. */
@@ -97,7 +99,10 @@ function preferredSubtitleScore(subtitle: Subtitle): number {
     .toLowerCase();
   const preferredIndex = preferred.findIndex((language) => {
     const primary = language.split("-")[0];
-    return values.includes(language) || (primary.length > 1 && values.includes(primary));
+    return (
+      values.includes(language) ||
+      (primary.length > 1 && values.includes(primary))
+    );
   });
   const forced = /\bforced\b/i.test(values) ? 2 : 0;
   return (preferredIndex < 0 ? 0 : 20 - preferredIndex) + forced;
@@ -297,6 +302,7 @@ function VideoPlayer({
   );
   const subtitlePreferenceRestoredRef = useRef(false);
   const activeSubtitleTimerRef = useRef<number>(0);
+  const subtitleNoticeTimerRef = useRef<number>(0);
   const subtitleSyncCapturedAtRef = useRef<number | null>(null);
   const subtitleSyncWasPlayingRef = useRef(false);
   subtitleRef.current = subtitles;
@@ -458,7 +464,8 @@ function VideoPlayer({
         Math.min(6_000, (latest.endTime - video.currentTime) * 1_000),
       );
       activeSubtitleTimerRef.current = window.setTimeout(
-        () => setActiveSubtitleText((current) => (current === text ? "" : current)),
+        () =>
+          setActiveSubtitleText((current) => (current === text ? "" : current)),
         remaining,
       );
     };
@@ -854,8 +861,12 @@ function VideoPlayer({
     setSubtitleSyncCapturedAt(null);
     const resume = subtitleSyncWasPlayingRef.current;
     subtitleSyncWasPlayingRef.current = false;
-    setNotice(
-      `Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`,
+    const message = `Subtitle timing set to ${next >= 0 ? "+" : ""}${next.toFixed(1)}s.`;
+    window.clearTimeout(subtitleNoticeTimerRef.current);
+    setNotice(message);
+    subtitleNoticeTimerRef.current = window.setTimeout(
+      () => setNotice((current) => (current === message ? "" : current)),
+      1800,
     );
     if (resume) void videoRef.current?.play().catch(() => undefined);
   }
@@ -879,6 +890,7 @@ function VideoPlayer({
     setPlaying(false);
     setCurrentTime(0);
     setSeekEnd(0);
+    window.clearTimeout(subtitleNoticeTimerRef.current);
     const url =
       safeUrl(playback.url) ??
       (getService()?.url.startsWith("http://127.0.0.1:") &&
@@ -1234,6 +1246,7 @@ function VideoPlayer({
       void play();
     }
     return () => {
+      window.clearTimeout(subtitleNoticeTimerRef.current);
       disposed = true;
       reportMediaActivity(playbackMetricId, { active: false });
       persist();
@@ -1530,8 +1543,7 @@ function VideoPlayer({
           revealTvControls();
       }}
       onPointerDown={(event) => {
-        if (tvMode && !playerTapHitsControl(event.target))
-          revealTvControls();
+        if (tvMode && !playerTapHitsControl(event.target)) revealTvControls();
         if (
           !tvMode &&
           playback.item.type !== "live" &&
@@ -1983,8 +1995,8 @@ function VideoPlayer({
                   ? "Source"
                   : subtitle.source === "local"
                     ? "Local"
-                    : "Add-on"} ·{" "}
-                {subtitle.name}
+                    : "Add-on"}{" "}
+                · {subtitle.name}
               </option>
             ))}
           </select>
@@ -2146,9 +2158,10 @@ function VideoPlayer({
             role="search"
             onSubmit={(event) => {
               event.preventDefault();
-              const first = event.currentTarget.parentElement?.querySelector<HTMLElement>(
-                ".subtitle-cue-list button",
-              );
+              const first =
+                event.currentTarget.parentElement?.querySelector<HTMLElement>(
+                  ".subtitle-cue-list button",
+                );
               subtitleSyncSearchRef.current?.blur();
               first?.focus({ preventScroll: true });
               first?.scrollIntoView({ block: "nearest" });
@@ -2220,7 +2233,34 @@ export default function Player({
   const sourcePickerRef = useRef<HTMLDialogElement>(null);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
-  const alternatives = playback.alternatives ?? [];
+  const [alternatives, setAlternatives] = useState<Playback[]>(
+    playback.alternatives ?? [],
+  );
+  const [alternativesLoading, setAlternativesLoading] = useState(
+    !!playback.alternativesRequest,
+  );
+  useEffect(() => {
+    let cancelled = false;
+    setAlternatives(playback.alternatives ?? []);
+    setAlternativesLoading(!!playback.alternativesRequest);
+    if (playback.alternativesRequest)
+      void playback.alternativesRequest
+        .then((loaded) => {
+          if (!cancelled) setAlternatives(loaded);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelled) setAlternativesLoading(false);
+        });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    playback.item.id,
+    playback.episode?.id,
+    playback.url,
+    playback.alternativesRequest,
+  ]);
   const selected = attempt === 0 ? playback : alternatives[attempt - 1];
   const automaticFallbackEnd = Math.min(
     playback.automaticFallbackCount ?? alternatives.length,
@@ -2443,6 +2483,11 @@ export default function Player({
               Startup fallbacks stop once playback begins. The selected source
               stays locked unless you choose another one here.
             </p>
+            <p className="player-source-status" aria-live="polite">
+              {alternativesLoading
+                ? `Loading every add-on in the background… ${sourceChoices.length} source${sourceChoices.length === 1 ? "" : "s"} so far.`
+                : `${sourceChoices.length} source${sourceChoices.length === 1 ? "" : "s"} loaded from completed add-ons.`}
+            </p>
           </div>
           <button
             type="button"
@@ -2534,9 +2579,7 @@ export default function Player({
             {error ? "PLAYBACK NEEDS ATTENTION" : "NOW PLAYING"}
           </span>
           <h2>{error ? "Could not start playback" : selected.item.name}</h2>
-          <p role={error ? "alert" : "status"}>
-            {error || "Starting video…"}
-          </p>
+          <p role={error ? "alert" : "status"}>{error || "Starting video…"}</p>
           <div className="player-opening-actions">
             {error && (
               <button
@@ -2553,10 +2596,7 @@ export default function Player({
               </button>
             )}
             {sourceChoices.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setSourcePickerOpen(true)}
-              >
+              <button type="button" onClick={() => setSourcePickerOpen(true)}>
                 Choose another source
               </button>
             )}

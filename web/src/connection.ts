@@ -405,10 +405,13 @@ export type DownloadPreparationStatus = {
   url?: string;
 };
 
-function validDownloadPath(value: string, file: "status.json" | "download.mp4") {
-  return new RegExp(`^/media/[A-Za-z0-9_-]{32}/${file.replace(".", "\\.")}$`).test(
-    value,
-  );
+function validDownloadPath(
+  value: string,
+  file: "status.json" | "download.mp4",
+) {
+  return new RegExp(
+    `^/media/[A-Za-z0-9_-]{32}/${file.replace(".", "\\.")}$`,
+  ).test(value);
 }
 
 function abortableDelay(milliseconds: number, signal?: AbortSignal) {
@@ -521,6 +524,8 @@ export const publishFriendSetup = (
     ok: boolean;
     torboxKey: string;
     realDebridKey: string;
+    ownerTorboxKey?: string;
+    ownerRealDebridKey?: string;
   }>("/friend/setup", { code, torboxKey, realDebridKey, template });
 
 export const redeemFriendSetup = <T>(code: string) =>
@@ -538,4 +543,8 @@ export const restoreFriendAddonUrls = (urls: string[]) =>
   );
 
 export const revokeFriendSetup = () =>
-  friendRequest<{ ok: boolean }>("/friend/revoke");
+  friendRequest<{
+    ok: boolean;
+    torboxKey: string;
+    realDebridKey: string;
+  }>("/friend/revoke");

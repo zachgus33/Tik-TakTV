@@ -1,13 +1,25 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.7";
+export const latestRelease = "2026.11.20.8";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Custom stream rules and replaceable friend codes",
+    changes: [
+      "Automatic source selection now supports Nuvio Mobile Enhanced-style custom regex rules and presets matched against the add-on name, stream label, description, filename, and URL.",
+      "Playback still starts from the first eligible response, while every remaining add-on continues loading in the background; late Debridio and 1440p results appear in Choose stream without restarting the video.",
+      "Manual source lists no longer inherit autoplay quality, codec, exclusion, or regex filters, so every direct playable result remains available.",
+      "Subtitle timing confirmations now dismiss automatically instead of remaining over the video.",
+      "Friend codes can be reset and remade with the same digits as a fresh revision, restoring the owner's Debrid credentials and replacing a recipient's prior setup when installed again.",
+    ],
+  },
+  {
+    version: "2026.11.20.7",
     date: "November 20, 2026",
     title: "Nuvio-style subtitle rendering",
     changes: [

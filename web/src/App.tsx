@@ -162,6 +162,7 @@ import {
   debridStream,
   needsCompatibilityTranscode,
   rankedStreams,
+  sourcePickerStreams,
   streamQuality,
   streamAudioLanguages,
   streamAudioCodec,
@@ -228,20 +229,25 @@ function firstAutoplayResult(
     onSource: (streams: Stream[]) => void,
   ) => Promise<StreamSearchResult>,
   hasDebrid: boolean,
-): Promise<{ streams: Stream[]; result?: StreamSearchResult }> {
+): Promise<{
+  streams: Stream[];
+  result?: StreamSearchResult;
+  complete: Promise<StreamSearchResult>;
+}> {
   const accumulated: Stream[] = [];
   const seen = new Set<string>();
   let conversionGrace: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
   return new Promise((resolve, reject) => {
+    let request!: Promise<StreamSearchResult>;
     const finish = (streams: Stream[], result?: StreamSearchResult) => {
       if (settled) return;
       settled = true;
       if (conversionGrace) clearTimeout(conversionGrace);
-      resolve({ streams, result });
+      resolve({ streams, result, complete: request });
     };
     const rankedAccumulated = () => autoplayStreams(accumulated, hasDebrid);
-    const request = search((streams) => {
+    request = search((streams) => {
       for (const stream of streams) {
         const key = `${stream.url ?? ""}|${stream.infoHash ?? ""}|${stream.fileIdx ?? ""}|${stream.title ?? ""}`;
         if (seen.has(key)) continue;
@@ -1611,6 +1617,7 @@ function Detail({
     ep?: Episode,
     signal?: AbortSignal,
     fallbackStreams: Stream[] = [],
+    fallbackRequest?: Promise<Stream[]>,
   ) {
     setError("");
     setFiles(null);
@@ -1662,6 +1669,12 @@ function Detail({
           .filter((candidate) => directStream(candidate))
           .slice(0, 49)
           .map(playbackForStream),
+        alternativesRequest: fallbackRequest?.then((loaded) =>
+          sourcePickerStreams(loaded)
+            .filter((candidate) => candidate.url !== stream.url)
+            .slice(0, 250)
+            .map(playbackForStream),
+        ),
       });
       return;
     }
@@ -1967,13 +1980,18 @@ function Detail({
         );
         if (c.signal.aborted) return;
         if (selection.streams.length) {
+          // Playback can close the details dialog immediately. Transfer the
+          // still-running add-on search to Player before that unmount cleanup
+          // runs, otherwise slower providers (for example Debridio) disappear
+          // from the manual source list.
+          controller.current = null;
           await chooseStream(
             selection.streams[0],
             ep,
             c.signal,
             selection.streams.slice(1),
+            selection.complete.then((result) => result.streams),
           );
-          c.abort();
           return;
         }
         if (!selection.result)
@@ -2927,7 +2945,7 @@ export default function App() {
       .catch(() => undefined);
     return () => controller.abort();
   }, [playback?.item, playback?.episode, playback?.party, provider]);
-  useEffect(() => () => nextEpisodeRequest.current?.abort(), [playback]);
+  useEffect(() => () => nextEpisodeRequest.current?.abort(), []);
   async function playNextEpisode() {
     const current = playback;
     const episode = nextEpisode;
@@ -2981,6 +2999,12 @@ export default function App() {
         ...toPlayback(candidate),
         automaticFallbackCount: 2,
         alternatives: ranked.slice(1, 50).filter(directStream).map(toPlayback),
+        alternativesRequest: selection.complete.then((result) =>
+          sourcePickerStreams(result.streams)
+            .filter((stream) => stream.url !== candidate.url)
+            .slice(0, 250)
+            .map(toPlayback),
+        ),
       };
     } else {
       throw new Error("This series has no automatic next-episode source.");
@@ -2988,7 +3012,6 @@ export default function App() {
     if (controller.signal.aborted) return;
     setNextEpisode(null);
     setPlayback(next);
-    controller.abort();
   }
   const [youtubeResumeRequest, setYoutubeResumeRequest] =
     useState<YouTubeResumeRequest | null>(null);
@@ -5047,12 +5070,13 @@ export default function App() {
                     setCollections(template.collections);
                     setAutoplay(template.autoplay);
                     setHomeCatalogs(template.homeCatalogs);
-                    if (template.provider) {
-                      storeProvider(template.provider, true);
-                      setProvider(template.provider);
-                      setCategory("");
-                      setActiveChannel(null);
-                    }
+                    // Friend installation is a full setup replacement. Clear
+                    // an older IPTV connection when the new shared setup does
+                    // not contain one instead of silently merging generations.
+                    storeProvider(template.provider ?? null, true);
+                    setProvider(template.provider ?? null);
+                    setCategory("");
+                    setActiveChannel(null);
                     setTorboxKey(friendTorboxKey);
                     save("torbox-key", friendTorboxKey);
                     sessionStorage.removeItem("nuvio:torbox-key");

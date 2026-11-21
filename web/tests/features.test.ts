@@ -29,8 +29,11 @@ import {
   rankedStreams,
   needsCompatibilityTranscode,
   seeders,
+  sourcePickerStreams,
   streamAudioCodec,
+  streamMatchesRegex,
   streamSubtitlePriority,
+  validStreamRegex,
 } from "../src/stream-selection";
 import { prepareTorbox, selectTorboxFile, torboxLink } from "../src/torbox";
 import { resolveRealDebrid, validateRealDebridKey } from "../src/realdebrid";
@@ -994,6 +997,86 @@ describe("720p+ preference and safe episode matching", () => {
       "https://cdn.example/source-subs-low.mp4",
       "https://cdn.example/4k.mp4",
     ]);
+  });
+  it("uses Nuvio-style regex matching without hiding other manual sources", () => {
+    const torrentio = {
+      addonName: "Torrentio",
+      name: "[TB+] Torrentio 720p",
+      seeders: 900,
+      url: "https://cdn.example/torrentio-720.mp4",
+    };
+    const debridio = {
+      addonName: "Debridio",
+      name: "Debridio cached source",
+      title: "Friends 1440p WEB-DL AAC",
+      seeders: 40,
+      url: "https://cdn.example/debridio-1440.mp4",
+    };
+    const storage = new Map([
+      [
+        "tiktak:stream-preferences",
+        JSON.stringify({
+          maxQuality: 1080,
+          maxSizeGb: 0,
+          excludedTerms: ["Debridio"],
+          codec: "any",
+          autoPlayMode: "regex",
+          autoPlayRegex: "(?=.*Debridio)(?=.*1440p)",
+        }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
+
+    expect(validStreamRegex("(?=.*Debridio)(?=.*1440p)")).toBe(true);
+    expect(validStreamRegex("[broken")).toBe(false);
+    expect(streamMatchesRegex(debridio, "(?=.*Debridio)(?=.*1440p)")).toBe(
+      true,
+    );
+    // Like Nuvio Mobile Enhanced, an explicit regex controls selection from
+    // the full playable candidate list instead of being silently overruled by
+    // the smart-mode quality and excluded-term settings.
+    expect(autoplayStreams([torrentio, debridio], false)).toEqual([debridio]);
+    // The manual chooser is deliberately complete and does not inherit those
+    // autoplay limits. Debridio's 1440p source remains visible.
+    expect(sourcePickerStreams([torrentio, debridio])).toEqual([
+      debridio,
+      torrentio,
+    ]);
+  });
+  it("selects a matching Debridio 1440p source when the regex allows it", () => {
+    const storage = new Map([
+      [
+        "tiktak:stream-preferences",
+        JSON.stringify({
+          maxQuality: 4320,
+          maxSizeGb: 0,
+          excludedTerms: [],
+          codec: "any",
+          autoPlayMode: "regex",
+          autoPlayRegex: "(?=.*Debridio)(?=.*1440p)",
+        }),
+      ],
+    ]);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
+    const torrentio = {
+      addonName: "Torrentio",
+      name: "720p AAC",
+      url: "https://cdn.example/torrentio.mp4",
+    };
+    const debridio = {
+      addonName: "Debridio",
+      name: "Cached 1440p AAC",
+      url: "https://cdn.example/debridio.mp4",
+    };
+    expect(autoplayStreams([torrentio, debridio], false)).toEqual([debridio]);
   });
   it("only enables raw torrents when TorBox is connected", () => {
     expect(

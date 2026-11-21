@@ -76,8 +76,14 @@ export function directStream(stream: Stream): boolean {
 export function needsCompatibilityTranscode(stream: Stream): boolean {
   return compatibilityPlaybackMode(stream) !== undefined;
 }
-function streamDescriptor(stream: Stream): string {
-  return [stream.name, stream.title, stream.url, stream.behaviorHints?.filename]
+export function streamDescriptor(stream: Stream): string {
+  return [
+    stream.addonName,
+    stream.name,
+    stream.title,
+    stream.url,
+    stream.behaviorHints?.filename,
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -117,10 +123,19 @@ export type StreamPreferences = {
   maxSizeGb: number;
   excludedTerms: string[];
   codec: "any" | "h264";
+  autoPlayMode: "smart" | "first" | "regex";
+  autoPlayRegex: string;
+};
+const defaultStreamPreferences: StreamPreferences = {
+  maxQuality: 4320,
+  maxSizeGb: 0,
+  excludedTerms: [],
+  codec: "any",
+  autoPlayMode: "smart",
+  autoPlayRegex: "",
 };
 export function streamPreferences(): StreamPreferences {
-  if (typeof localStorage === "undefined")
-    return { maxQuality: 4320, maxSizeGb: 0, excludedTerms: [], codec: "any" };
+  if (typeof localStorage === "undefined") return defaultStreamPreferences;
   try {
     const saved = JSON.parse(
       localStorage.getItem("tiktak:stream-preferences") || "{}",
@@ -132,9 +147,32 @@ export function streamPreferences(): StreamPreferences {
         ? saved.excludedTerms.map(String).filter(Boolean)
         : [],
       codec: saved.codec === "h264" ? "h264" : "any",
+      autoPlayMode:
+        saved.autoPlayMode === "first" || saved.autoPlayMode === "regex"
+          ? saved.autoPlayMode
+          : "smart",
+      autoPlayRegex:
+        typeof saved.autoPlayRegex === "string" ? saved.autoPlayRegex : "",
     };
   } catch {
-    return { maxQuality: 4320, maxSizeGb: 0, excludedTerms: [], codec: "any" };
+    return defaultStreamPreferences;
+  }
+}
+export function validStreamRegex(pattern: string): boolean {
+  const value = pattern.trim();
+  if (!value || !/[\p{L}\p{N}]/u.test(value)) return false;
+  try {
+    new RegExp(value, "i");
+    return true;
+  } catch {
+    return false;
+  }
+}
+export function streamMatchesRegex(stream: Stream, pattern: string): boolean {
+  try {
+    return new RegExp(pattern.trim(), "i").test(streamDescriptor(stream));
+  } catch {
+    return false;
   }
 }
 function sizeGb(stream: Stream) {
@@ -255,7 +293,12 @@ export function autoplayStreams(
   streams: Stream[],
   hasTorbox: boolean,
 ): Stream[] {
-  const eligible = rankedStreams(streams, hasTorbox).filter((stream) => {
+  const preferences = streamPreferences();
+  const candidates =
+    preferences.autoPlayMode === "smart"
+      ? rankedStreams(streams, hasTorbox)
+      : streams;
+  const eligible = candidates.filter((stream) => {
     if (!directStream(stream)) return false;
     if (stream.behaviorHints?.notWebReady === true) return false;
     const descriptor = streamDescriptor(stream);
@@ -275,10 +318,22 @@ export function autoplayStreams(
       return false;
     return true;
   });
-  const browserReady = eligible.filter(
+  const filtered =
+    preferences.autoPlayMode === "regex"
+      ? validStreamRegex(preferences.autoPlayRegex)
+        ? eligible.filter((stream) =>
+            streamMatchesRegex(stream, preferences.autoPlayRegex),
+          )
+        : []
+      : eligible;
+  const matched =
+    preferences.autoPlayMode === "first"
+      ? streams.filter((stream) => filtered.includes(stream))
+      : filtered;
+  const browserReady = matched.filter(
     (stream) => !compatibilityPlaybackMode(stream),
   );
-  const conversionFallbacks = eligible.filter((stream) =>
+  const conversionFallbacks = matched.filter((stream) =>
     compatibilityPlaybackMode(stream),
   );
   const mobile = mobilePlaybackDevice();
@@ -294,8 +349,45 @@ export function autoplayStreams(
   // group, prefer 720p+ sources that already advertise subtitles, then the
   // healthiest swarm. This mirrors the TV behavior without exposing source
   // selection as a step the viewer has to manage.
+  if (
+    preferences.autoPlayMode === "first" ||
+    preferences.autoPlayMode === "regex"
+  )
+    return [...browserReady, ...conversionFallbacks];
   return [
     ...browserReady.sort(byPlaybackPriority),
     ...conversionFallbacks.sort(byPlaybackPriority),
   ];
+}
+
+/** Every direct result remains available for manual choice. Autoplay limits
+ * and regexes only affect automatic selection, never the source picker. */
+export function sourcePickerStreams(streams: Stream[]): Stream[] {
+  const preferences = streamPreferences();
+  const seen = new Set<string>();
+  return streams
+    .filter(directStream)
+    .filter((stream) => {
+      const descriptor = streamDescriptor(stream);
+      if (
+        /\[(?:tb|rd|ad)\s+download\]|\bdownload\s+to\s+debrid\b/i.test(
+          descriptor,
+        )
+      )
+        return false;
+      const key = `${stream.url ?? ""}|${stream.behaviorHints?.filename ?? ""}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort(
+      (left, right) =>
+        (preferences.autoPlayMode === "regex" &&
+        validStreamRegex(preferences.autoPlayRegex)
+          ? Number(streamMatchesRegex(right, preferences.autoPlayRegex)) -
+            Number(streamMatchesRegex(left, preferences.autoPlayRegex))
+          : 0) ||
+        streamQuality(right) - streamQuality(left) ||
+        seeders(right) - seeders(left),
+    );
 }

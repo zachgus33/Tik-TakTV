@@ -1465,8 +1465,10 @@ export function createService({
     try {
       friendVaultsCache = await decryptVaultFile(friendVaultsPath);
     } catch {
-      friendVaultsCache = { version: 2, vaults: {} };
+      friendVaultsCache = { version: 3, vaults: {}, revisions: {} };
     }
+    friendVaultsCache.vaults ??= {};
+    friendVaultsCache.revisions ??= {};
     return friendVaultsCache;
   }
   async function writeFriendVaults(value) {
@@ -3481,8 +3483,19 @@ export function createService({
           return send(503, {
             error: "Friend-code capacity is full. Try again later.",
           });
+        let previousRevision = Number(database.revisions?.[userId]) || 0;
         for (const [id, existing] of Object.entries(database.vaults ?? {}))
-          if (existing.ownerUserId === userId) delete database.vaults[id];
+          if (existing.ownerUserId === userId) {
+            previousRevision = Math.max(
+              previousRevision,
+              Number(existing.updated) || 0,
+            );
+            delete database.vaults[id];
+          }
+        const revision = Math.max(Date.now(), previousRevision + 1);
+        database.version = 3;
+        database.revisions ??= {};
+        database.revisions[userId] = revision;
         database.vaults[vaultId] = {
           ownerUserId: userId,
           codeSalt: salt.toString("base64"),
@@ -3490,7 +3503,7 @@ export function createService({
           torboxKey,
           realDebridKey,
           template: sharedTemplate,
-          updated: Date.now(),
+          updated: revision,
         };
         await writeFriendVaults(database);
         const vault = database.vaults[vaultId];
@@ -3499,6 +3512,10 @@ export function createService({
           ok: true,
           torboxKey: torboxKey ? `friend:${grant}` : "",
           realDebridKey: realDebridKey ? `friend-rd:${grant}` : "",
+          // New web clients keep the owner's own credentials after publishing
+          // instead of replacing them with a version-bound friend grant.
+          ownerTorboxKey: torboxKey,
+          ownerRealDebridKey: realDebridKey,
         });
       }
       if (route.pathname === "/friend/revoke") {
@@ -3506,14 +3523,37 @@ export function createService({
           return send(403, { error: "Sign in before changing a friend code." });
         const database = await readFriendVaults();
         let removed = false;
+        let recovered;
+        let previousRevision = Number(database.revisions?.[userId]) || 0;
         for (const [id, vault] of Object.entries(database.vaults ?? {})) {
           if (vault.ownerUserId === userId) {
+            previousRevision = Math.max(
+              previousRevision,
+              Number(vault.updated) || 0,
+            );
+            if (!recovered || Number(vault.updated) > Number(recovered.updated))
+              recovered = vault;
             delete database.vaults[id];
             removed = true;
           }
         }
-        if (removed) await writeFriendVaults(database);
-        return send(200, { ok: true });
+        if (removed) {
+          database.version = 3;
+          database.revisions ??= {};
+          database.revisions[userId] = Math.max(
+            Date.now(),
+            previousRevision + 1,
+          );
+          await writeFriendVaults(database);
+        }
+        return send(200, {
+          ok: true,
+          // Restore the owner's original credentials locally before deleting
+          // the encrypted vault. Older web releases replaced them with a
+          // friend grant, which otherwise made remaking a code impossible.
+          torboxKey: recovered?.torboxKey ?? "",
+          realDebridKey: recovered?.realDebridKey ?? "",
+        });
       }
       if (route.pathname === "/friend/redeem") {
         if (userId === "service")
