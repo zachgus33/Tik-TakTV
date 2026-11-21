@@ -4947,12 +4947,13 @@ test("Home hero artwork preference switches from backdrop to poster", async ({
       ),
     }),
   );
-  await page.addInitScript(() =>
+  await page.addInitScript(() => {
+    localStorage.setItem("nuvio:tmdb-key", "test-key");
     localStorage.setItem(
       "tiktak:nuvio-web-settings",
       JSON.stringify({ heroArtwork: "poster", updatedAt: Date.now() }),
-    ),
-  );
+    );
+  });
   await page.goto("/#home");
   await expect
     .poll(() =>
@@ -4969,6 +4970,69 @@ test("Home hero artwork preference switches from backdrop to poster", async ({
     "src",
     "https://images.example/poster.jpg",
   );
+});
+
+test("Home motion preview loads muted and enables sound after a click", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop" && testInfo.project.name !== "iphone",
+    "Desktop and iPhone cover browser and PWA behavior.",
+  );
+  const illustrated = {
+    ...meta,
+    id: "tmdb:278",
+    poster: "https://images.example/poster.jpg",
+    background: "https://images.example/backdrop.jpg",
+  };
+  await page.route("https://v3-cinemeta.strem.io/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json: path.includes("/meta/")
+        ? { meta: illustrated }
+        : { metas: [illustrated] },
+    });
+  });
+  await page.route("https://api.themoviedb.org/3/movie/278/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json: path.endsWith("/videos")
+        ? {
+            results: [
+              {
+                id: "trailer",
+                site: "YouTube",
+                type: "Trailer",
+                key: "preview123",
+                name: "Official trailer",
+              },
+            ],
+          }
+        : path.endsWith("/recommendations")
+          ? { results: [] }
+          : { production_companies: [] },
+    });
+  });
+  await page.route("https://www.youtube-nocookie.com/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<!doctype html>" }),
+  );
+  await page.addInitScript(() => {
+    localStorage.setItem("nuvio:tmdb-key", "test-key");
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({
+        motionPreviews: true,
+        motionPreviewSound: true,
+        heroAutoScroll: false,
+        updatedAt: Date.now(),
+      }),
+    );
+  });
+  await page.goto("/#home");
+  const preview = page.locator("iframe.hero-motion-preview");
+  await expect(preview).toHaveAttribute("src", /preview123.*mute=1/);
+  await page.getByRole("button", { name: "Preview sound" }).click();
+  await expect(preview).toHaveAttribute("src", /preview123.*mute=0/);
 });
 
 test("Feature highlights preference can suppress the update prompt", async ({

@@ -3267,6 +3267,11 @@ export default function App() {
     loadedAt: number;
   } | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroPreview, setHeroPreview] = useState<{
+    key: string;
+    videoId: string;
+  } | null>(null);
+  const [heroPreviewSound, setHeroPreviewSound] = useState(false);
   const [homeCatalogs, setHomeCatalogs] = useStored<HomeCatalogSetting[]>(
     "home-catalogs",
     [],
@@ -4013,6 +4018,46 @@ export default function App() {
   );
   const hero = heroItems[heroIndex % Math.max(heroItems.length, 1)];
   useEffect(() => {
+    setHeroPreview(null);
+    setHeroPreviewSound(false);
+    if (
+      page !== "home" ||
+      !hero ||
+      !nuvioWebSettings.motionPreviews ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      (
+        navigator as Navigator & {
+          connection?: { saveData?: boolean };
+        }
+      ).connection?.saveData
+    )
+      return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void import("./tmdb")
+        .then(({ titleExtras }) => titleExtras(hero, controller.signal))
+        .then((extras) => {
+          const trailer = extras.trailers[0];
+          if (!controller.signal.aborted && trailer)
+            setHeroPreview({
+              key: itemKey(hero),
+              videoId: trailer.videoId,
+            });
+        })
+        .catch(() => undefined);
+    }, 1800);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    page,
+    hero?.id,
+    hero?.type,
+    hero?.source,
+    nuvioWebSettings.motionPreviews,
+  ]);
+  useEffect(() => {
     if (
       page !== "home" ||
       !nuvioWebSettings.heroAutoScroll ||
@@ -4528,6 +4573,17 @@ export default function App() {
                         wide={nuvioWebSettings.heroArtwork === "backdrop"}
                         priority
                       />
+                      {heroPreview?.key === itemKey(hero) && (
+                        <iframe
+                          key={`${heroPreview.videoId}:${heroPreviewSound}`}
+                          className="hero-motion-preview"
+                          src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(heroPreview.videoId)}?autoplay=1&mute=${heroPreviewSound ? "0" : "1"}&controls=0&disablekb=1&fs=0&loop=1&modestbranding=1&playsinline=1&playlist=${encodeURIComponent(heroPreview.videoId)}`}
+                          title={`${hero.name} motion preview`}
+                          allow="autoplay; encrypted-media; picture-in-picture"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          tabIndex={-1}
+                        />
+                      )}
                     </div>
                     <div className="hero-content">
                       <span className="hero-tag">
@@ -4573,6 +4629,19 @@ export default function App() {
                           )}
                           My library
                         </button>
+                        {heroPreview?.key === itemKey(hero) &&
+                          nuvioWebSettings.motionPreviewSound && (
+                            <button
+                              className="glass"
+                              onClick={() =>
+                                setHeroPreviewSound((current) => !current)
+                              }
+                            >
+                              {heroPreviewSound
+                                ? "Mute preview"
+                                : "Preview sound"}
+                            </button>
+                          )}
                       </div>
                       <span className="hero-credit">
                         CURATED BY YOUR ADD-ONS
