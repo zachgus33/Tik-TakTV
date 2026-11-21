@@ -1,13 +1,25 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.9";
+export const latestRelease = "2026.11.20.10";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Nuvio Enhanced web rebuild",
+    changes: [
+      "The website and PWA now use a responsive Nuvio Mobile Enhanced-style Home, navigation rail, floating mobile navigation, Settings hierarchy, Library and metadata presentation.",
+      "Profile-synced settings now cover the Home hero, catalogs, poster layout and size, Continue Watching, Library layout and sorting, metadata sections, episodes, player controls, preferred tracks, subtitles, source prefetch and pinning, notifications, and Live TV visibility.",
+      "Title details now include production studios, in-app trailers and TMDB recommendations while preserving watched controls, ratings, downloads, source selection, episodes and cast browsing.",
+      "Live TV, Sports, friend codes, add-ons, collections, YouTube, Trakt, Simkl, AniList, downloads, health checks and the compatibility companion remain integrated into the rebuilt shell.",
+      "Native-only CloudStream, Android/iOS decoder, external-player, Telegram and model-provider settings are clearly mapped to safe browser equivalents instead of exposing controls that cannot function in a PWA.",
+    ],
+  },
+  {
+    version: "2026.11.20.9",
     date: "November 20, 2026",
     title: "Synced source rules and English resume audio",
     changes: [
