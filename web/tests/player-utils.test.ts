@@ -3,8 +3,11 @@ import {
   cleanSubtitleText,
   normalizeWebVtt,
   runtimeSeconds,
+  hlsErrorTargetsSubtitles,
   parseWebVttCues,
   shiftWebVtt,
+  subtitleLanguageName,
+  subtitlePickerName,
   subtitleToWebVtt,
 } from "../src/player-utils";
 import { streamAudioLanguages } from "../src/stream-selection";
@@ -64,6 +67,27 @@ describe("player timing helpers", () => {
         "<00:01:02.300><c.green>Transcribed: &quot;Centered&nbsp;text&quot;</c>",
       ),
     ).toBe('"Centered text"');
+  });
+
+  it("uses readable language names when providers return generic labels", () => {
+    expect(subtitleLanguageName("eng")).toBe("English");
+    expect(subtitleLanguageName("es-MX")).toBe("Spanish");
+    expect(subtitlePickerName("Addon", "eng")).toBe("English");
+    expect(subtitlePickerName("1953559797", "spa")).toBe("Spanish");
+    expect(subtitlePickerName("Forced", "eng")).toBe("English · Forced");
+  });
+
+  it("distinguishes subtitle failures from video-stream HLS failures", () => {
+    expect(
+      hlsErrorTargetsSubtitles({ details: "subtitleTrackLoadError" }),
+    ).toBe(true);
+    expect(
+      hlsErrorTargetsSubtitles({
+        details: "fragLoadError",
+        frag: { type: "subtitle" },
+      }),
+    ).toBe(true);
+    expect(hlsErrorTargetsSubtitles({ details: "fragLoadError" })).toBe(false);
   });
 
   it("normalizes SRT, ASS and TTML through the same mobile-style cue pipeline", () => {

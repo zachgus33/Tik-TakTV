@@ -4691,7 +4691,7 @@ test("subtitle timing controls persist the selected offset", async ({
           {
             url: "https://subs.example/es.vtt",
             lang: "spa",
-            name: "Spanish",
+            name: "Addon",
           },
         ],
       },
@@ -4806,19 +4806,23 @@ test("subtitle timing controls persist the selected offset", async ({
   expect(
     Math.abs((cueBox?.x ?? 0) + (cueBox?.width ?? 0) / 2 - viewport.width / 2),
   ).toBeLessThan(3);
+  const mediaSource = await video.getAttribute("src");
   await page.getByLabel("Subtitle language").selectOption("external:0");
-  await expect(video.locator("track")).toHaveCount(1);
-  await expect(video.locator("track")).toHaveAttribute("src", /^blob:/);
-  await expect
-    .poll(() =>
-      video.evaluate(
-        (element) =>
-          Array.from(element.textTracks).find(
-            (track) => track.label === "Source English",
-          )?.mode,
-      ),
-    )
-    .toBe("hidden");
+  await expect(video.locator("track")).toHaveCount(0);
+  await expect(video).toHaveAttribute("src", mediaSource!);
+  await video.evaluate((element) => {
+    Object.defineProperty(element, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 2,
+    });
+    element.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(renderedCue).toHaveText("Hello");
+  await video.evaluate((element) => {
+    element.currentTime = 10;
+    element.dispatchEvent(new Event("timeupdate"));
+  });
   await expect
     .poll(() =>
       page.evaluate(

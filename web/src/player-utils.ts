@@ -50,6 +50,93 @@ export function cleanSubtitleText(text: string) {
     .join("\n");
 }
 
+const subtitleLanguageNames: Record<string, string> = {
+  ar: "Arabic",
+  ara: "Arabic",
+  chi: "Chinese",
+  de: "German",
+  deu: "German",
+  en: "English",
+  eng: "English",
+  es: "Spanish",
+  spa: "Spanish",
+  fr: "French",
+  fra: "French",
+  fre: "French",
+  ger: "German",
+  hi: "Hindi",
+  hin: "Hindi",
+  it: "Italian",
+  ita: "Italian",
+  ja: "Japanese",
+  jpn: "Japanese",
+  ko: "Korean",
+  kor: "Korean",
+  nl: "Dutch",
+  nld: "Dutch",
+  pl: "Polish",
+  pol: "Polish",
+  por: "Portuguese",
+  pt: "Portuguese",
+  ru: "Russian",
+  rus: "Russian",
+  tr: "Turkish",
+  tur: "Turkish",
+  zh: "Chinese",
+  zho: "Chinese",
+};
+
+export function subtitleLanguageName(value?: string) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll("_", "-");
+  if (!normalized || normalized === "und") return "";
+  const base = normalized.split("-")[0];
+  return (
+    subtitleLanguageNames[normalized] ??
+    subtitleLanguageNames[base] ??
+    normalized.toLocaleUpperCase()
+  );
+}
+
+export function subtitlePickerName(
+  name?: string,
+  language?: string,
+  index = 0,
+) {
+  const text = cleanSubtitleText(String(name ?? "")).trim();
+  const languageName = subtitleLanguageName(language);
+  const generic =
+    !text ||
+    /^(?:add-?on|captions?|subtitles?(?:\s+\d+)?|opensubtitles?(?:\s+v?\d+)?)$/i.test(
+      text,
+    ) ||
+    /^(?:\d{4,}|[a-f0-9]{8,}|[a-f0-9-]{16,})$/i.test(text);
+  if (generic) return languageName || `Subtitle ${index + 1}`;
+  if (
+    languageName &&
+    !text.toLocaleLowerCase().includes(languageName.toLocaleLowerCase())
+  )
+    return `${languageName} · ${text}`;
+  return text;
+}
+
+export function hlsErrorTargetsSubtitles(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const data = value as {
+    details?: unknown;
+    reason?: unknown;
+    frag?: { type?: unknown };
+    context?: { type?: unknown };
+  };
+  return /subtitle|caption|texttrack/i.test(
+    [data.details, data.reason, data.frag?.type, data.context?.type]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
 /**
  * Produce a browser-safe WebVTT track. Generated subtitle providers sometimes
  * include right-edge cue positioning, a visible "Transcribed:" label, and

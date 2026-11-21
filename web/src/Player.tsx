@@ -28,9 +28,11 @@ import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
   cleanSubtitleText,
+  hlsErrorTargetsSubtitles,
   runtimeSeconds,
   parseWebVttCues,
   shiftWebVtt,
+  subtitlePickerName,
   subtitleToWebVtt,
   type ParsedSubtitleCue,
 } from "./player-utils";
@@ -414,7 +416,6 @@ function VideoPlayer({
   >([]);
   const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState("auto");
   const [activeSubtitleText, setActiveSubtitleText] = useState("");
-  const [subtitleTrackRevision, setSubtitleTrackRevision] = useState(0);
   const [subtitleBox, setSubtitleBox] = useState<{
     left: number;
     width: number;
@@ -535,7 +536,7 @@ function VideoPlayer({
     const tracks = currentEmbeddedTracks();
     const next = tracks.map((track, index) => ({
       key: `embedded:${index}`,
-      label: track.label || track.language || `Built-in ${index + 1}`,
+      label: subtitlePickerName(track.label, track.language, index),
       track,
     }));
     setEmbeddedSubtitles((current) =>
@@ -656,29 +657,21 @@ function VideoPlayer({
       video.textTracks[index].mode = "disabled";
     const track = selectedSubtitleTrack.startsWith("embedded:")
       ? embeddedSubtitles[Number(selectedSubtitleTrack.split(":")[1])]?.track
-      : selectedSubtitleTrack.startsWith("external:")
-        ? video.querySelector<HTMLTrackElement>(
-            "track[data-active-subtitle='true']",
-          )?.track
-        : undefined;
-    if (!track) return;
+      : undefined;
+    const external = selectedSubtitleTrack.startsWith("external:")
+      ? subtitles[Number(selectedSubtitleTrack.split(":")[1])]
+      : undefined;
+    if (!track && !external) return;
     // Match Nuvio Mobile Enhanced's cue-normalizing output: keep the selected
     // track active for timing, but never let the platform draw its positioning
     // or embedded styles. TikTak renders one normalized cue below instead.
-    track.mode = "hidden";
-    const update = () => {
+    if (track) track.mode = "hidden";
+    const showCue = (latest?: ParsedSubtitleCue | TextTrackCue) => {
       window.clearTimeout(activeSubtitleTimerRef.current);
-      const cues = track.activeCues
-        ? Array.from(
-            { length: track.activeCues.length },
-            (_, index) => track.activeCues![index],
-          )
-        : [];
-      const latest = cues
-        .filter((cue) => "text" in cue)
-        .sort((left, right) => left.startTime - right.startTime)
-        .at(-1) as VTTCue | undefined;
-      const text = latest ? cleanSubtitleText(String(latest.text)) : "";
+      const text =
+        latest && "text" in latest
+          ? cleanSubtitleText(String(latest.text))
+          : "";
       setActiveSubtitleText(text);
       if (!latest || !text) return;
       const remaining = Math.max(
@@ -691,20 +684,58 @@ function VideoPlayer({
         remaining,
       );
     };
-    track.addEventListener("cuechange", update);
-    video.addEventListener("seeked", update);
-    update();
+    if (external) {
+      const cues = parseWebVttCues(external.sourceText);
+      const updateExternal = () => {
+        const offset = subtitleOffsetRef.current;
+        const latest = cues
+          .filter(
+            (cue) =>
+              video.currentTime >= cue.startTime + offset &&
+              video.currentTime < cue.endTime + offset,
+          )
+          .at(-1);
+        showCue(
+          latest
+            ? {
+                ...latest,
+                startTime: latest.startTime + offset,
+                endTime: latest.endTime + offset,
+              }
+            : undefined,
+        );
+      };
+      video.addEventListener("timeupdate", updateExternal);
+      video.addEventListener("seeked", updateExternal);
+      updateExternal();
+      return () => {
+        window.clearTimeout(activeSubtitleTimerRef.current);
+        video.removeEventListener("timeupdate", updateExternal);
+        video.removeEventListener("seeked", updateExternal);
+      };
+    }
+    const updateEmbedded = () => {
+      const cues = track!.activeCues
+        ? Array.from(
+            { length: track!.activeCues!.length },
+            (_, index) => track!.activeCues![index],
+          )
+        : [];
+      const latest = cues
+        .filter((cue) => "text" in cue)
+        .sort((left, right) => left.startTime - right.startTime)
+        .at(-1) as VTTCue | undefined;
+      showCue(latest);
+    };
+    track!.addEventListener("cuechange", updateEmbedded);
+    video.addEventListener("seeked", updateEmbedded);
+    updateEmbedded();
     return () => {
       window.clearTimeout(activeSubtitleTimerRef.current);
-      track.removeEventListener("cuechange", update);
-      video.removeEventListener("seeked", update);
+      track!.removeEventListener("cuechange", updateEmbedded);
+      video.removeEventListener("seeked", updateEmbedded);
     };
-  }, [
-    selectedSubtitleTrack,
-    embeddedSubtitles,
-    subtitles,
-    subtitleTrackRevision,
-  ]);
+  }, [selectedSubtitleTrack, embeddedSubtitles, subtitles]);
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -962,7 +993,7 @@ function VideoPlayer({
               type: "text/vtt",
             }),
           ),
-          name: candidate.name ?? `Subtitle ${index + 1}`,
+          name: subtitlePickerName(candidate.name, candidate.lang, index),
           sourceText: text,
           sourceUrl: candidate.url,
           language: candidate.lang ?? "und",
@@ -1488,6 +1519,14 @@ function VideoPlayer({
             refreshEmbeddedSubtitles();
           });
           hls.on(HlsClass.Events.ERROR, (_, data) => {
+            if (hlsErrorTargetsSubtitles(data)) {
+              hls.subtitleTrack = -1;
+              selectSubtitleTrack("off");
+              setNotice(
+                "That subtitle track could not load. Video playback will continue.",
+              );
+              return;
+            }
             if (data.fatal) {
               if (
                 data.type === HlsClass.ErrorTypes.MEDIA_ERROR &&
@@ -1894,9 +1933,6 @@ function VideoPlayer({
       )
     );
   }
-  const selectedExternalSubtitle = selectedSubtitleTrack.startsWith("external:")
-    ? subtitles[Number(selectedSubtitleTrack.split(":")[1])]
-    : undefined;
   const activeSkipSegment = skipSegments.find(
     (segment) =>
       currentTime >= segment.startTime && currentTime < segment.endTime - 0.25,
@@ -2219,26 +2255,7 @@ function VideoPlayer({
             experienceSettings.resizeMode === "zoom" ? "scale(1.12)" : "none",
           filter: `brightness(${playerBrightness})`,
         }}
-      >
-        {selectedExternalSubtitle && (
-          <track
-            key={selectedExternalSubtitle.sourceUrl}
-            data-active-subtitle="true"
-            src={selectedExternalSubtitle.url}
-            kind="subtitles"
-            label={selectedExternalSubtitle.name}
-            srcLang={selectedExternalSubtitle.language}
-            onLoad={(event) => {
-              const video = videoRef.current;
-              if (!video) return;
-              for (let index = 0; index < video.textTracks.length; index += 1)
-                video.textTracks[index].mode = "disabled";
-              event.currentTarget.track.mode = "hidden";
-              setSubtitleTrackRevision((value) => value + 1);
-            }}
-          />
-        )}
-      </video>
+      />
       {parentalGuideVisible && playback.item.certification && (
         <button
           type="button"

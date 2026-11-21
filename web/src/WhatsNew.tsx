@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.21.4";
+export const latestRelease = "2026.11.21.5";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -22,6 +22,7 @@ export const releases = [
       "Manually choosing another source now replaces and cancels the active companion conversion instead of accumulating transcodes or showing a capacity error.",
       "Stream providers now start concurrently like Mobile Enhanced, late background results can no longer change the selected source index, and manual source changes keep the current player visible until the replacement is ready.",
       "Compatibility preparation now discovers audio and embedded subtitle tracks with one media probe instead of opening the remote file twice before playback can start.",
+      "Changing external subtitles no longer mutates or reloads the video element, subtitle-only HLS failures leave video playback running, and generic add-on rows now show readable language names.",
     ],
   },
   {
