@@ -3691,6 +3691,13 @@ test("refresh and test preserve a configured add-on manifest URL", async ({
     .getByRole("button", { name: "Refresh installed manifests" })
     .click();
   await expect(page.getByText("All add-on manifests refreshed.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Remove Configured streams" })
+    .click();
+  const removeDialog = page.getByRole("dialog", { name: "Remove add-on" });
+  await expect(removeDialog).toBeVisible();
+  await removeDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(removeDialog).toHaveCount(0);
   // The second action may reuse the short-lived manifest cache.
   expect(requested.length).toBeGreaterThan(0);
   expect(

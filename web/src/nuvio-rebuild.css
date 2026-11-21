@@ -574,6 +574,76 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.addon-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 18px 0;
+  border: 1px solid #ffffff0f;
+  border-radius: 16px;
+  background: #ffffff0d;
+}
+.addon-overview article {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 16px 10px;
+  background: #141117;
+}
+.addon-overview strong {
+  font-size: 24px;
+}
+.addon-overview span {
+  color: #9991a2;
+  font-size: 12px;
+}
+html:not(.tv-mode) .addon-list .addon {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 0;
+}
+.addon-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.addon-actions .icon-button {
+  margin-left: 0;
+  display: inline-flex !important;
+}
+.addon-remove-confirmation {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #030206d9;
+  backdrop-filter: blur(12px);
+}
+.addon-remove-confirmation > section {
+  width: min(420px, 100%);
+  padding: 22px;
+  border: 1px solid #ffffff16;
+  border-radius: 18px;
+  background: #17131d;
+  box-shadow: 0 28px 90px #000b;
+}
+.addon-remove-confirmation h3,
+.addon-remove-confirmation p {
+  margin-top: 0;
+}
+@media (max-width: 520px) {
+  .addon-overview strong {
+    font-size: 20px;
+  }
+  .addon-overview span {
+    font-size: 11px;
+  }
+}
 .stream-badge-settings h3,
 .stream-badge-settings p {
   margin: 0;

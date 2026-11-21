@@ -317,6 +317,9 @@ export default function Settings(props: Props) {
   );
   const [busy, setBusy] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [pendingAddonRemoval, setPendingAddonRemoval] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [settingsQuery, setSettingsQuery] = useState("");
@@ -1398,6 +1401,31 @@ export default function Settings(props: Props) {
                   </p>
                 </div>
               </div>
+              <div className="addon-overview" aria-label="Add-on overview">
+                <article>
+                  <strong>{props.addons.length}</strong>
+                  <span>Installed</span>
+                </article>
+                <article>
+                  <strong>
+                    {
+                      props.addons.filter((addon) => addon.enabled !== false)
+                        .length
+                    }
+                  </strong>
+                  <span>Active</span>
+                </article>
+                <article>
+                  <strong>
+                    {props.addons.reduce(
+                      (total, addon) =>
+                        total + (addon.manifest.catalogs?.length ?? 0),
+                      0,
+                    )}
+                  </strong>
+                  <span>Catalogs</span>
+                </article>
+              </div>
               <button
                 disabled={!!busy}
                 onClick={() =>
@@ -1479,6 +1507,7 @@ export default function Settings(props: Props) {
                     >
                       {a.enabled === false ? "Off" : "On"}
                     </button>
+                    <div className="addon-actions">
                     <button
                       className="icon-button"
                       disabled={index === 0}
@@ -1525,14 +1554,11 @@ export default function Settings(props: Props) {
                     <button
                       className="icon-button"
                       aria-label={`Remove ${a.manifest.name}`}
-                      onClick={() =>
-                        props.onAddons(
-                          props.addons.filter((x) => x.base !== a.base),
-                        )
-                      }
+                      onClick={() => setPendingAddonRemoval(a.base)}
                     >
                       <Trash2 size={18} />
                     </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1568,6 +1594,43 @@ export default function Settings(props: Props) {
                   {busy === "addon" ? "Installing…" : "Install add-on"}
                 </button>
               </form>
+              {pendingAddonRemoval && (
+                <div
+                  className="addon-remove-confirmation"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Remove add-on"
+                >
+                  <section>
+                    <h3>Remove add-on?</h3>
+                    <p>
+                      This removes the add-on from the current TikTakTV profile.
+                    </p>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        className="remove-history"
+                        onClick={() => {
+                          props.onAddons(
+                            props.addons.filter(
+                              (addon) => addon.base !== pendingAddonRemoval,
+                            ),
+                          );
+                          setPendingAddonRemoval(null);
+                        }}
+                      >
+                        Remove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingAddonRemoval(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              )}
               <p className="hint">
                 HTTP add-ons are supported through direct browser access or the
                 configured companion. In an HTTPS PWA, private LAN addresses may
