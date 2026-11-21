@@ -219,7 +219,8 @@ export function normalizeStreamPreferences(value: unknown): StreamPreferences {
     autoPlayRegex:
       typeof saved.autoPlayRegex === "string" ? saved.autoPlayRegex : "",
     autoPlayTimeoutSeconds:
-      Number(saved.autoPlayTimeoutSeconds) === Number.POSITIVE_INFINITY
+      Number(saved.autoPlayTimeoutSeconds) === Number.POSITIVE_INFINITY ||
+      Number(saved.autoPlayTimeoutSeconds) >= Number.MAX_SAFE_INTEGER
         ? Number.MAX_SAFE_INTEGER
         : Math.min(
             30,

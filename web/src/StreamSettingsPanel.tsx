@@ -91,11 +91,30 @@ export default function StreamSettingsPanel({
               update("autoPlayTimeoutSeconds", Number(event.target.value))
             }
           >
-            {[0, 1, 2, 3, 5, 10, 15, 30].map((seconds) => (
+            {[
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              15,
+              20,
+              25,
+              30,
+              Number.MAX_SAFE_INTEGER,
+            ].map((seconds) => (
               <option value={seconds} key={seconds}>
                 {seconds === 0
                   ? "Instant"
-                  : `${seconds} second${seconds === 1 ? "" : "s"}`}
+                  : seconds === Number.MAX_SAFE_INTEGER
+                    ? "Unlimited — wait for every add-on"
+                    : `${seconds} second${seconds === 1 ? "" : "s"}`}
               </option>
             ))}
           </select>

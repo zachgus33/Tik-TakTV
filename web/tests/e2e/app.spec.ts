@@ -4777,6 +4777,9 @@ test("source controls accept and persist multiple comma-separated exclusions", a
   await page.goto("/#settings");
   await page.getByRole("button", { name: /^Streams/ }).click();
   const excluded = page.getByLabel("Excluded terms (comma separated)");
+  await page
+    .getByLabel("Selection delay")
+    .selectOption(String(Number.MAX_SAFE_INTEGER));
   await excluded.fill("CAM");
   await excluded.pressSequentially(", telesync, dubbed");
   await expect(excluded).toHaveValue("CAM, telesync, dubbed");
@@ -4791,11 +4794,24 @@ test("source controls accept and persist multiple comma-separated exclusions", a
       ),
     )
     .toEqual(["CAM", "telesync", "dubbed"]);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("tiktak:stream-preferences") ?? "{}",
+          ).autoPlayTimeoutSeconds,
+      ),
+    )
+    .toBe(Number.MAX_SAFE_INTEGER);
 
   await page.reload();
   await page.getByRole("button", { name: /^Streams/ }).click();
   await expect(page.getByLabel("Excluded terms (comma separated)")).toHaveValue(
     "CAM, telesync, dubbed",
+  );
+  await expect(page.getByLabel("Selection delay")).toHaveValue(
+    String(Number.MAX_SAFE_INTEGER),
   );
 });
 

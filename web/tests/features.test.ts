@@ -29,6 +29,7 @@ import {
   quality,
   rankedStreams,
   needsCompatibilityTranscode,
+  normalizeStreamPreferences,
   parseExcludedTerms,
   seeders,
   sourcePickerStreams,
@@ -391,6 +392,13 @@ describe("per-profile source controls", () => {
       "telesync",
       "dubbed",
     ]);
+  });
+  it("preserves Mobile Enhanced's unlimited source-selection timeout", () => {
+    expect(
+      normalizeStreamPreferences({
+        autoPlayTimeoutSeconds: Number.MAX_SAFE_INTEGER,
+      }).autoPlayTimeoutSeconds,
+    ).toBe(Number.MAX_SAFE_INTEGER);
   });
   it("applies quality, size, codec and excluded-term limits", () => {
     const storage = new Map<string, string>();

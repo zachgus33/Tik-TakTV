@@ -285,7 +285,10 @@ function firstAutoplayResult(
         installedOrder,
         preferredBingeGroup,
       );
-    if (!timeoutElapsed)
+    if (
+      !timeoutElapsed &&
+      preferences.autoPlayTimeoutSeconds < Number.MAX_SAFE_INTEGER
+    )
       timeout = setTimeout(() => {
         timeoutElapsed = true;
         const selected = rankedAccumulated();
