@@ -495,6 +495,8 @@ export function autoplayStreams(
     .map((stream, index) => ({ stream, index }))
     .sort(
       (left, right) =>
+        Number(compatibilityPlaybackMode(left.stream) !== undefined) -
+          Number(compatibilityPlaybackMode(right.stream) !== undefined) ||
         Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
         (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
           Number.MAX_SAFE_INTEGER) -
@@ -568,6 +570,7 @@ export function autoplayStreams(
 export function sourcePickerStreams(
   streams: Stream[],
   installedOrder: string[] = [],
+  allowUnresolvedDebrid = false,
 ): Stream[] {
   const preferences = streamPreferences();
   const seen = new Set<string>();
@@ -578,7 +581,10 @@ export function sourcePickerStreams(
     preferences.pinnedSources.map((source, index) => [source.id, index]),
   );
   return streams
-    .filter(directStream)
+    .filter(
+      (stream) =>
+        directStream(stream) || (allowUnresolvedDebrid && !!stream.infoHash),
+    )
     .filter((stream) => {
       const descriptor = streamDescriptor(stream);
       if (
@@ -587,7 +593,7 @@ export function sourcePickerStreams(
         )
       )
         return false;
-      const key = `${stream.url ?? ""}|${stream.behaviorHints?.filename ?? ""}`;
+      const key = `${stream.url ?? ""}|${stream.infoHash ?? ""}|${stream.fileIdx ?? ""}|${stream.behaviorHints?.filename ?? ""}`;
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;

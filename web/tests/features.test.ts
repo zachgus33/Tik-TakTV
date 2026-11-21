@@ -1402,7 +1402,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
     expect(rankedStreams([mkv, mp4], true)[0]).toBe(mkv);
   });
-  it("keeps mobile provider order and lets the compatibility layer handle codecs", () => {
+  it("keeps provider order among equally compatible streams and starts web-ready media first", () => {
     const h264 = {
       name: "[TB+] Torrentio 720p",
       title: "Show.720p.x264 seeders: 170",
@@ -1425,9 +1425,9 @@ describe("720p+ preference and safe episode matching", () => {
     expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
     expect(compatibilityPlaybackMode(webReady)).toBeUndefined();
     expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
-    expect(autoplayStreams([hevc, h264, webReady], true)[0]).toBe(hevc);
+    expect(autoplayStreams([hevc, h264, webReady], true)[0]).toBe(webReady);
   });
-  it("preserves provider order while flagging risky audio for conversion", () => {
+  it("starts browser-safe audio before conversion-only audio", () => {
     const dts = {
       name: "4K DTS-HD",
       title: "Movie.2160p.x264.DTS-HD.MA",
@@ -1447,7 +1447,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(audioCompatibility(aac)).toBeGreaterThan(audioCompatibility(dts));
     expect(compatibilityPlaybackMode(dts)).toBe("transcode");
     expect(compatibilityPlaybackMode(trueHd)).toBe("transcode");
-    expect(autoplayStreams([dts, aac], false)[0]).toBe(dts);
+    expect(autoplayStreams([dts, aac], false)[0]).toBe(aac);
   });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {
@@ -1462,7 +1462,7 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
   });
-  it("keeps the first mobile-selected source and removes unavailable flagged sources", () => {
+  it("starts direct MP4 before conversion sources and removes unavailable flagged sources", () => {
     const mkv = { name: "1080p", url: "https://cdn.example/movie.mkv" };
     const webReady = { name: "720p", url: "https://cdn.example/movie.mp4" };
     const flagged = {
@@ -1471,10 +1471,25 @@ describe("720p+ preference and safe episode matching", () => {
       behaviorHints: { notWebReady: true },
     };
     expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([
-      mkv,
       webReady,
+      mkv,
     ]);
     expect(autoplayStreams([mkv], false)).toEqual([mkv]);
+  });
+  it("keeps raw torrents in manual source lists only when a debrid resolver is available", () => {
+    const raw = {
+      name: "Torrent 1080p",
+      infoHash: "a".repeat(40),
+    };
+    const direct = {
+      name: "Direct 720p",
+      url: "https://cdn.example/movie.mp4",
+    };
+    expect(sourcePickerStreams([raw, direct])).toEqual([direct]);
+    expect(sourcePickerStreams([raw, direct], [], true)).toEqual([
+      raw,
+      direct,
+    ]);
   });
   it("matches S01E02 without choosing S01E020 or another episode", () => {
     const files = [

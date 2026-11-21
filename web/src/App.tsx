@@ -2176,6 +2176,7 @@ function Detail({
               sourcePickerStreams(
                 [...current, ...loaded],
                 addons.map((addon) => addon.manifest.name),
+                hasDebrid,
               ),
             );
             setStreamsLoaded(true);
@@ -2209,6 +2210,7 @@ function Detail({
       const manualSources = sourcePickerStreams(
         result.streams,
         addons.map((addon) => addon.manifest.name),
+        hasDebrid,
       );
       const autoplayRanked = autoplayStreams(
         result.streams,
