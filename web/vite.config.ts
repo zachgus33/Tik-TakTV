@@ -7,7 +7,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // Keep an installed PWA on its current, internally consistent release
+      // until the user accepts the in-app update prompt. This avoids replacing
+      // chunks underneath active playback during a Pages deployment.
+      registerType: "prompt",
       injectRegister: null,
       includeAssets: ["icon.svg", "apple-touch-icon.png"],
       manifest: {
@@ -37,9 +40,9 @@ export default defineConfig({
         // OAuth must load its real callback document, even under an installed PWA.
         navigateFallbackDenylist: [/^\/trakt-callback\.html$/],
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        // Claim existing PWA windows so controllerchange can reload stale
-        // app shells, including iOS standalone windows without a new tab.
+        skipWaiting: false,
+        // Once the user accepts an update, claim the current PWA window so the
+        // controllerchange handler can reload into the new release atomically.
         clientsClaim: true,
         runtimeCaching: [],
       },
@@ -48,5 +51,27 @@ export default defineConfig({
   // Android 9 televisions may still use their original Chromium 69 WebView.
   // Transpile syntax for that engine; legacy-compat.ts covers the handful of
   // newer runtime helpers used by the application.
-  build: { target: "chrome69", sourcemap: false },
+  build: {
+    target: "chrome69",
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Content-hashed vendor chunks stay byte-for-byte stable across normal
+        // TikTakTV releases. Workbox can retain them instead of downloading a
+        // new monolithic application bundle after every deployment.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("node_modules/@supabase/"))
+            return "supabase-vendor";
+          if (id.includes("node_modules/lucide-react/")) return "icons-vendor";
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/")
+          )
+            return "react-vendor";
+        },
+      },
+    },
+  },
 });
