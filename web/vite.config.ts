@@ -35,7 +35,11 @@ export default defineConfig({
       workbox: {
         // Only the app shell is cached. Never cache provider credentials, APIs or media.
         globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
-        globIgnores: ["**/hls-*.js"],
+        // HLS is loaded only when needed, and the public landing showcase is
+        // not part of the signed-in offline shell. Leaving those files to the
+        // normal HTTP cache cuts more than 2 MB from PWA installation/update
+        // work without affecting offline Library access.
+        globIgnores: ["**/hls-*.js", "showcase/*.png"],
         navigateFallback: "index.html",
         // OAuth must load its real callback document, even under an installed PWA.
         navigateFallbackDenylist: [/^\/trakt-callback\.html$/],
