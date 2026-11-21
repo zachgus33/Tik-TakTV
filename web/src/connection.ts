@@ -262,6 +262,7 @@ export async function prepareMedia(
   forceRelay = false,
   start = 0,
   replace = "",
+  playbackId = "",
 ) {
   const config = getService();
   if (!config) return url;
@@ -285,8 +286,20 @@ export async function prepareMedia(
     replace: replace.startsWith(`${config.url}/media/`)
       ? new URL(replace).pathname
       : undefined,
+    playbackId: /^[A-Za-z0-9_-]{20,100}$/.test(playbackId)
+      ? playbackId
+      : undefined,
   };
   let response = await serviceRequest("/prepare", payload, signal, config);
+  if (playbackId && [429, 503].includes(response.status) && !signal?.aborted) {
+    await serviceRequest(
+      "/playback/cancel",
+      { playbackId },
+      signal,
+      config,
+    ).catch(() => undefined);
+    response = await serviceRequest("/prepare", payload, signal, config);
+  }
   if (response.status === 429 && live && !signal?.aborted) {
     await new Promise<void>((resolve, reject) => {
       const timer = window.setTimeout(resolve, 1200);
@@ -314,6 +327,22 @@ export async function prepareMedia(
   if (typeof data.path !== "string" || !data.path.startsWith("/media/"))
     throw new Error("Invalid playback service response.");
   return `${config.url}${data.path}`;
+}
+
+export async function cancelPlaybackSession(
+  playbackId: string,
+  signal?: AbortSignal,
+) {
+  const config = getService();
+  if (!config || !/^[A-Za-z0-9_-]{20,100}$/.test(playbackId)) return false;
+  const response = await serviceRequest(
+    "/playback/cancel",
+    { playbackId },
+    signal,
+    config,
+    { keepalive: true },
+  ).catch(() => undefined);
+  return response?.ok === true;
 }
 
 export async function queueDownload(

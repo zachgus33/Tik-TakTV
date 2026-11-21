@@ -3576,6 +3576,86 @@ test("the player exposes every compatible stream while automatic fallback stays 
   );
 });
 
+test("manual conversion sources replace the active job instead of hitting capacity", async ({
+  page,
+}) => {
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "replacement-test",
+        mode: "direct",
+      }),
+    );
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "Debridio 4K REMUX HEVC",
+            title: "First.2160p.REMUX.HEVC.mkv",
+            url: "https://cdn.example/first-remux.mkv",
+          },
+          {
+            name: "Debridio 1440p HEVC",
+            title: "Second.1440p.HEVC.mkv",
+            url: "https://cdn.example/second-remux.mkv",
+          },
+        ],
+      },
+    }),
+  );
+  const mediaIds = ["a".repeat(32), "b".repeat(32)];
+  const preparations: Record<string, unknown>[] = [];
+  let cancellations = 0;
+  await page.route("https://playback.example/prepare", async (route) => {
+    const body = route.request().postDataJSON();
+    preparations.push(body);
+    const id = mediaIds[Math.min(preparations.length - 1, 1)];
+    return route.fulfill({ json: { path: `/media/${id}/index.m3u8` } });
+  });
+  await page.route("https://playback.example/playback/cancel", (route) => {
+    cancellations += 1;
+    return route.fulfill({ json: { cancelled: 1 } });
+  });
+  await page.route("https://playback.example/media/**", (route) =>
+    route.fulfill({
+      contentType: "application/vnd.apple.mpegurl",
+      body: "#EXTM3U\n#EXT-X-ENDLIST\n",
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect.poll(() => preparations.length).toBe(1);
+  await openPlaybackOptions(page);
+  await page.getByRole("button", { name: "Choose stream" }).click();
+  await page
+    .getByRole("dialog", { name: "Choose a stream" })
+    .getByRole("button", { name: /Debridio 1440p HEVC/ })
+    .click();
+  await expect.poll(() => preparations.length).toBe(2);
+  expect(preparations[0].playbackId).toMatch(/^[A-Za-z0-9_-]{20,100}$/);
+  expect(preparations[1].playbackId).toBe(preparations[0].playbackId);
+  expect(preparations[1].replace).toBe(`/media/${mediaIds[0]}/index.m3u8`);
+  await expect(page.locator(".player-dialog .error")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close player" }).click();
+  await expect.poll(() => cancellations).toBeGreaterThan(0);
+});
+
 test("TV remote users can open the in-player stream chooser and switch sources", async ({
   page,
 }, testInfo) => {

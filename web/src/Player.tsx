@@ -1,5 +1,6 @@
 ﻿import { getService, prepareMedia, sourceFetch } from "./connection";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cancelPlaybackSession } from "./connection";
 import {
   Airplay,
   Check,
@@ -3023,6 +3024,8 @@ export default function Player({
   const sourcePickerRef = useRef<HTMLDialogElement>(null);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
+  const activePreparedUrlRef = useRef("");
+  const pendingReplaceUrlRef = useRef("");
   const [alternatives, setAlternatives] = useState<Playback[]>(
     playback.alternatives ?? [],
   );
@@ -3101,11 +3104,14 @@ export default function Player({
       active: false,
       event: "opened",
     });
-    return () =>
+    return () => {
+      fallbackController.current?.abort();
+      void cancelPlaybackSession(playbackMetricId);
       reportMediaActivity(playbackMetricId, {
         active: false,
         event: "closed",
       });
+    };
   }, [playbackMetricId]);
   useEffect(() => {
     setAttempt(0);
@@ -3133,6 +3139,8 @@ export default function Player({
       fallbackController.current = null;
     };
     if (selected.prepared) {
+      if (/\/media\/[A-Za-z0-9_-]{32}\//.test(selected.url))
+        activePreparedUrlRef.current = selected.url;
       setReady(selected);
       return cleanup;
     }
@@ -3142,6 +3150,9 @@ export default function Player({
       (effectiveMode === "remux" || effectiveMode === "transcode")
         ? Math.max(0, selected.resume ?? 0)
         : 0;
+    const replaceUrl =
+      pendingReplaceUrlRef.current || activePreparedUrlRef.current;
+    pendingReplaceUrlRef.current = "";
     void prepareMedia(
       selected.url,
       selected.requestHeaders,
@@ -3153,9 +3164,13 @@ export default function Player({
       selected.item.type === "live",
       selected.relay,
       conversionStart,
+      replaceUrl,
+      playbackMetricId,
     ).then(
       (url) => {
-        if (!c.signal.aborted)
+        if (!c.signal.aborted) {
+          if (/\/media\/[A-Za-z0-9_-]{32}\//.test(url))
+            activePreparedUrlRef.current = url;
           setReady({
             ...selected,
             url,
@@ -3170,6 +3185,7 @@ export default function Player({
                 getService()?.mode === "transcode" ||
                 /\.m3u8(?:[?#]|$)/i.test(selected.url)),
           });
+        }
       },
       (e) => {
         if (!c.signal.aborted) {
@@ -3217,9 +3233,13 @@ export default function Player({
       false,
       true,
       Math.max(0, selected.resume ?? 0),
+      ready?.url || activePreparedUrlRef.current,
+      playbackMetricId,
     ).then(
       (url) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          if (/\/media\/[A-Za-z0-9_-]{32}\//.test(url))
+            activePreparedUrlRef.current = url;
           setReady({
             ...selected,
             url,
@@ -3229,6 +3249,7 @@ export default function Player({
             resume: undefined,
             prepared: true,
           });
+        }
       },
       (reason) => {
         if (!controller.signal.aborted && !tryNextSource())
@@ -3258,9 +3279,12 @@ export default function Player({
       true,
       seconds,
       ready?.url,
+      playbackMetricId,
     ).then(
       (url) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          if (/\/media\/[A-Za-z0-9_-]{32}\//.test(url))
+            activePreparedUrlRef.current = url;
           setReady({
             ...selected,
             url,
@@ -3270,6 +3294,7 @@ export default function Player({
             resume: undefined,
             prepared: true,
           });
+        }
       },
       (reason) => {
         if (!controller.signal.aborted)
@@ -3285,6 +3310,19 @@ export default function Player({
     setSourcePickerOpen(false);
     if (index === attempt) return;
     const choice = sourceChoices[index];
+    const currentPreparedUrl = ready?.url || activePreparedUrlRef.current;
+    if (/\/media\/[A-Za-z0-9_-]{32}\//.test(currentPreparedUrl))
+      pendingReplaceUrlRef.current = currentPreparedUrl;
+    const nextMode = choice?.mode ?? getService()?.mode ?? "direct";
+    if (
+      nextMode === "direct" &&
+      !choice?.relay &&
+      !Object.keys(choice?.requestHeaders ?? {}).length
+    ) {
+      void cancelPlaybackSession(playbackMetricId);
+      activePreparedUrlRef.current = "";
+      pendingReplaceUrlRef.current = "";
+    }
     if (experienceSettings.streamSourcePinning && choice?.sourceLabel)
       localStorage.setItem(
         `tiktak:pinned-source:${playback.item.id}:${playback.episode?.id ?? playback.item.id}`,

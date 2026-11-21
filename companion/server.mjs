@@ -325,6 +325,25 @@ export function sourceHeaders(value = {}) {
   }
   return result;
 }
+export async function removePlaybackSessionJobs(
+  jobs,
+  owner,
+  playbackId,
+  removeJob,
+  includeLegacy = false,
+) {
+  let removed = 0;
+  for (const [jobId, job] of [...jobs])
+    if (
+      job.owner === owner &&
+      job.mode &&
+      (job.playbackId === playbackId || (includeLegacy && !job.playbackId))
+    ) {
+      await removeJob(jobId, job);
+      removed += 1;
+    }
+  return removed;
+}
 export function safeDownloadName(value) {
   const cleaned = String(value ?? "TikTak TV download.mp4")
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
@@ -3841,6 +3860,18 @@ export function createService({
         await removeMediaJob(id, job);
         return send(200, { cancelled: true });
       }
+      if (route.pathname === "/playback/cancel") {
+        const playbackId = String(body.playbackId ?? "");
+        if (!/^[A-Za-z0-9_-]{20,100}$/.test(playbackId))
+          return send(400, { error: "Invalid playback session" });
+        const cancelled = await removePlaybackSessionJobs(
+          jobs,
+          userId,
+          playbackId,
+          removeMediaJob,
+        );
+        return send(200, { cancelled });
+      }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);
         const headers = sourceHeaders(body.headers);
@@ -3851,17 +3882,24 @@ export function createService({
         )
           headers["User-Agent"] = "VLC/3.0.21 LibVLC/3.0.21";
         if (body.mode === "remux" || body.mode === "transcode") {
+          const playbackId = /^[A-Za-z0-9_-]{20,100}$/.test(
+            String(body.playbackId ?? ""),
+          )
+            ? String(body.playbackId)
+            : "";
+          if (playbackId)
+            await removePlaybackSessionJobs(
+              jobs,
+              userId,
+              playbackId,
+              removeMediaJob,
+              true,
+            );
           const replaceId = /^\/media\/([A-Za-z0-9_-]{32})\//.exec(
             String(body.replace ?? ""),
           )?.[1];
           const replaced = replaceId ? jobs.get(replaceId) : undefined;
-          if (replaced) {
-            replaced.process?.kill("SIGTERM");
-            jobs.delete(replaceId);
-            void rm(replaced.dir, { recursive: true, force: true }).catch(
-              () => {},
-            );
-          }
+          if (replaced) await removeMediaJob(replaceId, replaced);
           // A user changing live channels must replace their previous live
           // conversion immediately. Waiting for the stale-job sweep made the
           // next channel fail with HTTP 429 for up to two minutes.
@@ -3973,6 +4011,7 @@ export function createService({
             jobs.set(id, {
               kind: "webm",
               owner: userId,
+              playbackId,
               mode: body.mode,
               live: !!body.live,
               args,
@@ -4115,6 +4154,7 @@ export function createService({
           });
           const job = {
             owner: userId,
+            playbackId,
             mode: body.mode,
             live: !!body.live,
             process: child,

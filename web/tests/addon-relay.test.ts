@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { sourceFetch } from "../src/connection";
+import { prepareMedia, sourceFetch } from "../src/connection";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -135,4 +135,58 @@ it("preserves an approved JSON body when a skip API needs companion relay", asyn
     body: graphql,
   });
   expect(await response.json()).toEqual({ data: {} });
+});
+
+it("replaces and retries a saturated playback conversion session", async () => {
+  const service = JSON.stringify({
+    url: "https://playback.example",
+    token: "test",
+    mode: "transcode",
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) =>
+      key === "nuvio:playback-service" ? service : null,
+  });
+  const playbackId = "playback-session-1234567890";
+  const previous = `https://playback.example/media/${"a".repeat(32)}/index.m3u8`;
+  let preparations = 0;
+  let cancellations = 0;
+  const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === "https://playback.example/playback/cancel") {
+      cancellations += 1;
+      expect(JSON.parse(String(options?.body))).toEqual({ playbackId });
+      return Response.json({ cancelled: 1 });
+    }
+    expect(url).toBe("https://playback.example/prepare");
+    preparations += 1;
+    const body = JSON.parse(String(options?.body));
+    expect(body.playbackId).toBe(playbackId);
+    expect(body.replace).toBe(`/media/${"a".repeat(32)}/index.m3u8`);
+    return preparations === 1
+      ? Response.json(
+          { error: "Two video transcodes are already active." },
+          { status: 429 },
+        )
+      : Response.json({ path: `/media/${"b".repeat(32)}/index.m3u8` });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(
+    prepareMedia(
+      "https://cdn.example/video.mkv",
+      undefined,
+      undefined,
+      "transcode",
+      "aac",
+      false,
+      true,
+      0,
+      previous,
+      playbackId,
+    ),
+  ).resolves.toBe(
+    `https://playback.example/media/${"b".repeat(32)}/index.m3u8`,
+  );
+  expect(preparations).toBe(2);
+  expect(cancellations).toBe(1);
 });

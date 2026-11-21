@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.21.2";
+export const latestRelease = "2026.11.21.3";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -19,6 +19,7 @@ export const releases = [
       "Mobile Enhanced touch parity now includes double-tap seeking, horizontal scrub previews, side brightness and volume gestures, hold-to-speed, stable source locking, and native-style IntroDB skip controls.",
       "Subtitle preferences now include Original audio, Forced-only captions, preferred-language filtering, native language choices, bold/color/background/outline styling, and remembered player brightness.",
       "IntroDB, AniSkip, and optional Anime-Skip timing providers are merged by native priority; users with an IntroDB API key can verify it locally and submit corrected intro, recap, or credits timing from the player.",
+      "Manually choosing another source now replaces and cancels the active companion conversion instead of accumulating transcodes or showing a capacity error.",
     ],
   },
   {

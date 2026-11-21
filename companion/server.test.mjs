@@ -29,6 +29,7 @@ import {
   youtubeTitlesRelated,
   safeDownloadName,
   sourceHeaders,
+  removePlaybackSessionJobs,
   nativeAddonFetch,
   addSubtitleRenditionsToMaster,
   youtubeVideoAllowed,
@@ -824,6 +825,33 @@ test("rejects arbitrary injected headers", () => {
       "X-Client-ID": "anime-client",
     },
   );
+});
+test("a playback source replacement removes its active and legacy conversion jobs", async () => {
+  const jobs = new Map([
+    ["same", { owner: "viewer", playbackId: "p".repeat(24), mode: "transcode" }],
+    ["legacy", { owner: "viewer", mode: "transcode" }],
+    ["other-tab", { owner: "viewer", playbackId: "q".repeat(24), mode: "transcode" }],
+    ["other-user", { owner: "guest", playbackId: "p".repeat(24), mode: "transcode" }],
+    ["download", { owner: "viewer", playbackId: "p".repeat(24), kind: "download" }],
+  ]);
+  const removed = [];
+  const count = await removePlaybackSessionJobs(
+    jobs,
+    "viewer",
+    "p".repeat(24),
+    async (id) => {
+      removed.push(id);
+      jobs.delete(id);
+    },
+    true,
+  );
+  assert.equal(count, 2);
+  assert.deepEqual(removed.sort(), ["legacy", "same"]);
+  assert.deepEqual([...jobs.keys()].sort(), [
+    "download",
+    "other-tab",
+    "other-user",
+  ]);
 });
 test("sanitizes download filenames and always emits MP4", () => {
   assert.equal(
