@@ -56,7 +56,7 @@ export function parseCollections(value: unknown): Collection[] {
   }
   if (!Array.isArray(value) || value.length > 200)
     throw new Error(
-      "Expected a Nuvio collections array (up to 200 collections).",
+      "Expected a TikTakTV collections array (up to 200 collections).",
     );
   const seen = new Set<string>();
   return value.map((raw) => {
@@ -255,7 +255,7 @@ export function parseTransfer(text: string): Transfer {
   }
   if (data?.format !== "nuvio-enhanced-web" || data.version !== 1)
     throw new Error(
-      "This is not a Nuvio Web backup. For native Nuvio collections, use Import collections. Native Enhanced settings backups do not contain your add-ons or full library.",
+      "This is not a TikTakTV Web backup. For TikTakTV collections, use Import collections. Settings backups do not contain your add-ons or full library.",
     );
   const library = Array.isArray(data.library)
     ? data.library.map(importedItem)

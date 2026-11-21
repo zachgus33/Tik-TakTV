@@ -75,7 +75,7 @@ export default function PrivacyStatus({
               <strong>Personal credentials</strong>
               <p>
                 Debrid keys, configured add-on URLs, and IPTV credentials are
-                scoped to your signed-in Nuvio account and profile and cached in
+                scoped to your signed-in TikTakTV account and profile and cached in
                 this browser so playback works. Watched status and an optional
                 Trakt connection also sync with the selected profile. TikTak TV
                 never displays them to other users.
@@ -457,7 +457,7 @@ export default function PrivacyStatus({
         <details>
           <summary>Quick setup</summary>
           <p>
-            Sign in to Nuvio to sync your profiles, catalogs and add-ons. Add
+            Sign in to TikTakTV to sync your profiles, catalogs and add-ons. Add
             your own configured Torrentio or other streaming manifest, then
             enter your own TorBox or Real-Debrid key under Playback. Live TV
             requires your own Xtream or M3U provider.
@@ -477,7 +477,7 @@ export default function PrivacyStatus({
           <summary>Privacy summary</summary>
           <p>
             Account configuration, watched status, and an optional Trakt
-            connection are synchronized through Nuvio and cached on this device.
+            connection are synchronized through TikTakTV and cached on this device.
             Playback reports omit stream URLs, manifest URLs, passwords and API
             keys. Clearing site data removes local caches.
           </p>

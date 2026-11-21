@@ -122,7 +122,7 @@ async function setupOwner(ownerId?: string) {
   if (ownerId) return ownerId;
   const { data } = await account.auth.getSession();
   const current = data.session?.user.id;
-  if (!current) throw new Error("Sign in before syncing a Nuvio profile.");
+  if (!current) throw new Error("Sign in before syncing a TikTakTV profile.");
   return current;
 }
 const field = "tikTakWebV1";
@@ -143,7 +143,7 @@ export async function rpc<T>(
   params: Record<string, unknown> = {},
 ): Promise<T> {
   const { data, error } = await account.rpc(name, params);
-  if (error) throw new Error(`Nuvio sync failed (${name}): ${error.message}`);
+  if (error) throw new Error(`TikTakTV sync failed (${name}): ${error.message}`);
   return data as T;
 }
 
@@ -202,7 +202,7 @@ function activeProfileId() {
   const owner = localStorage.getItem("tiktak:active-profile-owner") ?? "";
   const id = Number(owner.slice(owner.lastIndexOf(":") + 1));
   if (!owner || !Number.isInteger(id) || id < 1)
-    throw new Error("Open a signed-in Nuvio profile before connecting Trakt.");
+    throw new Error("Open a signed-in TikTakTV profile before connecting Trakt.");
   return id;
 }
 
@@ -458,7 +458,7 @@ export async function loadSetup(
     }).catch(() => []),
   ]);
   if (addonRows.error)
-    throw new Error("Nuvio could not load your installed add-ons.");
+    throw new Error("TikTakTV could not load your installed add-ons.");
   const web = (blob[field] ?? {}) as Partial<Setup>;
   const localNuvioWebSettings = readNuvioWebSettings();
   const localStreamPreferences = streamPreferences();
@@ -735,7 +735,7 @@ export async function saveSetup(
   // only baseline can compare one account against another and push bad diffs.
   const previous = baselines.get(keyForProfile);
   if (!previous)
-    throw new Error("Load this Nuvio profile before saving changes.");
+    throw new Error("Load this TikTakTV profile before saving changes.");
   const safeSetup = persistableSetup(setup);
   // Read/merge the native platform blob so unknown settings are retained.
   const blob = await settings(id);

@@ -890,7 +890,7 @@ test("TV YouTube player can hand a video to the optional SmartTube app", async (
     .toBe("dQw4w9WgXcQ");
 });
 
-test("first visit offers Nuvio sign in and account creation", async ({
+test("first visit offers TikTakTV sign in and account creation", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -903,7 +903,7 @@ test("first visit offers Nuvio sign in and account creation", async ({
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByLabel("Confirm password")).toBeVisible();
   await expect(
-    page.getByText(/starts with Nuvio Catalog Addon.*OpenSubtitles v3/),
+    page.getByText(/starts with TikTakTV Catalog Addon.*OpenSubtitles v3/),
   ).toBeVisible();
 });
 test("landing showcase rotates automatically and manual selection stays longer", async ({
@@ -1135,7 +1135,7 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
   );
 });
 
-test("desktop widths use the compact Nuvio navigation rail", async ({
+test("desktop widths use the compact TikTakTV navigation rail", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -4636,7 +4636,7 @@ test("source regex survives a complete settings reload", async ({ page }) => {
   await page.getByLabel("Automatic source selection").selectOption("regex");
   await page.getByLabel("Custom stream regex").fill(regex);
   await page.getByRole("button", { name: "Save source controls" }).click();
-  await expect(page.getByText(/Nuvio will sync them/)).toBeVisible();
+  await expect(page.getByText(/TikTakTV will sync them/)).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -4658,7 +4658,7 @@ test("source regex survives a complete settings reload", async ({ page }) => {
   await expect(page.getByLabel("Custom stream regex")).toHaveValue(regex);
 });
 
-test("Nuvio appearance settings immediately reshape the shell and survive reload", async ({
+test("TikTakTV appearance settings immediately reshape the shell and survive reload", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -4696,7 +4696,7 @@ test("Nuvio appearance settings immediately reshape the shell and survive reload
   await expect(page.getByLabel("Poster size")).toHaveValue("large");
 });
 
-test("Nuvio vertical Library filters and sorts saved media", async ({ page }) => {
+test("TikTakTV vertical Library filters and sorts saved media", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       "nuvio:library",
@@ -4741,7 +4741,7 @@ test("Nuvio vertical Library filters and sorts saved media", async ({ page }) =>
   ]);
 });
 
-test("Nuvio integration hub maps native-only features and opens working services", async ({
+test("TikTakTV integration hub maps native-only features and opens working services", async ({
   page,
 }) => {
   await page.goto("/#settings");

@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.10";
+export const latestRelease = "2026.11.20.11";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,9 +9,18 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 20, 2026",
-    title: "Nuvio Enhanced web rebuild",
+    title: "TikTakTV branding throughout",
     changes: [
-      "The website and PWA now use a responsive Nuvio Mobile Enhanced-style Home, navigation rail, floating mobile navigation, Settings hierarchy, Library and metadata presentation.",
+      "Settings, profiles, onboarding, sync messages, collection tools, Trakt, privacy pages, update notices and release notes now consistently use TikTakTV branding.",
+      "Internal compatibility keys remain unchanged so existing profiles, add-ons, source rules and installed PWAs keep their saved data.",
+    ],
+  },
+  {
+    version: "2026.11.20.10",
+    date: "November 20, 2026",
+    title: "TikTakTV Enhanced web rebuild",
+    changes: [
+      "The website and PWA now use a responsive TikTakTV Home, navigation rail, floating mobile navigation, Settings hierarchy, Library and metadata presentation.",
       "Profile-synced settings now cover the Home hero, catalogs, poster layout and size, Continue Watching, Library layout and sorting, metadata sections, episodes, player controls, preferred tracks, subtitles, source prefetch and pinning, notifications, and Live TV visibility.",
       "Title details now include production studios, in-app trailers and TMDB recommendations while preserving watched controls, ratings, downloads, source selection, episodes and cast browsing.",
       "Live TV, Sports, friend codes, add-ons, collections, YouTube, Trakt, Simkl, AniList, downloads, health checks and the compatibility companion remain integrated into the rebuilt shell.",
@@ -23,7 +32,7 @@ export const releases = [
     date: "November 20, 2026",
     title: "Synced source rules and English resume audio",
     changes: [
-      "Advanced source controls, custom regex mode, and the complete regex now save inside the selected Nuvio profile and load on the website, iPhone, and iPad PWA.",
+      "Advanced source controls, custom regex mode, and the complete regex now save inside the selected TikTakTV profile and load on the website, iPhone, and iPad PWA.",
       "Customized source controls saved by the previous browser-only release are migrated automatically, so an existing Debridio regex does not need to be entered again.",
       "Resume and autoplay now prioritize the preferred or device audio language before seeders, and built-in HLS/native audio tracks match English labels and language codes instead of requiring an exact label.",
     ],
@@ -33,7 +42,7 @@ export const releases = [
     date: "November 20, 2026",
     title: "Custom stream rules and replaceable friend codes",
     changes: [
-      "Automatic source selection now supports Nuvio Mobile Enhanced-style custom regex rules and presets matched against the add-on name, stream label, description, filename, and URL.",
+      "Automatic source selection now supports TikTakTV custom regex rules and presets matched against the add-on name, stream label, description, filename, and URL.",
       "Playback still starts from the first eligible response, while every remaining add-on continues loading in the background; late Debridio and 1440p results appear in Choose stream without restarting the video.",
       "Manual source lists no longer inherit autoplay quality, codec, exclusion, or regex filters, so every direct playable result remains available.",
       "Subtitle timing confirmations now dismiss automatically instead of remaining over the video.",
@@ -43,9 +52,9 @@ export const releases = [
   {
     version: "2026.11.20.7",
     date: "November 20, 2026",
-    title: "Nuvio-style subtitle rendering",
+    title: "TikTakTV subtitle rendering",
     changes: [
-      "TikTak now follows Nuvio Mobile Enhanced by keeping the selected track active only for timing and rendering normalized captions itself instead of trusting Safari's embedded positioning.",
+      "TikTakTV keeps the selected track active only for timing and renders normalized captions itself instead of trusting Safari's embedded positioning.",
       "Only the newest active cue is shown, transcription labels and timestamp/style tags are removed, and stale cues are forcibly cleared after six seconds.",
       "Caption placement is calculated from the fitted video picture, keeping subtitles centered inside letterboxed video on iPhone and iPad rotations.",
     ],
@@ -55,7 +64,7 @@ export const releases = [
     date: "November 20, 2026",
     title: "Trakt stays connected to your profile",
     changes: [
-      "A Nuvio backend rejection for Trakt credentials now falls back to the authenticated profile settings record instead of showing an unsupported-provider error.",
+      "A profile-backend rejection for Trakt credentials now falls back to the authenticated profile settings record instead of showing an unsupported-provider error.",
       "Profile reloads and PWA updates no longer erase a valid local Trakt login merely because remote credential storage returned no Trakt row.",
       "Trakt fallback credentials survive unrelated profile-setting saves and still clear when you explicitly disconnect.",
     ],
@@ -125,7 +134,7 @@ export const releases = [
     title: "Mobile downloads and watched controls",
     changes: [
       "Downloads now hand a prepared MP4 to iPhone and iPad so you can use the native Share → Save to Files flow instead of seeing a completed no-op.",
-      "Movies, series, and individual episodes can now be marked watched or unwatched manually; checkmarks update immediately and sync to the selected Nuvio profile.",
+      "Movies, series, and individual episodes can now be marked watched or unwatched manually; checkmarks update immediately and sync to the selected TikTakTV profile.",
     ],
   },
   {

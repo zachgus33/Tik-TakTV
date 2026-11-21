@@ -70,7 +70,7 @@ async function resolveSource(
   const resolved = sourceCatalog(source, addons);
   if (!resolved) throw new Error("The add-on catalog used by this row is not available.");
   if (!source.catalogId || !source.type)
-    throw new Error("This Nuvio source is missing its catalog information.");
+    throw new Error("This TikTakTV source is missing its catalog information.");
   return catalog(
     resolved.addon,
     source.type,

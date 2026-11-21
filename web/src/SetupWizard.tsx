@@ -105,7 +105,7 @@ export default function SetupWizard(props: {
                 Hi {props.profileName || "there"}. Let’s make sure you’re ready.
               </h1>
               <p>
-                Your Nuvio profile has been synced. This quick check confirms
+                Your TikTakTV profile has been synced. This quick check confirms
                 your catalogs, streaming sources, and browser compatibility.
               </p>
               <div className="setup-summary">
@@ -128,7 +128,7 @@ export default function SetupWizard(props: {
               <span className="eyebrow">HOW YOU WATCH</span>
               <h1 id="setup-title">Choose your setup path</h1>
               <p>
-                TikTak TV uses your own Nuvio add-ons and provider accounts. It
+                TikTakTV uses your own add-ons and provider accounts. It
                 never gives a new account somebody else’s debrid or IPTV login.
               </p>
               <div className="setup-paths">
@@ -137,7 +137,7 @@ export default function SetupWizard(props: {
                   onClick={() => setPath("synced")}
                 >
                   <Blocks />
-                  <strong>Use my Nuvio setup</strong>
+                  <strong>Use my TikTakTV setup</strong>
                   <small>
                     Keep the add-ons and catalogs already synced to this
                     profile.
@@ -187,7 +187,7 @@ export default function SetupWizard(props: {
                   <CheckCircle2 />
                   <span>
                     <strong>{props.addons.length} add-ons</strong>
-                    <small>Installed from this Nuvio profile</small>
+                    <small>Installed from this TikTakTV profile</small>
                   </span>
                 </div>
                 <div>
@@ -259,7 +259,7 @@ export default function SetupWizard(props: {
               <div className="setup-ready-note">
                 <ShieldCheck />
                 <span>
-                  Your credentials stay attached to your Nuvio account and are
+                  Your credentials stay attached to your TikTakTV account and are
                   never shared with other website users.
                 </span>
               </div>

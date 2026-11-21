@@ -727,7 +727,7 @@ function ProfileGate({
         </h1>
         {!email && (
           <p className="profile-gate-intro">
-            Sign in to restore your profiles and add-ons, or create a free Nuvio
+            Sign in to restore your profiles and add-ons, or create a free TikTakTV
             account to get started.
           </p>
         )}
@@ -1041,7 +1041,7 @@ function ProfileGate({
               </button>
               {authMode === "signup" && (
                 <p className="profile-auth-note">
-                  Your account starts with Nuvio Catalog Addon, English
+                  Your account starts with TikTakTV Catalog Addon, English
                   subtitles from OpenSubtitles v3, and shared TMDB metadata. Add
                   your preferred streaming source in Settings when you are ready
                   to watch.
@@ -2106,7 +2106,7 @@ function Detail({
         setError(
           result.installedStreaming
             ? "Your streaming add-ons do not support this title ID. Try the title from an IMDb-based catalog or refresh your installed manifests in Settings."
-            : "No streaming add-on is installed in this browser profile. Sign in to Nuvio to sync your add-ons, or install a configured manifest in Settings. Localhost and your website have separate settings.",
+            : "No streaming add-on is installed in this browser profile. Sign in to TikTakTV to sync your add-ons, or install a configured manifest in Settings. Localhost and your website have separate settings.",
         );
       else if (result.failed && !ranked.length)
         setError(
@@ -4064,8 +4064,8 @@ export default function App() {
           setProfileSyncLoaded(false);
           setToast(
             reason instanceof Error
-              ? `Profile opened from this device. Nuvio refresh failed: ${reason.message}`
-              : "Profile opened from this device, but Nuvio could not refresh it.",
+              ? `Profile opened from this device. TikTakTV refresh failed: ${reason.message}`
+              : "Profile opened from this device, but TikTakTV could not refresh it.",
           );
         }}
       />
@@ -4192,7 +4192,7 @@ export default function App() {
         )}
         {update && (
           <div className="banner">
-            An update is ready. Close all Nuvio tabs and reopen to install it
+            An update is ready. Close all TikTakTV tabs and reopen to install it
             safely after playback.
             <button
               onClick={() => setUpdate(false)}
@@ -4205,12 +4205,12 @@ export default function App() {
         <main id="main-content">
           {accountLoading && (
             <div className="account-loading" role="status">
-              Loading your Nuvio profile...
+              Loading your TikTakTV profile...
             </div>
           )}
           {profileSyncing && (
             <div className="profile-sync-status" role="status">
-              Syncing this profile with Nuvio in the background…
+              Syncing this profile with TikTakTV in the background…
             </div>
           )}
           {page === "home" && (
@@ -4306,7 +4306,7 @@ export default function App() {
                   </div>
                 ) : (
                   <section className="welcome">
-                    <span className="eyebrow">WELCOME TO NUVIO</span>
+                    <span className="eyebrow">WELCOME TO TIKTAKTV</span>
                     <h1>
                       A little less searching.
                       <br />A lot more watching.
@@ -5222,7 +5222,7 @@ export default function App() {
           >
             <div className="account-page-header">
               <div>
-                <span className="eyebrow">YOUR NUVIO</span>
+                <span className="eyebrow">YOUR TIKTAKTV</span>
                 <h1>{page === "account" ? "Account" : "Settings"}</h1>
                 <p>Manage your profile and everything connected to it.</p>
               </div>

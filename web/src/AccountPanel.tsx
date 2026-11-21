@@ -123,7 +123,7 @@ export default function AccountPanel({
           const now = Date.now();
           setLastSynced(now);
           localStorage.setItem("tiktak:last-sync", String(now));
-          setStatus("All changes saved to Nuvio.");
+          setStatus("All changes saved to TikTakTV.");
         })
         .catch((e) => setError(e.message));
     }, 1200);
@@ -152,7 +152,7 @@ export default function AccountPanel({
         </div>
         <div>
           <span className="eyebrow">ACTIVE PROFILE</span>
-          <h2>{selected?.name ?? "Nuvio profile"}</h2>
+          <h2>{selected?.name ?? "TikTakTV profile"}</h2>
           <p>{email}</p>
           {status && <small role="status">{status}</small>}
         </div>
@@ -166,7 +166,7 @@ export default function AccountPanel({
       {selected && (
         <section className="settings-card">
           <h2>Edit profile</h2>
-          <p>Your name and avatar sync with the same profile in Nuvio.</p>
+          <p>Your name and avatar sync with the same profile in TikTakTV.</p>
           <form
             className="account-profile-form"
             onSubmit={(event) => {
@@ -194,7 +194,7 @@ export default function AccountPanel({
                       : (selected.avatar_url ?? undefined),
                     color: avatar?.bg_color ?? selected.avatar_color_hex,
                   });
-                  setStatus("Profile updated in Nuvio.");
+                  setStatus("Profile updated in TikTakTV.");
                 })
                 .catch((e) => setError(e.message))
                 .finally(() => setBusy(false));
@@ -253,7 +253,7 @@ export default function AccountPanel({
           onClick={() => {
             if (!selected) return;
             setBusy(true);
-            setStatus("Syncing with Nuvio…");
+            setStatus("Syncing with TikTakTV…");
             void loadSetup(selected, ownerId)
               .then(({ setup: remote, warnings }) => {
                 onLoad(remote);
@@ -264,7 +264,7 @@ export default function AccountPanel({
                 setStatus(
                   warnings.length
                     ? `Sync finished. ${warnings.join(" ")}`
-                    : "Everything is synced with Nuvio.",
+                    : "Everything is synced with TikTakTV.",
                 );
               })
               .catch((reason) => setError(reason.message))

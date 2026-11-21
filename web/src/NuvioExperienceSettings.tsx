@@ -161,7 +161,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={Palette}
           title="App appearance"
-          description="Match Nuvio Mobile Enhanced across phone, tablet and desktop."
+          description="Shape the TikTakTV experience across phone, tablet and desktop."
         >
           <SelectRow
             title="Navigation style"
@@ -174,7 +174,7 @@ export default function NuvioExperienceSettings({
               )
             }
           >
-            <option value="floating">Floating Nuvio bar</option>
+            <option value="floating">Floating TikTakTV bar</option>
             <option value="rail">Navigation rail</option>
             <option value="compact">Compact</option>
           </SelectRow>
@@ -192,7 +192,7 @@ export default function NuvioExperienceSettings({
           </SelectRow>
           <SelectRow
             title="Card depth"
-            description="Choose flat artwork or Nuvio-style lifted cards."
+            description="Choose flat artwork or TikTakTV-style lifted cards."
             value={value.cardDepth}
             onChange={(next) =>
               update("cardDepth", next as NuvioWebSettings["cardDepth"])
@@ -204,7 +204,7 @@ export default function NuvioExperienceSettings({
           </SelectRow>
           <SwitchRow
             title="Feature highlights"
-            description="Show badges for newly added TikTak and Nuvio features."
+            description="Show badges for newly added TikTakTV features."
             checked={value.featureHighlights}
             onChange={(next) => update("featureHighlights", next)}
           />
@@ -242,7 +242,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={Clapperboard}
           title="Home hero"
-          description="Native Nuvio hero visibility, rotation and artwork controls."
+          description="TikTakTV hero visibility, rotation and artwork controls."
         >
           <SwitchRow
             title="Show hero"
@@ -266,7 +266,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={LayoutGrid}
           title="Home catalogs"
-          description="Poster density and catalog presentation from Nuvio Enhanced."
+          description="TikTakTV poster density and catalog presentation."
         >
           <SelectRow
             title="Poster layout"
@@ -378,7 +378,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={Captions}
           title="Detail sections"
-          description="Show or hide the same metadata sections available in Nuvio."
+          description="Show or hide TikTakTV metadata sections."
         >
           {[
             ["overview", "Overview"],
@@ -413,7 +413,7 @@ export default function NuvioExperienceSettings({
       <Group
         icon={LayoutGrid}
         title="Library display"
-        description="Match Nuvio's horizontal shelves or vertical filtered library."
+        description="Choose TikTakTV horizontal shelves or a vertical filtered library."
       >
         <SelectRow
           title="Layout"
@@ -448,7 +448,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={MonitorPlay}
           title="Player experience"
-          description="Web equivalents of Nuvio Enhanced player controls."
+          description="TikTakTV player behavior and controls."
         >
           <SwitchRow
             title="Loading overlay"
@@ -513,7 +513,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={Volume2}
           title="Audio and subtitles"
-          description="Preferred tracks and Nuvio-style caption rendering."
+          description="Preferred tracks and TikTakTV caption rendering."
         >
           <SelectRow
             title="Preferred audio"
@@ -585,7 +585,7 @@ export default function NuvioExperienceSettings({
         <Group
           icon={PlayCircle}
           title="Episodes and skipping"
-          description="Automatic next episode behavior from Nuvio Enhanced."
+          description="TikTakTV automatic next-episode behavior."
         >
           <SwitchRow
             title="Auto-play next episode"
@@ -646,7 +646,7 @@ export default function NuvioExperienceSettings({
     <>
       <Group
         icon={Sparkles}
-        title="Nuvio Enhanced experience"
+        title="TikTakTV experience"
         description="Core Enhanced behavior brought to the TikTak web app."
       >
         <SelectRow

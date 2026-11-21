@@ -144,7 +144,7 @@ type SettingsSection =
 const sections = [
   {
     id: "enhanced",
-    label: "Nuvio Enhanced",
+    label: "TikTakTV Enhanced",
     description: "Home, streams and TikTak features",
     icon: Sparkles,
     group: "Enhanced",
@@ -571,7 +571,7 @@ export default function Settings(props: Props) {
                 collections, filters, playback preferences, IPTV server
                 credentials, and protected debrid access. Original add-on
                 manifest addresses are preserved exactly so the shared profile
-                remains compatible with TikTak TV, Nuvio, and other
+                remains compatible with TikTakTV and other
                 Stremio-compatible clients.
               </p>
               <form
@@ -591,7 +591,7 @@ export default function Settings(props: Props) {
                     );
                     form.reset();
                     setSuccess(
-                      "Friend setup installed and saved to this Nuvio profile. You can play a title now.",
+                      "Friend setup installed and saved to this TikTakTV profile. You can play a title now.",
                     );
                   });
                 }}
@@ -807,7 +807,7 @@ export default function Settings(props: Props) {
               </form>
               <p className="hint">
                 The key reaches TorBox directly or through your private playback
-                service. Nuvio account sync can save it with your setup. Playing
+                service. TikTakTV account sync can save it with your setup. Playing
                 a torrent can add its cached entry to your TorBox account. No
                 uncached download is started.
               </p>
@@ -965,14 +965,14 @@ export default function Settings(props: Props) {
                       updatedAt: Date.now(),
                     });
                     setSuccess(
-                      "Source preferences saved. Nuvio will sync them to this profile on your other devices.",
+                      "Source preferences saved. TikTakTV will sync them to this profile on your other devices.",
                     );
                   }}
                 >
                   Save source controls
                 </button>
                 <p className="hint">
-                  Regex matching follows Nuvio Mobile Enhanced and searches the
+                  Regex matching searches the
                   add-on name, stream name, description, filename, and URL.
                   These rules affect automatic selection only; every playable
                   add-on result remains visible in Choose stream.
@@ -1045,7 +1045,7 @@ export default function Settings(props: Props) {
               </form>
               <p className="hint">
                 TikTak TV only requests cached torrent files and secure download
-                links. Your key belongs to your Nuvio setup and is never shared
+                links. Your key belongs to your TikTakTV setup and is never shared
                 with unrelated site visitors.
               </p>
               <label className="check">
@@ -1476,7 +1476,7 @@ export default function Settings(props: Props) {
                 still need an HTTPS tunnel or a same-network companion.
               </p>
               <details>
-                <summary>Install several add-ons from Nuvio</summary>
+                <summary>Install several add-ons from TikTakTV</summary>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1534,7 +1534,7 @@ export default function Settings(props: Props) {
             <section className="settings-card">
               <h2>TMDB collections</h2>
               <p>
-                For streaming-service, studio and network collections. Nuvio
+                For streaming-service, studio and network collections. TikTakTV
                 profile sync can override TikTak TV's shared TMDB connection.
               </p>
               <form
@@ -1775,10 +1775,10 @@ export default function Settings(props: Props) {
               </p>
               <h3>About this fork</h3>
               <p>
-                An independent GPL-3.0 web adaptation of Nuvio Mobile Enhanced.
-                This version supports browser-compatible sources and
-                TorBox-backed torrents. Native downloads, direct peer-to-peer
-                torrent playback, Trakt sync, and AI features are not included.
+                TikTakTV is an independent GPL-3.0 media experience.
+                It supports browser-compatible sources, profile sync, Trakt,
+                downloads, Live TV, Sports, YouTube, friend setups, subtitles,
+                and debrid-backed playback across desktop and mobile PWAs.
               </p>
               <div className="actions">
                 <a

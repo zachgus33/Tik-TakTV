@@ -63,10 +63,10 @@ export default function DataTools(props: {
   }
   return (
     <section className="settings-card">
-      <h2>Your Nuvio setup</h2>
+      <h2>Your TikTakTV setup</h2>
       <p>
-        Bring over Nuvio collection JSON and configured add-ons. Sign in to your
-        Nuvio account for automatic profile sync, or use these manual tools.
+        Bring over TikTakTV collection JSON and configured add-ons. Sign in to your
+        TikTakTV account for automatic profile sync, or use these manual tools.
       </p>
       {error && (
         <div className="error" role="alert">
@@ -121,8 +121,8 @@ export default function DataTools(props: {
         </button>
       </details>
       <p className="hint">
-        Native Nuvio collection folders are supported. TMDB sources use the API
-        key from your Nuvio profile or Settings. Trakt sources need a matching
+        TikTakTV collection folders are supported. TMDB sources use the API
+        key from your TikTakTV profile or Settings. Trakt sources need a matching
         installed catalog add-on.
       </p>
 

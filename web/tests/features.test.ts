@@ -987,7 +987,7 @@ describe("Nuvio collections and add-on transfer", () => {
   it("rejects arbitrary schemes and native settings backups with an explanation", () => {
     expect(() => addonUrls("javascript:alert(1)")).toThrow("manifest");
     expect(() => parseTransfer('{"theme":"dark"}')).toThrow(
-      "Native Enhanced settings",
+      "Settings backups",
     );
   });
 });

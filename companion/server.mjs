@@ -3568,7 +3568,7 @@ export function createService({
       if (route.pathname === "/friend/redeem") {
         if (userId === "service")
           return send(403, {
-            error: "Sign in to Nuvio before using a friend code.",
+            error: "Sign in to TikTakTV before using a friend code.",
           });
         const attemptKey = `${userId}:${req.socket.remoteAddress ?? "unknown"}`;
         const attempt = friendAttempts.get(attemptKey) ?? {

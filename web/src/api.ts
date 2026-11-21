@@ -345,7 +345,7 @@ export const defaultAddon: Addon = {
   base: "https://v3-cinemeta.strem.io",
   manifest: {
     id: "com.linvo.cinemeta",
-    name: "Nuvio Catalog Addon",
+    name: "TikTakTV Catalog Addon",
     types: ["movie", "series"],
     resources: ["catalog", "meta"],
     catalogs: [

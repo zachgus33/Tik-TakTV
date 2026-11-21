@@ -226,7 +226,7 @@ export default function ExternalTrackingSettings({ profileName, provider }: { pr
     <div className="card-heading"><div><h2>{name}</h2><p>{provider === "simkl"
       ? "Optional movie, show and anime tracking for this profile."
       : "Optional anime list tracking for this profile."}</p></div></div>
-    <p>{name} is separate from Trakt and your Nuvio watch history. Each profile connects its own account.</p>
+    <p>{name} is separate from Trakt and your TikTakTV watch history. Each profile connects its own account.</p>
     {connected ? <><p>Connected as <strong>{account || `your ${name} account`}</strong>.</p>
       {provider === "simkl" && <label className="check"><input type="checkbox" checked={scrobbling}
         onChange={event => { setScrobbling(event.target.checked); setProgressEnabled(provider, profileName, event.target.checked); }} /> Scrobble playback to my Simkl account</label>}

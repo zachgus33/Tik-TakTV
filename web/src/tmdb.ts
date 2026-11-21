@@ -28,7 +28,7 @@ async function get<T>(
 ): Promise<T> {
   if (!key())
     throw new Error(
-      "This collection uses TMDB. Add your TMDB API key in Settings or sync it from your Nuvio profile.",
+      "This collection uses TMDB. Add your TMDB API key in Settings or sync it from your TikTakTV profile.",
     );
   const credential = key().trim();
   const request = authenticatedRequest(path, query, credential);

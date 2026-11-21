@@ -87,7 +87,7 @@ export default function CollectionManager(props: {
       <section className="settings-card nuvio-collections-manager">
         <div className="collection-manager-title">
           <div>
-            <span className="eyebrow">SYNCED FROM NUVIO</span>
+            <span className="eyebrow">SYNCED FROM TIKTAKTV</span>
             <h2>Collections</h2>
             <p>
               Create and arrange collections, then build each one from folders,

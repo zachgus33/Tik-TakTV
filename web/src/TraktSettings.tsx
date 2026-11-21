@@ -463,7 +463,7 @@ export default function TraktSettings({
             Scrobble movies and episodes to my Trakt account
           </label>
           <p className="hint">
-            This login is saved to this Nuvio profile and stays connected across
+            This login is saved to this TikTakTV profile and stays connected across
             browsers and devices until you disconnect it here.
           </p>
           <button
@@ -478,7 +478,7 @@ export default function TraktSettings({
         <>
           <p>
             Connect once and TikTak TV will restore Trakt whenever you open this
-            Nuvio profile on another device.
+            TikTakTV profile on another device.
           </p>
           <button type="button" disabled={busy} onClick={() => void connect()}>
             {busy ? "Connecting…" : "Connect my Trakt"}
