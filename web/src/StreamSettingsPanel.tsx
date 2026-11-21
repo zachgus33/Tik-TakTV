@@ -2,6 +2,7 @@ import { CheckCircle2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Addon } from "./types";
 import {
+  parseExcludedTerms,
   validStreamRegex,
   type StreamPreferences,
 } from "./stream-selection";
@@ -28,9 +29,15 @@ export default function StreamSettingsPanel({
 }) {
   const [draft, setDraft] = useState(value);
   const [message, setMessage] = useState("");
+  const [excludedTermsText, setExcludedTermsText] = useState(
+    value.excludedTerms.join(", "),
+  );
   const [badgeUrl, setBadgeUrl] = useState("");
   const [badgeBusy, setBadgeBusy] = useState(false);
-  useEffect(() => setDraft(value), [value]);
+  useEffect(() => {
+    setDraft(value);
+    setExcludedTermsText(value.excludedTerms.join(", "));
+  }, [value]);
   const update = <K extends keyof StreamPreferences>(
     key: K,
     next: StreamPreferences[K],
@@ -132,6 +139,68 @@ export default function StreamSettingsPanel({
           ))}
         </div>
       )}
+      <section className="stream-filter-settings">
+        <div>
+          <h3>Source filters</h3>
+          <p className="hint">
+            Applied to automatic first-match selection and downloads. An
+            explicit custom regex controls its own matches; manual source lists
+            remain complete.
+          </p>
+        </div>
+        <div className="form-grid">
+          <label>
+            Maximum quality
+            <select
+              value={draft.maxQuality}
+              onChange={(event) =>
+                update("maxQuality", Number(event.target.value))
+              }
+            >
+              <option value="720">720p</option>
+              <option value="1080">1080p</option>
+              <option value="1440">1440p</option>
+              <option value="2160">4K</option>
+              <option value="4320">8K / no practical limit</option>
+            </select>
+          </label>
+          <label>
+            Maximum file size (GB, 0 for unlimited)
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={draft.maxSizeGb}
+              onChange={(event) =>
+                update("maxSizeGb", Math.max(0, Number(event.target.value)))
+              }
+            />
+          </label>
+          <label>
+            Codec preference
+            <select
+              value={draft.codec}
+              onChange={(event) =>
+                update("codec", event.target.value === "h264" ? "h264" : "any")
+              }
+            >
+              <option value="any">Any compatible codec</option>
+              <option value="h264">H.264 / AVC only</option>
+            </select>
+          </label>
+          <label className="grow">
+            Excluded terms (comma separated)
+            <input
+              value={excludedTermsText}
+              placeholder="CAM, telesync, dubbed"
+              onChange={(event) => setExcludedTermsText(event.target.value)}
+            />
+            <small>
+              Enter as many terms as you need, separated by commas.
+            </small>
+          </label>
+        </div>
+      </section>
       <div className="stream-behavior-grid">
         <label className="check">
           <input
@@ -406,7 +475,11 @@ export default function StreamSettingsPanel({
               );
               return;
             }
-            onSave({ ...draft, updatedAt: Date.now() });
+            onSave({
+              ...draft,
+              excludedTerms: parseExcludedTerms(excludedTermsText),
+              updatedAt: Date.now(),
+            });
             setMessage("Stream settings saved to this TikTakTV profile.");
           }}
         >

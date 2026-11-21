@@ -1420,7 +1420,6 @@ function Detail({
   onClose,
   onPlay,
   onSelectItem,
-  onTrailer,
   onRemoveProgress,
   onSetWatched,
   onOpenDownloads,
@@ -1439,7 +1438,6 @@ function Detail({
   onClose: () => void;
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
-  onTrailer: (videoId: string, title: string) => void;
   onRemoveProgress: (item: Item) => void;
   onSetWatched: (
     item: Item,
@@ -1612,6 +1610,10 @@ function Detail({
     trailers: [],
     studios: [],
   });
+  const [selectedTrailer, setSelectedTrailer] = useState<{
+    videoId: string;
+    name: string;
+  } | null>(null);
   const [person, setPerson] = useState<import("./tmdb").PersonProfile | null>(
     null,
   );
@@ -2323,8 +2325,51 @@ function Detail({
       ref={ref}
       className="detail-dialog"
       aria-label={`${item.name} details`}
-      onCancel={onClose}
+      onCancel={(event) => {
+        if (selectedTrailer) {
+          event.preventDefault();
+          setSelectedTrailer(null);
+        } else onClose();
+      }}
     >
+      {selectedTrailer && (
+        <div
+          className="detail-trailer-player"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedTrailer.name} trailer`}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSelectedTrailer(null);
+          }}
+        >
+          <section>
+            <header>
+              <div>
+                <span className="eyebrow">TRAILER</span>
+                <strong>{selectedTrailer.name}</strong>
+                <small>{item.name}</small>
+              </div>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close trailer"
+                onClick={() => setSelectedTrailer(null)}
+              >
+                <X />
+              </button>
+            </header>
+            <div className="detail-trailer-frame">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(selectedTrailer.videoId)}?autoplay=1&controls=1&playsinline=1&rel=0&modestbranding=1`}
+                title={`${selectedTrailer.name} — ${item.name}`}
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </div>
+          </section>
+        </div>
+      )}
       {preparing && (
         <div
           className="detail-preparing"
@@ -2940,7 +2985,12 @@ function Detail({
               {extras.trailers.map((trailer) => (
                 <button
                   key={trailer.id}
-                  onClick={() => onTrailer(trailer.videoId, trailer.name)}
+                  onClick={() =>
+                    setSelectedTrailer({
+                      videoId: trailer.videoId,
+                      name: trailer.name,
+                    })
+                  }
                 >
                   <img
                     src={`https://i.ytimg.com/vi/${trailer.videoId}/hqdefault.jpg`}
@@ -5937,11 +5987,6 @@ export default function App() {
             setPlayback(next);
           }}
           onSelectItem={setDetail}
-          onTrailer={(videoId, title) => {
-            setDetail(null);
-            setYoutubeResumeRequest({ videoId, seconds: 0, title });
-            navigate("youtube");
-          }}
           onRemoveProgress={removeFromHistory}
           onSetWatched={setWatchedStatus}
           onOpenDownloads={() => {

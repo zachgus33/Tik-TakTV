@@ -4771,6 +4771,34 @@ test("source regex survives a complete settings reload", async ({ page }) => {
   await expect(page.getByLabel("Reuse the last working link")).toBeChecked();
 });
 
+test("source controls accept and persist multiple comma-separated exclusions", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /^Streams/ }).click();
+  const excluded = page.getByLabel("Excluded terms (comma separated)");
+  await excluded.fill("CAM");
+  await excluded.pressSequentially(", telesync, dubbed");
+  await expect(excluded).toHaveValue("CAM, telesync, dubbed");
+  await page.getByRole("button", { name: "Save stream settings" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("tiktak:stream-preferences") ?? "{}",
+          ).excludedTerms,
+      ),
+    )
+    .toEqual(["CAM", "telesync", "dubbed"]);
+
+  await page.reload();
+  await page.getByRole("button", { name: /^Streams/ }).click();
+  await expect(page.getByLabel("Excluded terms (comma separated)")).toHaveValue(
+    "CAM, telesync, dubbed",
+  );
+});
+
 test("Download Center groups and cancels background preparation", async ({
   page,
 }) => {
@@ -4994,7 +5022,9 @@ test("Home motion preview loads muted and enables sound after a click", async ({
   await page.route("https://api.themoviedb.org/3/movie/278/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     return route.fulfill({
-      json: path.endsWith("/videos")
+      json: path.endsWith("/external_ids")
+        ? { imdb_id: "tt0111161" }
+        : path.endsWith("/videos")
         ? {
             results: [
               {
@@ -5011,6 +5041,11 @@ test("Home motion preview loads muted and enables sound after a click", async ({
           : { production_companies: [] },
     });
   });
+  await page.route("https://api.themoviedb.org/3/find/tt0111161**", (route) =>
+    route.fulfill({
+      json: { movie_results: [{ id: 278 }], tv_results: [] },
+    }),
+  );
   await page.route("https://www.youtube-nocookie.com/**", (route) =>
     route.fulfill({ contentType: "text/html", body: "<!doctype html>" }),
   );
@@ -5028,9 +5063,25 @@ test("Home motion preview loads muted and enables sound after a click", async ({
   });
   await page.goto("/#home");
   const preview = page.locator("iframe.hero-motion-preview");
-  await expect(preview).toHaveAttribute("src", /preview123.*mute=1/);
+  await expect(preview).toHaveAttribute("src", /preview123.*mute=1/, {
+    timeout: 10_000,
+  });
   await page.getByRole("button", { name: "Preview sound" }).click();
   await expect(preview).toHaveAttribute("src", /preview123.*mute=0/);
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Official trailer" }).click();
+  const trailerPlayer = page.getByRole("dialog", {
+    name: "Official trailer trailer",
+  });
+  await expect(trailerPlayer).toBeVisible();
+  await expect(trailerPlayer.locator("iframe")).toHaveAttribute(
+    "src",
+    /youtube-nocookie\.com\/embed\/preview123/,
+  );
+  expect(new URL(page.url()).hash).toBe("#home");
+  await expect(page.locator(".youtube-page")).toHaveCount(0);
+  await trailerPlayer.getByRole("button", { name: "Close trailer" }).click();
+  await expect(page.getByRole("dialog", { name: /details$/ })).toBeVisible();
 });
 
 test("Feature highlights preference can suppress the update prompt", async ({

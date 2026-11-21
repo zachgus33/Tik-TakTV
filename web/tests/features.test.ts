@@ -29,6 +29,7 @@ import {
   quality,
   rankedStreams,
   needsCompatibilityTranscode,
+  parseExcludedTerms,
   seeders,
   sourcePickerStreams,
   preferredAudioTrackIndex,
@@ -379,6 +380,18 @@ describe("new account defaults", () => {
   });
 });
 describe("per-profile source controls", () => {
+  it("parses multiple comma-separated excluded terms without losing input", () => {
+    expect(parseExcludedTerms("CAM, telesync, dubbed")).toEqual([
+      "CAM",
+      "telesync",
+      "dubbed",
+    ]);
+    expect(parseExcludedTerms(" CAM, cam,\n telesync; dubbed ")).toEqual([
+      "CAM",
+      "telesync",
+      "dubbed",
+    ]);
+  });
   it("applies quality, size, codec and excluded-term limits", () => {
     const storage = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -402,6 +415,9 @@ describe("per-profile source controls", () => {
       { name: "1080p H264 4 GB", url: "https://cdn.example/good.mp4" },
     ];
     expect(rankedStreams(streams, false).map((stream) => stream.url)).toEqual([
+      "https://cdn.example/good.mp4",
+    ]);
+    expect(autoplayStreams(streams, false).map((stream) => stream.url)).toEqual([
       "https://cdn.example/good.mp4",
     ]);
     vi.unstubAllGlobals();

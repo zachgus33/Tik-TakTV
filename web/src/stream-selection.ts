@@ -178,6 +178,24 @@ export const defaultStreamPreferences: StreamPreferences = {
   pinnedSources: [],
   updatedAt: 0,
 };
+
+export function parseExcludedTerms(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value.flatMap((entry) => String(entry).split(/[,;\n]/))
+    : typeof value === "string"
+      ? value.split(/[,;\n]/)
+      : [];
+  const seen = new Set<string>();
+  return raw
+    .map((term) => term.trim())
+    .filter((term) => {
+      const key = term.toLocaleLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export function normalizeStreamPreferences(value: unknown): StreamPreferences {
   const saved =
     value && typeof value === "object"
@@ -186,9 +204,7 @@ export function normalizeStreamPreferences(value: unknown): StreamPreferences {
   return {
     maxQuality: Number(saved.maxQuality) || 4320,
     maxSizeGb: Math.max(0, Number(saved.maxSizeGb) || 0),
-    excludedTerms: Array.isArray(saved.excludedTerms)
-      ? saved.excludedTerms.map(String).filter(Boolean)
-      : [],
+    excludedTerms: parseExcludedTerms(saved.excludedTerms),
     codec: saved.codec === "h264" ? "h264" : "any",
     autoPlayMode:
       saved.autoPlayMode === "manual" ||
@@ -548,6 +564,28 @@ export function autoplayStreams(
       return false;
     return true;
   });
+  const sourceFiltered = eligible.filter((stream) => {
+    const reportedQuality = streamQuality(stream);
+    if (reportedQuality && reportedQuality > preferences.maxQuality)
+      return false;
+    if (
+      preferences.maxSizeGb &&
+      sizeGb(stream) &&
+      sizeGb(stream) > preferences.maxSizeGb
+    )
+      return false;
+    if (
+      preferences.excludedTerms.some((term) =>
+        streamDescriptor(stream)
+          .toLocaleLowerCase()
+          .includes(term.toLocaleLowerCase()),
+      )
+    )
+      return false;
+    if (preferences.codec === "h264" && codecCompatibility(stream) < 1)
+      return false;
+    return true;
+  });
   const filtered =
     preferences.autoPlayMode === "regex"
       ? validStreamRegex(preferences.autoPlayRegex)
@@ -555,7 +593,7 @@ export function autoplayStreams(
             streamMatchesRegex(stream, preferences.autoPlayRegex),
           )
         : []
-      : eligible;
+      : sourceFiltered;
   const matched =
     preferences.autoPlayMode === "first"
       ? ordered.filter((stream) => filtered.includes(stream))

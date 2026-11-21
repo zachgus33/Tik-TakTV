@@ -605,6 +605,28 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   border-radius: 18px;
   background: #0f0d13;
 }
+.stream-filter-settings {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0;
+  padding: 18px;
+  border: 1px solid #ffffff10;
+  border-radius: 18px;
+  background: #0f0d13;
+}
+.stream-filter-settings h3,
+.stream-filter-settings p {
+  margin: 0;
+}
+.stream-filter-settings .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.stream-filter-settings label > small {
+  color: #958f9e;
+  font-size: 12px;
+}
 .pinned-stream-sources {
   display: grid;
   gap: 8px;
@@ -793,8 +815,78 @@ html:not(.tv-mode) .addon-list .addon {
 }
 @media (max-width: 700px) {
   .stream-settings-panel > .form-grid,
+  .stream-filter-settings .form-grid,
   .stream-behavior-grid {
     grid-template-columns: 1fr;
+  }
+}
+.detail-trailer-player {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #030206e6;
+  backdrop-filter: blur(16px);
+}
+.detail-trailer-player > section {
+  width: min(920px, 100%);
+  overflow: hidden;
+  border: 1px solid #ffffff20;
+  border-radius: 22px;
+  background: #111016;
+  box-shadow: 0 30px 110px #000d;
+}
+.detail-trailer-player header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+}
+.detail-trailer-player header > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+.detail-trailer-player header strong,
+.detail-trailer-player header small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-trailer-player header strong {
+  color: #fff;
+  font-size: 18px;
+}
+.detail-trailer-player header small {
+  color: #9c94a4;
+}
+.detail-trailer-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+.detail-trailer-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+@media (max-width: 700px) {
+  .detail-trailer-player {
+    place-items: end center;
+    padding: max(12px, env(safe-area-inset-top)) 0 0;
+  }
+  .detail-trailer-player > section {
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 .nuvio-integration-card {
