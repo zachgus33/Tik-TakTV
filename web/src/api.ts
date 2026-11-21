@@ -526,40 +526,34 @@ export async function addonStreams(
       ),
   );
   const active = eligible.filter((addon) => !addonQuarantined(addon));
-  // Query a small parallel pool so one slow provider cannot block every other
-  // source. Autoplay consumes onSource immediately; the complete result remains
+  // Match Mobile Enhanced: start every compatible provider immediately. A
+  // fixed-size pool allowed the first slow add-ons to prevent later providers
+  // (notably Debridio) from even starting until their timeouts expired.
+  // Autoplay consumes onSource immediately; the complete result remains
   // available for the manual source list and downloads.
   const results: PromiseSettledResult<Stream[]>[] = Array(active.length);
-  let next = 0;
-  const loadOne = async () => {
-    while (!signal?.aborted) {
-      const index = next++;
-      if (index >= active.length) return;
-      const addon = active[index];
-      try {
-        const data = await json<{ streams?: Stream[] }>(
-          addonResourceUrl(addon.base, "stream", item.type, id),
-          signal,
-          6500,
-        );
-        recordAddonSuccess(addon);
-        const streams = (data.streams ?? []).map((s) => ({
-          ...s,
-          addonName: addon.manifest.name,
-          addonId: addon.base,
-          name: s.name ?? addon.manifest.name,
-        }));
-        onSource?.(streams, addon);
-        results[index] = { status: "fulfilled", value: streams };
-      } catch (reason) {
-        recordAddonFailure(addon, reason);
-        results[index] = { status: "rejected", reason };
-      }
+  const loadOne = async (addon: Addon, index: number) => {
+    try {
+      const data = await json<{ streams?: Stream[] }>(
+        addonResourceUrl(addon.base, "stream", item.type, id),
+        signal,
+        6500,
+      );
+      recordAddonSuccess(addon);
+      const streams = (data.streams ?? []).map((s) => ({
+        ...s,
+        addonName: addon.manifest.name,
+        addonId: addon.base,
+        name: s.name ?? addon.manifest.name,
+      }));
+      onSource?.(streams, addon);
+      results[index] = { status: "fulfilled", value: streams };
+    } catch (reason) {
+      recordAddonFailure(addon, reason);
+      results[index] = { status: "rejected", reason };
     }
   };
-  await Promise.all(
-    Array.from({ length: Math.min(4, active.length) }, () => loadOne()),
-  );
+  await Promise.all(active.map(loadOne));
   const failureReason = (error: unknown) => {
     const detail = error instanceof Error ? error.message : "";
     if (/HTTP \d{3}/.test(detail)) return detail.match(/HTTP \d{3}/)![0];

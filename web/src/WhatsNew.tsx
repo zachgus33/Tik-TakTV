@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.21.3";
+export const latestRelease = "2026.11.21.4";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -20,6 +20,8 @@ export const releases = [
       "Subtitle preferences now include Original audio, Forced-only captions, preferred-language filtering, native language choices, bold/color/background/outline styling, and remembered player brightness.",
       "IntroDB, AniSkip, and optional Anime-Skip timing providers are merged by native priority; users with an IntroDB API key can verify it locally and submit corrected intro, recap, or credits timing from the player.",
       "Manually choosing another source now replaces and cancels the active companion conversion instead of accumulating transcodes or showing a capacity error.",
+      "Stream providers now start concurrently like Mobile Enhanced, late background results can no longer change the selected source index, and manual source changes keep the current player visible until the replacement is ready.",
+      "Compatibility preparation now discovers audio and embedded subtitle tracks with one media probe instead of opening the remote file twice before playback can start.",
     ],
   },
   {

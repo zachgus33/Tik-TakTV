@@ -68,6 +68,7 @@ import {
   streamContentKey,
 } from "../src/enhanced-stream-cache";
 import { streamBadgeNames } from "../src/stream-badges";
+import { mergePlaybackAlternatives } from "../src/Player";
 
 describe("custom collection catalog resolution", () => {
   it("treats a saved 'none' genre as an unfiltered catalog", () => {
@@ -194,6 +195,29 @@ describe("custom collection catalog resolution", () => {
         addons,
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("in-player source stability", () => {
+  const playback = (url: string, label: string) => ({
+    item: {
+      id: "tt1",
+      name: "Movie",
+      type: "movie" as const,
+      source: "addon" as const,
+    },
+    url,
+    sourceLabel: label,
+  });
+
+  it("appends late provider results without moving existing source indexes", () => {
+    const first = playback("https://cdn.example/first.mp4", "First");
+    const selected = playback("https://cdn.example/selected.mp4", "Selected");
+    const late = playback("https://cdn.example/late.mp4", "Late Debridio");
+
+    expect(
+      mergePlaybackAlternatives([first, selected], [late, selected, first]),
+    ).toEqual([first, selected, late]);
   });
 });
 
@@ -1759,5 +1783,49 @@ describe("stream manifest compatibility", () => {
       { name: "Streamer", status: "responded", streams: 1 },
     ]);
     expect(result.streams[0].addonName).toBe("Streamer");
+  });
+
+  it("starts every compatible stream provider without queueing later add-ons", async () => {
+    const resolvers: ((response: Response) => void)[] = [];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const addons = Array.from({ length: 7 }, (_, index) => ({
+      base: `https://provider-${index + 1}.example`,
+      manifest: {
+        id: `provider-${index + 1}`,
+        name: index === 6 ? "Debridio" : `Provider ${index + 1}`,
+        resources: [{ name: "stream", types: ["movie"] }],
+      },
+    }));
+    const request = addonStreams(
+      addons,
+      { id: "tt1", name: "Movie", type: "movie", source: "addon" },
+      "tt1",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toContain("provider-7.example");
+    resolvers.forEach((resolve, index) =>
+      resolve(
+        new Response(
+          JSON.stringify({
+            streams: [
+              {
+                name: index === 6 ? "Debridio 4K" : `Stream ${index + 1}`,
+                url: `https://cdn.example/${index + 1}.mp4`,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    const result = await request;
+    expect(result.streams).toHaveLength(7);
+    expect(result.streams.at(-1)?.addonName).toBe("Debridio");
   });
 });

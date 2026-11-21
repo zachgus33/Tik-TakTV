@@ -3615,6 +3615,8 @@ test("manual conversion sources replace the active job instead of hitting capaci
   await page.route("https://playback.example/prepare", async (route) => {
     const body = route.request().postDataJSON();
     preparations.push(body);
+    if (preparations.length === 2)
+      await new Promise((resolve) => setTimeout(resolve, 500));
     const id = mediaIds[Math.min(preparations.length - 1, 1)];
     return route.fulfill({ json: { path: `/media/${id}/index.m3u8` } });
   });
@@ -3639,11 +3641,20 @@ test("manual conversion sources replace the active job instead of hitting capaci
     .getByRole("dialog", { name: "Choose a stream" })
     .getByRole("button", { name: /Debridio 1440p HEVC/ })
     .click();
+  await expect(page.locator("dialog.tv-web-player video")).toBeVisible();
+  await expect(page.locator(".mobile-opening-player")).toHaveCount(0);
+  await expect(page.locator(".player-source-handoff")).toContainText(
+    "Debridio 1440p HEVC",
+  );
   await expect.poll(() => preparations.length).toBe(2);
   expect(preparations[0].playbackId).toMatch(/^[A-Za-z0-9_-]{20,100}$/);
   expect(preparations[1].playbackId).toBe(preparations[0].playbackId);
   expect(preparations[1].replace).toBe(`/media/${mediaIds[0]}/index.m3u8`);
-  await expect(page.locator(".player-dialog .error")).toHaveCount(0);
+  await expect(page.locator(".player-source-handoff")).toHaveCount(0);
+  await expect(
+    page.getByText("Two video transcodes are already active"),
+  ).toHaveCount(0);
+  await expect(page.getByText("Could not start playback")).toHaveCount(0);
   await page.getByRole("button", { name: "Close player" }).click();
   await expect.poll(() => cancellations).toBeGreaterThan(0);
 });

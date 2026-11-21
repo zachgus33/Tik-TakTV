@@ -29,56 +29,50 @@ import { pipeline } from "node:stream/promises";
 import { createGzip } from "node:zlib";
 import { Agent, fetch as upstreamFetch } from "undici";
 
-function probeAudioTracks(inputUrl, inputArgs = []) {
-  return new Promise((resolve) => {
-    const child = spawn(
-      process.env.FFPROBE_PATH ?? "ffprobe",
-      [
-        "-v",
-        "error",
-        ...inputArgs,
-        "-select_streams",
-        "a",
-        "-show_entries",
-        "stream=index:stream_tags=language,title",
-        "-of",
-        "json",
-        inputUrl,
-      ],
-      { stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
-    );
-    let output = "";
-    const timer = setTimeout(() => child.kill(), 15_000);
-    child.stdout.on("data", (chunk) => {
-      if (output.length < 1_000_000) output += chunk;
-    });
-    const finish = (value) => {
-      clearTimeout(timer);
-      resolve(value);
-    };
-    child.once("error", () => finish([]));
-    child.once("exit", (code) => {
-      if (code) return finish([]);
-      try {
-        const streams = JSON.parse(output).streams ?? [];
-        finish(
-          streams.map((stream, audioIndex) => ({
-            audioIndex,
-            language:
-              String(stream.tags?.language ?? "und")
-                .toLowerCase()
-                .replace(/[^a-z0-9-]/g, "") || "und",
-            title: String(stream.tags?.title ?? "").trim(),
-          })),
-        );
-      } catch {
-        finish([]);
-      }
-    });
-  });
+export function parseMediaTracks(value) {
+  const supportedSubtitles = new Set([
+    "ass",
+    "ssa",
+    "subrip",
+    "webvtt",
+    "mov_text",
+    "text",
+  ]);
+  const streams = Array.isArray(value?.streams) ? value.streams : [];
+  const audioTracks = streams
+    .filter((stream) => stream.codec_type === "audio")
+    .map((stream, audioIndex) => ({
+      audioIndex,
+      language:
+        String(stream.tags?.language ?? "und")
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "") || "und",
+      title: String(stream.tags?.title ?? "").trim(),
+    }));
+  const subtitleTracks = streams
+    .filter(
+      (stream) =>
+        stream.codec_type === "subtitle" &&
+        supportedSubtitles.has(String(stream.codec_name ?? "").toLowerCase()),
+    )
+    .slice(0, 8)
+    .map((stream, subtitleIndex) => ({
+      subtitleIndex,
+      streamIndex: Number(stream.index),
+      language:
+        String(stream.tags?.language ?? "und")
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "") || "und",
+      title: String(stream.tags?.title ?? "").trim(),
+      forced: stream.disposition?.forced === 1,
+      default: stream.disposition?.default === 1,
+      hearingImpaired: stream.disposition?.hearing_impaired === 1,
+    }))
+    .filter((stream) => Number.isInteger(stream.streamIndex));
+  return { audioTracks, subtitleTracks };
 }
 
-function probeSubtitleTracks(inputUrl, inputArgs = []) {
+function probeMediaTracks(inputUrl, inputArgs = []) {
   return new Promise((resolve) => {
     const child = spawn(
       process.env.FFPROBE_PATH ?? "ffprobe",
@@ -86,10 +80,8 @@ function probeSubtitleTracks(inputUrl, inputArgs = []) {
         "-v",
         "error",
         ...inputArgs,
-        "-select_streams",
-        "s",
         "-show_entries",
-        "stream=index,codec_name:stream_tags=language,title:stream_disposition=default,forced,hearing_impaired",
+        "stream=index,codec_type,codec_name:stream_tags=language,title:stream_disposition=default,forced,hearing_impaired",
         "-of",
         "json",
         inputUrl,
@@ -101,36 +93,20 @@ function probeSubtitleTracks(inputUrl, inputArgs = []) {
     child.stdout.on("data", (chunk) => {
       if (output.length < 1_000_000) output += chunk;
     });
+    let finished = false;
     const finish = (value) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       resolve(value);
     };
-    child.once("error", () => finish([]));
+    child.once("error", () => finish({ audioTracks: [], subtitleTracks: [] }));
     child.once("exit", (code) => {
-      if (code) return finish([]);
+      if (code) return finish({ audioTracks: [], subtitleTracks: [] });
       try {
-        const supported = new Set(["ass", "ssa", "subrip", "webvtt", "mov_text", "text"]);
-        const streams = JSON.parse(output).streams ?? [];
-        finish(
-          streams
-            .filter((stream) => supported.has(String(stream.codec_name ?? "").toLowerCase()))
-            .slice(0, 8)
-            .map((stream, subtitleIndex) => ({
-              subtitleIndex,
-              streamIndex: Number(stream.index),
-              language:
-                String(stream.tags?.language ?? "und")
-                  .toLowerCase()
-                  .replace(/[^a-z0-9-]/g, "") || "und",
-              title: String(stream.tags?.title ?? "").trim(),
-              forced: stream.disposition?.forced === 1,
-              default: stream.disposition?.default === 1,
-              hearingImpaired: stream.disposition?.hearing_impaired === 1,
-            }))
-            .filter((stream) => Number.isInteger(stream.streamIndex)),
-        );
+        finish(parseMediaTracks(JSON.parse(output)));
       } catch {
-        finish([]);
+        finish({ audioTracks: [], subtitleTracks: [] });
       }
     });
   });
@@ -3957,12 +3933,9 @@ export function createService({
           const start = body.live
             ? 0
             : Math.min(24 * 60 * 60, Math.max(0, Number(body.start) || 0));
-          const [audioTracks, subtitleTracks] = body.live
-            ? [[], []]
-            : await Promise.all([
-                probeAudioTracks(inputUrl, hlsInputArgs),
-                probeSubtitleTracks(inputUrl, hlsInputArgs),
-              ]);
+          const { audioTracks, subtitleTracks } = body.live
+            ? { audioTracks: [], subtitleTracks: [] }
+            : await probeMediaTracks(inputUrl, hlsInputArgs);
           const multiAudio = audioTracks.length > 1;
           if (body.audioCodec === "webm") {
             const args = [

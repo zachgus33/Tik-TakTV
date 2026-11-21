@@ -32,8 +32,64 @@ import {
   removePlaybackSessionJobs,
   nativeAddonFetch,
   addSubtitleRenditionsToMaster,
+  parseMediaTracks,
   youtubeVideoAllowed,
 } from "./server.mjs";
+
+test("parses audio and embedded subtitles from one media probe", () => {
+  assert.deepEqual(
+    parseMediaTracks({
+      streams: [
+        {
+          index: 0,
+          codec_type: "video",
+          codec_name: "hevc",
+        },
+        {
+          index: 1,
+          codec_type: "audio",
+          codec_name: "aac",
+          tags: { language: "ENG", title: "English" },
+        },
+        {
+          index: 2,
+          codec_type: "audio",
+          codec_name: "eac3",
+          tags: { language: "spa" },
+        },
+        {
+          index: 3,
+          codec_type: "subtitle",
+          codec_name: "subrip",
+          tags: { language: "eng", title: "English Forced" },
+          disposition: { forced: 1, default: 0, hearing_impaired: 0 },
+        },
+        {
+          index: 4,
+          codec_type: "subtitle",
+          codec_name: "hdmv_pgs_subtitle",
+        },
+      ],
+    }),
+    {
+      audioTracks: [
+        { audioIndex: 0, language: "eng", title: "English" },
+        { audioIndex: 1, language: "spa", title: "" },
+      ],
+      subtitleTracks: [
+        {
+          subtitleIndex: 0,
+          streamIndex: 3,
+          language: "eng",
+          title: "English Forced",
+          forced: true,
+          default: false,
+          hearingImpaired: false,
+        },
+      ],
+    },
+  );
+});
 
 test("builds a browser HLS master with embedded text subtitle renditions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tiktak-subtitle-master-"));

@@ -103,6 +103,27 @@ export type Playback = {
 };
 const autoplayBlockedNotice = "Tap the video’s play button to start.";
 
+function playbackSourceKey(playback: Playback) {
+  return [
+    playback.url,
+    playback.sourceAddonId ?? "",
+    playback.sourceLabel ?? "",
+  ].join("|");
+}
+
+export function mergePlaybackAlternatives(
+  current: Playback[],
+  loaded: Playback[],
+) {
+  const seen = new Set<string>();
+  return [...current, ...loaded].filter((choice) => {
+    const key = playbackSourceKey(choice);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function mergeSubtitles(...groups: Subtitle[][]): Subtitle[] {
   const seen = new Set<string>();
   return groups.flat().filter((subtitle) => {
@@ -3015,6 +3036,8 @@ export default function Player({
   const [attempt, setAttempt] = useState(0);
   const [prepareRetry, setPrepareRetry] = useState(0);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [switchingSource, setSwitchingSource] = useState("");
+  const [sourceSwitchError, setSourceSwitchError] = useState("");
   const [pinnedSources, setPinnedSources] = useState(
     () => streamPreferences().pinnedSources,
   );
@@ -3024,6 +3047,8 @@ export default function Player({
   const sourcePickerRef = useRef<HTMLDialogElement>(null);
   const fallbackStarted = useRef(false);
   const fallbackController = useRef<AbortController | null>(null);
+  const readyRef = useRef<Playback | null>(null);
+  const activeAttemptRef = useRef(0);
   const activePreparedUrlRef = useRef("");
   const pendingReplaceUrlRef = useRef("");
   const [alternatives, setAlternatives] = useState<Playback[]>(
@@ -3039,7 +3064,13 @@ export default function Player({
     if (playback.alternativesRequest)
       void playback.alternativesRequest
         .then((loaded) => {
-          if (!cancelled) setAlternatives(loaded);
+          // Keep every already-visible choice at the same index. Replacing the
+          // array after a slower add-on completed could silently change the
+          // selected numeric index and start a completely different source.
+          if (!cancelled)
+            setAlternatives((current) =>
+              mergePlaybackAlternatives(current, loaded),
+            );
         })
         .catch(() => undefined)
         .finally(() => {
@@ -3118,6 +3149,9 @@ export default function Player({
     setPrepareRetry(0);
     setMinimized(false);
     setSourcePickerOpen(false);
+    setSwitchingSource("");
+    setSourceSwitchError("");
+    activeAttemptRef.current = 0;
   }, [playback.item.id, playback.episode?.id]);
   useEffect(() => {
     const dialog = sourcePickerRef.current;
@@ -3129,8 +3163,10 @@ export default function Player({
     };
   }, [sourcePickerOpen, ready, error]);
   useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+  useEffect(() => {
     const c = new AbortController();
-    setReady(null);
     setError("");
     fallbackStarted.current = false;
     const cleanup = () => {
@@ -3142,6 +3178,8 @@ export default function Player({
       if (/\/media\/[A-Za-z0-9_-]{32}\//.test(selected.url))
         activePreparedUrlRef.current = selected.url;
       setReady(selected);
+      activeAttemptRef.current = attempt;
+      setSwitchingSource("");
       return cleanup;
     }
     const effectiveMode = selected.mode ?? getService()?.mode ?? "direct";
@@ -3171,6 +3209,9 @@ export default function Player({
         if (!c.signal.aborted) {
           if (/\/media\/[A-Za-z0-9_-]{32}\//.test(url))
             activePreparedUrlRef.current = url;
+          activeAttemptRef.current = attempt;
+          setSwitchingSource("");
+          setSourceSwitchError("");
           setReady({
             ...selected,
             url,
@@ -3190,7 +3231,13 @@ export default function Player({
       (e) => {
         if (!c.signal.aborted) {
           if (selected.cacheKey) removeStreamLink(selected.cacheKey);
-          if (attempt < automaticFallbackEnd) setAttempt((value) => value + 1);
+          if (readyRef.current && attempt !== activeAttemptRef.current) {
+            setAttempt(activeAttemptRef.current);
+            setSwitchingSource("");
+            setSourceSwitchError(e.message);
+            setSourcePickerOpen(true);
+          } else if (attempt < automaticFallbackEnd)
+            setAttempt((value) => value + 1);
           else setError(e.message);
         }
       },
@@ -3201,6 +3248,8 @@ export default function Player({
     if (attempt >= automaticFallbackEnd) return false;
     setReady(null);
     setError("");
+    setSwitchingSource("");
+    setSourceSwitchError("");
     setAttempt((value) => value + 1);
     return true;
   };
@@ -3222,6 +3271,7 @@ export default function Player({
     fallbackStarted.current = true;
     setReady(null);
     setError("");
+    setSwitchingSource("");
     const controller = new AbortController();
     fallbackController.current = controller;
     void prepareMedia(
@@ -3329,7 +3379,8 @@ export default function Player({
         choice.sourceLabel,
       );
     setError("");
-    setReady(null);
+    setSourceSwitchError("");
+    setSwitchingSource(choice?.sourceLabel ?? `Stream ${index + 1}`);
     setAttempt(index);
   };
   const sourcePicker = sourcePickerOpen ? (
@@ -3363,6 +3414,11 @@ export default function Player({
                 ? `Loading every add-on in the background… ${sourceChoices.length} source${sourceChoices.length === 1 ? "" : "s"} so far.`
                 : `${sourceChoices.length} source${sourceChoices.length === 1 ? "" : "s"} loaded from completed add-ons.`}
             </p>
+            {sourceSwitchError && (
+              <p className="player-source-error" role="alert">
+                {sourceSwitchError}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -3477,6 +3533,14 @@ export default function Player({
           nextEpisode={nextEpisode}
           onNextEpisode={onNextEpisode}
         />
+        {switchingSource && (
+          <div className="player-source-handoff" role="status">
+            <span className="spinner" />
+            <span>
+              Switching to <strong>{switchingSource}</strong>
+            </span>
+          </div>
+        )}
         {sourcePicker}
       </>
     );
