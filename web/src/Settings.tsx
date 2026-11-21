@@ -301,22 +301,25 @@ const sections = [
     group: "Advanced",
   },
 ] as const;
+
+function requestedSettingsSection(): SettingsSection | null {
+  if (sessionStorage.getItem("tiktak:open-settings-section") === "downloads")
+    return "downloads";
+  if (localStorage.getItem("tiktak:trakt-callback")) return "trakt";
+  if (localStorage.getItem("tiktak:simkl-callback")) return "simkl";
+  if (localStorage.getItem("tiktak:anilist-callback")) return "anilist";
+  if (requestedWhatsNewSection()) return "whatsnew";
+  return null;
+}
+
 export default function Settings(props: Props) {
-  const [section, setSection] = useState<SettingsSection>(() =>
-    sessionStorage.getItem("tiktak:open-settings-section") === "downloads"
-      ? "downloads"
-      : localStorage.getItem("tiktak:trakt-callback")
-        ? "trakt"
-        : localStorage.getItem("tiktak:simkl-callback")
-          ? "simkl"
-          : localStorage.getItem("tiktak:anilist-callback")
-            ? "anilist"
-            : requestedWhatsNewSection()
-              ? "whatsnew"
-              : "enhanced",
+  const [section, setSection] = useState<SettingsSection>(
+    () => requestedSettingsSection() ?? "enhanced",
   );
   const [busy, setBusy] = useState("");
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(
+    () => requestedSettingsSection() !== null,
+  );
   const [pendingAddonRemoval, setPendingAddonRemoval] = useState<string | null>(
     null,
   );

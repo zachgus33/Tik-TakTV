@@ -6060,10 +6060,14 @@ test.describe("authenticated integrations", () => {
     await expect(
       page.getByText(/Unsupported provider credential: trakt/),
     ).toHaveCount(0);
+    if ((page.viewportSize()?.width ?? Infinity) <= 1100)
+      await page.getByRole("button", { name: "Back to settings" }).click();
     await page.getByRole("button", { name: /Playback/ }).click();
     await expect(
       page.getByText("Playback service connected.", { exact: false }),
     ).toBeVisible();
+    if ((page.viewportSize()?.width ?? Infinity) <= 1100)
+      await page.getByRole("button", { name: "Back to settings" }).click();
     await page.getByRole("button", { name: /^Collections/ }).click();
     await expect(
       page.getByRole("button", { name: /Streaming Services/ }).first(),
