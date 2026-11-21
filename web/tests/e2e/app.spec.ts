@@ -4829,6 +4829,28 @@ test("TikTakTV vertical Library filters and sorts saved media", async ({ page })
   ]);
 });
 
+test("Discover records, reuses, and removes profile search history", async ({
+  page,
+}) => {
+  await page.goto("/#home");
+  const search = page.getByRole("searchbox", {
+    name: "Search titles or channels",
+  });
+  await search.fill("Friends");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/#discover$/);
+  await page.getByRole("button", { name: "Clear search" }).click();
+  const recent = page.getByRole("region", { name: "Recent searches" });
+  await expect(recent).toContainText("Friends");
+  await recent.getByRole("button", { name: "Friends", exact: true }).click();
+  await expect(search).toHaveValue("Friends");
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await recent
+    .getByRole("button", { name: "Remove Friends from recent searches" })
+    .click();
+  await expect(recent).toHaveCount(0);
+});
+
 test("TikTakTV integration hub maps native-only features and opens working services", async ({
   page,
 }) => {

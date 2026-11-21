@@ -273,6 +273,51 @@ html:not(.tv-mode)[data-nuvio-blur-upcoming="true"]
   font-size: 11px;
   text-align: center;
 }
+.recent-searches {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #ffffff0e;
+  border-radius: 16px;
+  background: #111016;
+}
+.recent-searches > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.recent-searches > div:first-child > button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  color: #a99eb4;
+  background: transparent;
+}
+.recent-searches > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.recent-searches > div:last-child > span {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #ffffff12;
+  border-radius: 999px;
+  background: #1b1720;
+}
+.recent-searches > div:last-child button {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.recent-searches > div:last-child button:last-child {
+  padding-left: 4px;
+  color: #89818f;
+}
 html:not(.tv-mode)[data-nuvio-card-depth="flat"] .media-card .poster {
   box-shadow: none;
 }

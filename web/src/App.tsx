@@ -182,6 +182,12 @@ import {
   streamContentKey,
 } from "./enhanced-stream-cache";
 import { streamBadgeNames } from "./stream-badges";
+import {
+  clearSearchHistory,
+  readSearchHistory,
+  recordSearch,
+  removeSearch,
+} from "./search-history";
 import type { FriendTemplate } from "./Settings";
 import { homeCatalogEntries } from "./catalog-settings";
 import {
@@ -3160,6 +3166,13 @@ export default function App() {
     [playlist],
   );
   const [query, setQuery] = useState("");
+  const searchProfile = activeProfileView?.name ?? "local";
+  const [recentSearches, setRecentSearches] = useState(() =>
+    readSearchHistory("local"),
+  );
+  useEffect(() => {
+    setRecentSearches(readSearchHistory(searchProfile));
+  }, [searchProfile]);
   const deferredQuery = useDeferredValue(query);
   const [kind, setKind] = useState<Kind>("movie");
   const [searchScope, setSearchScope] = useState<"all" | Kind>("all");
@@ -4342,6 +4355,8 @@ export default function App() {
             hidden={page === "youtube"}
             onSubmit={(e) => {
               e.preventDefault();
+              if (query.trim().length >= 2)
+                setRecentSearches(recordSearch(searchProfile, query));
               if (page === "home") location.hash = "discover";
             }}
           >
@@ -4771,6 +4786,50 @@ export default function App() {
                 </div>
               )}
               {page === "discover" && (
+                <>
+                {!query && recentSearches.length > 0 && (
+                  <section className="recent-searches" aria-label="Recent searches">
+                    <div>
+                      <strong>Recent searches</strong>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRecentSearches(clearSearchHistory(searchProfile))
+                        }
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div>
+                      {recentSearches.map((recent) => (
+                        <span key={recent}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuery(recent);
+                              setSearchScope("all");
+                              setSearchSuggestion("");
+                              setExactSearch(false);
+                            }}
+                          >
+                            {recent}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${recent} from recent searches`}
+                            onClick={() =>
+                              setRecentSearches(
+                                removeSearch(searchProfile, recent),
+                              )
+                            }
+                          >
+                            <X size={13} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 <div className="filter-toolbar">
                   <div className="tabs">
                     {query && source === "catalogs" && (
@@ -4891,6 +4950,7 @@ export default function App() {
                     Random Pick
                   </button>
                 </div>
+                </>
               )}
               {page === "discover" &&
                 query &&
