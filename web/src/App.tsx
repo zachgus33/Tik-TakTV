@@ -1614,6 +1614,39 @@ function Detail({
     videoId: string;
     name: string;
   } | null>(null);
+  const [trailerPlayback, setTrailerPlayback] = useState<
+    import("./youtube").YouTubePlayback | null
+  >(null);
+  const [trailerLoading, setTrailerLoading] = useState(false);
+  const [trailerPlaybackError, setTrailerPlaybackError] = useState("");
+  useEffect(() => {
+    setTrailerPlayback(null);
+    setTrailerPlaybackError("");
+    if (!selectedTrailer || !getService()) {
+      setTrailerLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setTrailerLoading(true);
+    void import("./youtube")
+      .then(({ resolveYouTubePlayback }) =>
+        resolveYouTubePlayback(
+          selectedTrailer.videoId,
+          "video",
+          controller.signal,
+        ),
+      )
+      .then((playback) => {
+        if (!controller.signal.aborted) setTrailerPlayback(playback);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTrailerPlayback(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTrailerLoading(false);
+      });
+    return () => controller.abort();
+  }, [selectedTrailer?.videoId]);
   const [person, setPerson] = useState<import("./tmdb").PersonProfile | null>(
     null,
   );
@@ -2359,13 +2392,34 @@ function Detail({
               </button>
             </header>
             <div className="detail-trailer-frame">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(selectedTrailer.videoId)}?autoplay=1&controls=1&playsinline=1&rel=0&modestbranding=1`}
-                title={`${selectedTrailer.name} — ${item.name}`}
-                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
+              {trailerLoading ? (
+                <Loading />
+              ) : trailerPlayback ? (
+                <video
+                  src={trailerPlayback.url}
+                  controls
+                  autoPlay
+                  playsInline
+                  onError={() =>
+                    setTrailerPlaybackError(
+                      "This trailer could not start through TikTakTV direct playback.",
+                    )
+                  }
+                />
+              ) : (
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(selectedTrailer.videoId)}?autoplay=1&controls=1&playsinline=1&rel=0&modestbranding=1`}
+                  title={`${selectedTrailer.name} — ${item.name}`}
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              )}
+              {trailerPlaybackError && (
+                <div className="detail-trailer-error" role="alert">
+                  {trailerPlaybackError}
+                </div>
+              )}
             </div>
           </section>
         </div>

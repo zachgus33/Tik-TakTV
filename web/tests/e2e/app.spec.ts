@@ -5084,6 +5084,88 @@ test("Home motion preview loads muted and enables sound after a click", async ({
   await expect(page.getByRole("dialog", { name: /details$/ })).toBeVisible();
 });
 
+test("details resolve trailers through the TikTakTV in-app player", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "One browser verifies companion trailer resolution.");
+  const illustrated = { ...meta, id: "tmdb:278" };
+  await page.route("https://v3-cinemeta.strem.io/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json: path.includes("/meta/")
+        ? { meta: illustrated }
+        : { metas: [illustrated] },
+    });
+  });
+  await page.route("https://api.themoviedb.org/3/movie/278/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json: path.endsWith("/external_ids")
+        ? { imdb_id: "tt0111161" }
+        : path.endsWith("/videos")
+          ? {
+              results: [
+                {
+                  id: "trailer",
+                  site: "YouTube",
+                  type: "Trailer",
+                  key: "preview123",
+                  name: "Official trailer",
+                },
+              ],
+            }
+          : path.endsWith("/recommendations")
+            ? { results: [] }
+            : { production_companies: [] },
+    });
+  });
+  await page.route("https://api.themoviedb.org/3/find/tt0111161**", (route) =>
+    route.fulfill({
+      json: { movie_results: [{ id: 278 }], tv_results: [] },
+    }),
+  );
+  await page.addInitScript(() => {
+    localStorage.setItem("nuvio:tmdb-key", "test-key");
+    localStorage.setItem(
+      "nuvio:playback-service",
+      JSON.stringify({
+        url: "https://playback.example",
+        token: "x".repeat(40),
+      }),
+    );
+  });
+  let resolvedVideo = "";
+  await page.route("https://playback.example/youtube/playback", async (route) => {
+    resolvedVideo = String(route.request().postDataJSON().videoId ?? "");
+    await route.fulfill({
+      json: {
+        playback: {
+          type: "progressive",
+          url: "/media/trailer-ticket/stream",
+          mimeType: "video/mp4",
+        },
+      },
+    });
+  });
+  await page.route("https://playback.example/media/trailer-ticket/stream", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+
+  await page.goto("/#home");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Official trailer" }).click();
+  const trailerPlayer = page.getByRole("dialog", {
+    name: "Official trailer trailer",
+  });
+  await expect(trailerPlayer.locator("video")).toHaveAttribute(
+    "src",
+    "https://playback.example/media/trailer-ticket/stream",
+  );
+  expect(resolvedVideo).toBe("preview123");
+  await expect(trailerPlayer.locator("iframe")).toHaveCount(0);
+  expect(new URL(page.url()).hash).toBe("#home");
+});
+
 test("Feature highlights preference can suppress the update prompt", async ({
   page,
 }, testInfo) => {
