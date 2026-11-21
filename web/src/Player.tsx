@@ -104,17 +104,38 @@ function mergeSubtitles(...groups: Subtitle[][]): Subtitle[] {
   });
 }
 
-function preferredSubtitleScore(subtitle: Subtitle): number {
-  const stored = localStorage.getItem("tiktak:subtitle-language") ?? "";
-  const secondary =
-    localStorage.getItem("tiktak:secondary-subtitle-language") ?? "";
-  const preferred = [stored, secondary, ...(navigator.languages ?? [])]
+function preferredSubtitleLanguages(
+  primary: string,
+  secondary: string,
+): string[] {
+  const configured = [primary, secondary].flatMap((language) =>
+    language === "device" ? navigator.languages : [language],
+  );
+  return configured
     .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  const values = [subtitle.lang, subtitle.name, subtitle.id]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .filter((value) => !!value && value !== "none");
+}
+function subtitleValues(...values: Array<string | undefined>) {
+  return values.filter(Boolean).join(" ").toLowerCase();
+}
+function subtitleLanguageMatches(values: string, preferred: string[]) {
+  return preferred.some((language) => {
+    const primary = language.split("-")[0];
+    return (
+      values.includes(language) ||
+      (primary.length > 1 && values.includes(primary))
+    );
+  });
+}
+function subtitleIsForced(values: string) {
+  return /\bforced\b/i.test(values);
+}
+function preferredSubtitleScore(
+  subtitle: Subtitle,
+  preferred: string[],
+  useForcedSubtitles: boolean,
+): number {
+  const values = subtitleValues(subtitle.lang, subtitle.name, subtitle.id);
   const preferredIndex = preferred.findIndex((language) => {
     const primary = language.split("-")[0];
     return (
@@ -122,8 +143,31 @@ function preferredSubtitleScore(subtitle: Subtitle): number {
       (primary.length > 1 && values.includes(primary))
     );
   });
-  const forced = /\bforced\b/i.test(values) ? 2 : 0;
+  const forced = useForcedSubtitles && subtitleIsForced(values) ? 2 : 0;
   return (preferredIndex < 0 ? 0 : 20 - preferredIndex) + forced;
+}
+function subtitleMatchesPreference(
+  subtitle: Subtitle,
+  preferred: string[],
+  useForcedSubtitles: boolean,
+) {
+  const values = subtitleValues(subtitle.lang, subtitle.name, subtitle.id);
+  return (
+    subtitleLanguageMatches(values, preferred) ||
+    (useForcedSubtitles && subtitleIsForced(values))
+  );
+}
+function renderedSubtitleMatchesPreference(
+  label: string,
+  language: string,
+  preferred: string[],
+  useForcedSubtitles: boolean,
+) {
+  const values = subtitleValues(label, language);
+  return (
+    subtitleLanguageMatches(values, preferred) ||
+    (useForcedSubtitles && subtitleIsForced(values))
+  );
 }
 function subtitleOffsetKey(playback: Playback) {
   return `tiktak:subtitle-offset:${playback.item.id}:${playback.episode?.id ?? "movie"}`;
@@ -316,7 +360,7 @@ function VideoPlayer({
     secondary?: string;
   } | null>(null);
   const [playerBrightness, setPlayerBrightness] = useState(() => {
-    if (!experienceSettings.rememberPlayerChoices) return 1;
+    if (!experienceSettings.rememberPlayerBrightness) return 1;
     const saved = Number(localStorage.getItem("tiktak:player-brightness") || 1);
     return Number.isFinite(saved) ? Math.max(0.2, Math.min(saved, 1)) : 1;
   });
@@ -458,21 +502,51 @@ function VideoPlayer({
         JSON.stringify({ type: "off" } satisfies SubtitleSelectionPreference),
       );
     } else if (value === "auto") {
-      const preferred = localStorage.getItem("tiktak:subtitle-language");
-      const embedded =
-        embeddedSubtitles.find((track) => track.label === preferred) ??
-        embeddedSubtitles[0];
-      const externalIndex = subtitles.findIndex(
-        (track) => track.name === preferred,
+      const preferred = preferredSubtitleLanguages(
+        experienceSettings.preferredSubtitleLanguage,
+        experienceSettings.secondaryPreferredSubtitleLanguage,
       );
-      if (embedded) {
-        embedded.track.mode = "hidden";
-        value = embedded.key;
+      const preferredEmbeddedIndex = embeddedSubtitles.findIndex((track) =>
+        renderedSubtitleMatchesPreference(
+          track.label,
+          track.track.language,
+          preferred,
+          false,
+        ),
+      );
+      const forcedEmbeddedIndex = experienceSettings.useForcedSubtitles
+        ? embeddedSubtitles.findIndex((track) =>
+            subtitleIsForced(subtitleValues(track.label, track.track.language)),
+          )
+        : -1;
+      const preferredExternalIndex = subtitles.findIndex((track) =>
+        renderedSubtitleMatchesPreference(
+          track.name,
+          track.language,
+          preferred,
+          false,
+        ),
+      );
+      const forcedExternalIndex = experienceSettings.useForcedSubtitles
+        ? subtitles.findIndex((track) =>
+            subtitleIsForced(subtitleValues(track.name, track.language)),
+          )
+        : -1;
+      const embeddedIndex =
+        preferredEmbeddedIndex >= 0
+          ? preferredEmbeddedIndex
+          : forcedEmbeddedIndex;
+      const externalIndex =
+        preferredExternalIndex >= 0
+          ? preferredExternalIndex
+          : forcedExternalIndex;
+      if (embeddedIndex >= 0) {
+        embeddedSubtitles[embeddedIndex].track.mode = "hidden";
+        value = embeddedSubtitles[embeddedIndex].key;
+      } else if (externalIndex >= 0) {
+        value = `external:${externalIndex}`;
       } else {
-        const index = externalIndex >= 0 ? externalIndex : 0;
-        if (subtitles[index]) {
-          value = `external:${index}`;
-        }
+        value = "off";
       }
     }
     setSelectedSubtitleTrack(value);
@@ -762,16 +836,35 @@ function VideoPlayer({
   ]);
   useEffect(() => {
     const c = new AbortController();
-    const startupCandidates =
-      experienceSettings.addonSubtitleStartupMode === "preferred"
-        ? subtitleCandidates.filter(
-            (candidate) => preferredSubtitleScore(candidate) > 0,
-          )
-        : subtitleCandidates;
+    const preferred = preferredSubtitleLanguages(
+      experienceSettings.preferredSubtitleLanguage,
+      experienceSettings.secondaryPreferredSubtitleLanguage,
+    );
+    const filterToPreferred =
+      experienceSettings.addonSubtitleStartupMode === "preferred" ||
+      experienceSettings.showOnlyPreferredSubtitles;
+    const startupCandidates = filterToPreferred
+      ? subtitleCandidates.filter((candidate) =>
+          subtitleMatchesPreference(
+            candidate,
+            preferred,
+            experienceSettings.useForcedSubtitles,
+          ),
+        )
+      : subtitleCandidates;
     const candidates = [...startupCandidates]
       .sort(
         (left, right) =>
-          preferredSubtitleScore(right) - preferredSubtitleScore(left),
+          preferredSubtitleScore(
+            right,
+            preferred,
+            experienceSettings.useForcedSubtitles,
+          ) -
+          preferredSubtitleScore(
+            left,
+            preferred,
+            experienceSettings.useForcedSubtitles,
+          ),
       )
       .slice(0, 24);
     if (!candidates.length) return () => c.abort();
@@ -813,7 +906,14 @@ function VideoPlayer({
       });
     });
     return () => c.abort();
-  }, [subtitleCandidates, experienceSettings.addonSubtitleStartupMode]);
+  }, [
+    subtitleCandidates,
+    experienceSettings.addonSubtitleStartupMode,
+    experienceSettings.preferredSubtitleLanguage,
+    experienceSettings.secondaryPreferredSubtitleLanguage,
+    experienceSettings.showOnlyPreferredSubtitles,
+    experienceSettings.useForcedSubtitles,
+  ]);
   useEffect(() => {
     if (
       subtitlePreferenceRestoredRef.current ||
@@ -1719,6 +1819,34 @@ function VideoPlayer({
   const selectedExternalSubtitle = selectedSubtitleTrack.startsWith("external:")
     ? subtitles[Number(selectedSubtitleTrack.split(":")[1])]
     : undefined;
+  const preferredSubtitleLanguageCodes = preferredSubtitleLanguages(
+    experienceSettings.preferredSubtitleLanguage,
+    experienceSettings.secondaryPreferredSubtitleLanguage,
+  );
+  const visibleEmbeddedSubtitles = embeddedSubtitles
+    .map((subtitle, index) => ({ subtitle, index }))
+    .filter(
+      ({ subtitle }) =>
+        !experienceSettings.showOnlyPreferredSubtitles ||
+        renderedSubtitleMatchesPreference(
+          subtitle.label,
+          subtitle.track.language,
+          preferredSubtitleLanguageCodes,
+          experienceSettings.useForcedSubtitles,
+        ),
+    );
+  const visibleExternalSubtitles = subtitles
+    .map((subtitle, index) => ({ subtitle, index }))
+    .filter(
+      ({ subtitle }) =>
+        !experienceSettings.showOnlyPreferredSubtitles ||
+        renderedSubtitleMatchesPreference(
+          subtitle.name,
+          subtitle.language,
+          preferredSubtitleLanguageCodes,
+          experienceSettings.useForcedSubtitles,
+        ),
+    );
   const visibleSubtitleSyncCues =
     subtitleSyncCapturedAt == null
       ? []
@@ -1808,7 +1936,7 @@ function VideoPlayer({
               ),
             );
             setPlayerBrightness(target);
-            if (experienceSettings.rememberPlayerChoices)
+            if (experienceSettings.rememberPlayerBrightness)
               localStorage.setItem("tiktak:player-brightness", String(target));
             setGestureFeedback({
               kind: "brightness",
@@ -2399,10 +2527,12 @@ function VideoPlayer({
             ))}
           </select>
         )}
-        {(subtitles.length > 0 || embeddedSubtitles.length > 0) && (
+        {(visibleExternalSubtitles.length > 0 ||
+          visibleEmbeddedSubtitles.length > 0) && (
           <span className="player-tools-section-label">Subtitles</span>
         )}
-        {(subtitles.length > 0 || embeddedSubtitles.length > 0) && (
+        {(visibleExternalSubtitles.length > 0 ||
+          visibleEmbeddedSubtitles.length > 0) && (
           <select
             aria-label="Subtitle language"
             value={selectedSubtitleTrack}
@@ -2410,12 +2540,12 @@ function VideoPlayer({
           >
             <option value="auto">Subtitles · Auto</option>
             <option value="off">Subtitles · Off</option>
-            {embeddedSubtitles.map((subtitle, index) => (
+            {visibleEmbeddedSubtitles.map(({ subtitle, index }) => (
               <option key={subtitle.key} value={`embedded:${index}`}>
                 Built-in · {subtitle.label}
               </option>
             ))}
-            {subtitles.map((subtitle, index) => (
+            {visibleExternalSubtitles.map(({ subtitle, index }) => (
               <option key={subtitle.url} value={`external:${index}`}>
                 {subtitle.source === "stream"
                   ? "Source"
@@ -2427,7 +2557,8 @@ function VideoPlayer({
             ))}
           </select>
         )}
-        {(subtitles.length > 0 || embeddedSubtitles.length > 0) &&
+        {(visibleExternalSubtitles.length > 0 ||
+          visibleEmbeddedSubtitles.length > 0) &&
           selectedSubtitleTrack !== "off" && (
             <div className="subtitle-sync" aria-label="Subtitle timing">
               <select

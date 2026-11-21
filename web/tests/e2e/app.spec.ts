@@ -1985,6 +1985,43 @@ test("every primary page and settings section fits a portrait viewport", async (
     await page.getByRole("button", { name: "Back to settings" }).click();
   }
 });
+test("native subtitle appearance choices persist across a PWA restart", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  const openPlayerSettings = () =>
+    page
+      .getByRole("navigation", { name: "Settings sections" })
+      .getByRole("button", { name: "Player", exact: true })
+      .click();
+  await openPlayerSettings();
+  await page.getByLabel(/Bold subtitles/).check();
+  await page.getByLabel(/Show preferred languages only/).check();
+  await page.getByLabel(/Subtitle text color/).selectOption("#fff176");
+  await page.getByLabel(/Subtitle background color/).selectOption("#102033");
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        bold: document.documentElement.dataset.nuvioSubtitleBold,
+        text: document.documentElement.style.getPropertyValue(
+          "--nuvio-subtitle-text-color",
+        ),
+        background: document.documentElement.style.getPropertyValue(
+          "--nuvio-subtitle-background-color",
+        ),
+      })),
+    )
+    .toEqual({ bold: "true", text: "#fff176", background: "#102033" });
+
+  await page.reload();
+  await openPlayerSettings();
+  await expect(page.getByLabel(/Bold subtitles/)).toBeChecked();
+  await expect(page.getByLabel(/Show preferred languages only/)).toBeChecked();
+  await expect(page.getByLabel(/Subtitle text color/)).toHaveValue("#fff176");
+  await expect(page.getByLabel(/Subtitle background color/)).toHaveValue(
+    "#102033",
+  );
+});
 test("bad credentials show a useful error and are never saved", async ({
   page,
 }) => {
@@ -4358,6 +4395,10 @@ test("subtitle timing controls persist the selected offset", async ({
     const addons = JSON.parse(localStorage.getItem("nuvio:addons") || "[]");
     addons[0].manifest.resources.push("subtitles");
     localStorage.setItem("nuvio:addons", JSON.stringify(addons));
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ preferredSubtitleLanguage: "en" }),
+    );
   });
   await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
     route.fulfill({
@@ -4588,6 +4629,83 @@ test("subtitle timing controls persist the selected offset", async ({
       "Playback paused. Select the subtitle line that matches the dialogue you just heard.",
     ),
   ).toHaveCount(0);
+});
+test("subtitle auto mode respects Off and forced-subtitle preferences", async ({
+  page,
+}) => {
+  test.setTimeout(45_000);
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    if (localStorage.getItem("tiktak:nuvio-web-settings")) return;
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({
+        preferredSubtitleLanguage: "none",
+        secondaryPreferredSubtitleLanguage: "none",
+        useForcedSubtitles: false,
+      }),
+    );
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            url: "https://cdn.example/forced-subtitle.mp4",
+            subtitles: [
+              {
+                id: "forced-en",
+                url: "https://subs.example/forced-en.vtt",
+                lang: "en",
+                name: "English Forced",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://subs.example/forced-en.vtt", (route) =>
+    route.fulfill({
+      contentType: "text/vtt",
+      body: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nForced line",
+    }),
+  );
+  await page.route("https://cdn.example/forced-subtitle.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  const openPlayer = async () => {
+    await page.getByRole("button", { name: "Explore title" }).click();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.locator("dialog.tv-web-player")).toBeVisible();
+  };
+  await page.goto("/");
+  await openPlayer();
+  await expect(page.getByLabel("Subtitle language")).toHaveValue("off", {
+    timeout: 6_000,
+  });
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("tiktak:subtitle-selection:tt-test"),
+    ),
+  ).toBeNull();
+
+  await page.getByRole("button", { name: "Close player" }).click();
+  await page.evaluate(() => {
+    const current = JSON.parse(
+      localStorage.getItem("tiktak:nuvio-web-settings") ?? "{}",
+    );
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ ...current, useForcedSubtitles: true }),
+    );
+  });
+  await page.reload();
+  await openPlayer();
+  await expect(page.getByLabel("Subtitle language")).toHaveValue("external:0", {
+    timeout: 6_000,
+  });
 });
 test("autoplay skips resolved HEVC and MKV files when a browser-ready MP4 exists", async ({
   page,

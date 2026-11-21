@@ -1141,8 +1141,32 @@ html:not(.tv-mode)[data-nuvio-library-layout="vertical"]
 }
 html:not(.tv-mode) .player-subtitle-overlay {
   bottom: var(--nuvio-subtitle-bottom, 8%);
+  color: var(--nuvio-subtitle-text-color, #fff);
   font-size: calc(1em * var(--nuvio-subtitle-scale, 1));
-  background: rgb(0 0 0 / var(--nuvio-subtitle-background, 0.65));
+  background: transparent;
+}
+html:not(.tv-mode) .player-subtitle-overlay > span {
+  background: color-mix(
+    in srgb,
+    var(--nuvio-subtitle-background-color, #08070b)
+      var(--nuvio-subtitle-background-percent, 65%),
+    transparent
+  );
+}
+html:not(.tv-mode)[data-nuvio-subtitle-bold="true"] .player-subtitle-overlay {
+  font-weight: 750;
+}
+html:not(.tv-mode)[data-nuvio-subtitle-outline="true"]
+  .player-subtitle-overlay {
+  text-shadow:
+    -2px -2px 2px var(--nuvio-subtitle-outline-color, #000),
+    2px -2px 2px var(--nuvio-subtitle-outline-color, #000),
+    -2px 2px 2px var(--nuvio-subtitle-outline-color, #000),
+    2px 2px 2px var(--nuvio-subtitle-outline-color, #000);
+}
+html:not(.tv-mode)[data-nuvio-subtitle-outline="false"]
+  .player-subtitle-overlay {
+  text-shadow: none;
 }
 .player-status-overlay {
   position: absolute;

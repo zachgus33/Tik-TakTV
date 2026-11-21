@@ -61,4 +61,29 @@ describe("Nuvio web experience settings", () => {
       updatedAt: 42,
     });
   });
+
+  it("keeps the native subtitle and brightness defaults", () => {
+    const settings = normalizeNuvioWebSettings({});
+    expect(settings.rememberPlayerBrightness).toBe(true);
+    expect(settings.useForcedSubtitles).toBe(true);
+    expect(settings.showOnlyPreferredSubtitles).toBe(false);
+    expect(settings.subtitleBold).toBe(false);
+    expect(settings.subtitleOutline).toBe(true);
+  });
+
+  it("normalizes persisted subtitle rendering choices", () => {
+    const settings = normalizeNuvioWebSettings({
+      ...defaultNuvioWebSettings,
+      subtitleTextColor: "#fff176",
+      subtitleBackgroundColor: "#102033",
+      subtitleOutlineColor: "not-a-color",
+      subtitleBold: true,
+      showOnlyPreferredSubtitles: true,
+    });
+    expect(settings.subtitleTextColor).toBe("#fff176");
+    expect(settings.subtitleBackgroundColor).toBe("#102033");
+    expect(settings.subtitleOutlineColor).toBe("#000000");
+    expect(settings.subtitleBold).toBe(true);
+    expect(settings.showOnlyPreferredSubtitles).toBe(true);
+  });
 });

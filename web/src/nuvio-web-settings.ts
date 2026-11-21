@@ -27,11 +27,7 @@ export type NuvioWebSettings = {
   continueWatchingShowUnaired: boolean;
   continueWatchingBlurUpcoming: boolean;
   libraryLayout: "horizontal" | "vertical";
-  librarySort:
-    | "added-desc"
-    | "added-asc"
-    | "title-asc"
-    | "title-desc";
+  librarySort: "added-desc" | "added-asc" | "title-asc" | "title-desc";
   metaBackgroundMode: "normal" | "cinematic" | "dominant-color";
   metaTabLayout: boolean;
   episodeCardStyle: "horizontal" | "list";
@@ -44,16 +40,24 @@ export type NuvioWebSettings = {
   holdToSpeedValue: number;
   resizeMode: "fit" | "fill" | "zoom";
   showLoadingOverlay: boolean;
+  rememberPlayerBrightness: boolean;
   rememberPlayerChoices: boolean;
   preferredAudioLanguage: string;
   secondaryPreferredAudioLanguage: string;
   preferredSubtitleLanguage: string;
   secondaryPreferredSubtitleLanguage: string;
   addonSubtitleStartupMode: "fast" | "preferred" | "all";
+  useForcedSubtitles: boolean;
+  showOnlyPreferredSubtitles: boolean;
   subtitleFont: "system" | "rounded" | "serif" | "mono";
   subtitleSize: number;
   subtitleBackground: number;
   subtitlePosition: number;
+  subtitleBold: boolean;
+  subtitleTextColor: string;
+  subtitleBackgroundColor: string;
+  subtitleOutline: boolean;
+  subtitleOutlineColor: string;
   autoPlayNextEpisode: boolean;
   nextEpisodeThresholdMode: "percentage" | "minutes";
   nextEpisodeThresholdPercent: number;
@@ -121,16 +125,24 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   holdToSpeedValue: 2,
   resizeMode: "fit",
   showLoadingOverlay: true,
+  rememberPlayerBrightness: true,
   rememberPlayerChoices: true,
   preferredAudioLanguage: "device",
   secondaryPreferredAudioLanguage: "none",
   preferredSubtitleLanguage: "none",
   secondaryPreferredSubtitleLanguage: "none",
   addonSubtitleStartupMode: "all",
+  useForcedSubtitles: true,
+  showOnlyPreferredSubtitles: false,
   subtitleFont: "system",
   subtitleSize: 100,
   subtitleBackground: 65,
   subtitlePosition: 8,
+  subtitleBold: false,
+  subtitleTextColor: "#ffffff",
+  subtitleBackgroundColor: "#08070b",
+  subtitleOutline: true,
+  subtitleOutlineColor: "#000000",
   autoPlayNextEpisode: false,
   nextEpisodeThresholdMode: "percentage",
   nextEpisodeThresholdPercent: 97,
@@ -274,6 +286,7 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       "fit",
     ),
     showLoadingOverlay: boolean("showLoadingOverlay"),
+    rememberPlayerBrightness: boolean("rememberPlayerBrightness"),
     rememberPlayerChoices: boolean("rememberPlayerChoices"),
     preferredAudioLanguage: String(saved.preferredAudioLanguage || "device"),
     secondaryPreferredAudioLanguage: String(
@@ -290,6 +303,8 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       ["fast", "preferred", "all"] as const,
       "all",
     ),
+    useForcedSubtitles: boolean("useForcedSubtitles"),
+    showOnlyPreferredSubtitles: boolean("showOnlyPreferredSubtitles"),
     subtitleFont: oneOf(
       saved.subtitleFont,
       ["system", "rounded", "serif", "mono"] as const,
@@ -307,6 +322,23 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       24,
       Math.max(2, Number(saved.subtitlePosition) || 8),
     ),
+    subtitleBold: boolean("subtitleBold"),
+    subtitleTextColor: /^#[\da-f]{6}$/i.test(
+      String(saved.subtitleTextColor ?? ""),
+    )
+      ? String(saved.subtitleTextColor)
+      : "#ffffff",
+    subtitleBackgroundColor: /^#[\da-f]{6}$/i.test(
+      String(saved.subtitleBackgroundColor ?? ""),
+    )
+      ? String(saved.subtitleBackgroundColor)
+      : "#08070b",
+    subtitleOutline: boolean("subtitleOutline"),
+    subtitleOutlineColor: /^#[\da-f]{6}$/i.test(
+      String(saved.subtitleOutlineColor ?? ""),
+    )
+      ? String(saved.subtitleOutlineColor)
+      : "#000000",
     autoPlayNextEpisode: boolean("autoPlayNextEpisode"),
     nextEpisodeThresholdMode: oneOf(
       saved.nextEpisodeThresholdMode,

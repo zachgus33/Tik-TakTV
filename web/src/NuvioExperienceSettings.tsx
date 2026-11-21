@@ -557,6 +557,12 @@ export default function NuvioExperienceSettings({
             onChange={(next) => update("rememberPlayerChoices", next)}
           />
           <SwitchRow
+            title="Remember brightness"
+            description="Restore the player brightness chosen with the left-edge gesture."
+            checked={value.rememberPlayerBrightness}
+            onChange={(next) => update("rememberPlayerBrightness", next)}
+          />
+          <SwitchRow
             title="Parental guide"
             description="Show content guidance when metadata provides it."
             checked={value.showParentalGuide}
@@ -646,6 +652,18 @@ export default function NuvioExperienceSettings({
             <option value="preferred">Preferred languages only</option>
             <option value="all">All subtitles</option>
           </SelectRow>
+          <SwitchRow
+            title="Use forced subtitles"
+            description="Automatically use a forced track when regular subtitles are off."
+            checked={value.useForcedSubtitles}
+            onChange={(next) => update("useForcedSubtitles", next)}
+          />
+          <SwitchRow
+            title="Show preferred languages only"
+            description="Hide subtitle tracks that do not match either preferred language."
+            checked={value.showOnlyPreferredSubtitles}
+            onChange={(next) => update("showOnlyPreferredSubtitles", next)}
+          />
           <SelectRow
             title="Subtitle font"
             description="Choose the caption typeface used by the web renderer."
@@ -684,6 +702,51 @@ export default function NuvioExperienceSettings({
             suffix="%"
             onChange={(next) => update("subtitlePosition", next)}
           />
+          <SwitchRow
+            title="Bold subtitles"
+            description="Use a heavier caption weight for readability."
+            checked={value.subtitleBold}
+            onChange={(next) => update("subtitleBold", next)}
+          />
+          <SelectRow
+            title="Subtitle text color"
+            description="Color used for rendered caption text."
+            value={value.subtitleTextColor}
+            onChange={(next) => update("subtitleTextColor", next)}
+          >
+            <option value="#ffffff">White</option>
+            <option value="#fff176">Yellow</option>
+            <option value="#80deea">Cyan</option>
+            <option value="#a5d6a7">Green</option>
+          </SelectRow>
+          <SelectRow
+            title="Subtitle background color"
+            description="Color behind rendered caption text."
+            value={value.subtitleBackgroundColor}
+            onChange={(next) => update("subtitleBackgroundColor", next)}
+          >
+            <option value="#08070b">Black</option>
+            <option value="#1a1033">Purple black</option>
+            <option value="#102033">Blue black</option>
+          </SelectRow>
+          <SwitchRow
+            title="Subtitle outline"
+            description="Draw a contrasting outline around caption text."
+            checked={value.subtitleOutline}
+            onChange={(next) => update("subtitleOutline", next)}
+          />
+          {value.subtitleOutline && (
+            <SelectRow
+              title="Subtitle outline color"
+              description="Color used for the caption outline."
+              value={value.subtitleOutlineColor}
+              onChange={(next) => update("subtitleOutlineColor", next)}
+            >
+              <option value="#000000">Black</option>
+              <option value="#ffffff">White</option>
+              <option value="#402060">Purple</option>
+            </SelectRow>
+          )}
         </Group>
         <Group
           icon={PlayCircle}

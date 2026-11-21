@@ -753,8 +753,8 @@ function ProfileGate({
         </h1>
         {!email && (
           <p className="profile-gate-intro">
-            Sign in to restore your profiles and add-ons, or create a free TikTakTV
-            account to get started.
+            Sign in to restore your profiles and add-ons, or create a free
+            TikTakTV account to get started.
           </p>
         )}
         {error && (
@@ -1223,8 +1223,8 @@ function Card({
           ? upcoming
             ? `Upcoming${progress.episode?.released ? ` · ${new Date(progress.episode.released).toLocaleDateString()}` : ""}`
             : experienceSettings.continueWatchingRemainingTime
-            ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
-            : "Continue watching"
+              ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
+              : "Continue watching"
           : [
               item.year,
               item.type === "series"
@@ -2738,51 +2738,51 @@ function Detail({
         )}
         {nuvioWebSettings.metaSections.cast !== false &&
           (credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
-          <section className="cast-section" aria-label="Cast">
-            <h2>Starring</h2>
-            <div className="cast-row">
-              {(credits.length
-                ? credits
-                : (item.cast ?? []).map((name, index) => ({
-                    id: index,
-                    name,
-                    role: "Cast",
-                    photo: undefined,
-                  }))
-              ).map((person) => (
-                <button
-                  className="cast-person"
-                  key={person.id}
-                  onClick={() => {
-                    setBusy(true);
-                    void import("./tmdb")
-                      .then(async ({ peopleByName, personProfile }) => {
-                        const resolved = credits.length
-                          ? person
-                          : (await peopleByName([person.name]))[0];
-                        if (!resolved)
-                          throw new Error(
-                            "This cast member could not be matched. Check the TMDB connection in Settings.",
-                          );
-                        return personProfile(resolved.id);
-                      })
-                      .then(setPerson)
-                      .catch((e) => setError(message(e)))
-                      .finally(() => setBusy(false));
-                  }}
-                >
-                  {person.photo ? (
-                    <img src={person.photo} alt="" />
-                  ) : (
-                    <span>{person.name.slice(0, 1)}</span>
-                  )}
-                  <strong>{person.name}</strong>
-                  <small>{person.role}</small>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+            <section className="cast-section" aria-label="Cast">
+              <h2>Starring</h2>
+              <div className="cast-row">
+                {(credits.length
+                  ? credits
+                  : (item.cast ?? []).map((name, index) => ({
+                      id: index,
+                      name,
+                      role: "Cast",
+                      photo: undefined,
+                    }))
+                ).map((person) => (
+                  <button
+                    className="cast-person"
+                    key={person.id}
+                    onClick={() => {
+                      setBusy(true);
+                      void import("./tmdb")
+                        .then(async ({ peopleByName, personProfile }) => {
+                          const resolved = credits.length
+                            ? person
+                            : (await peopleByName([person.name]))[0];
+                          if (!resolved)
+                            throw new Error(
+                              "This cast member could not be matched. Check the TMDB connection in Settings.",
+                            );
+                          return personProfile(resolved.id);
+                        })
+                        .then(setPerson)
+                        .catch((e) => setError(message(e)))
+                        .finally(() => setBusy(false));
+                    }}
+                  >
+                    {person.photo ? (
+                      <img src={person.photo} alt="" />
+                    ) : (
+                      <span>{person.name.slice(0, 1)}</span>
+                    )}
+                    <strong>{person.name}</strong>
+                    <small>{person.role}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         {person && (
           <PersonView
             person={person}
@@ -2823,9 +2823,9 @@ function Detail({
                           ? `${source.streams} stream${source.streams === 1 ? "" : "s"}`
                           : source.status === "loading"
                             ? "Loading…"
-                          : source.status === "paused"
-                            ? "Temporarily paused"
-                            : (source.reason ?? "Request failed")}
+                            : source.status === "paused"
+                              ? "Temporarily paused"
+                              : (source.reason ?? "Request failed")}
                       </span>
                     </li>
                   ))}
@@ -2944,80 +2944,84 @@ function Detail({
         {nuvioWebSettings.metaSections.episodes !== false &&
           item.type === "series" &&
           episodes.length > 0 && (
-          <div className="episode-section">
-            <div className="row-heading">
-              <h2>Episodes</h2>
-              <select
-                aria-label="Season"
-                value={season ?? ""}
-                onChange={(e) => setSeason(Number(e.target.value))}
-              >
-                {seasons.map((s) => (
-                  <option key={s} value={s}>
-                    Season {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="episodes">
-              {episodes
-                .filter((e) => e.season === season)
-                .map((ep) => {
-                  const episodeWatched = isEpisodeWatched(
-                    watched,
-                    item,
-                    ep,
-                    resume?.episode,
-                  );
-                  return (
-                    <div
-                      className={`episode-row${!episodeWatched && nuvioWebSettings.blurUnwatchedEpisodes ? " blur-unwatched" : ""}`}
-                      key={ep.id}
-                    >
-                      <button
-                        className="episode-play"
-                        disabled={busy}
-                        onClick={() =>
-                          downloadMode ? download(ep) : void play(ep)
-                        }
+            <div className="episode-section">
+              <div className="row-heading">
+                <h2>Episodes</h2>
+                <select
+                  aria-label="Season"
+                  value={season ?? ""}
+                  onChange={(e) => setSeason(Number(e.target.value))}
+                >
+                  {seasons.map((s) => (
+                    <option key={s} value={s}>
+                      Season {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="episodes">
+                {episodes
+                  .filter((e) => e.season === season)
+                  .map((ep) => {
+                    const episodeWatched = isEpisodeWatched(
+                      watched,
+                      item,
+                      ep,
+                      resume?.episode,
+                    );
+                    return (
+                      <div
+                        className={`episode-row${!episodeWatched && nuvioWebSettings.blurUnwatchedEpisodes ? " blur-unwatched" : ""}`}
+                        key={ep.id}
                       >
-                        <span className="episode-number">{ep.episode}</span>
-                        <span>{ep.name}</span>
-                        {nuvioWebSettings.showEpisodeRatings && ep.rating && (
-                          <span className="episode-rating">
-                            <Star size={13} fill="currentColor" /> {ep.rating}
-                          </span>
-                        )}
-                        <span className="episode-row-status">
-                          {episodeWatched && (
-                            <span className="episode-watched-badge">
-                              <CheckCircle2 size={16} /> Watched
+                        <button
+                          className="episode-play"
+                          disabled={busy}
+                          onClick={() =>
+                            downloadMode ? download(ep) : void play(ep)
+                          }
+                        >
+                          <span className="episode-number">{ep.episode}</span>
+                          <span>{ep.name}</span>
+                          {nuvioWebSettings.showEpisodeRatings && ep.rating && (
+                            <span className="episode-rating">
+                              <Star size={13} fill="currentColor" /> {ep.rating}
                             </span>
                           )}
-                          {downloadMode ? (
-                            <Download size={18} />
-                          ) : (
-                            <Play size={18} />
-                          )}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="episode-watch-toggle"
-                        disabled={busy}
-                        aria-label={`Mark episode ${ep.episode} ${episodeWatched ? "unwatched" : "watched"}`}
-                        onClick={() =>
-                          onSetWatched(item, ep, !isWatched(watched, item, ep))
-                        }
-                      >
-                        <CheckCircle2 size={17} />
-                      </button>
-                    </div>
-                  );
-                })}
+                          <span className="episode-row-status">
+                            {episodeWatched && (
+                              <span className="episode-watched-badge">
+                                <CheckCircle2 size={16} /> Watched
+                              </span>
+                            )}
+                            {downloadMode ? (
+                              <Download size={18} />
+                            ) : (
+                              <Play size={18} />
+                            )}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="episode-watch-toggle"
+                          disabled={busy}
+                          aria-label={`Mark episode ${ep.episode} ${episodeWatched ? "unwatched" : "watched"}`}
+                          onClick={() =>
+                            onSetWatched(
+                              item,
+                              ep,
+                              !isWatched(watched, item, ep),
+                            )
+                          }
+                        >
+                          <CheckCircle2 size={17} />
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         {!busy && item.type === "series" && !episodes.length && (
           <p className="muted no-episodes">
             No episodes were returned by this source.
@@ -3025,61 +3029,61 @@ function Detail({
         )}
         {nuvioWebSettings.metaSections.production !== false &&
           extras.studios.length > 0 && (
-          <section className="detail-info-section">
-            <h2>Production</h2>
-            <div className="detail-chip-row">
-              {extras.studios.map((studio) => (
-                <span key={studio}>{studio}</span>
-              ))}
-            </div>
-          </section>
-        )}
+            <section className="detail-info-section">
+              <h2>Production</h2>
+              <div className="detail-chip-row">
+                {extras.studios.map((studio) => (
+                  <span key={studio}>{studio}</span>
+                ))}
+              </div>
+            </section>
+          )}
         {nuvioWebSettings.metaSections.trailers !== false &&
           extras.trailers.length > 0 && (
-          <section className="detail-trailer-section">
-            <h2>Trailers</h2>
-            <div className="detail-trailer-row">
-              {extras.trailers.map((trailer) => (
-                <button
-                  key={trailer.id}
-                  onClick={() =>
-                    setSelectedTrailer({
-                      videoId: trailer.videoId,
-                      name: trailer.name,
-                    })
-                  }
-                >
-                  <img
-                    src={`https://i.ytimg.com/vi/${trailer.videoId}/hqdefault.jpg`}
-                    alt=""
-                    loading="lazy"
-                  />
-                  <span>
-                    <Play size={18} fill="currentColor" />
-                    {trailer.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+            <section className="detail-trailer-section">
+              <h2>Trailers</h2>
+              <div className="detail-trailer-row">
+                {extras.trailers.map((trailer) => (
+                  <button
+                    key={trailer.id}
+                    onClick={() =>
+                      setSelectedTrailer({
+                        videoId: trailer.videoId,
+                        name: trailer.name,
+                      })
+                    }
+                  >
+                    <img
+                      src={`https://i.ytimg.com/vi/${trailer.videoId}/hqdefault.jpg`}
+                      alt=""
+                      loading="lazy"
+                    />
+                    <span>
+                      <Play size={18} fill="currentColor" />
+                      {trailer.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         {nuvioWebSettings.metaSections.moreLikeThis !== false &&
           extras.recommendations.length > 0 && (
-          <section className="detail-recommendations">
-            <div className="row-heading">
-              <h2>More like this</h2>
-            </div>
-            <div className="rail">
-              {extras.recommendations.map((recommendation) => (
-                <Card
-                  key={itemKey(recommendation)}
-                  item={recommendation}
-                  onOpen={onSelectItem}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+            <section className="detail-recommendations">
+              <div className="row-heading">
+                <h2>More like this</h2>
+              </div>
+              <div className="rail">
+                {extras.recommendations.map((recommendation) => (
+                  <Card
+                    key={itemKey(recommendation)}
+                    item={recommendation}
+                    onOpen={onSelectItem}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         {streamsLoaded && (
           <div className="stream-results">
             <h2>
@@ -3097,15 +3101,13 @@ function Detail({
               const languages = streamAudioLanguages(s);
               return (
                 <Fragment key={`${s.addonId ?? s.addonName ?? "stream"}:${i}`}>
-                  {(i === 0 ||
-                    streams[i - 1]?.addonName !== s.addonName) && (
+                  {(i === 0 || streams[i - 1]?.addonName !== s.addonName) && (
                     <div className="stream-addon-heading">
                       <strong>{s.addonName ?? "Other sources"}</strong>
                       <span>
                         {
                           streams.filter(
-                            (candidate) =>
-                              candidate.addonName === s.addonName,
+                            (candidate) => candidate.addonName === s.addonName,
                           ).length
                         }
                       </span>
@@ -3115,11 +3117,7 @@ function Detail({
                     disabled={!playable || busy}
                     onClick={() => void manualStream(s)}
                   >
-                    {downloadMode ? (
-                      <Download size={20} />
-                    ) : (
-                      <Play size={20} />
-                    )}
+                    {downloadMode ? <Download size={20} /> : <Play size={20} />}
                     <span>
                       <strong>{s.name ?? "Stream"}</strong>
                       <em
@@ -3197,10 +3195,7 @@ export default function App() {
     const changed = () => setSourcePreferences(streamPreferences());
     window.addEventListener("tiktak:stream-preferences-changed", changed);
     return () =>
-      window.removeEventListener(
-        "tiktak:stream-preferences-changed",
-        changed,
-      );
+      window.removeEventListener("tiktak:stream-preferences-changed", changed);
   }, []);
   const [nuvioWebSettings, setNuvioWebSettings] =
     useState<NuvioWebSettings>(readNuvioWebSettings);
@@ -3682,6 +3677,28 @@ export default function App() {
       "--nuvio-subtitle-background",
       String(nuvioWebSettings.subtitleBackground / 100),
     );
+    root.style.setProperty(
+      "--nuvio-subtitle-background-percent",
+      `${nuvioWebSettings.subtitleBackground}%`,
+    );
+    root.style.setProperty(
+      "--nuvio-subtitle-text-color",
+      nuvioWebSettings.subtitleTextColor,
+    );
+    root.style.setProperty(
+      "--nuvio-subtitle-background-color",
+      nuvioWebSettings.subtitleBackgroundColor,
+    );
+    root.style.setProperty(
+      "--nuvio-subtitle-outline-color",
+      nuvioWebSettings.subtitleOutlineColor,
+    );
+    root.dataset.nuvioSubtitleBold = String(nuvioWebSettings.subtitleBold);
+    root.dataset.nuvioSubtitleOutline = String(
+      nuvioWebSettings.subtitleOutline,
+    );
+    if (!nuvioWebSettings.rememberPlayerBrightness)
+      localStorage.removeItem("tiktak:player-brightness");
     root.style.setProperty(
       "--nuvio-subtitle-bottom",
       `${nuvioWebSettings.subtitlePosition}%`,
@@ -4240,18 +4257,16 @@ export default function App() {
   }, [availableRegions, items.length, page, region]);
   const filtered = useMemo(() => {
     const result = (page === "library" ? library : items).filter(
-        (i) =>
-          (!deferredQuery ||
-            (page === "discover" && source === "catalogs") ||
-            i.name
-              .toLocaleLowerCase()
-              .includes(deferredQuery.toLocaleLowerCase())) &&
-          (page !== "live" || !region || regionOf(i) === region) &&
-          (!favoritesOnly || saved(i)) &&
-          (page !== "library" ||
-            libraryType === "all" ||
-            i.type === libraryType),
-      );
+      (i) =>
+        (!deferredQuery ||
+          (page === "discover" && source === "catalogs") ||
+          i.name
+            .toLocaleLowerCase()
+            .includes(deferredQuery.toLocaleLowerCase())) &&
+        (page !== "live" || !region || regionOf(i) === region) &&
+        (!favoritesOnly || saved(i)) &&
+        (page !== "library" || libraryType === "all" || i.type === libraryType),
+    );
     if (page !== "library") return result;
     if (nuvioWebSettings.librarySort === "title-asc")
       return [...result].sort((left, right) =>
@@ -4264,18 +4279,18 @@ export default function App() {
     if (nuvioWebSettings.librarySort === "added-asc") return result;
     return [...result].reverse();
   }, [
-      deferredQuery,
-      favoritesOnly,
-      items,
-      library,
-      page,
-      region,
-      regionOf,
-      savedKeys,
-      source,
-      libraryType,
-      nuvioWebSettings.librarySort,
-    ]);
+    deferredQuery,
+    favoritesOnly,
+    items,
+    library,
+    page,
+    region,
+    regionOf,
+    savedKeys,
+    source,
+    libraryType,
+    nuvioWebSettings.librarySort,
+  ]);
   const randomDiscoverPick = () => {
     const choices = filtered.filter((item) => item.type !== "live");
     if (!choices.length) {
@@ -4905,8 +4920,8 @@ export default function App() {
                                 progress={p}
                                 upcoming={Boolean(
                                   p.episode?.released &&
-                                    new Date(p.episode.released).valueOf() >
-                                      Date.now(),
+                                  new Date(p.episode.released).valueOf() >
+                                    Date.now(),
                                 )}
                                 watched={isWatched(watched, p.item)}
                                 onOpen={open}
@@ -5096,169 +5111,172 @@ export default function App() {
               )}
               {page === "discover" && (
                 <>
-                {!query && recentSearches.length > 0 && (
-                  <section className="recent-searches" aria-label="Recent searches">
-                    <div>
-                      <strong>Recent searches</strong>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRecentSearches(clearSearchHistory(searchProfile))
-                        }
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                    <div>
-                      {recentSearches.map((recent) => (
-                        <span key={recent}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setQuery(recent);
-                              setSearchScope("all");
-                              setSearchSuggestion("");
-                              setExactSearch(false);
-                            }}
-                          >
-                            {recent}
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Remove ${recent} from recent searches`}
-                            onClick={() =>
-                              setRecentSearches(
-                                removeSearch(searchProfile, recent),
-                              )
-                            }
-                          >
-                            <X size={13} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </section>
-                )}
-                <div className="filter-toolbar">
-                  <div className="tabs">
-                    {query && source === "catalogs" && (
-                      <button
-                        className={searchScope === "all" ? "selected" : ""}
-                        onClick={() => setSearchScope("all")}
-                      >
-                        <Search size={16} />
-                        All
-                      </button>
-                    )}
-                    <button
-                      className={
-                        query && source === "catalogs"
-                          ? searchScope === "movie"
-                            ? "selected"
-                            : ""
-                          : kind === "movie"
-                            ? "selected"
-                            : ""
-                      }
-                      onClick={() => {
-                        setKind("movie");
-                        setSearchScope("movie");
-                        setCategory("");
-                      }}
+                  {!query && recentSearches.length > 0 && (
+                    <section
+                      className="recent-searches"
+                      aria-label="Recent searches"
                     >
-                      <Film size={16} />
-                      Movies
-                    </button>
-                    <button
-                      className={
-                        query && source === "catalogs"
-                          ? searchScope === "series"
-                            ? "selected"
-                            : ""
-                          : kind === "series"
-                            ? "selected"
-                            : ""
-                      }
-                      onClick={() => {
-                        setKind("series");
-                        setSearchScope("series");
-                        setCategory("");
-                      }}
-                    >
-                      <Tv size={16} />
-                      Series
-                    </button>
-                  </div>
-                  <select
-                    aria-label="Content source"
-                    value={source}
-                    onChange={(e) => {
-                      setSource(e.target.value);
-                      if (e.target.value === "xtream") setSearchScope(kind);
-                      setCategory("");
-                    }}
-                  >
-                    <option value="catalogs">Add-on catalogs</option>
-                    <option value="xtream">My IPTV collection</option>
-                  </select>
-                  {source === "xtream" ? (
-                    <select
-                      aria-label="Category"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="">All categories</option>
-                      {categoryList.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : query ? (
-                    <span className="smart-search-source">
-                      Searching every compatible add-on
-                    </span>
-                  ) : (
-                    <select
-                      aria-label="Catalog"
-                      value={
-                        catalogs.some((c) => c.key === selectedCatalog)
-                          ? selectedCatalog
-                          : (catalogs[0]?.key ?? "")
-                      }
-                      onChange={(e) => {
-                        setSelectedCatalog(e.target.value);
-                        setCategory("");
-                      }}
-                    >
-                      {catalogs.map((c) => (
-                        <option key={c.key} value={c.key}>
-                          {c.catalog.name ?? c.addon.manifest.name}
-                        </option>
-                      ))}
-                    </select>
+                      <div>
+                        <strong>Recent searches</strong>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRecentSearches(clearSearchHistory(searchProfile))
+                          }
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                      <div>
+                        {recentSearches.map((recent) => (
+                          <span key={recent}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuery(recent);
+                                setSearchScope("all");
+                                setSearchSuggestion("");
+                                setExactSearch(false);
+                              }}
+                            >
+                              {recent}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${recent} from recent searches`}
+                              onClick={() =>
+                                setRecentSearches(
+                                  removeSearch(searchProfile, recent),
+                                )
+                              }
+                            >
+                              <X size={13} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </section>
                   )}
-                  {source === "catalogs" &&
-                    !query &&
-                    catalogGenreOptions.length > 0 && (
+                  <div className="filter-toolbar">
+                    <div className="tabs">
+                      {query && source === "catalogs" && (
+                        <button
+                          className={searchScope === "all" ? "selected" : ""}
+                          onClick={() => setSearchScope("all")}
+                        >
+                          <Search size={16} />
+                          All
+                        </button>
+                      )}
+                      <button
+                        className={
+                          query && source === "catalogs"
+                            ? searchScope === "movie"
+                              ? "selected"
+                              : ""
+                            : kind === "movie"
+                              ? "selected"
+                              : ""
+                        }
+                        onClick={() => {
+                          setKind("movie");
+                          setSearchScope("movie");
+                          setCategory("");
+                        }}
+                      >
+                        <Film size={16} />
+                        Movies
+                      </button>
+                      <button
+                        className={
+                          query && source === "catalogs"
+                            ? searchScope === "series"
+                              ? "selected"
+                              : ""
+                            : kind === "series"
+                              ? "selected"
+                              : ""
+                        }
+                        onClick={() => {
+                          setKind("series");
+                          setSearchScope("series");
+                          setCategory("");
+                        }}
+                      >
+                        <Tv size={16} />
+                        Series
+                      </button>
+                    </div>
+                    <select
+                      aria-label="Content source"
+                      value={source}
+                      onChange={(e) => {
+                        setSource(e.target.value);
+                        if (e.target.value === "xtream") setSearchScope(kind);
+                        setCategory("");
+                      }}
+                    >
+                      <option value="catalogs">Add-on catalogs</option>
+                      <option value="xtream">My IPTV collection</option>
+                    </select>
+                    {source === "xtream" ? (
                       <select
-                        aria-label="Catalog category"
+                        aria-label="Category"
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
                       >
-                        <option value="">Default</option>
-                        {catalogGenreOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                        <option value="">All categories</option>
+                        {categoryList.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : query ? (
+                      <span className="smart-search-source">
+                        Searching every compatible add-on
+                      </span>
+                    ) : (
+                      <select
+                        aria-label="Catalog"
+                        value={
+                          catalogs.some((c) => c.key === selectedCatalog)
+                            ? selectedCatalog
+                            : (catalogs[0]?.key ?? "")
+                        }
+                        onChange={(e) => {
+                          setSelectedCatalog(e.target.value);
+                          setCategory("");
+                        }}
+                      >
+                        {catalogs.map((c) => (
+                          <option key={c.key} value={c.key}>
+                            {c.catalog.name ?? c.addon.manifest.name}
                           </option>
                         ))}
                       </select>
                     )}
-                  <button onClick={randomDiscoverPick} disabled={loading}>
-                    <Dices size={17} />
-                    Random Pick
-                  </button>
-                </div>
+                    {source === "catalogs" &&
+                      !query &&
+                      catalogGenreOptions.length > 0 && (
+                        <select
+                          aria-label="Catalog category"
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                        >
+                          <option value="">Default</option>
+                          {catalogGenreOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    <button onClick={randomDiscoverPick} disabled={loading}>
+                      <Dices size={17} />
+                      Random Pick
+                    </button>
+                  </div>
                 </>
               )}
               {page === "discover" &&
