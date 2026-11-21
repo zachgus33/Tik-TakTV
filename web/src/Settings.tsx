@@ -1945,7 +1945,7 @@ export default function Settings(props: Props) {
                 <a
                   href={
                     safeUrl(import.meta.env.VITE_SOURCE_URL) ??
-                    "https://github.com/yesnt10/NuvioMobile-Enhanced"
+                    "https://github.com/zachgus33/Tik-TakTV"
                   }
                   target="_blank"
                   rel="noreferrer"
