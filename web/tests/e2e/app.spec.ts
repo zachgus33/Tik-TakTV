@@ -1881,8 +1881,8 @@ test("mobile live guide uses stacked channel cards without page overflow", async
     };
   });
   expect(mobileNavigation.position).toBe("fixed");
-  expect(mobileNavigation.bottom).toBe(10);
-  expect(mobileNavigation.width).toBe(366);
+  expect(mobileNavigation.bottom).toBe(0);
+  expect(mobileNavigation.width).toBe(390);
 
   await page.getByRole("tab", { name: "Sports" }).click();
   const sportsLayout = await page.locator(".sports-hub").evaluate((element) => {
@@ -1982,6 +1982,7 @@ test("every primary page and settings section fits a portrait viewport", async (
       .getByRole("button", { name: new RegExp(section) })
       .click();
     await expectNoPageOverflow(`settings: ${section}`);
+    await page.getByRole("button", { name: "Back to settings" }).click();
   }
 });
 test("bad credentials show a useful error and are never saved", async ({
@@ -4143,9 +4144,6 @@ test("TV playback opens as a full-screen remote-controlled surface", async ({
   await page.goto("/?tv=1");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await page
-    .getByRole("button", { name: /TV test stream Direct play/ })
-    .click();
 
   const player = page.locator("dialog.tv-player-surface");
   await expect(player).toBeVisible();
@@ -6123,8 +6121,11 @@ test.describe("authenticated integrations", () => {
     // before changing a setting; otherwise the change can become its baseline.
     await page.waitForTimeout(250);
     await page.goto("/#settings");
-    await page.getByRole("button", { name: /Playback/ }).click();
-    await page.getByLabel("Automatic playback").uncheck();
+    await page.getByRole("button", { name: /^Streams/ }).click();
+    await page
+      .getByLabel("Automatic source selection")
+      .selectOption("manual");
+    await page.getByRole("button", { name: "Save stream settings" }).click();
     await expect
       .poll(() =>
         pushes.some(
