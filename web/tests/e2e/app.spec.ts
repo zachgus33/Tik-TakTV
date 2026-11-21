@@ -3262,7 +3262,7 @@ test("playback preparation errors use a full-screen retryable mobile surface", a
   expect(attempts).toBe(2);
 });
 
-test("iPhone retries user-selected playback once media is ready", async ({
+test("iPhone retries user-selected playback without a stale play notice", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -3316,11 +3316,11 @@ test("iPhone retries user-selected playback once media is ready", async ({
     .toBeGreaterThan(1);
   await expect(
     page.getByText("Tap the video’s play button to start."),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await video.evaluate((element) => element.dispatchEvent(new Event("play")));
   await expect(
     page.getByText("Tap the video’s play button to start."),
-  ).toBeHidden();
+  ).toHaveCount(0);
 });
 
 test("the player exposes every compatible stream while automatic fallback stays bounded", async ({
