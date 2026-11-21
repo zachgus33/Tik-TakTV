@@ -747,7 +747,7 @@ export default function NuvioExperienceSettings({
       >
         <SwitchRow
           title="Release notifications"
-          description="Ask this device to notify you about tracked releases."
+          description="Notify while TikTakTV is open, or catch a recent release when you next open the PWA."
           checked={value.episodeNotifications}
           onChange={(next) => {
             if (!next) {

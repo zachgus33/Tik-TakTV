@@ -85,6 +85,7 @@ import {
   useStored,
 } from "./storage";
 import { WhatsNewPrompt } from "./WhatsNew";
+import { notifyDueEpisodes } from "./episode-notifications";
 import { KoFiWidget } from "./KoFiWidget";
 import ChannelArt, { relayedArtwork } from "./ChannelArt";
 import { beginProfileSync } from "./profile-sync";
@@ -3121,6 +3122,37 @@ export default function App() {
   const [watched, setWatched] = useState<WatchedItem[]>(() =>
     read("watched", []),
   );
+  useEffect(() => {
+    if (!profileReady || !nuvioWebSettings.episodeNotifications) return;
+    let checking = false;
+    const check = () => {
+      if (checking || document.visibilityState === "hidden") return;
+      checking = true;
+      void notifyDueEpisodes(
+        progress,
+        nuvioWebSettings.notificationLeadMinutes,
+        activeProfileView?.name ?? "local",
+      ).finally(() => {
+        checking = false;
+      });
+    };
+    check();
+    const timer = window.setInterval(check, 60_000);
+    const visible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [
+    profileReady,
+    progress,
+    activeProfileView?.name,
+    nuvioWebSettings.episodeNotifications,
+    nuvioWebSettings.notificationLeadMinutes,
+  ]);
   useEffect(() => {
     if (!profileReady) return;
     const missing = progress.filter(youtubeProgressNeedsTitle).slice(0, 30);
