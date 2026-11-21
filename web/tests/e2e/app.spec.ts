@@ -2757,6 +2757,10 @@ test("mobile-style autoplay preserves the source provider order", async ({
 }) => {
   await streamingAddon(page);
   await page.addInitScript(() => {
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ playerStatusOverlay: true, updatedAt: Date.now() }),
+    );
     // Empty MP4 route fixtures can fail decoding immediately on WebKit. This
     // test owns ranking and full-screen layout, not media-error fallback, so
     // keep the player mounted long enough to assert those two behaviors.
@@ -2829,6 +2833,9 @@ test("mobile-style autoplay preserves the source provider order", async ({
   expect(Math.round(videoBox?.width ?? 0)).toBe(viewport?.width);
   expect(Math.round(videoBox?.height ?? 0)).toBe(viewport?.height);
   await expect(player.locator(".tv-web-center-controls")).toBeVisible();
+  await expect(player.locator(".player-status-overlay")).toContainText(
+    "Direct",
+  );
   await expect(player.locator(".tv-web-progress-controls")).toBeVisible();
   await expect(
     page.getByText(/Checking stream|SMART SOURCE SEARCH/),
@@ -4831,6 +4838,18 @@ test("TikTakTV appearance settings immediately reshape the shell and survive rel
   await page.getByRole("button", { name: /^Appearance/ }).click();
   await expect(page.getByLabel("Navigation style")).toHaveValue("rail");
   await expect(page.getByLabel("Poster size")).toHaveValue("large");
+  await page.goto("/#home");
+  const catalogHeading = page
+    .locator(".home-content > .media-row .row-heading h2")
+    .first();
+  await expect(catalogHeading.locator("small")).toContainText(/Movies|Series/);
+  await expect
+    .poll(() =>
+      catalogHeading.evaluate(
+        (element) => getComputedStyle(element, "::after").width,
+      ),
+    )
+    .toBe("28px");
 });
 
 test("tabbed metadata layout switches real detail sections", async ({ page }) => {

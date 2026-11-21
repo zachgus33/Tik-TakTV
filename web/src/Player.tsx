@@ -287,7 +287,9 @@ function VideoPlayer({
   const [partyBusy, setPartyBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(() =>
-    Number(localStorage.getItem("tiktak:playback-rate") || 1),
+    experienceSettings.rememberPlayerChoices
+      ? Number(localStorage.getItem("tiktak:playback-rate") || 1)
+      : 1,
   );
   const [subtitleOffset, setSubtitleOffset] = useState(() =>
     savedSubtitleOffset(playback),
@@ -1743,6 +1745,19 @@ function VideoPlayer({
           />
         )}
       </video>
+      {experienceSettings.playerStatusOverlay && (
+        <div className="player-status-overlay" role="status">
+          <strong>{playback.sourceLabel ?? "TikTakTV stream"}</strong>
+          <span>
+            {playing ? "Playing" : "Paused"} ·{" "}
+            {playback.mode === "transcode"
+              ? "Converted"
+              : playback.mode === "remux"
+                ? "Remuxed"
+                : "Direct"}
+          </span>
+        </div>
+      )}
       {activeSubtitleText && subtitleBox && (
         <div
           className="player-subtitle-overlay"
@@ -1999,7 +2014,9 @@ function VideoPlayer({
             onChange={(event) => {
               const value = Number(event.target.value);
               setPlaybackRate(value);
-              localStorage.setItem("tiktak:playback-rate", String(value));
+              if (experienceSettings.rememberPlayerChoices)
+                localStorage.setItem("tiktak:playback-rate", String(value));
+              else localStorage.removeItem("tiktak:playback-rate");
               if (videoRef.current) videoRef.current.playbackRate = value;
             }}
           >

@@ -3500,6 +3500,10 @@ export default function App() {
       nuvioWebSettings.hidePosterLabels,
     );
     root.dataset.nuvioContinueStyle = nuvioWebSettings.continueWatchingStyle;
+    root.dataset.nuvioCatalogType = String(nuvioWebSettings.showCatalogType);
+    root.dataset.nuvioCatalogUnderline = String(
+      !nuvioWebSettings.hideCatalogUnderline,
+    );
     root.dataset.nuvioBlurUpcoming = String(
       nuvioWebSettings.continueWatchingBlurUpcoming,
     );
@@ -4725,7 +4729,22 @@ export default function App() {
                     .map((row, i) => (
                       <section className="media-row" key={i}>
                         <div className="row-heading">
-                          <h2>{row.title}</h2>
+                          <h2>
+                            {row.title}
+                            {nuvioWebSettings.showCatalogType && (
+                              <small>
+                                {row.items.every(
+                                  (item) => item.type === "movie",
+                                )
+                                  ? "Movies"
+                                  : row.items.every(
+                                        (item) => item.type === "series",
+                                      )
+                                    ? "Series"
+                                    : "Mixed"}
+                              </small>
+                            )}
+                          </h2>
                           <button
                             onClick={() => {
                               setKind(
