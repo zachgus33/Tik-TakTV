@@ -4742,6 +4742,25 @@ test("Nuvio vertical Library filters and sorts saved media", async ({ page }) =>
   ]);
 });
 
+test("Nuvio integration hub maps native-only features and opens working services", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByLabel("Search settings").fill("Integrations");
+  const settingsNavigation = page.getByRole("navigation", {
+    name: "Settings sections",
+  });
+  await settingsNavigation.locator("button").filter({ hasText: "Integrations" }).click();
+  await expect(page.getByText("CloudStream repositories")).toBeVisible();
+  await expect(page.getByText("Android mpv / iOS video output")).toBeVisible();
+  await page
+    .getByRole("button", { name: /Trakt Watchlist, ratings/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Your own watchlist" }),
+  ).toBeVisible();
+});
+
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,
 }) => {

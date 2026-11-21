@@ -378,6 +378,83 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+.nuvio-integration-card {
+  overflow: hidden;
+  padding: 0;
+}
+.nuvio-integration-card > .card-heading {
+  margin: 0;
+  padding: 22px 24px;
+  border-bottom: 1px solid #ffffff0c;
+}
+.nuvio-integration-list,
+.nuvio-native-mappings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #ffffff0b;
+}
+.nuvio-integration-list button,
+.nuvio-native-mappings article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 92px;
+  padding: 17px 19px;
+  border: 0;
+  border-radius: 0;
+  background: #111016;
+  text-align: left;
+}
+.player-tools-section-label {
+  align-self: center;
+  padding: 0 5px;
+  color: #81798a;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@media (max-width: 800px) {
+  .player-tools-section-label {
+    grid-column: 1 / -1;
+    padding-top: 8px;
+  }
+}
+.nuvio-integration-list button:hover {
+  background: #1c1722;
+}
+.nuvio-integration-list button > svg:first-child,
+.nuvio-native-mappings article > svg {
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 13px;
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.nuvio-integration-list span,
+.nuvio-native-mappings span {
+  display: grid;
+  gap: 5px;
+}
+.nuvio-integration-list strong,
+.nuvio-native-mappings strong {
+  color: #f7f4fa;
+  font-size: 15px;
+}
+.nuvio-integration-list small,
+.nuvio-native-mappings small {
+  color: #958f9e;
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.45;
+}
+.nuvio-native-mappings article {
+  grid-template-columns: 42px minmax(0, 1fr);
+}
 .detail-info-section,
 .detail-trailer-section,
 .detail-recommendations {
@@ -579,6 +656,10 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
     width: 100%;
   }
   .nuvio-setting-range {
+    grid-template-columns: 1fr;
+  }
+  .nuvio-integration-list,
+  .nuvio-native-mappings {
     grid-template-columns: 1fr;
   }
 }

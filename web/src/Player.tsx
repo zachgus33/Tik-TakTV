@@ -1894,6 +1894,7 @@ function VideoPlayer({
         )}
         {nextEpisode && !party && (
           <>
+            <span className="player-tools-section-label">Up next</span>
             <button
               type="button"
               disabled={nextBusy}
@@ -1908,6 +1909,9 @@ function VideoPlayer({
           </>
         )}
         {onChooseSource && (
+          <span className="player-tools-section-label">Source</span>
+        )}
+        {onChooseSource && (
           <button type="button" onClick={onChooseSource}>
             <Settings2 size={18} /> Choose stream
           </button>
@@ -1917,6 +1921,9 @@ function VideoPlayer({
             <Link size={18} />
             {partyBusy ? "Starting room…" : "Watch Together"}
           </button>
+        )}
+        {!tvMode && (
+          <span className="player-tools-section-label">Display</span>
         )}
         {!tvMode && (
           <button onClick={airplay}>
@@ -1932,6 +1939,9 @@ function VideoPlayer({
           <button onClick={fullscreen}>
             <Maximize size={18} /> Fullscreen
           </button>
+        )}
+        {playback.item.type !== "live" && (
+          <span className="player-tools-section-label">Playback</span>
         )}
         {playback.item.type !== "live" && (
           <select
@@ -1998,6 +2008,9 @@ function VideoPlayer({
               </option>
             ))}
           </select>
+        )}
+        {(subtitles.length > 0 || embeddedSubtitles.length > 0) && (
+          <span className="player-tools-section-label">Subtitles</span>
         )}
         {(subtitles.length > 0 || embeddedSubtitles.length > 0) && (
           <select

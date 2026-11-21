@@ -68,6 +68,7 @@ import TraktSettings from "./TraktSettings";
 import ExternalTrackingSettings from "./ExternalTrackingSettings";
 import NuvioExperienceSettings from "./NuvioExperienceSettings";
 import type { NuvioWebSettings } from "./nuvio-web-settings";
+import NuvioIntegrationsHub from "./NuvioIntegrationsHub";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -128,6 +129,7 @@ type SettingsSection =
   | "library-display"
   | "player"
   | "notifications"
+  | "integrations"
   | "playback"
   | "health"
   | "downloads"
@@ -257,6 +259,13 @@ const sections = [
     label: "Trakt",
     description: "Your own watchlist",
     icon: Activity,
+    group: "Integrations",
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    description: "Services and native mappings",
+    icon: Globe2,
     group: "Integrations",
   },
   {
@@ -514,6 +523,9 @@ export default function Settings(props: Props) {
               value={props.nuvioWebSettings}
               onChange={props.onNuvioWebSettings}
             />
+          )}
+          {section === "integrations" && (
+            <NuvioIntegrationsHub onNavigate={setSection} />
           )}
           <div hidden={section !== "playback"}>
             <ConnectionPanel restored={props.playbackConnected} />
