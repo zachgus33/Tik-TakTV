@@ -321,10 +321,15 @@ export const releases = [
   },
 ];
 
-export function WhatsNewPrompt() {
+export function WhatsNewPrompt({ enabled = true }: { enabled?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (!enabled) {
+      ref.current?.close();
+      setOpen(false);
+      return;
+    }
     try {
       if (localStorage.getItem(seenKey) === latestRelease) return;
       let timer = 0;
@@ -340,7 +345,7 @@ export function WhatsNewPrompt() {
     } catch {
       return;
     }
-  }, []);
+  }, [enabled]);
   useEffect(() => {
     if (open && ref.current && !ref.current.open) ref.current.showModal();
   }, [open]);

@@ -4971,6 +4971,21 @@ test("Home hero artwork preference switches from backdrop to poster", async ({
   );
 });
 
+test("Feature highlights preference can suppress the update prompt", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "One browser verifies this preference.");
+  await page.goto("/#settings");
+  await page.evaluate(() => localStorage.removeItem("tiktak:whats-new-seen"));
+  await page.getByRole("button", { name: /^Appearance/ }).click();
+  const preference = page.getByRole("checkbox", {
+    name: /Feature highlights/,
+  });
+  await preference.uncheck();
+  await page.waitForTimeout(1400);
+  await expect(page.locator("dialog.whats-new-dialog")).toHaveCount(0);
+});
+
 test("tabbed metadata layout switches real detail sections", async ({ page }) => {
   await page.addInitScript(() =>
     localStorage.setItem(
