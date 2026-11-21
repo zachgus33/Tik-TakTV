@@ -3439,6 +3439,16 @@ export function createService({
           collections: template.collections,
           homeCatalogs: template.homeCatalogs,
           autoplay: template.autoplay === true,
+          ...(template.sourcePreferences &&
+          typeof template.sourcePreferences === "object" &&
+          !Array.isArray(template.sourcePreferences)
+            ? { sourcePreferences: template.sourcePreferences }
+            : {}),
+          ...(template.nuvioWebSettings &&
+          typeof template.nuvioWebSettings === "object" &&
+          !Array.isArray(template.nuvioWebSettings)
+            ? { nuvioWebSettings: template.nuvioWebSettings }
+            : {}),
         };
         if (template.provider != null) {
           const provider = template.provider;
@@ -3604,6 +3614,12 @@ export function createService({
             collections: vault.template.collections,
             homeCatalogs: vault.template.homeCatalogs,
             autoplay: vault.template.autoplay === true,
+            ...(vault.template.sourcePreferences
+              ? { sourcePreferences: vault.template.sourcePreferences }
+              : {}),
+            ...(vault.template.nuvioWebSettings
+              ? { nuvioWebSettings: vault.template.nuvioWebSettings }
+              : {}),
             ...(vault.template.provider ? { provider: vault.template.provider } : {}),
           },
           torboxKey: vault.torboxKey ? `friend:${grant}` : "",

@@ -1135,7 +1135,7 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
   );
 });
 
-test("desktop sidebar stays slim while keeping every navigation label visible", async ({
+test("desktop uses the compact Nuvio navigation rail", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1158,8 +1158,8 @@ test("desktop sidebar stays slim while keeping every navigation label visible", 
 
   await expect(page.locator(".sidebar")).toBeVisible();
   let layout = await readLayout();
-  expect(layout.sidebar).toBe(184);
-  expect(layout.mainLeft).toBe(184);
+  expect(layout.sidebar).toBe(92);
+  expect(layout.mainLeft).toBe(92);
   expect(layout.clippedLabels).toBe(0);
   expect(layout.labels).toEqual([
     "Home",
@@ -1177,8 +1177,8 @@ test("desktop sidebar stays slim while keeping every navigation label visible", 
     expect(layout.mainLeft).toBe(0);
     await expect(page.locator(".bottom-nav")).toBeVisible();
   } else {
-    expect(layout.sidebar).toBe(168);
-    expect(layout.mainLeft).toBe(168);
+    expect(layout.sidebar).toBe(92);
+    expect(layout.mainLeft).toBe(92);
     expect(layout.clippedLabels).toBe(0);
   }
 });
@@ -1882,8 +1882,8 @@ test("mobile live guide uses stacked channel cards without page overflow", async
     };
   });
   expect(mobileNavigation.position).toBe("fixed");
-  expect(mobileNavigation.bottom).toBe(0);
-  expect(mobileNavigation.width).toBe(390);
+  expect(mobileNavigation.bottom).toBe(10);
+  expect(mobileNavigation.width).toBe(366);
 
   await page.getByRole("tab", { name: "Sports" }).click();
   const sportsLayout = await page.locator(".sports-hub").evaluate((element) => {
@@ -4657,6 +4657,44 @@ test("source regex survives a complete settings reload", async ({ page }) => {
     "regex",
   );
   await expect(page.getByLabel("Custom stream regex")).toHaveValue(regex);
+});
+
+test("Nuvio appearance settings immediately reshape the shell and survive reload", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /^Appearance/ }).click();
+  await page.getByLabel("Navigation style").selectOption("rail");
+  await page.getByLabel("Poster size").selectOption("large");
+  await expect
+    .poll(() =>
+      page
+        .locator(".sidebar")
+        .evaluate((element) =>
+          Math.round(element.getBoundingClientRect().width),
+        ),
+    )
+    .toBe(220);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.dataset.nuvioPosterSize),
+    )
+    .toBe("large");
+
+  await page.reload();
+  await expect
+    .poll(() =>
+      page
+        .locator(".sidebar")
+        .evaluate((element) =>
+          Math.round(element.getBoundingClientRect().width),
+        ),
+    )
+    .toBe(220);
+  await page.getByRole("button", { name: /^Appearance/ }).click();
+  await expect(page.getByLabel("Navigation style")).toHaveValue("rail");
+  await expect(page.getByLabel("Poster size")).toHaveValue("large");
 });
 
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({

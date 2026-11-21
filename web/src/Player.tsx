@@ -34,6 +34,7 @@ import NextEpisodeSetting from "./NextEpisodeSetting";
 import { createTraktScrobbler } from "./trakt-scrobble";
 import { createSimklScrobbler } from "./simkl-scrobble";
 import { preferredAudioTrackIndex } from "./stream-selection";
+import { readNuvioWebSettings } from "./nuvio-web-settings";
 import { anilistProgressEnabled } from "./ExternalTrackingSettings";
 import { anilistMediaRef, recordAniListEpisode } from "./anilist-tracking";
 import {
@@ -187,6 +188,7 @@ function VideoPlayer({
     document.documentElement.classList.contains("tv-mode") ||
     new URLSearchParams(location.search).get("tv") === "1" ||
     /TikTakTV-AndroidTV/i.test(navigator.userAgent);
+  const experienceSettings = readNuvioWebSettings();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -504,7 +506,13 @@ function VideoPlayer({
         width: Math.round(contentWidth),
         bottom: Math.round(
           (viewHeight - contentHeight) / 2 +
-            Math.max(48, Math.min(96, contentHeight * 0.08)),
+            Math.max(
+              24,
+              Math.min(
+                contentHeight * 0.24,
+                contentHeight * (experienceSettings.subtitlePosition / 100),
+              ),
+            ),
         ),
       };
       setSubtitleBox((current) =>
@@ -529,7 +537,7 @@ function VideoPlayer({
       window.removeEventListener("resize", update);
       window.removeEventListener("orientationchange", update);
     };
-  }, [playback.url]);
+  }, [playback.url, experienceSettings.subtitlePosition]);
   const revealTvControls = useCallback(() => {
     window.clearTimeout(tvControlsTimerRef.current);
     setTvControlsVisible(true);
@@ -1535,6 +1543,7 @@ function VideoPlayer({
       onClick={(event) => {
         if (
           tvMode ||
+          !experienceSettings.touchGestures ||
           playback.item.type === "live" ||
           Date.now() - lastTouchToggleRef.current < 700 ||
           playerTapHitsControl(event.target)
@@ -1553,6 +1562,7 @@ function VideoPlayer({
         if (tvMode && !playerTapHitsControl(event.target)) revealTvControls();
         if (
           !tvMode &&
+          experienceSettings.touchGestures &&
           playback.item.type !== "live" &&
           (event.pointerType === "touch" || event.pointerType === "pen") &&
           !playerTapHitsControl(event.target)
@@ -1658,6 +1668,12 @@ function VideoPlayer({
         preload="metadata"
         poster={playback.item.background}
         aria-label={playback.item.name}
+        style={{
+          objectFit:
+            experienceSettings.resizeMode === "fit" ? "contain" : "cover",
+          transform:
+            experienceSettings.resizeMode === "zoom" ? "scale(1.12)" : "none",
+        }}
       >
         {selectedExternalSubtitle && (
           <track
@@ -2225,6 +2241,7 @@ export default function Player({
   nextEpisode?: Episode | null;
   onNextEpisode?: () => Promise<void>;
 }) {
+  const experienceSettings = readNuvioWebSettings();
   // Keep window state inside the player. Lifting this into App made every
   // minimize/restore rerender the complete guide or Sports tree, which can
   // contain thousands of provider channels and events.
@@ -2460,6 +2477,12 @@ export default function Player({
   const selectSource = (index: number) => {
     setSourcePickerOpen(false);
     if (index === attempt) return;
+    const choice = sourceChoices[index];
+    if (experienceSettings.streamSourcePinning && choice?.sourceLabel)
+      localStorage.setItem(
+        `tiktak:pinned-source:${playback.item.id}:${playback.episode?.id ?? playback.item.id}`,
+        choice.sourceLabel,
+      );
     setError("");
     setReady(null);
     setAttempt(index);
@@ -2561,7 +2584,7 @@ export default function Player({
     <>
       <dialog
         open
-        className="player-dialog player-preparing mobile-opening-player"
+        className={`player-dialog player-preparing mobile-opening-player${experienceSettings.showLoadingOverlay ? "" : " minimal-opening-player"}`}
         aria-label="Preparing playback"
         style={
           safeUrl(selected.item.background)

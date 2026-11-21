@@ -32,6 +32,11 @@ import {
   streamPreferences,
   type StreamPreferences,
 } from "./stream-selection";
+import {
+  normalizeNuvioWebSettings,
+  readNuvioWebSettings,
+  type NuvioWebSettings,
+} from "./nuvio-web-settings";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -74,6 +79,7 @@ export type Setup = {
   autoplay: boolean;
   homeCatalogs?: HomeCatalogSetting[];
   streamPreferences?: StreamPreferences;
+  nuvioWebSettings?: NuvioWebSettings;
 };
 export type TraktCredential = {
   access_token: string;
@@ -454,6 +460,7 @@ export async function loadSetup(
   if (addonRows.error)
     throw new Error("Nuvio could not load your installed add-ons.");
   const web = (blob[field] ?? {}) as Partial<Setup>;
+  const localNuvioWebSettings = readNuvioWebSettings();
   const localStreamPreferences = streamPreferences();
   const customizedLocalStreamPreferences =
     localStreamPreferences.autoPlayMode !==
@@ -704,6 +711,9 @@ export async function loadSetup(
           : (web.realDebridKey ?? ""),
       autoplay: web.autoplay ?? true,
       streamPreferences: resolvedStreamPreferences,
+      nuvioWebSettings: normalizeNuvioWebSettings(
+        web.nuvioWebSettings ?? localNuvioWebSettings,
+      ),
       homeCatalogs: Array.isArray(
         (homeBlob as { items?: unknown[] } | null)?.items,
       )

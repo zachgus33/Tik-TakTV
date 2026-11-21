@@ -107,7 +107,7 @@ import {
   unmarkWatched,
 } from "./watched";
 import type { Playback } from "./Player";
-import { findNextEpisode } from "./next-episode";
+import { findNextEpisode, writeNextEpisodeAutoAdvance } from "./next-episode";
 import {
   getTraktRating,
   setTraktRating,
@@ -189,6 +189,13 @@ const tvInterface =
 const initialGuideLimit = tvInterface ? 12 : 30;
 import { joinParty } from "./watch-party";
 import { streamCompatibility, updateDownloadJob } from "./reliability";
+import {
+  defaultNuvioWebSettings,
+  normalizeNuvioWebSettings,
+  readNuvioWebSettings,
+  saveNuvioWebSettings,
+  type NuvioWebSettings,
+} from "./nuvio-web-settings";
 
 const Player = lazy(() => import("./Player"));
 const Settings = lazy(() => import("./Settings"));
@@ -1133,6 +1140,7 @@ function Card({
   progress?: Progress;
   watched?: boolean;
 }) {
+  const experienceSettings = readNuvioWebSettings();
   return (
     <button
       className={`media-card ${progress ? "continue-card" : ""}`}
@@ -1168,7 +1176,7 @@ function Card({
             <CheckCircle2 size={17} />
           </span>
         )}
-        {progress && (
+        {progress && experienceSettings.continueWatchingProgress && (
           <span className="progress-track">
             <span
               style={{
@@ -1181,7 +1189,9 @@ function Card({
       <strong>{item.name}</strong>
       <span className="card-meta">
         {progress
-          ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
+          ? experienceSettings.continueWatchingRemainingTime
+            ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
+            : "Continue watching"
           : [
               item.year,
               item.type === "series"
@@ -1350,6 +1360,7 @@ function Detail({
   onClose,
   onPlay,
   onSelectItem,
+  onTrailer,
   onRemoveProgress,
   onSetWatched,
   onOpenDownloads,
@@ -1368,6 +1379,7 @@ function Detail({
   onClose: () => void;
   onPlay: (p: Playback) => void;
   onSelectItem: (item: Item) => void;
+  onTrailer: (videoId: string, title: string) => void;
   onRemoveProgress: (item: Item) => void;
   onSetWatched: (
     item: Item,
@@ -1382,6 +1394,7 @@ function Detail({
   autoplay: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const nuvioWebSettings = readNuvioWebSettings();
   const [item, setItem] = useState(initial);
   const [traktConnected, setTraktConnected] = useState(false);
   const [traktRating, setTraktRatingValue] = useState<number | null>(null);
@@ -1531,6 +1544,11 @@ function Detail({
   } | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [credits, setCredits] = useState<import("./tmdb").Credit[]>([]);
+  const [extras, setExtras] = useState<import("./tmdb").TitleExtras>({
+    recommendations: [],
+    trailers: [],
+    studios: [],
+  });
   const [person, setPerson] = useState<import("./tmdb").PersonProfile | null>(
     null,
   );
@@ -1591,7 +1609,7 @@ function Detail({
         setItem(result.item);
         setEpisodes(result.episodes);
         setSeason(result.episodes[0]?.season ?? null);
-        if (result.item.type !== "live")
+        if (result.item.type !== "live") {
           void import("./tmdb")
             .then(async ({ peopleByName, titleCredits }) => {
               const rows = await titleCredits(result.item, c.signal).catch(
@@ -1605,6 +1623,13 @@ function Detail({
               if (!c.signal.aborted) setCredits(rows);
             })
             .catch(() => undefined);
+          void import("./tmdb")
+            .then(({ titleExtras }) => titleExtras(result.item, c.signal))
+            .then((next) => {
+              if (!c.signal.aborted) setExtras(next);
+            })
+            .catch(() => undefined);
+        }
       })
       .catch((e) => {
         if (!c.signal.aborted) setError(message(e));
@@ -1985,18 +2010,36 @@ function Detail({
         );
         if (c.signal.aborted) return;
         if (selection.streams.length) {
+          const ranked = [...selection.streams];
+          if (nuvioWebSettings.streamSourcePinning) {
+            const pinned = localStorage.getItem(
+              `tiktak:pinned-source:${item.id}:${ep?.id ?? item.id}`,
+            );
+            if (pinned)
+              ranked.sort(
+                (left, right) =>
+                  Number(
+                    (right.name ?? right.addonName ?? "Stream") === pinned,
+                  ) -
+                  Number((left.name ?? left.addonName ?? "Stream") === pinned),
+              );
+          }
           // Playback can close the details dialog immediately. Transfer the
           // still-running add-on search to Player before that unmount cleanup
           // runs, otherwise slower providers (for example Debridio) disappear
           // from the manual source list.
-          controller.current = null;
+          const keepDiscovering = nuvioWebSettings.backgroundStreamPrefetch;
+          if (keepDiscovering) controller.current = null;
           await chooseStream(
-            selection.streams[0],
+            ranked[0],
             ep,
             c.signal,
-            selection.streams.slice(1),
-            selection.complete.then((result) => result.streams),
+            ranked.slice(1),
+            keepDiscovering
+              ? selection.complete.then((result) => result.streams)
+              : undefined,
           );
+          if (!keepDiscovering) c.abort();
           return;
         }
         if (!selection.result)
@@ -2642,6 +2685,55 @@ function Detail({
         {!busy && item.type === "series" && !episodes.length && (
           <p className="muted">No episodes were returned by this source.</p>
         )}
+        {extras.studios.length > 0 && (
+          <section className="detail-info-section">
+            <h2>Production</h2>
+            <div className="detail-chip-row">
+              {extras.studios.map((studio) => (
+                <span key={studio}>{studio}</span>
+              ))}
+            </div>
+          </section>
+        )}
+        {extras.trailers.length > 0 && (
+          <section className="detail-trailer-section">
+            <h2>Trailers</h2>
+            <div className="detail-trailer-row">
+              {extras.trailers.map((trailer) => (
+                <button
+                  key={trailer.id}
+                  onClick={() => onTrailer(trailer.videoId, trailer.name)}
+                >
+                  <img
+                    src={`https://i.ytimg.com/vi/${trailer.videoId}/hqdefault.jpg`}
+                    alt=""
+                    loading="lazy"
+                  />
+                  <span>
+                    <Play size={18} fill="currentColor" />
+                    {trailer.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        {extras.recommendations.length > 0 && (
+          <section className="detail-recommendations">
+            <div className="row-heading">
+              <h2>More like this</h2>
+            </div>
+            <div className="rail">
+              {extras.recommendations.map((recommendation) => (
+                <Card
+                  key={itemKey(recommendation)}
+                  item={recommendation}
+                  onOpen={onSelectItem}
+                />
+              ))}
+            </div>
+          </section>
+        )}
         {streamsLoaded && (
           <div className="stream-results">
             <h2>
@@ -2733,6 +2825,8 @@ export default function App() {
   const [autoplay, setAutoplay] = useStored("autoplay", true);
   const [sourcePreferences, setSourcePreferences] =
     useState<StreamPreferences>(streamPreferences);
+  const [nuvioWebSettings, setNuvioWebSettings] =
+    useState<NuvioWebSettings>(readNuvioWebSettings);
   const [skipProfileSelection, setSkipProfileSelection] = useStored(
     "skip-profile-selection",
     false,
@@ -2854,6 +2948,11 @@ export default function App() {
     );
     saveStreamPreferences(restoredSourcePreferences);
     setSourcePreferences(restoredSourcePreferences);
+    const restoredNuvioWebSettings = normalizeNuvioWebSettings(
+      s.nuvioWebSettings ?? nuvioWebSettings,
+    );
+    saveNuvioWebSettings(restoredNuvioWebSettings);
+    setNuvioWebSettings(restoredNuvioWebSettings);
     setHomeCatalogs(s.homeCatalogs ?? []);
   }
   const [playlist, setPlaylist] = useState<Item[]>([]);
@@ -3102,6 +3201,40 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--accent", accent);
   }, [accent]);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.nuvioNavigation = nuvioWebSettings.navigationStyle;
+    root.dataset.nuvioHero = nuvioWebSettings.heroMode;
+    root.dataset.nuvioPosterSize = nuvioWebSettings.posterSize;
+    root.dataset.nuvioCardDepth = nuvioWebSettings.cardDepth;
+    root.style.setProperty(
+      "--nuvio-subtitle-scale",
+      String(nuvioWebSettings.subtitleSize / 100),
+    );
+    root.style.setProperty(
+      "--nuvio-subtitle-background",
+      String(nuvioWebSettings.subtitleBackground / 100),
+    );
+    root.style.setProperty(
+      "--nuvio-subtitle-bottom",
+      `${nuvioWebSettings.subtitlePosition}%`,
+    );
+    root.dataset.nuvioSubtitleFont = nuvioWebSettings.subtitleFont;
+    if (nuvioWebSettings.preferredAudioLanguage !== "device")
+      localStorage.setItem(
+        "tiktak:audio-language",
+        nuvioWebSettings.preferredAudioLanguage,
+      );
+    if (
+      nuvioWebSettings.preferredSubtitleLanguage !== "device" &&
+      nuvioWebSettings.preferredSubtitleLanguage !== "none"
+    )
+      localStorage.setItem(
+        "tiktak:subtitle-language",
+        nuvioWebSettings.preferredSubtitleLanguage,
+      );
+    writeNextEpisodeAutoAdvance(nuvioWebSettings.autoPlayNextEpisode);
+  }, [nuvioWebSettings]);
   useEffect(() => {
     const online = () => setOffline(!navigator.onLine);
     const storage = () =>
@@ -3874,8 +4007,13 @@ export default function App() {
         }}
       />
     );
+  const visibleNav = nav.filter(
+    (item) => item.id !== "live" || nuvioWebSettings.liveTvEnabled,
+  );
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell nuvio-web-shell ${nuvioWebSettings.compactHeroMetadata ? "compact-hero-metadata" : ""}`}
+    >
       <aside className="sidebar">
         <div className="brand" aria-label="TikTak TV">
           <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />
@@ -3886,10 +4024,11 @@ export default function App() {
         </div>
         <div className="nav-label">YOUR SPACE</div>
         <nav>
-          {nav.map((n) => (
+          {visibleNav.map((n) => (
             <a
               key={n.id}
               href={`#${n.id}`}
+              aria-label={n.label}
               className={page === n.id ? "active" : ""}
               onClick={() => {
                 setQuery("");
@@ -3925,7 +4064,7 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumb">
             Your entertainment<span>/</span>
-            <strong>{nav.find((n) => n.id === page)?.label}</strong>
+            <strong>{visibleNav.find((n) => n.id === page)?.label}</strong>
           </div>
           <form
             className="search-box"
@@ -4025,22 +4164,26 @@ export default function App() {
                       </span>
                       <h1>{hero.name}</h1>
                       <div className="metadata">
-                        {hero.rating && (
+                        {nuvioWebSettings.showHeroRatings && hero.rating && (
                           <span className="gold">
                             <Star size={15} fill="currentColor" />
                             {hero.rating}
                           </span>
                         )}
-                        <span>{hero.year}</span>
+                        {nuvioWebSettings.showReleaseDates && (
+                          <span>{hero.year}</span>
+                        )}
                         <span>
                           {hero.type === "series" ? "Series" : "Movie"}
                         </span>
                         <span className="badge">DISCOVER</span>
                       </div>
-                      <p>
-                        {hero.description ||
-                          "Find a new favorite. Explore the details and discover streams from your connected sources."}
-                      </p>
+                      {nuvioWebSettings.showHeroOverview && (
+                        <p>
+                          {hero.description ||
+                            "Find a new favorite. Explore the details and discover streams from your connected sources."}
+                        </p>
+                      )}
                       <div className="actions">
                         <button
                           className="primary"
@@ -4124,35 +4267,37 @@ export default function App() {
               >
                 {!collectionBrowsing && (
                   <>
-                    <section className="quick-strip">
-                      <div className="quick-strip-copy">
-                        <span className="quick-icon">
-                          <Radio />
-                        </span>
-                        <div>
-                          <strong>Your world, live.</strong>
-                          <p>
-                            {provider
-                              ? "Your channels are ready when you are."
-                              : "Connect your IPTV provider and tune in."}
-                          </p>
+                    {nuvioWebSettings.liveTvEnabled && (
+                      <section className="quick-strip">
+                        <div className="quick-strip-copy">
+                          <span className="quick-icon">
+                            <Radio />
+                          </span>
+                          <div>
+                            <strong>Your world, live.</strong>
+                            <p>
+                              {provider
+                                ? "Your channels are ready when you are."
+                                : "Connect your IPTV provider and tune in."}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="quick-strip-actions">
-                        <button onClick={randomPick}>
-                          <Dices size={17} />
-                          Random Pick
-                        </button>
-                        <button
-                          onClick={() =>
-                            navigate(provider ? "live" : "settings")
-                          }
-                        >
-                          {provider ? "Watch Live TV" : "Connect IPTV"}
-                          <ArrowRight size={17} />
-                        </button>
-                      </div>
-                    </section>
+                        <div className="quick-strip-actions">
+                          <button onClick={randomPick}>
+                            <Dices size={17} />
+                            Random Pick
+                          </button>
+                          <button
+                            onClick={() =>
+                              navigate(provider ? "live" : "settings")
+                            }
+                          >
+                            {provider ? "Watch Live TV" : "Connect IPTV"}
+                            <ArrowRight size={17} />
+                          </button>
+                        </div>
+                      </section>
+                    )}
                     {error && (
                       <div className="error" role="alert">
                         {error}
@@ -4161,28 +4306,29 @@ export default function App() {
                         </button>
                       </div>
                     )}
-                    {progress.length > 0 && (
-                      <section className="media-row">
-                        <div className="row-heading">
-                          <h2>Pick up where you left off</h2>
-                          <button onClick={() => navigate("library")}>
-                            My library
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                        <div className="rail">
-                          {progress.slice(0, 12).map((p) => (
-                            <Card
-                              key={itemKey(p.item)}
-                              item={p.item}
-                              progress={p}
-                              watched={isWatched(watched, p.item)}
-                              onOpen={open}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )}
+                    {nuvioWebSettings.continueWatchingEnabled &&
+                      progress.length > 0 && (
+                        <section className="media-row">
+                          <div className="row-heading">
+                            <h2>Pick up where you left off</h2>
+                            <button onClick={() => navigate("library")}>
+                              My library
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                          <div className="rail">
+                            {progress.slice(0, 12).map((p) => (
+                              <Card
+                                key={itemKey(p.item)}
+                                item={p.item}
+                                progress={p}
+                                watched={isWatched(watched, p.item)}
+                                onOpen={open}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )}
                   </>
                 )}
                 <Suspense fallback={null}>
@@ -4408,33 +4554,35 @@ export default function App() {
                     </button>
                   </div>
                 )}
-              {page === "library" && progress.length > 0 && (
-                <section className="media-row">
-                  <div className="row-heading">
-                    <h2>Continue watching</h2>
-                    <button
-                      onClick={() => {
-                        save("progress", []);
-                        setProgress([]);
-                      }}
-                    >
-                      Clear history
-                    </button>
-                  </div>
-                  <div className="rail">
-                    {progress.map((p) => (
-                      <Card
-                        key={itemKey(p.item)}
-                        item={p.item}
-                        progress={p}
-                        watched={isWatched(watched, p.item)}
-                        onOpen={open}
-                      />
-                    ))}
-                  </div>
-                  <h2>Saved titles & channels</h2>
-                </section>
-              )}
+              {page === "library" &&
+                nuvioWebSettings.continueWatchingEnabled &&
+                progress.length > 0 && (
+                  <section className="media-row">
+                    <div className="row-heading">
+                      <h2>Continue watching</h2>
+                      <button
+                        onClick={() => {
+                          save("progress", []);
+                          setProgress([]);
+                        }}
+                      >
+                        Clear history
+                      </button>
+                    </div>
+                    <div className="rail">
+                      {progress.map((p) => (
+                        <Card
+                          key={itemKey(p.item)}
+                          item={p.item}
+                          progress={p}
+                          watched={isWatched(watched, p.item)}
+                          onOpen={open}
+                        />
+                      ))}
+                    </div>
+                    <h2>Saved titles & channels</h2>
+                  </section>
+                )}
               {error && page === "discover" && (
                 <div className="error" role="alert">
                   {error}
@@ -4987,6 +5135,7 @@ export default function App() {
                     realDebridKey,
                     autoplay,
                     streamPreferences: sourcePreferences,
+                    nuvioWebSettings,
                     homeCatalogs,
                   }}
                   onLoad={loadAccountSetup}
@@ -5010,6 +5159,7 @@ export default function App() {
                     setTmdbKey(DEFAULT_TMDB_KEY);
                     setAutoplay(true);
                     setSourcePreferences(defaultStreamPreferences);
+                    setNuvioWebSettings(defaultNuvioWebSettings);
                     setPlaylist([]);
                     setPlayback(null);
                     setDetail(null);
@@ -5068,6 +5218,11 @@ export default function App() {
                     const saved = saveStreamPreferences(preferences);
                     setSourcePreferences(saved);
                   }}
+                  nuvioWebSettings={nuvioWebSettings}
+                  onNuvioWebSettings={(settings) => {
+                    const saved = saveNuvioWebSettings(settings);
+                    setNuvioWebSettings(saved);
+                  }}
                   playbackConnected={!!getService()}
                   tmdbKey={tmdbKey}
                   onTmdbKey={setTmdbKey}
@@ -5077,6 +5232,8 @@ export default function App() {
                     autoplay,
                     homeCatalogs,
                     provider,
+                    sourcePreferences,
+                    nuvioWebSettings,
                   }}
                   homeCatalogs={homeCatalogs}
                   onHomeCatalogs={setHomeCatalogs}
@@ -5089,6 +5246,18 @@ export default function App() {
                     setCollections(template.collections);
                     setAutoplay(template.autoplay);
                     setHomeCatalogs(template.homeCatalogs);
+                    if (template.sourcePreferences) {
+                      const saved = saveStreamPreferences(
+                        template.sourcePreferences,
+                      );
+                      setSourcePreferences(saved);
+                    }
+                    if (template.nuvioWebSettings) {
+                      const saved = saveNuvioWebSettings(
+                        template.nuvioWebSettings,
+                      );
+                      setNuvioWebSettings(saved);
+                    }
                     // Friend installation is a full setup replacement. Clear
                     // an older IPTV connection when the new shared setup does
                     // not contain one instead of silently merging generations.
@@ -5111,10 +5280,11 @@ export default function App() {
         </main>
       </div>
       <nav className="bottom-nav" aria-label="Mobile navigation">
-        {nav.map((n) => (
+        {visibleNav.map((n) => (
           <a
             key={n.id}
             href={`#${n.id}`}
+            aria-label={n.label}
             onClick={() => {
               setQuery("");
               setCategory("");
@@ -5145,6 +5315,11 @@ export default function App() {
             setPlayback(next);
           }}
           onSelectItem={setDetail}
+          onTrailer={(videoId, title) => {
+            setDetail(null);
+            setYoutubeResumeRequest({ videoId, seconds: 0, title });
+            navigate("youtube");
+          }}
           onRemoveProgress={removeFromHistory}
           onSetWatched={setWatchedStatus}
           onOpenDownloads={() => {

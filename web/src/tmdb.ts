@@ -191,6 +191,80 @@ export async function resolveTmdb(
 
 export type Credit = { id: number; name: string; role: string; photo?: string };
 
+export type TitleExtras = {
+  recommendations: Item[];
+  trailers: { id: string; name: string; videoId: string }[];
+  studios: string[];
+};
+
+async function tmdbIdentity(item: Item, signal?: AbortSignal) {
+  if (/^tmdb:\d+$/.test(item.id))
+    return {
+      id: item.id.slice(5),
+      media: item.type === "series" ? "tv" : "movie",
+    };
+  if (!/^tt\d+$/.test(item.id)) return null;
+  const data = await get<{
+    movie_results?: Record<string, unknown>[];
+    tv_results?: Record<string, unknown>[];
+  }>(
+    `find/${item.id}`,
+    { external_source: "imdb_id", language: "en-US" },
+    signal,
+  );
+  const media = item.type === "series" ? "tv" : "movie";
+  const row = media === "tv" ? data.tv_results?.[0] : data.movie_results?.[0];
+  return row?.id ? { id: String(row.id), media } : null;
+}
+
+export async function titleExtras(
+  item: Item,
+  signal?: AbortSignal,
+): Promise<TitleExtras> {
+  const identity = await tmdbIdentity(item, signal);
+  if (!identity) return { recommendations: [], trailers: [], studios: [] };
+  const [recommendations, videos, details] = await Promise.all([
+    get<{ results?: Record<string, unknown>[] }>(
+      `${identity.media}/${identity.id}/recommendations`,
+      { language: "en-US", page: "1" },
+      signal,
+    ).catch(() => ({ results: [] })),
+    get<{ results?: Record<string, unknown>[] }>(
+      `${identity.media}/${identity.id}/videos`,
+      { language: "en-US" },
+      signal,
+    ).catch(() => ({ results: [] })),
+    get<{ production_companies?: Record<string, unknown>[] }>(
+      `${identity.media}/${identity.id}`,
+      { language: "en-US" },
+      signal,
+    ).catch(() => ({ production_companies: [] })),
+  ]);
+  return {
+    recommendations: (recommendations.results ?? [])
+      .filter((row) => row.id)
+      .slice(0, 18)
+      .map((row) => tmdbSearchItem({ ...row, media_type: identity.media })),
+    trailers: (videos.results ?? [])
+      .filter(
+        (row) =>
+          row.site === "YouTube" &&
+          row.key &&
+          (row.type === "Trailer" || row.type === "Teaser"),
+      )
+      .slice(0, 6)
+      .map((row) => ({
+        id: String(row.id ?? row.key),
+        name: String(row.name ?? row.type ?? "Trailer"),
+        videoId: String(row.key),
+      })),
+    studios: (details.production_companies ?? [])
+      .map((row) => String(row.name ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 8),
+  };
+}
+
 export type PersonTitle = Item & {
   releaseDate: string;
   popularity: number;

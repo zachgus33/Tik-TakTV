@@ -21,6 +21,10 @@ import {
   UsersRound,
   Megaphone,
   MessageSquarePlus,
+  Sparkles,
+  Bell,
+  MonitorPlay,
+  Search,
 } from "lucide-react";
 import {
   connectProvider,
@@ -62,6 +66,8 @@ import YouTubeAutoplaySetting from "./YouTubeAutoplaySetting";
 import NextEpisodeSetting from "./NextEpisodeSetting";
 import TraktSettings from "./TraktSettings";
 import ExternalTrackingSettings from "./ExternalTrackingSettings";
+import NuvioExperienceSettings from "./NuvioExperienceSettings";
+import type { NuvioWebSettings } from "./nuvio-web-settings";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -69,6 +75,8 @@ export type FriendTemplate = {
   autoplay: boolean;
   homeCatalogs: HomeCatalogSetting[];
   provider?: Provider | null;
+  sourcePreferences?: StreamPreferences;
+  nuvioWebSettings?: NuvioWebSettings;
 };
 
 type Props = {
@@ -95,6 +103,8 @@ type Props = {
   onAutoplay: (value: boolean) => void;
   sourcePreferences: StreamPreferences;
   onSourcePreferences: (value: StreamPreferences) => void;
+  nuvioWebSettings: NuvioWebSettings;
+  onNuvioWebSettings: (value: NuvioWebSettings) => void;
   playbackConnected: boolean;
   tmdbKey: string;
   onTmdbKey: (key: string) => void;
@@ -111,6 +121,10 @@ type SettingsSection =
   | "addons"
   | "collections"
   | "live"
+  | "enhanced"
+  | "appearance"
+  | "player"
+  | "notifications"
   | "playback"
   | "health"
   | "downloads"
@@ -124,82 +138,123 @@ type SettingsSection =
 
 const sections = [
   {
+    id: "enhanced",
+    label: "Nuvio Enhanced",
+    description: "Home, streams and TikTak features",
+    icon: Sparkles,
+    group: "Enhanced",
+  },
+  {
     id: "addons",
     label: "Add-ons",
     description: "Catalogs and sources",
     icon: Blocks,
+    group: "Enhanced",
   },
   {
     id: "collections",
     label: "Collections",
     description: "Home and metadata",
     icon: LibraryBig,
+    group: "Enhanced",
   },
   {
     id: "live",
     label: "Live TV",
     description: "IPTV and playlists",
     icon: Radio,
+    group: "Enhanced",
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    description: "Hero, posters and navigation",
+    icon: Palette,
+    group: "General",
+  },
+  {
+    id: "player",
+    label: "Player",
+    description: "Controls, tracks and subtitles",
+    icon: MonitorPlay,
+    group: "General",
   },
   {
     id: "playback",
     label: "Playback",
     description: "Player and debrid",
     icon: PlayCircle,
+    group: "General",
   },
   {
     id: "general",
     label: "General",
     description: "Appearance and data",
     icon: Palette,
+    group: "Advanced",
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    description: "Episode release reminders",
+    icon: Bell,
+    group: "General",
   },
   {
     id: "health",
     label: "Health check",
     description: "Connections and codecs",
     icon: Activity,
+    group: "Advanced",
   },
   {
     id: "downloads",
     label: "Downloads",
     description: "Activity and history",
     icon: Download,
+    group: "General",
   },
   {
     id: "feedback",
     label: "Feedback",
     description: "Reports and requests",
     icon: MessageSquarePlus,
+    group: "About",
   },
   {
     id: "whatsnew",
     label: "What's new",
     description: "Recent updates",
     icon: Megaphone,
+    group: "About",
   },
   {
     id: "trakt",
     label: "Trakt",
     description: "Your own watchlist",
     icon: Activity,
+    group: "Integrations",
   },
   {
     id: "simkl",
     label: "Simkl",
     description: "Movie and show tracking",
     icon: Activity,
+    group: "Integrations",
   },
   {
     id: "anilist",
     label: "AniList",
     description: "Anime list tracking",
     icon: Activity,
+    group: "Integrations",
   },
   {
     id: "privacy",
     label: "Privacy & status",
     description: "Data and services",
     icon: LockKeyhole,
+    group: "Advanced",
   },
 ] as const;
 export default function Settings(props: Props) {
@@ -214,11 +269,12 @@ export default function Settings(props: Props) {
             ? "anilist"
             : requestedWhatsNewSection()
               ? "whatsnew"
-              : "addons",
+              : "enhanced",
   );
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [settingsQuery, setSettingsQuery] = useState("");
   const [remember, setRemember] = useState(false);
   const [epgDraft, setEpgDraft] = useState(props.epgUrl);
   const [sourcePreferences, setSourcePreferences] = useState(
@@ -339,26 +395,81 @@ export default function Settings(props: Props) {
       )}
       <div className="settings-shell">
         <nav className="settings-nav" aria-label="Settings sections">
-          {sections.map((item) => (
-            <button
-              key={item.id}
-              className={section === item.id ? "active" : ""}
-              aria-current={section === item.id ? "page" : undefined}
-              onClick={() => setSection(item.id)}
-            >
-              <item.icon size={19} />
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </span>
-            </button>
-          ))}
+          <label className="settings-search">
+            <Search size={17} />
+            <input
+              type="search"
+              value={settingsQuery}
+              placeholder="Search settings"
+              aria-label="Search settings"
+              onChange={(event) => setSettingsQuery(event.target.value)}
+            />
+          </label>
+          {["Enhanced", "General", "Integrations", "Advanced", "About"].map(
+            (group) => {
+              const matches = sections.filter(
+                (item) =>
+                  item.group === group &&
+                  `${item.label} ${item.description}`
+                    .toLowerCase()
+                    .includes(settingsQuery.trim().toLowerCase()),
+              );
+              if (!matches.length) return null;
+              return (
+                <div className="settings-nav-group" key={group}>
+                  <span>{group}</span>
+                  {matches.map((item) => (
+                    <button
+                      key={item.id}
+                      className={section === item.id ? "active" : ""}
+                      aria-current={section === item.id ? "page" : undefined}
+                      onClick={() => setSection(item.id)}
+                    >
+                      <item.icon size={19} />
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.description}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              );
+            },
+          )}
         </nav>
         <div className="settings-panels">
           <header className="settings-panel-heading">
             <span>{sections.find((item) => item.id === section)?.label}</span>
             <h2>{sections.find((item) => item.id === section)?.description}</h2>
           </header>
+          {section === "enhanced" && (
+            <NuvioExperienceSettings
+              page="enhanced"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "appearance" && (
+            <NuvioExperienceSettings
+              page="appearance"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "player" && (
+            <NuvioExperienceSettings
+              page="player"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "notifications" && (
+            <NuvioExperienceSettings
+              page="notifications"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
           <div hidden={section !== "playback"}>
             <ConnectionPanel restored={props.playbackConnected} />
             <section className="settings-card">

@@ -626,6 +626,15 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     collections: [],
     homeCatalogs: [],
     autoplay: true,
+    sourcePreferences: {
+      autoPlayMode: "regex",
+      autoPlayRegex: "Debridio (2160p|1440p|1080p)",
+    },
+    nuvioWebSettings: {
+      navigationStyle: "floating",
+      heroMode: "cinematic",
+      preferredAudioLanguage: "en",
+    },
     provider: {
       server: "https://iptv.example:8080",
       username: "shared-user",
@@ -673,6 +682,8 @@ test("account-owned friend codes stay isolated and can be revoked", async () => 
     assert.equal(shared.template.provider.server, "https://iptv.example:8080");
     assert.equal(shared.template.provider.username, "shared-user");
     assert.equal(shared.template.provider.password, "shared-password");
+    assert.equal(shared.template.sourcePreferences.autoPlayMode, "regex");
+    assert.equal(shared.template.nuvioWebSettings.heroMode, "cinematic");
     assert.ok(!JSON.stringify(shared).includes("never-share-this-youtube-token"));
     assert.ok(!JSON.stringify(shared).includes("never-share-this-trakt-token"));
     assert.ok(!JSON.stringify(shared).includes("owner-one-torbox"));
