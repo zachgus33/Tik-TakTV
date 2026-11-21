@@ -814,6 +814,16 @@ test("rejects arbitrary injected headers", () => {
   assert.deepEqual(sourceHeaders({ "User-Agent": "Player" }), {
     "User-Agent": "Player",
   });
+  assert.deepEqual(
+    sourceHeaders({
+      "Content-Type": "application/json",
+      "X-Client-ID": "anime-client",
+    }),
+    {
+      "Content-Type": "application/json",
+      "X-Client-ID": "anime-client",
+    },
+  );
 });
 test("sanitizes download filenames and always emits MP4", () => {
   assert.equal(

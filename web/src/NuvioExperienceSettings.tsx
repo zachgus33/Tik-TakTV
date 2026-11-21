@@ -11,7 +11,13 @@ import {
   Sparkles,
   Volume2,
 } from "lucide-react";
+import { useState } from "react";
 import type { NuvioWebSettings } from "./nuvio-web-settings";
+import {
+  readIntroDbApiKey,
+  saveIntroDbApiKey,
+  verifyIntroDbApiKey,
+} from "./skip-segments";
 
 function SwitchRow({
   title,
@@ -150,6 +156,9 @@ export default function NuvioExperienceSettings({
   value: NuvioWebSettings;
   onChange: (value: NuvioWebSettings) => void;
 }) {
+  const [introDbApiKey, setIntroDbApiKey] = useState(readIntroDbApiKey);
+  const [introDbStatus, setIntroDbStatus] = useState("");
+  const [verifyingIntroDb, setVerifyingIntroDb] = useState(false);
   const update = <K extends keyof NuvioWebSettings>(
     key: K,
     next: NuvioWebSettings[K],
@@ -586,13 +595,20 @@ export default function NuvioExperienceSettings({
             value={value.preferredAudioLanguage}
             onChange={(next) => update("preferredAudioLanguage", next)}
           >
+            <option value="original">Original audio</option>
             <option value="device">Device language</option>
             <option value="en">English</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
             <option value="de">German</option>
+            <option value="it">Italian</option>
             <option value="pt">Portuguese</option>
             <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
           </SelectRow>
           <SelectRow
             title="Preferred subtitles"
@@ -601,12 +617,20 @@ export default function NuvioExperienceSettings({
             onChange={(next) => update("preferredSubtitleLanguage", next)}
           >
             <option value="none">Off</option>
+            <option value="forced">Forced only</option>
             <option value="device">Device language</option>
             <option value="en">English</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
             <option value="de">German</option>
+            <option value="it">Italian</option>
             <option value="pt">Portuguese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
           </SelectRow>
           <SelectRow
             title="Secondary audio"
@@ -615,12 +639,19 @@ export default function NuvioExperienceSettings({
             onChange={(next) => update("secondaryPreferredAudioLanguage", next)}
           >
             <option value="none">None</option>
+            <option value="original">Original audio</option>
             <option value="en">English</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
             <option value="de">German</option>
+            <option value="it">Italian</option>
             <option value="pt">Portuguese</option>
             <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
           </SelectRow>
           <SelectRow
             title="Secondary subtitles"
@@ -631,11 +662,19 @@ export default function NuvioExperienceSettings({
             }
           >
             <option value="none">None</option>
+            <option value="forced">Forced only</option>
             <option value="en">English</option>
             <option value="es">Spanish</option>
             <option value="fr">French</option>
             <option value="de">German</option>
+            <option value="it">Italian</option>
             <option value="pt">Portuguese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="ru">Russian</option>
           </SelectRow>
           <SelectRow
             title="Add-on subtitle startup"
@@ -755,10 +794,88 @@ export default function NuvioExperienceSettings({
         >
           <SwitchRow
             title="Skip intro, recap and credits"
-            description="Show native-style skip buttons when IntroDB has timing data."
+            description="Combine IntroDB, AniSkip and optional Anime-Skip timing data."
             checked={value.skipIntroEnabled}
             onChange={(next) => update("skipIntroEnabled", next)}
           />
+          <SwitchRow
+            title="Anime-Skip provider"
+            description="Use Anime-Skip GraphQL timing data in addition to AniSkip."
+            checked={value.animeSkipEnabled}
+            onChange={(next) => update("animeSkipEnabled", next)}
+          />
+          {value.animeSkipEnabled && (
+            <label className="nuvio-setting-row">
+              <span>
+                <strong>Anime-Skip client ID</strong>
+                <small>Your Anime-Skip API client identifier.</small>
+              </span>
+              <input
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={value.animeSkipClientId}
+                onChange={(event) =>
+                  update("animeSkipClientId", event.target.value)
+                }
+              />
+            </label>
+          )}
+          <SwitchRow
+            title="Submit IntroDB corrections"
+            description="Enable the in-player segment editor for your IntroDB account."
+            checked={value.introSubmitEnabled}
+            onChange={(next) => update("introSubmitEnabled", next)}
+          />
+          {value.introSubmitEnabled && (
+            <>
+              <label className="nuvio-setting-row">
+                <span>
+                  <strong>IntroDB API key</strong>
+                  <small>
+                    Stored only in this browser, never in profile sync.
+                  </small>
+                </span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={introDbApiKey}
+                  onChange={(event) => setIntroDbApiKey(event.target.value)}
+                  onBlur={() => saveIntroDbApiKey(introDbApiKey)}
+                />
+              </label>
+              <div className="nuvio-setting-row nuvio-setting-action">
+                <span>
+                  <strong>Verify IntroDB key</strong>
+                  <small>
+                    {introDbStatus ||
+                      "Check the key before submitting timing data."}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  disabled={verifyingIntroDb || !introDbApiKey.trim()}
+                  onClick={() => {
+                    setVerifyingIntroDb(true);
+                    setIntroDbStatus("");
+                    const key = saveIntroDbApiKey(introDbApiKey);
+                    void verifyIntroDbApiKey(key)
+                      .then((valid) =>
+                        setIntroDbStatus(
+                          valid
+                            ? "IntroDB key verified."
+                            : "IntroDB rejected this key.",
+                        ),
+                      )
+                      .catch(() => setIntroDbStatus("Could not reach IntroDB."))
+                      .finally(() => setVerifyingIntroDb(false));
+                  }}
+                >
+                  {verifyingIntroDb ? "Checking…" : "Verify key"}
+                </button>
+              </div>
+            </>
+          )}
           <SwitchRow
             title="Auto-play next episode"
             description="Advance to the next episode near the end of playback."

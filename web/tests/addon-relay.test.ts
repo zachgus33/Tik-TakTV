@@ -101,3 +101,38 @@ it("tries a self-hosted HTTP add-on directly before companion relay", async () =
     "https://playback.example/request",
   ]);
 });
+
+it("preserves an approved JSON body when a skip API needs companion relay", async () => {
+  const service = JSON.stringify({
+    url: "https://playback.example",
+    token: "test",
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) =>
+      key === "nuvio:playback-service" ? service : null,
+  });
+  const source = "https://api.anime-skip.com/graphql";
+  const graphql = JSON.stringify({ query: "{ test }" });
+  const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === source) throw new TypeError("CORS blocked");
+    expect(url).toBe("https://playback.example/request");
+    const body = JSON.parse(String(options?.body));
+    expect(body).toMatchObject({
+      url: source,
+      method: "POST",
+      body: graphql,
+    });
+    expect(body.headers["x-client-id"] ?? body.headers["X-Client-ID"]).toBe(
+      "client",
+    );
+    return Response.json({ data: {} });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await sourceFetch(source, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Client-ID": "client" },
+    body: graphql,
+  });
+  expect(await response.json()).toEqual({ data: {} });
+});

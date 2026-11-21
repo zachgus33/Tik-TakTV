@@ -1,7 +1,7 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.21.1";
+export const latestRelease = "2026.11.21.2";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
@@ -9,13 +9,16 @@ export const releases = [
   {
     version: latestRelease,
     date: "November 21, 2026",
-    title: "TikTakTV web and PWA rebuilt",
+    title: "TikTakTV Mobile Enhanced rebuild complete",
     changes: [
       "The website and installed PWA now use the TikTakTV-branded Mobile Enhanced architecture across Home, Discover, Library, metadata, Settings, add-ons, downloads, and the player on desktop, iPhone, and iPad.",
       "Playback starts from a browser-ready source without source hopping, keeps regex and add-on preferences synced to the selected profile, exposes complete manual source groups, and preserves raw torrents when a connected debrid service can resolve them.",
       "Subtitles now use one centered cue renderer with clean timing, embedded/source track support, dialogue sync, persistent offsets, and no stale transcription labels or overlapping cue stacks.",
       "Touch controls, hold-to-speed, content guidance, motion previews, watched indicators, friend setups, HTTP add-ons, Live TV, Sports, YouTube, background downloads, and profile-aware episode reminders are integrated into the rebuilt responsive shell.",
       "Stable vendor chunks and a 64% smaller offline precache reduce repeat update downloads, while installed PWAs wait for Update now before replacing an active release.",
+      "Mobile Enhanced touch parity now includes double-tap seeking, horizontal scrub previews, side brightness and volume gestures, hold-to-speed, stable source locking, and native-style IntroDB skip controls.",
+      "Subtitle preferences now include Original audio, Forced-only captions, preferred-language filtering, native language choices, bold/color/background/outline styling, and remembered player brightness.",
+      "IntroDB, AniSkip, and optional Anime-Skip timing providers are merged by native priority; users with an IntroDB API key can verify it locally and submit corrected intro, recap, or credits timing from the player.",
     ],
   },
   {

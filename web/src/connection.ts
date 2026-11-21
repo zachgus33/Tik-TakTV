@@ -204,6 +204,7 @@ export async function sourceFetch(
           options.body instanceof FormData
             ? Object.fromEntries(options.body)
             : undefined,
+        body: typeof options.body === "string" ? options.body : undefined,
       },
       signal,
       config,

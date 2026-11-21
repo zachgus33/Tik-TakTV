@@ -498,9 +498,19 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   font-weight: 450;
   line-height: 1.45;
 }
-.nuvio-setting-row select {
+.nuvio-setting-row select,
+.nuvio-setting-row input[type="text"],
+.nuvio-setting-row input[type="password"] {
   min-height: 44px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #ffffff1c;
   border-radius: 12px;
+  color: #fff;
+  background: #0d0b12;
+}
+.nuvio-setting-action > button {
+  min-height: 44px;
 }
 .nuvio-setting-switch {
   position: relative;
@@ -1283,6 +1293,70 @@ html:not(.tv-mode)[data-nuvio-subtitle-outline="false"]
 .player-skip-segment:focus-visible {
   border-color: #c084fc;
   background: #54218b;
+}
+.player-skip-submit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 35;
+  display: grid;
+  gap: 14px;
+  width: min(520px, calc(100vw - 28px));
+  max-height: min(720px, calc(100dvh - 28px));
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid #ffffff24;
+  border-radius: 20px;
+  color: #fff;
+  background: #0c0a10f5;
+  box-shadow: 0 30px 110px #000e;
+  backdrop-filter: blur(24px);
+  transform: translate(-50%, -50%);
+}
+.player-skip-submit header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.player-skip-submit header > div,
+.player-skip-submit label {
+  display: grid;
+  gap: 6px;
+}
+.player-skip-submit small {
+  color: #a9a2af;
+}
+.player-skip-submit input,
+.player-skip-submit select {
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid #ffffff20;
+  border-radius: 11px;
+  color: #fff;
+  background: #17131d;
+}
+.player-skip-submit button {
+  min-height: 42px;
+}
+.player-skip-submit button.primary {
+  border-color: #a855f7;
+  color: #fff;
+  background: #7132aa;
+}
+.player-skip-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.player-skip-submit p[role="alert"] {
+  margin: 0;
+  color: #ffadb9;
+}
+@media (max-width: 520px) {
+  .player-skip-time-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .tv-web-player > video {
   touch-action: none;

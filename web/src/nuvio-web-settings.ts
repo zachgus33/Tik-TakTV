@@ -59,6 +59,9 @@ export type NuvioWebSettings = {
   subtitleOutline: boolean;
   subtitleOutlineColor: string;
   skipIntroEnabled: boolean;
+  animeSkipEnabled: boolean;
+  animeSkipClientId: string;
+  introSubmitEnabled: boolean;
   autoPlayNextEpisode: boolean;
   nextEpisodeThresholdMode: "percentage" | "minutes";
   nextEpisodeThresholdPercent: number;
@@ -145,6 +148,9 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   subtitleOutline: true,
   subtitleOutlineColor: "#000000",
   skipIntroEnabled: true,
+  animeSkipEnabled: false,
+  animeSkipClientId: "",
+  introSubmitEnabled: false,
   autoPlayNextEpisode: false,
   nextEpisodeThresholdMode: "percentage",
   nextEpisodeThresholdPercent: 97,
@@ -342,6 +348,11 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       ? String(saved.subtitleOutlineColor)
       : "#000000",
     skipIntroEnabled: boolean("skipIntroEnabled"),
+    animeSkipEnabled: boolean("animeSkipEnabled"),
+    animeSkipClientId: String(saved.animeSkipClientId ?? "")
+      .trim()
+      .slice(0, 200),
+    introSubmitEnabled: boolean("introSubmitEnabled"),
     autoPlayNextEpisode: boolean("autoPlayNextEpisode"),
     nextEpisodeThresholdMode: oneOf(
       saved.nextEpisodeThresholdMode,

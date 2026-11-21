@@ -308,6 +308,8 @@ const allowedHeaders = new Set([
   "referer",
   "origin",
   "authorization",
+  "content-type",
+  "x-client-id",
 ]);
 export function sourceHeaders(value = {}) {
   const result = {};
@@ -4198,6 +4200,16 @@ export function createService({
           /^\/rest\/1\.0\/(?:user|torrents\/(?:instantAvailability\/[a-f0-9]+|addMagnet|selectFiles\/[^/]+|info\/[^/]+)|unrestrict\/link)$/.test(
             url.pathname,
           );
+        const isSkipApi =
+          (url.origin === "https://api.introdb.app" &&
+            /^\/(?:segments|submit)$/.test(url.pathname)) ||
+          (url.origin === "https://api.aniskip.com" &&
+            /^\/v2\/skip-times\/[^/]+\/\d+$/.test(url.pathname)) ||
+          (url.origin === "https://api.anime-skip.com" &&
+            url.pathname === "/graphql") ||
+          (url.origin === "https://api.simkl.com" &&
+            (url.pathname === "/search/id" ||
+              /^\/(?:anime|tv|movies)\/\d+$/.test(url.pathname)));
         const method = body.method ?? "GET";
         const isArtwork =
           method === "GET" &&
@@ -4206,6 +4218,7 @@ export function createService({
           !["GET", "POST"].includes(method) ||
           !(
             method === "GET" ||
+            (isSkipApi && method === "POST") ||
             (isTorbox && url.pathname.endsWith("/createtorrent")) ||
             (isRealDebrid &&
               /\/(?:addMagnet|selectFiles\/[^/]+|unrestrict\/link)$/.test(
@@ -4217,6 +4230,7 @@ export function createService({
         if (
           !isTorbox &&
           !isRealDebrid &&
+          !isSkipApi &&
           !isArtwork &&
           !/\/(manifest\.json|(?:catalog|meta|stream|subtitles|addon_catalog)\/.*\.json|(?:player_api|xmltv|get)\.php|[^/]+\.m3u8?)$/.test(
             url.pathname,
@@ -4274,6 +4288,16 @@ export function createService({
           data = new FormData();
           for (const [k, v] of Object.entries(body.form))
             data.set(k, String(v));
+        }
+        if (isSkipApi && method === "POST") {
+          if (typeof body.body !== "string" || body.body.length > 100_000)
+            return send(400, { error: "Invalid skip API body" });
+          try {
+            JSON.parse(body.body);
+          } catch {
+            return send(400, { error: "Skip API body must be JSON" });
+          }
+          data = body.body;
         }
         const result = await fetchSafe(url.href, {
           headers,

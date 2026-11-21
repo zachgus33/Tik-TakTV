@@ -55,7 +55,12 @@ import {
   type PartyIdentity,
   type PartySession,
 } from "./watch-party";
-import { introDbSkipSegments, type SkipSegment } from "./skip-segments";
+import {
+  readIntroDbApiKey,
+  skipSegments as loadSkipSegments,
+  submitIntroDbSegment,
+  type SkipSegment,
+} from "./skip-segments";
 
 export type Playback = {
   item: Item;
@@ -202,6 +207,18 @@ function skipSegmentLabel(type: SkipSegment["type"]) {
   if (type === "recap") return "Skip recap";
   return "Skip credits";
 }
+function parseSegmentTime(value: string) {
+  const parts = value
+    .trim()
+    .split(":")
+    .map((part) => Number(part));
+  if (!parts.length || parts.some((part) => !Number.isFinite(part) || part < 0))
+    return Number.NaN;
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return Number.NaN;
+}
 
 function reportMediaActivity(
   playbackId: string,
@@ -249,6 +266,10 @@ function VideoPlayer({
     new URLSearchParams(location.search).get("tv") === "1" ||
     /TikTakTV-AndroidTV/i.test(navigator.userAgent);
   const experienceSettings = readNuvioWebSettings();
+  const useForcedSubtitleTracks =
+    experienceSettings.useForcedSubtitles ||
+    experienceSettings.preferredSubtitleLanguage === "forced" ||
+    experienceSettings.secondaryPreferredSubtitleLanguage === "forced";
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -258,6 +279,13 @@ function VideoPlayer({
   const [nextError, setNextError] = useState("");
   const [nextBusy, setNextBusy] = useState(false);
   const [skipSegments, setSkipSegments] = useState<SkipSegment[]>([]);
+  const [submitSkipOpen, setSubmitSkipOpen] = useState(false);
+  const [submitSkipType, setSubmitSkipType] =
+    useState<SkipSegment["type"]>("intro");
+  const [submitSkipStart, setSubmitSkipStart] = useState("0:00");
+  const [submitSkipEnd, setSubmitSkipEnd] = useState("1:30");
+  const [submitSkipBusy, setSubmitSkipBusy] = useState(false);
+  const [submitSkipError, setSubmitSkipError] = useState("");
   const nextBusyRef = useRef(false);
   const nextAdvanceTriggeredRef = useRef(false);
   const nextEpisodeRef = useRef(nextEpisode);
@@ -274,10 +302,14 @@ function VideoPlayer({
       return;
     }
     const controller = new AbortController();
-    void introDbSkipSegments(
+    void loadSkipSegments(
       playback.item.id,
       episode.season,
       episode.episode,
+      {
+        animeSkipEnabled: experienceSettings.animeSkipEnabled,
+        animeSkipClientId: experienceSettings.animeSkipClientId,
+      },
       controller.signal,
     ).then((segments) => {
       if (!controller.signal.aborted) setSkipSegments(segments);
@@ -289,6 +321,8 @@ function VideoPlayer({
     playback.episode?.season,
     playback.episode?.episode,
     experienceSettings.skipIntroEnabled,
+    experienceSettings.animeSkipEnabled,
+    experienceSettings.animeSkipClientId,
   ]);
   useEffect(() => {
     const visible =
@@ -544,7 +578,7 @@ function VideoPlayer({
           false,
         ),
       );
-      const forcedEmbeddedIndex = experienceSettings.useForcedSubtitles
+      const forcedEmbeddedIndex = useForcedSubtitleTracks
         ? embeddedSubtitles.findIndex((track) =>
             subtitleIsForced(subtitleValues(track.label, track.track.language)),
           )
@@ -557,7 +591,7 @@ function VideoPlayer({
           false,
         ),
       );
-      const forcedExternalIndex = experienceSettings.useForcedSubtitles
+      const forcedExternalIndex = useForcedSubtitleTracks
         ? subtitles.findIndex((track) =>
             subtitleIsForced(subtitleValues(track.name, track.language)),
           )
@@ -878,23 +912,15 @@ function VideoPlayer({
           subtitleMatchesPreference(
             candidate,
             preferred,
-            experienceSettings.useForcedSubtitles,
+            useForcedSubtitleTracks,
           ),
         )
       : subtitleCandidates;
     const candidates = [...startupCandidates]
       .sort(
         (left, right) =>
-          preferredSubtitleScore(
-            right,
-            preferred,
-            experienceSettings.useForcedSubtitles,
-          ) -
-          preferredSubtitleScore(
-            left,
-            preferred,
-            experienceSettings.useForcedSubtitles,
-          ),
+          preferredSubtitleScore(right, preferred, useForcedSubtitleTracks) -
+          preferredSubtitleScore(left, preferred, useForcedSubtitleTracks),
       )
       .slice(0, 24);
     if (!candidates.length) return () => c.abort();
@@ -942,7 +968,7 @@ function VideoPlayer({
     experienceSettings.preferredSubtitleLanguage,
     experienceSettings.secondaryPreferredSubtitleLanguage,
     experienceSettings.showOnlyPreferredSubtitles,
-    experienceSettings.useForcedSubtitles,
+    useForcedSubtitleTracks,
   ]);
   useEffect(() => {
     if (
@@ -1866,7 +1892,7 @@ function VideoPlayer({
           subtitle.label,
           subtitle.track.language,
           preferredSubtitleLanguageCodes,
-          experienceSettings.useForcedSubtitles,
+          useForcedSubtitleTracks,
         ),
     );
   const visibleExternalSubtitles = subtitles
@@ -1878,7 +1904,7 @@ function VideoPlayer({
           subtitle.name,
           subtitle.language,
           preferredSubtitleLanguageCodes,
-          experienceSettings.useForcedSubtitles,
+          useForcedSubtitleTracks,
         ),
     );
   const visibleSubtitleSyncCues =
@@ -2367,6 +2393,145 @@ function VideoPlayer({
           </div>
         </div>
       )}
+      {submitSkipOpen && playback.episode && (
+        <div
+          className="player-skip-submit"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Submit skip timing"
+        >
+          <header>
+            <div>
+              <strong>Submit IntroDB timing</strong>
+              <small>
+                S{playback.episode.season} E{playback.episode.episode}
+              </small>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close skip timing"
+              onClick={() => setSubmitSkipOpen(false)}
+            >
+              <X size={18} />
+            </button>
+          </header>
+          <label>
+            Segment type
+            <select
+              value={submitSkipType}
+              onChange={(event) =>
+                setSubmitSkipType(event.target.value as SkipSegment["type"])
+              }
+            >
+              <option value="intro">Intro</option>
+              <option value="recap">Recap</option>
+              <option value="outro">Credits / outro</option>
+            </select>
+          </label>
+          <div className="player-skip-time-grid">
+            <label>
+              Start time
+              <input
+                value={submitSkipStart}
+                inputMode="numeric"
+                placeholder="0:00"
+                onChange={(event) => setSubmitSkipStart(event.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setSubmitSkipStart(formatPlayerTime(currentTime))
+                }
+              >
+                Use current
+              </button>
+            </label>
+            <label>
+              End time
+              <input
+                value={submitSkipEnd}
+                inputMode="numeric"
+                placeholder="1:30"
+                onChange={(event) => setSubmitSkipEnd(event.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setSubmitSkipEnd(formatPlayerTime(currentTime))}
+              >
+                Use current
+              </button>
+            </label>
+          </div>
+          {submitSkipError && <p role="alert">{submitSkipError}</p>}
+          <button
+            type="button"
+            className="primary"
+            disabled={submitSkipBusy}
+            onClick={() => {
+              const episode = playback.episode;
+              if (!episode) return;
+              const start = parseSegmentTime(submitSkipStart);
+              const end = parseSegmentTime(submitSkipEnd);
+              const key = readIntroDbApiKey();
+              if (!key) {
+                setSubmitSkipError(
+                  "Add and verify an IntroDB API key in Player settings first.",
+                );
+                return;
+              }
+              if (
+                !Number.isFinite(start) ||
+                !Number.isFinite(end) ||
+                end <= start
+              ) {
+                setSubmitSkipError(
+                  "Enter a valid end time after the start time.",
+                );
+                return;
+              }
+              setSubmitSkipBusy(true);
+              setSubmitSkipError("");
+              void submitIntroDbSegment(
+                playback.item.id,
+                episode.season,
+                episode.episode,
+                start,
+                end,
+                submitSkipType,
+                key,
+              )
+                .then((saved) => {
+                  if (!saved)
+                    throw new Error("IntroDB rejected this timing submission.");
+                  setSkipSegments((current) => [
+                    ...current.filter(
+                      (segment) => segment.type !== submitSkipType,
+                    ),
+                    {
+                      startTime: start,
+                      endTime: end,
+                      type: submitSkipType,
+                      provider: "introdb",
+                    },
+                  ]);
+                  setSubmitSkipOpen(false);
+                  setNotice("IntroDB timing submitted.");
+                })
+                .catch((error) =>
+                  setSubmitSkipError(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not submit this timing.",
+                  ),
+                )
+                .finally(() => setSubmitSkipBusy(false));
+            }}
+          >
+            {submitSkipBusy ? "Submitting…" : "Submit timing"}
+          </button>
+        </div>
+      )}
       {party && (
         <div className="party-status" role="status">
           <div>
@@ -2481,6 +2646,20 @@ function VideoPlayer({
         {onChooseSource && (
           <button type="button" onClick={onChooseSource}>
             <Settings2 size={18} /> Choose stream
+          </button>
+        )}
+        {experienceSettings.introSubmitEnabled && playback.episode && (
+          <button
+            type="button"
+            onClick={() => {
+              setSubmitSkipType("intro");
+              setSubmitSkipStart(formatPlayerTime(currentTime));
+              setSubmitSkipEnd(formatPlayerTime(currentTime + 90));
+              setSubmitSkipError("");
+              setSubmitSkipOpen(true);
+            }}
+          >
+            <FastForward size={18} /> Submit skip timing
           </button>
         )}
         {playback.item.type !== "live" && !party && (

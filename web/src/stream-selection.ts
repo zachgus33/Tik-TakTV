@@ -258,9 +258,10 @@ export function normalizeStreamPreferences(value: unknown): StreamPreferences {
               : [],
             isActive:
               entry.isActive === true ||
-              !saved.streamBadgeImports?.some(
+              (!saved.streamBadgeImports?.some(
                 (candidate) => candidate.isActive === true,
-              ) && index === 0,
+              ) &&
+                index === 0),
           }))
           .filter((entry) => entry.sourceUrl && entry.filters.length)
       : [],
@@ -310,6 +311,7 @@ export function saveStreamPreferences(preferences: StreamPreferences) {
 }
 
 const audioLanguageAliases: [string, RegExp][] = [
+  ["original", /(?:^|[^a-z])(?:original|orig|default)(?:[^a-z]|$)/i],
   ["en", /(?:^|[^a-z])(?:en|eng|english)(?:[^a-z]|$)/i],
   ["es", /(?:^|[^a-z])(?:es|spa|spanish|español)(?:[^a-z]|$)/i],
   ["fr", /(?:^|[^a-z])(?:fr|fre|fra|french|français)(?:[^a-z]|$)/i],
@@ -514,7 +516,8 @@ export function autoplayStreams(
       (left, right) =>
         Number(compatibilityPlaybackMode(left.stream) !== undefined) -
           Number(compatibilityPlaybackMode(right.stream) !== undefined) ||
-        Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
+        Number(debridStream(right.stream)) -
+          Number(debridStream(left.stream)) ||
         (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
           Number.MAX_SAFE_INTEGER) -
           (addonRank.get(right.stream.addonName?.toLocaleLowerCase() ?? "") ??
@@ -640,11 +643,11 @@ export function sourcePickerStreams(
     .map((stream, index) => ({ stream, index }))
     .sort(
       (left, right) =>
-        (pinnedRank.get(left.stream.addonId ?? "") ??
-          Number.MAX_SAFE_INTEGER) -
+        (pinnedRank.get(left.stream.addonId ?? "") ?? Number.MAX_SAFE_INTEGER) -
           (pinnedRank.get(right.stream.addonId ?? "") ??
             Number.MAX_SAFE_INTEGER) ||
-        Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
+        Number(debridStream(right.stream)) -
+          Number(debridStream(left.stream)) ||
         (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
           Number.MAX_SAFE_INTEGER) -
           (addonRank.get(right.stream.addonName?.toLocaleLowerCase() ?? "") ??

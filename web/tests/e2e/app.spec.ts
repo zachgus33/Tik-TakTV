@@ -310,6 +310,11 @@ test("series player shows native IntroDB skip controls without changing source",
         },
       ]),
     );
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ introSubmitEnabled: true }),
+    );
+    localStorage.setItem("tiktak:introdb-api-key", "intro-secret");
   });
   await page.unroute("https://v3-cinemeta.strem.io/**");
   let streamRequests = 0;
@@ -357,6 +362,14 @@ test("series player shows native IntroDB skip controls without changing source",
       },
     }),
   );
+  await page.route("https://api.simkl.com/**", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  let submittedTiming: Record<string, unknown> | undefined;
+  await page.route("https://api.introdb.app/submit", async (route) => {
+    submittedTiming = route.request().postDataJSON();
+    return route.fulfill({ status: 201, json: { ok: true } });
+  });
   await page.route("https://cdn.example/skip-segment.mp4", (route) =>
     route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
   );
@@ -388,6 +401,24 @@ test("series player shows native IntroDB skip controls without changing source",
     .poll(() => video.evaluate((element) => element.currentTime))
     .toBeGreaterThan(45);
   await expect(skip).toBeHidden();
+  expect(streamRequests).toBe(1);
+  await openPlaybackOptions(page);
+  await page.getByRole("button", { name: "Submit skip timing" }).click();
+  const submitDialog = page.getByRole("dialog", { name: "Submit skip timing" });
+  await submitDialog.getByLabel("Start time").fill("0:10");
+  await submitDialog.getByLabel("End time").fill("0:45");
+  await submitDialog.getByRole("button", { name: "Submit timing" }).click();
+  await expect(submitDialog).toBeHidden();
+  await expect
+    .poll(() => submittedTiming)
+    .toMatchObject({
+      imdb_id: "tt1234567",
+      season: 1,
+      episode: 1,
+      start_sec: 10,
+      end_sec: 45,
+      segment_type: "intro",
+    });
   expect(streamRequests).toBe(1);
 });
 
@@ -2116,13 +2147,21 @@ test("native subtitle appearance choices persist across a PWA restart", async ({
   const openPlayerSettings = () =>
     page
       .getByRole("navigation", { name: "Settings sections" })
-      .getByRole("button", { name: "Player", exact: true })
+      .getByRole("button")
+      .filter({ has: page.getByText("Player", { exact: true }) })
       .click();
   await openPlayerSettings();
   await page.getByLabel(/Bold subtitles/).check();
   await page.getByLabel(/Show preferred languages only/).check();
   await page.getByLabel(/Subtitle text color/).selectOption("#fff176");
   await page.getByLabel(/Subtitle background color/).selectOption("#102033");
+  await page.getByLabel(/Preferred audio/).selectOption("original");
+  await page.getByLabel(/Preferred subtitles/).selectOption("forced");
+  await page.getByLabel(/Anime-Skip provider/).check();
+  await page.getByLabel(/Anime-Skip client ID/).fill("anime-client");
+  await page.getByLabel(/Submit IntroDB corrections/).check();
+  await page.getByLabel(/IntroDB API key/).fill("local-intro-key");
+  await page.getByLabel(/IntroDB API key/).blur();
   await expect
     .poll(() =>
       page.evaluate(() => ({
@@ -2144,6 +2183,16 @@ test("native subtitle appearance choices persist across a PWA restart", async ({
   await expect(page.getByLabel(/Subtitle text color/)).toHaveValue("#fff176");
   await expect(page.getByLabel(/Subtitle background color/)).toHaveValue(
     "#102033",
+  );
+  await expect(page.getByLabel(/Preferred audio/)).toHaveValue("original");
+  await expect(page.getByLabel(/Preferred subtitles/)).toHaveValue("forced");
+  await expect(page.getByLabel(/Anime-Skip provider/)).toBeChecked();
+  await expect(page.getByLabel(/Anime-Skip client ID/)).toHaveValue(
+    "anime-client",
+  );
+  await expect(page.getByLabel(/Submit IntroDB corrections/)).toBeChecked();
+  await expect(page.getByLabel(/IntroDB API key/)).toHaveValue(
+    "local-intro-key",
   );
 });
 test("bad credentials show a useful error and are never saved", async ({
