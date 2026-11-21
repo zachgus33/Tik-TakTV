@@ -1135,9 +1135,13 @@ test("TV sidebar expands for remote focus and the decorative brand is not a targ
   );
 });
 
-test("desktop uses the compact Nuvio navigation rail", async ({
+test("desktop widths use the compact Nuvio navigation rail", async ({
   page,
 }, testInfo) => {
+  test.skip(
+    ["iphone", "ipad"].includes(testInfo.project.name),
+    "Desktop navigation is covered here; device projects validate the mobile shell separately.",
+  );
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#home");
 
@@ -1172,15 +1176,10 @@ test("desktop uses the compact Nuvio navigation rail", async ({
 
   await page.setViewportSize({ width: 1024, height: 768 });
   layout = await readLayout();
-  if (["iphone", "ipad"].includes(testInfo.project.name)) {
-    expect(layout.sidebar).toBe(0);
-    expect(layout.mainLeft).toBe(0);
-    await expect(page.locator(".bottom-nav")).toBeVisible();
-  } else {
-    expect(layout.sidebar).toBe(92);
-    expect(layout.mainLeft).toBe(92);
-    expect(layout.clippedLabels).toBe(0);
-  }
+  expect(layout.sidebar).toBe(92);
+  expect(layout.mainLeft).toBe(92);
+  expect(layout.clippedLabels).toBe(0);
+  await expect(page.locator(".bottom-nav")).toBeHidden();
 });
 
 test("Fire TV viewport keeps the navigation compact and content readable", async ({
