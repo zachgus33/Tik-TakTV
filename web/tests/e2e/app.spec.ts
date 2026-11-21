@@ -4697,6 +4697,51 @@ test("Nuvio appearance settings immediately reshape the shell and survive reload
   await expect(page.getByLabel("Poster size")).toHaveValue("large");
 });
 
+test("Nuvio vertical Library filters and sorts saved media", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nuvio:library",
+      JSON.stringify([
+        {
+          id: "tt-zebra",
+          name: "Zebra Movie",
+          type: "movie",
+          source: "addon",
+          provider: "https://v3-cinemeta.strem.io",
+        },
+        {
+          id: "tt-alpha",
+          name: "Alpha Series",
+          type: "series",
+          source: "addon",
+          provider: "https://v3-cinemeta.strem.io",
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({
+        libraryLayout: "vertical",
+        librarySort: "title-asc",
+        updatedAt: Date.now(),
+      }),
+    );
+  });
+  await page.goto("/#library");
+  await expect(page.getByLabel("Library layout")).toHaveValue("vertical");
+  await expect(page.getByLabel("Library sort order")).toHaveValue(
+    "title-asc",
+  );
+  await expect(page.locator(".media-grid .media-card strong")).toHaveText([
+    "Alpha Series",
+    "Zebra Movie",
+  ]);
+  await page.getByRole("button", { name: "Movies", exact: true }).click();
+  await expect(page.locator(".media-grid .media-card strong")).toHaveText([
+    "Zebra Movie",
+  ]);
+});
+
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,
 }) => {

@@ -123,6 +123,9 @@ type SettingsSection =
   | "live"
   | "enhanced"
   | "appearance"
+  | "home"
+  | "details"
+  | "library-display"
   | "player"
   | "notifications"
   | "playback"
@@ -170,6 +173,27 @@ const sections = [
     label: "Appearance",
     description: "Hero, posters and navigation",
     icon: Palette,
+    group: "General",
+  },
+  {
+    id: "home",
+    label: "Home screen",
+    description: "Hero and catalog presentation",
+    icon: Sparkles,
+    group: "General",
+  },
+  {
+    id: "details",
+    label: "Metadata screen",
+    description: "Sections, episodes and trailers",
+    icon: PlayCircle,
+    group: "General",
+  },
+  {
+    id: "library-display",
+    label: "Library display",
+    description: "Layout, filtering and sorting",
+    icon: LibraryBig,
     group: "General",
   },
   {
@@ -452,6 +476,27 @@ export default function Settings(props: Props) {
           {section === "appearance" && (
             <NuvioExperienceSettings
               page="appearance"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "home" && (
+            <NuvioExperienceSettings
+              page="home"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "details" && (
+            <NuvioExperienceSettings
+              page="details"
+              value={props.nuvioWebSettings}
+              onChange={props.onNuvioWebSettings}
+            />
+          )}
+          {section === "library-display" && (
+            <NuvioExperienceSettings
+              page="library"
               value={props.nuvioWebSettings}
               onChange={props.onNuvioWebSettings}
             />

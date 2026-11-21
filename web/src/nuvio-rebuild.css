@@ -194,6 +194,16 @@ html:not(.tv-mode)[data-nuvio-poster-size="medium"] {
 html:not(.tv-mode)[data-nuvio-poster-size="large"] {
   --nuvio-poster-width: 202px;
 }
+html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card {
+  width: calc(var(--nuvio-poster-width) * 1.55);
+  flex-basis: calc(var(--nuvio-poster-width) * 1.55);
+}
+html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card .poster {
+  aspect-ratio: 16 / 9;
+}
+html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card .poster img {
+  object-fit: cover;
+}
 html:not(.tv-mode) .nuvio-web-shell .media-card {
   width: var(--nuvio-poster-width);
   flex-basis: var(--nuvio-poster-width);
@@ -427,6 +437,49 @@ html:not(.tv-mode) .settings-nav-group > button.active {
 .detail-recommendations .media-card {
   flex-basis: var(--nuvio-poster-width, 162px);
   width: var(--nuvio-poster-width, 162px);
+}
+html:not(.tv-mode)[data-nuvio-meta-background="cinematic"] .detail-dialog {
+  background: linear-gradient(180deg, #191123, #08070b 45%);
+}
+html:not(.tv-mode)[data-nuvio-meta-background="dominant-color"] .detail-dialog {
+  background: linear-gradient(160deg, #2b1738, #0b0910 52%);
+}
+html:not(.tv-mode)[data-nuvio-episode-style="horizontal"] .episodes {
+  display: grid;
+  grid-auto-columns: minmax(280px, 38%);
+  grid-auto-flow: column;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+html:not(.tv-mode)[data-nuvio-episode-style="horizontal"] .episode-row {
+  min-width: 0;
+}
+.episode-row.blur-unwatched .episode-play > span:not(.episode-number) {
+  filter: blur(4px);
+  opacity: 0.55;
+}
+html:not(.tv-mode)[data-nuvio-library-layout="horizontal"]
+  .library-toolbar
+  ~ .media-grid {
+  display: flex;
+  overflow-x: auto;
+  gap: 16px;
+  padding-bottom: 12px;
+}
+html:not(.tv-mode)[data-nuvio-library-layout="horizontal"]
+  .library-toolbar
+  ~ .media-grid
+  .media-card {
+  flex: 0 0 var(--nuvio-poster-width);
+}
+html:not(.tv-mode)[data-nuvio-library-layout="vertical"]
+  .library-toolbar
+  ~ .media-grid {
+  grid-template-columns: repeat(
+    var(--nuvio-catalog-columns, 3),
+    minmax(0, 1fr)
+  );
 }
 html:not(.tv-mode) .player-subtitle-overlay {
   bottom: var(--nuvio-subtitle-bottom, 8%);

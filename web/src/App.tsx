@@ -2339,9 +2339,11 @@ function Detail({
             {anilistRatingError && <p role="alert">{anilistRatingError}</p>}
           </div>
         )}
-        <p className="description">
-          {item.description || "No synopsis is available for this title."}
-        </p>
+        {nuvioWebSettings.metaSections.overview !== false && (
+          <p className="description">
+            {item.description || "No synopsis is available for this title."}
+          </p>
+        )}
         <div className="chips">
           {item.genres?.map((g) => (
             <span key={g}>{g}</span>
@@ -2368,6 +2370,21 @@ function Detail({
               Resume S{resume.episode.season} E{resume.episode.episode}
             </button>
           )}
+          {item.type === "series" &&
+            episodes.length > 0 &&
+            nuvioWebSettings.randomEpisodeButton && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void play(
+                    episodes[Math.floor(Math.random() * episodes.length)],
+                  )
+                }
+              >
+                <Dices size={18} /> Random episode
+              </button>
+            )}
           {autoplay && item.source === "addon" && item.type === "movie" && (
             <button disabled={busy} onClick={() => void play(undefined, false)}>
               Sources
@@ -2413,7 +2430,8 @@ function Detail({
             </button>
           )}
         </div>
-        {(credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
+        {nuvioWebSettings.metaSections.cast !== false &&
+          (credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
           <section className="cast-section" aria-label="Cast">
             <h2>Starring</h2>
             <div className="cast-row">
@@ -2615,7 +2633,9 @@ function Detail({
               ))}
           </div>
         )}
-        {item.type === "series" && episodes.length > 0 && (
+        {nuvioWebSettings.metaSections.episodes !== false &&
+          item.type === "series" &&
+          episodes.length > 0 && (
           <div className="episode-section">
             <div className="row-heading">
               <h2>Episodes</h2>
@@ -2642,7 +2662,10 @@ function Detail({
                     resume?.episode,
                   );
                   return (
-                    <div className="episode-row" key={ep.id}>
+                    <div
+                      className={`episode-row${!episodeWatched && nuvioWebSettings.blurUnwatchedEpisodes ? " blur-unwatched" : ""}`}
+                      key={ep.id}
+                    >
                       <button
                         className="episode-play"
                         disabled={busy}
@@ -2685,7 +2708,8 @@ function Detail({
         {!busy && item.type === "series" && !episodes.length && (
           <p className="muted">No episodes were returned by this source.</p>
         )}
-        {extras.studios.length > 0 && (
+        {nuvioWebSettings.metaSections.production !== false &&
+          extras.studios.length > 0 && (
           <section className="detail-info-section">
             <h2>Production</h2>
             <div className="detail-chip-row">
@@ -2695,7 +2719,8 @@ function Detail({
             </div>
           </section>
         )}
-        {extras.trailers.length > 0 && (
+        {nuvioWebSettings.metaSections.trailers !== false &&
+          extras.trailers.length > 0 && (
           <section className="detail-trailer-section">
             <h2>Trailers</h2>
             <div className="detail-trailer-row">
@@ -2718,7 +2743,8 @@ function Detail({
             </div>
           </section>
         )}
-        {extras.recommendations.length > 0 && (
+        {nuvioWebSettings.metaSections.moreLikeThis !== false &&
+          extras.recommendations.length > 0 && (
           <section className="detail-recommendations">
             <div className="row-heading">
               <h2>More like this</h2>
@@ -3128,6 +3154,9 @@ export default function App() {
     useState<YouTubeResumeRequest | null>(null);
   const [activeChannel, setActiveChannel] = useState<Item | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [libraryType, setLibraryType] = useState<
+    "all" | "movie" | "series" | "live"
+  >("all");
   const [recentChannels, setRecentChannels] = useStored<Item[]>(
     "recent-channels",
     [],
@@ -3207,6 +3236,14 @@ export default function App() {
     root.dataset.nuvioHero = nuvioWebSettings.heroMode;
     root.dataset.nuvioPosterSize = nuvioWebSettings.posterSize;
     root.dataset.nuvioCardDepth = nuvioWebSettings.cardDepth;
+    root.dataset.nuvioPosterLayout = nuvioWebSettings.posterLayout;
+    root.dataset.nuvioMetaBackground = nuvioWebSettings.metaBackgroundMode;
+    root.dataset.nuvioEpisodeStyle = nuvioWebSettings.episodeCardStyle;
+    root.dataset.nuvioLibraryLayout = nuvioWebSettings.libraryLayout;
+    root.style.setProperty(
+      "--nuvio-catalog-columns",
+      String(nuvioWebSettings.homeCatalogColumns),
+    );
     root.style.setProperty(
       "--nuvio-subtitle-scale",
       String(nuvioWebSettings.subtitleSize / 100),
@@ -3344,17 +3381,24 @@ export default function App() {
           loadedAt: Date.now(),
         };
       }
-      void hideUnavailableFutureTitles(rows, addons, c.signal).then(
-        (filtered) => {
-          if (!c.signal.aborted) setHomeRows(filtered);
-        },
-      );
+      if (nuvioWebSettings.hideUnreleasedContent)
+        void hideUnavailableFutureTitles(rows, addons, c.signal).then(
+          (filtered) => {
+            if (!c.signal.aborted) setHomeRows(filtered);
+          },
+        );
       const rejected = results.find((r) => r.status === "rejected");
       if (rejected?.status === "rejected") setError(message(rejected.reason));
       setLoading(false);
     });
     return () => c.abort();
-  }, [page, addons, homeCatalogs, revision]);
+  }, [
+    page,
+    addons,
+    homeCatalogs,
+    revision,
+    nuvioWebSettings.hideUnreleasedContent,
+  ]);
   useEffect(() => {
     if (
       !(page === "live" || (page === "discover" && source === "xtream")) ||
@@ -3671,13 +3715,18 @@ export default function App() {
   );
   const hero = heroItems[heroIndex % Math.max(heroItems.length, 1)];
   useEffect(() => {
-    if (page !== "home" || heroItems.length < 2) return;
+    if (
+      page !== "home" ||
+      !nuvioWebSettings.heroAutoScroll ||
+      heroItems.length < 2
+    )
+      return;
     const timer = window.setInterval(
       () => setHeroIndex((current) => (current + 1) % heroItems.length),
       8_000,
     );
     return () => window.clearInterval(timer);
-  }, [page, heroItems.length]);
+  }, [page, heroItems.length, nuvioWebSettings.heroAutoScroll]);
   useEffect(() => {
     if (heroIndex >= heroItems.length) setHeroIndex(0);
   }, [heroIndex, heroItems.length]);
@@ -3705,9 +3754,8 @@ export default function App() {
     )
       setRegion("");
   }, [availableRegions, items.length, page, region]);
-  const filtered = useMemo(
-    () =>
-      (page === "library" ? library : items).filter(
+  const filtered = useMemo(() => {
+    const result = (page === "library" ? library : items).filter(
         (i) =>
           (!deferredQuery ||
             (page === "discover" && source === "catalogs") ||
@@ -3715,9 +3763,23 @@ export default function App() {
               .toLocaleLowerCase()
               .includes(deferredQuery.toLocaleLowerCase())) &&
           (page !== "live" || !region || regionOf(i) === region) &&
-          (!favoritesOnly || saved(i)),
-      ),
-    [
+          (!favoritesOnly || saved(i)) &&
+          (page !== "library" ||
+            libraryType === "all" ||
+            i.type === libraryType),
+      );
+    if (page !== "library") return result;
+    if (nuvioWebSettings.librarySort === "title-asc")
+      return [...result].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      );
+    if (nuvioWebSettings.librarySort === "title-desc")
+      return [...result].sort((left, right) =>
+        right.name.localeCompare(left.name),
+      );
+    if (nuvioWebSettings.librarySort === "added-asc") return result;
+    return [...result].reverse();
+  }, [
       deferredQuery,
       favoritesOnly,
       items,
@@ -3727,8 +3789,9 @@ export default function App() {
       regionOf,
       savedKeys,
       source,
-    ],
-  );
+      libraryType,
+      nuvioWebSettings.librarySort,
+    ]);
   const randomDiscoverPick = () => {
     const choices = filtered.filter((item) => item.type !== "live");
     if (!choices.length) {
@@ -4153,6 +4216,7 @@ export default function App() {
           {page === "home" && (
             <>
               {!collectionBrowsing &&
+                nuvioWebSettings.homeHeroEnabled &&
                 (hero ? (
                   <section className="hero">
                     <div className="hero-image">
@@ -4412,6 +4476,66 @@ export default function App() {
                   <Compass className="section-icon" />
                 )}
               </div>
+              {page === "library" && (
+                <div className="filter-toolbar library-toolbar">
+                  <div className="tabs" aria-label="Library type">
+                    {[
+                      ["all", "All"],
+                      ["movie", "Movies"],
+                      ["series", "Series"],
+                      ["live", "Channels"],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        className={libraryType === value ? "selected" : ""}
+                        onClick={() =>
+                          setLibraryType(
+                            value as "all" | "movie" | "series" | "live",
+                          )
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <select
+                    aria-label="Library sort order"
+                    value={nuvioWebSettings.librarySort}
+                    onChange={(event) =>
+                      setNuvioWebSettings((current) =>
+                        saveNuvioWebSettings({
+                          ...current,
+                          librarySort: event.target
+                            .value as NuvioWebSettings["librarySort"],
+                          updatedAt: Date.now(),
+                        }),
+                      )
+                    }
+                  >
+                    <option value="added-desc">Recently added</option>
+                    <option value="added-asc">Oldest added</option>
+                    <option value="title-asc">Title A–Z</option>
+                    <option value="title-desc">Title Z–A</option>
+                  </select>
+                  <select
+                    aria-label="Library layout"
+                    value={nuvioWebSettings.libraryLayout}
+                    onChange={(event) =>
+                      setNuvioWebSettings((current) =>
+                        saveNuvioWebSettings({
+                          ...current,
+                          libraryLayout: event.target
+                            .value as NuvioWebSettings["libraryLayout"],
+                          updatedAt: Date.now(),
+                        }),
+                      )
+                    }
+                  >
+                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertical grid</option>
+                  </select>
+                </div>
+              )}
               {page === "discover" && (
                 <div className="filter-toolbar">
                   <div className="tabs">

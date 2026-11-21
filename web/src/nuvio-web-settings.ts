@@ -1,6 +1,8 @@
 export type NuvioWebSettings = {
   navigationStyle: "floating" | "rail" | "compact";
   heroMode: "cinematic" | "balanced" | "info-rich";
+  homeHeroEnabled: boolean;
+  heroAutoScroll: boolean;
   heroArtwork: "backdrop" | "poster";
   compactHeroMetadata: boolean;
   showHeroRatings: boolean;
@@ -9,10 +11,28 @@ export type NuvioWebSettings = {
   motionPreviews: boolean;
   motionPreviewSound: boolean;
   posterSize: "small" | "medium" | "large";
+  posterLayout: "portrait" | "landscape";
+  homeCatalogColumns: number;
+  showCatalogType: boolean;
+  hideUnreleasedContent: boolean;
+  hideCatalogUnderline: boolean;
   cardDepth: "flat" | "soft" | "raised";
   continueWatchingEnabled: boolean;
   continueWatchingProgress: boolean;
   continueWatchingRemainingTime: boolean;
+  libraryLayout: "horizontal" | "vertical";
+  librarySort:
+    | "added-desc"
+    | "added-asc"
+    | "title-asc"
+    | "title-desc";
+  metaBackgroundMode: "normal" | "cinematic" | "dominant-color";
+  metaTabLayout: boolean;
+  episodeCardStyle: "horizontal" | "list";
+  blurUnwatchedEpisodes: boolean;
+  showEpisodeRatings: boolean;
+  randomEpisodeButton: boolean;
+  metaSections: Record<string, boolean>;
   touchGestures: boolean;
   holdToSpeed: boolean;
   holdToSpeedValue: number;
@@ -41,6 +61,8 @@ export type NuvioWebSettings = {
 export const defaultNuvioWebSettings: NuvioWebSettings = {
   navigationStyle: "floating",
   heroMode: "balanced",
+  homeHeroEnabled: true,
+  heroAutoScroll: true,
   heroArtwork: "backdrop",
   compactHeroMetadata: true,
   showHeroRatings: true,
@@ -49,10 +71,34 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   motionPreviews: true,
   motionPreviewSound: false,
   posterSize: "medium",
+  posterLayout: "portrait",
+  homeCatalogColumns: 3,
+  showCatalogType: true,
+  hideUnreleasedContent: false,
+  hideCatalogUnderline: false,
   cardDepth: "soft",
   continueWatchingEnabled: true,
   continueWatchingProgress: true,
   continueWatchingRemainingTime: true,
+  libraryLayout: "horizontal",
+  librarySort: "added-desc",
+  metaBackgroundMode: "normal",
+  metaTabLayout: false,
+  episodeCardStyle: "horizontal",
+  blurUnwatchedEpisodes: false,
+  showEpisodeRatings: true,
+  randomEpisodeButton: false,
+  metaSections: {
+    overview: true,
+    production: true,
+    cast: true,
+    comments: true,
+    trailers: true,
+    episodes: true,
+    details: true,
+    collection: true,
+    moreLikeThis: true,
+  },
   touchGestures: true,
   holdToSpeed: true,
   holdToSpeedValue: 2,
@@ -104,6 +150,8 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       ["cinematic", "balanced", "info-rich"] as const,
       "balanced",
     ),
+    homeHeroEnabled: boolean("homeHeroEnabled"),
+    heroAutoScroll: boolean("heroAutoScroll"),
     heroArtwork: oneOf(
       saved.heroArtwork,
       ["backdrop", "poster"] as const,
@@ -120,6 +168,18 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       ["small", "medium", "large"] as const,
       "medium",
     ),
+    posterLayout: oneOf(
+      saved.posterLayout,
+      ["portrait", "landscape"] as const,
+      "portrait",
+    ),
+    homeCatalogColumns: Math.min(
+      6,
+      Math.max(2, Number(saved.homeCatalogColumns) || 3),
+    ),
+    showCatalogType: boolean("showCatalogType"),
+    hideUnreleasedContent: boolean("hideUnreleasedContent"),
+    hideCatalogUnderline: boolean("hideCatalogUnderline"),
     cardDepth: oneOf(
       saved.cardDepth,
       ["flat", "soft", "raised"] as const,
@@ -128,6 +188,41 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
     continueWatchingEnabled: boolean("continueWatchingEnabled"),
     continueWatchingProgress: boolean("continueWatchingProgress"),
     continueWatchingRemainingTime: boolean("continueWatchingRemainingTime"),
+    libraryLayout: oneOf(
+      saved.libraryLayout,
+      ["horizontal", "vertical"] as const,
+      "horizontal",
+    ),
+    librarySort: oneOf(
+      saved.librarySort,
+      ["added-desc", "added-asc", "title-asc", "title-desc"] as const,
+      "added-desc",
+    ),
+    metaBackgroundMode: oneOf(
+      saved.metaBackgroundMode,
+      ["normal", "cinematic", "dominant-color"] as const,
+      "normal",
+    ),
+    metaTabLayout: boolean("metaTabLayout"),
+    episodeCardStyle: oneOf(
+      saved.episodeCardStyle,
+      ["horizontal", "list"] as const,
+      "horizontal",
+    ),
+    blurUnwatchedEpisodes: boolean("blurUnwatchedEpisodes"),
+    showEpisodeRatings: boolean("showEpisodeRatings"),
+    randomEpisodeButton: boolean("randomEpisodeButton"),
+    metaSections: {
+      ...defaultNuvioWebSettings.metaSections,
+      ...(saved.metaSections && typeof saved.metaSections === "object"
+        ? Object.fromEntries(
+            Object.entries(saved.metaSections).map(([key, enabled]) => [
+              key,
+              enabled !== false,
+            ]),
+          )
+        : {}),
+    },
     touchGestures: boolean("touchGestures"),
     holdToSpeed: boolean("holdToSpeed"),
     holdToSpeedValue: Math.min(

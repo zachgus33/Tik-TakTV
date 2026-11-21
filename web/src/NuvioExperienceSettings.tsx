@@ -139,7 +139,14 @@ export default function NuvioExperienceSettings({
   value,
   onChange,
 }: {
-  page: "enhanced" | "appearance" | "player" | "notifications";
+  page:
+    | "enhanced"
+    | "appearance"
+    | "home"
+    | "details"
+    | "library"
+    | "player"
+    | "notifications";
   value: NuvioWebSettings;
   onChange: (value: NuvioWebSettings) => void;
 }) {
@@ -227,6 +234,212 @@ export default function NuvioExperienceSettings({
           />
         </Group>
       </>
+    );
+
+  if (page === "home")
+    return (
+      <>
+        <Group
+          icon={Clapperboard}
+          title="Home hero"
+          description="Native Nuvio hero visibility, rotation and artwork controls."
+        >
+          <SwitchRow
+            title="Show hero"
+            description="Display the featured title at the top of Home."
+            checked={value.homeHeroEnabled}
+            onChange={(next) => update("homeHeroEnabled", next)}
+          />
+          <SwitchRow
+            title="Auto-scroll hero"
+            description="Rotate through selected Home catalog titles automatically."
+            checked={value.heroAutoScroll}
+            onChange={(next) => update("heroAutoScroll", next)}
+          />
+          <SwitchRow
+            title="Motion preview"
+            description="Use supported trailers and motion artwork in the hero."
+            checked={value.motionPreviews}
+            onChange={(next) => update("motionPreviews", next)}
+          />
+        </Group>
+        <Group
+          icon={LayoutGrid}
+          title="Home catalogs"
+          description="Poster density and catalog presentation from Nuvio Enhanced."
+        >
+          <SelectRow
+            title="Poster layout"
+            description="Use portrait posters or wide landscape cards."
+            value={value.posterLayout}
+            onChange={(next) =>
+              update("posterLayout", next as NuvioWebSettings["posterLayout"])
+            }
+          >
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </SelectRow>
+          <SelectRow
+            title="Catalog columns"
+            description="Preferred grid density for Discover and vertical Library layouts."
+            value={value.homeCatalogColumns}
+            onChange={(next) => update("homeCatalogColumns", Number(next))}
+          >
+            {[2, 3, 4, 5, 6].map((count) => (
+              <option value={count} key={count}>
+                {count}
+              </option>
+            ))}
+          </SelectRow>
+          <SwitchRow
+            title="Show catalog type"
+            description="Label movie, series and mixed catalog rows."
+            checked={value.showCatalogType}
+            onChange={(next) => update("showCatalogType", next)}
+          />
+          <SwitchRow
+            title="Hide unreleased content"
+            description="Remove future titles that do not have playable streams yet."
+            checked={value.hideUnreleasedContent}
+            onChange={(next) => update("hideUnreleasedContent", next)}
+          />
+          <SwitchRow
+            title="Hide catalog underline"
+            description="Use a cleaner row heading without the decorative divider."
+            checked={value.hideCatalogUnderline}
+            onChange={(next) => update("hideCatalogUnderline", next)}
+          />
+        </Group>
+      </>
+    );
+
+  if (page === "details")
+    return (
+      <>
+        <Group
+          icon={Clapperboard}
+          title="Metadata screen"
+          description="Control the title-detail background and episode presentation."
+        >
+          <SelectRow
+            title="Background mode"
+            description="Normal artwork, cinematic backdrop, or dominant-color surface."
+            value={value.metaBackgroundMode}
+            onChange={(next) =>
+              update(
+                "metaBackgroundMode",
+                next as NuvioWebSettings["metaBackgroundMode"],
+              )
+            }
+          >
+            <option value="normal">Normal</option>
+            <option value="cinematic">Cinematic</option>
+            <option value="dominant-color">Dominant color</option>
+          </SelectRow>
+          <SwitchRow
+            title="Tabbed detail layout"
+            description="Group longer detail sections into compact tabs."
+            checked={value.metaTabLayout}
+            onChange={(next) => update("metaTabLayout", next)}
+          />
+          <SelectRow
+            title="Episode card style"
+            description="Horizontal cards or compact episode list rows."
+            value={value.episodeCardStyle}
+            onChange={(next) =>
+              update(
+                "episodeCardStyle",
+                next as NuvioWebSettings["episodeCardStyle"],
+              )
+            }
+          >
+            <option value="horizontal">Horizontal</option>
+            <option value="list">List</option>
+          </SelectRow>
+          <SwitchRow
+            title="Blur unwatched episodes"
+            description="Obscure episode artwork until each episode is watched."
+            checked={value.blurUnwatchedEpisodes}
+            onChange={(next) => update("blurUnwatchedEpisodes", next)}
+          />
+          <SwitchRow
+            title="Show episode ratings"
+            description="Display episode ratings when metadata provides them."
+            checked={value.showEpisodeRatings}
+            onChange={(next) => update("showEpisodeRatings", next)}
+          />
+          <SwitchRow
+            title="Random episode button"
+            description="Add a one-click random episode action for series."
+            checked={value.randomEpisodeButton}
+            onChange={(next) => update("randomEpisodeButton", next)}
+          />
+        </Group>
+        <Group
+          icon={Captions}
+          title="Detail sections"
+          description="Show or hide the same metadata sections available in Nuvio."
+        >
+          {[
+            ["overview", "Overview"],
+            ["production", "Production"],
+            ["cast", "Cast"],
+            ["comments", "Comments"],
+            ["trailers", "Trailers"],
+            ["episodes", "Episodes"],
+            ["details", "Additional details"],
+            ["collection", "Collection"],
+            ["moreLikeThis", "More like this"],
+          ].map(([key, label]) => (
+            <SwitchRow
+              key={key}
+              title={label}
+              description={`Show the ${label.toLowerCase()} section on title details.`}
+              checked={value.metaSections[key] !== false}
+              onChange={(next) =>
+                update("metaSections", {
+                  ...value.metaSections,
+                  [key]: next,
+                })
+              }
+            />
+          ))}
+        </Group>
+      </>
+    );
+
+  if (page === "library")
+    return (
+      <Group
+        icon={LayoutGrid}
+        title="Library display"
+        description="Match Nuvio's horizontal shelves or vertical filtered library."
+      >
+        <SelectRow
+          title="Layout"
+          description="Horizontal shelves or a vertical poster grid."
+          value={value.libraryLayout}
+          onChange={(next) =>
+            update("libraryLayout", next as NuvioWebSettings["libraryLayout"])
+          }
+        >
+          <option value="horizontal">Horizontal</option>
+          <option value="vertical">Vertical</option>
+        </SelectRow>
+        <SelectRow
+          title="Sort order"
+          description="Choose how locally saved titles are ordered."
+          value={value.librarySort}
+          onChange={(next) =>
+            update("librarySort", next as NuvioWebSettings["librarySort"])
+          }
+        >
+          <option value="added-desc">Recently added</option>
+          <option value="added-asc">Oldest added</option>
+          <option value="title-asc">Title A–Z</option>
+          <option value="title-desc">Title Z–A</option>
+        </SelectRow>
+      </Group>
     );
 
   if (page === "player")
