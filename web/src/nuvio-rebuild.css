@@ -161,10 +161,35 @@ html:not(.tv-mode) .nuvio-web-shell .hero::after {
   content: "";
   pointer-events: none;
 }
+html:not(.tv-mode) .nuvio-web-shell .hero-image-poster {
+  background:
+    radial-gradient(circle at 78% 48%, #4b276a66, transparent 34%),
+    #08070b;
+}
+html:not(.tv-mode) .nuvio-web-shell .hero-image-poster img {
+  position: absolute;
+  top: 6%;
+  right: max(4vw, 24px);
+  width: min(38vw, 510px);
+  height: 88%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0.94;
+  filter: drop-shadow(0 30px 44px #000b);
+}
 html:not(.tv-mode) .nuvio-web-shell .hero-content {
   z-index: 2;
   width: min(660px, 60vw);
   padding: clamp(66px, 10vh, 120px) 0 80px clamp(28px, 5vw, 78px);
+}
+@media (max-width: 760px) {
+  html:not(.tv-mode) .nuvio-web-shell .hero-image-poster img {
+    top: 16%;
+    right: 2vw;
+    width: 50vw;
+    height: 68%;
+    opacity: 0.72;
+  }
 }
 html:not(.tv-mode) .nuvio-web-shell .hero-content h1 {
   font-size: clamp(3rem, 6.3vw, 6.7rem);

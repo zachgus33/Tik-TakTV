@@ -4519,8 +4519,15 @@ export default function App() {
                 nuvioWebSettings.homeHeroEnabled &&
                 (hero ? (
                   <section className="hero">
-                    <div className="hero-image">
-                      <Art key={itemKey(hero)} item={hero} wide priority />
+                    <div
+                      className={`hero-image hero-image-${nuvioWebSettings.heroArtwork}`}
+                    >
+                      <Art
+                        key={`${itemKey(hero)}:${nuvioWebSettings.heroArtwork}`}
+                        item={hero}
+                        wide={nuvioWebSettings.heroArtwork === "backdrop"}
+                        priority
+                      />
                     </div>
                     <div className="hero-content">
                       <span className="hero-tag">

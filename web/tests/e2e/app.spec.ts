@@ -4921,6 +4921,56 @@ test("TikTakTV appearance settings immediately reshape the shell and survive rel
     .toBe("28px");
 });
 
+test("Home hero artwork preference switches from backdrop to poster", async ({
+  page,
+}) => {
+  await page.route("https://v3-cinemeta.strem.io/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const illustrated = {
+      ...meta,
+      poster: "https://images.example/poster.jpg",
+      background: "https://images.example/backdrop.jpg",
+    };
+    return route.fulfill({
+      json: path.includes("/meta/")
+        ? { meta: illustrated }
+        : { metas: [illustrated] },
+    });
+  });
+  await page.route("https://images.example/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ heroArtwork: "poster", updatedAt: Date.now() }),
+    ),
+  );
+  await page.goto("/#home");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(
+          localStorage.getItem("tiktak:nuvio-web-settings") || "{}",
+        ).heroArtwork,
+      ),
+    )
+    .toBe("poster");
+  const hero = page.locator(".hero-image");
+  await expect(hero).toHaveClass(/hero-image-poster/);
+  await expect(hero.locator("img")).toHaveAttribute(
+    "src",
+    "https://images.example/poster.jpg",
+  );
+});
+
 test("tabbed metadata layout switches real detail sections", async ({ page }) => {
   await page.addInitScript(() =>
     localStorage.setItem(
