@@ -19,6 +19,7 @@ export type Item = {
   runtime?: string;
   cast?: string[];
   directors?: string[];
+  certification?: string;
 };
 export type Episode = {
   id: string;

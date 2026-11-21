@@ -195,6 +195,7 @@ export type TitleExtras = {
   recommendations: Item[];
   trailers: { id: string; name: string; videoId: string }[];
   studios: string[];
+  certification?: string;
 };
 
 async function tmdbIdentity(item: Item, signal?: AbortSignal) {
@@ -234,12 +235,41 @@ export async function titleExtras(
       { language: "en-US" },
       signal,
     ).catch(() => ({ results: [] })),
-    get<{ production_companies?: Record<string, unknown>[] }>(
+    get<{
+      production_companies?: Record<string, unknown>[];
+      release_dates?: { results?: Record<string, unknown>[] };
+      content_ratings?: { results?: Record<string, unknown>[] };
+    }>(
       `${identity.media}/${identity.id}`,
-      { language: "en-US" },
+      {
+        language: "en-US",
+        append_to_response: "release_dates,content_ratings",
+      },
       signal,
-    ).catch(() => ({ production_companies: [] })),
+    ).catch(() => ({
+      production_companies: [],
+      release_dates: { results: [] },
+      content_ratings: { results: [] },
+    })),
   ]);
+  const movieCertification = details.release_dates?.results
+    ?.find((row) => row.iso_3166_1 === "US")
+    ?.release_dates;
+  const certification =
+    (Array.isArray(movieCertification)
+      ? movieCertification
+          .map((row) =>
+            String(
+              (row as Record<string, unknown>).certification ?? "",
+            ).trim(),
+          )
+          .find(Boolean)
+      : undefined) ??
+    details.content_ratings?.results
+      ?.map((row) => row as Record<string, unknown>)
+      .find((row) => row.iso_3166_1 === "US")
+      ?.rating?.toString()
+      .trim();
   return {
     recommendations: (recommendations.results ?? [])
       .filter((row) => row.id)
@@ -262,6 +292,7 @@ export async function titleExtras(
       .map((row) => String(row.name ?? "").trim())
       .filter(Boolean)
       .slice(0, 8),
+    certification: certification || undefined,
   };
 }
 

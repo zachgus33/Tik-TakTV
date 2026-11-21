@@ -199,6 +199,9 @@ function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [parentalGuideVisible, setParentalGuideVisible] = useState(
+    () => experienceSettings.showParentalGuide && !!playback.item.certification,
+  );
   const [nextError, setNextError] = useState("");
   const [nextBusy, setNextBusy] = useState(false);
   const nextBusyRef = useRef(false);
@@ -210,6 +213,18 @@ function VideoPlayer({
   useEffect(() => {
     nextAdvanceTriggeredRef.current = false;
   }, [playback.item.id, playback.episode?.id]);
+  useEffect(() => {
+    const visible =
+      experienceSettings.showParentalGuide && !!playback.item.certification;
+    setParentalGuideVisible(visible);
+    if (!visible) return;
+    const timer = window.setTimeout(() => setParentalGuideVisible(false), 6000);
+    return () => window.clearTimeout(timer);
+  }, [
+    playback.item.id,
+    playback.item.certification,
+    experienceSettings.showParentalGuide,
+  ]);
   async function advanceNextEpisode() {
     if (
       !nextEpisodeRef.current ||
@@ -1745,6 +1760,17 @@ function VideoPlayer({
           />
         )}
       </video>
+      {parentalGuideVisible && playback.item.certification && (
+        <button
+          type="button"
+          className="player-parental-guide"
+          aria-label="Dismiss content rating"
+          onClick={() => setParentalGuideVisible(false)}
+        >
+          <strong>{playback.item.certification}</strong>
+          <span>Content rating</span>
+        </button>
+      )}
       {experienceSettings.playerStatusOverlay && (
         <div className="player-status-overlay" role="status">
           <strong>{playback.sourceLabel ?? "TikTakTV stream"}</strong>

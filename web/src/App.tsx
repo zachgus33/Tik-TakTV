@@ -1688,7 +1688,14 @@ function Detail({
           void import("./tmdb")
             .then(({ titleExtras }) => titleExtras(result.item, c.signal))
             .then((next) => {
-              if (!c.signal.aborted) setExtras(next);
+              if (!c.signal.aborted) {
+                setExtras(next);
+                if (next.certification)
+                  setItem((current) => ({
+                    ...current,
+                    certification: next.certification,
+                  }));
+              }
             })
             .catch(() => undefined);
         }
@@ -2383,6 +2390,9 @@ function Detail({
           <span>{item.year}</span>
           <span>{item.type === "series" ? "Series" : "Movie"}</span>
           <span>{item.runtime}</span>
+          {nuvioWebSettings.showParentalGuide && item.certification && (
+            <span className="parental-rating">{item.certification}</span>
+          )}
         </div>
         {traktConnected && (
           <div className="trakt-rating" aria-label="Your Trakt rating">

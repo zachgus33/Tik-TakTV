@@ -1021,6 +1021,39 @@ html:not(.tv-mode) .player-subtitle-overlay {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.parental-rating {
+  padding: 3px 7px;
+  border: 1px solid #ffffff25;
+  border-radius: 5px;
+  color: #e7e0ed;
+  font-weight: 800;
+}
+.player-parental-guide {
+  position: absolute;
+  top: max(84px, calc(env(safe-area-inset-top) + 72px));
+  left: max(20px, env(safe-area-inset-left));
+  z-index: 9;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 96px;
+  padding: 10px 13px;
+  border: 1px solid #ffffff20;
+  border-radius: 10px;
+  color: white;
+  background: #08070bd9;
+  text-align: left;
+  backdrop-filter: blur(12px);
+}
+.player-parental-guide strong {
+  font-size: 18px;
+}
+.player-parental-guide span {
+  color: #aaa2b1;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 .player-status-overlay span {
   color: #aaa2b1;
   font-size: 11px;
