@@ -18,6 +18,11 @@ sh setup-pi.sh
 
 The installer generates a private service key in `.env` (ignored by Git). It does not send it anywhere. It builds the ARM64-compatible Node/FFmpeg image and starts the playback service with a restart policy. Do not commit `.env` or paste its contents into chat.
 
+The Compose stack stores encrypted friend setups, feedback/analytics state and
+download job metadata in its private `runtime` Docker volume. Updating or
+recreating the playback container preserves that volume; removing the volume is
+the explicit destructive reset operation.
+
 It also installs a systemd watchdog that runs after boot and every minute. Docker restarts crashed containers immediately; the watchdog additionally checks the authenticated health endpoint and restarts an unresponsive service or stopped tunnel.
 
 ## First test, before buying a domain

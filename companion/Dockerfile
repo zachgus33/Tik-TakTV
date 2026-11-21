@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY server.mjs ./
+RUN mkdir -p /app/runtime && chown -R node:node /app/runtime
 USER node
 ENV HOST=0.0.0.0 PORT=3101
 EXPOSE 3101

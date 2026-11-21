@@ -1206,3 +1206,21 @@ test("watch parties share one prepared source and keep guests on the host timeli
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("Docker stack keeps companion runtime writable and persistent", async () => {
+  const [compose, dockerfile] = await Promise.all([
+    readFile(new URL("./compose.yaml", import.meta.url), "utf8"),
+    readFile(new URL("./Dockerfile", import.meta.url), "utf8"),
+  ]);
+  assert.match(compose, /^name: tiktaktv-companion$/m);
+  assert.match(compose, /^\s+- runtime:\/app\/runtime$/m);
+  assert.match(compose, /^volumes:\s*\n\s+runtime:/m);
+  assert.match(
+    dockerfile,
+    /mkdir -p \/app\/runtime && chown -R node:node \/app\/runtime/,
+  );
+  assert.ok(
+    dockerfile.indexOf("chown -R node:node /app/runtime") <
+      dockerfile.indexOf("USER node"),
+  );
+});

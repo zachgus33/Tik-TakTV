@@ -1,3 +1,5 @@
+name: tiktaktv-companion
+
 services:
   playback:
     build: .
@@ -8,6 +10,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=512m,uid=1000,gid=1000
+    volumes:
+      - runtime:/app/runtime
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -37,3 +41,6 @@ services:
     command: tunnel --no-autoupdate --url http://playback:3101
     depends_on:
       - playback
+
+volumes:
+  runtime:
