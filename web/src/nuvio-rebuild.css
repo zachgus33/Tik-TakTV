@@ -163,8 +163,7 @@ html:not(.tv-mode) .nuvio-web-shell .hero::after {
 }
 html:not(.tv-mode) .nuvio-web-shell .hero-image-poster {
   background:
-    radial-gradient(circle at 78% 48%, #4b276a66, transparent 34%),
-    #08070b;
+    radial-gradient(circle at 78% 48%, #4b276a66, transparent 34%), #08070b;
 }
 html:not(.tv-mode) .nuvio-web-shell .hero-image-poster img {
   position: absolute;
@@ -235,7 +234,10 @@ html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card {
 html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card .poster {
   aspect-ratio: 16 / 9;
 }
-html:not(.tv-mode)[data-nuvio-poster-layout="landscape"] .media-card .poster img {
+html:not(.tv-mode)[data-nuvio-poster-layout="landscape"]
+  .media-card
+  .poster
+  img {
   object-fit: cover;
 }
 html:not(.tv-mode) .nuvio-web-shell .media-card {
@@ -1218,6 +1220,25 @@ html:not(.tv-mode) .player-subtitle-overlay {
 .player-gesture-feedback strong {
   font-size: 1rem;
   white-space: nowrap;
+}
+.player-gesture-feedback > span {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+}
+.player-gesture-feedback small {
+  color: #b9b2c2;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.player-gesture-feedback.seek-forward small {
+  color: #6ee7a8;
+}
+.player-gesture-feedback.seek-back small {
+  color: #ff9a76;
+}
+.tv-web-player > video {
+  touch-action: none;
 }
 .player-status-overlay span {
   color: #aaa2b1;

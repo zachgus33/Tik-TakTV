@@ -3699,9 +3699,7 @@ test("refresh and test preserve a configured add-on manifest URL", async ({
     .getByRole("button", { name: "Refresh installed manifests" })
     .click();
   await expect(page.getByText("All add-on manifests refreshed.")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Remove Configured streams" })
-    .click();
+  await page.getByRole("button", { name: "Remove Configured streams" }).click();
   const removeDialog = page.getByRole("dialog", { name: "Remove add-on" });
   await expect(removeDialog).toBeVisible();
   await removeDialog.getByRole("button", { name: "Cancel" }).click();
@@ -4102,7 +4100,9 @@ test("holding the mobile video temporarily applies the configured speed", async 
     );
   });
   await expect(player.getByText("2× speed")).toBeVisible();
-  await expect.poll(() => video.evaluate((element) => element.playbackRate)).toBe(2);
+  await expect
+    .poll(() => video.evaluate((element) => element.playbackRate))
+    .toBe(2);
   await video.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     element.dispatchEvent(
@@ -4116,7 +4116,184 @@ test("holding the mobile video temporarily applies the configured speed", async 
     );
   });
   await expect(player.getByText("2× speed")).toBeHidden();
-  await expect.poll(() => video.evaluate((element) => element.playbackRate)).toBe(1);
+  await expect
+    .poll(() => video.evaluate((element) => element.playbackRate))
+    .toBe(1);
+});
+test("mobile player gestures seek and adjust display levels without changing source", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "iphone" && testInfo.project.name !== "ipad",
+    "Surface gestures target the iPhone/iPad touch player.",
+  );
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  let sourceRequests = 0;
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) => {
+    sourceRequests += 1;
+    return route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p direct",
+            url: "https://cdn.example/gesture-player.mp4",
+          },
+        ],
+      },
+    });
+  });
+  await page.route("https://cdn.example/gesture-player.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const player = page.locator("dialog.tv-web-player");
+  const video = player.locator("video");
+  await expect(player).toBeVisible();
+  await video.evaluate((element) => {
+    Object.defineProperty(element, "duration", {
+      configurable: true,
+      value: 7200,
+    });
+    Object.defineProperty(element, "seekable", {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 7200 },
+    });
+    element.currentTime = 600;
+    element.dispatchEvent(new Event("durationchange"));
+    element.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect
+    .poll(() => video.evaluate((element) => element.currentTime))
+    .toBe(600);
+
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.85;
+    const y = rect.top + rect.height / 2;
+    for (const pointerId of [49, 50]) {
+      element.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          pointerId,
+          pointerType: "touch",
+          clientX: x,
+          clientY: y,
+        }),
+      );
+      element.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          pointerId,
+          pointerType: "touch",
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    }
+  });
+  await expect(player.getByTestId("player-gesture-feedback")).toContainText(
+    "+10s",
+  );
+  await expect
+    .poll(() => video.evaluate((element) => element.currentTime))
+    .toBe(610);
+  await video.evaluate((element) =>
+    element.dispatchEvent(new Event("timeupdate")),
+  );
+  expect(sourceRequests).toBe(1);
+
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    for (const [type, clientX] of [
+      ["pointerdown", x],
+      ["pointermove", x + rect.width * 0.25],
+      ["pointerup", x + rect.width * 0.25],
+    ] as const)
+      element.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 51,
+          pointerType: "touch",
+          clientX,
+          clientY: y,
+        }),
+      );
+  });
+  await expect(player.getByTestId("player-gesture-feedback")).toContainText(
+    "+",
+  );
+  await expect
+    .poll(() => video.evaluate((element) => element.currentTime))
+    .toBeGreaterThan(610);
+  expect(sourceRequests).toBe(1);
+
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.15;
+    const y = rect.top + rect.height / 2;
+    for (const [type, clientY] of [
+      ["pointerdown", y],
+      ["pointermove", y + rect.height * 0.25],
+      ["pointerup", y + rect.height * 0.25],
+    ] as const)
+      element.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 52,
+          pointerType: "touch",
+          clientX: x,
+          clientY,
+        }),
+      );
+  });
+  await expect(player.getByTestId("player-gesture-feedback")).toContainText(
+    "Brightness",
+  );
+  await expect
+    .poll(() => video.evaluate((element) => element.style.filter))
+    .toMatch(/^brightness\(0\./);
+
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.85;
+    const y = rect.top + rect.height / 2;
+    for (const [type, clientY] of [
+      ["pointerdown", y],
+      ["pointermove", y + rect.height * 0.25],
+      ["pointerup", y + rect.height * 0.25],
+    ] as const)
+      element.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 53,
+          pointerType: "touch",
+          clientX: x,
+          clientY,
+        }),
+      );
+  });
+  await expect(player.getByTestId("player-gesture-feedback")).toContainText(
+    "Volume",
+  );
+  await expect
+    .poll(() => video.evaluate((element) => element.volume))
+    .toBeLessThan(1);
+  expect(sourceRequests).toBe(1);
 });
 test("TV playback opens as a full-screen remote-controlled surface", async ({
   page,
@@ -4788,9 +4965,8 @@ test("source controls accept and persist multiple comma-separated exclusions", a
     .poll(() =>
       page.evaluate(
         () =>
-          JSON.parse(
-            localStorage.getItem("tiktak:stream-preferences") ?? "{}",
-          ).excludedTerms,
+          JSON.parse(localStorage.getItem("tiktak:stream-preferences") ?? "{}")
+            .excludedTerms,
       ),
     )
     .toEqual(["CAM", "telesync", "dubbed"]);
@@ -4798,9 +4974,8 @@ test("source controls accept and persist multiple comma-separated exclusions", a
     .poll(() =>
       page.evaluate(
         () =>
-          JSON.parse(
-            localStorage.getItem("tiktak:stream-preferences") ?? "{}",
-          ).autoPlayTimeoutSeconds,
+          JSON.parse(localStorage.getItem("tiktak:stream-preferences") ?? "{}")
+            .autoPlayTimeoutSeconds,
       ),
     )
     .toBe(Number.MAX_SAFE_INTEGER);
@@ -4845,10 +5020,13 @@ test("Download Center groups and cancels background preparation", async ({
     { statusPath },
   );
   let cancelled = "";
-  await page.route("https://playback.example/download/cancel", async (route) => {
-    cancelled = String(route.request().postDataJSON().statusPath);
-    await route.fulfill({ json: { cancelled: true } });
-  });
+  await page.route(
+    "https://playback.example/download/cancel",
+    async (route) => {
+      cancelled = String(route.request().postDataJSON().statusPath);
+      await route.fulfill({ json: { cancelled: true } });
+    },
+  );
   await page.route(`https://playback.example${statusPath}`, (route) =>
     route.fulfill({
       json: {
@@ -4863,9 +5041,7 @@ test("Download Center groups and cancels background preparation", async ({
   await page.goto("/#settings");
   await page.getByRole("button", { name: /^Downloads/ }).click();
   await expect(page.getByRole("heading", { name: "Active" })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Cancel Friends S01E01.mp4" })
-    .click();
+  await page.getByRole("button", { name: "Cancel Friends S01E01.mp4" }).click();
   await expect.poll(() => cancelled).toBe(statusPath);
   await expect(page.getByText("Friends S01E01.mp4")).toHaveCount(0);
 });
@@ -4999,10 +5175,10 @@ test("Home hero artwork preference switches from backdrop to poster", async ({
   await page.goto("/#home");
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        JSON.parse(
-          localStorage.getItem("tiktak:nuvio-web-settings") || "{}",
-        ).heroArtwork,
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("tiktak:nuvio-web-settings") || "{}")
+            .heroArtwork,
       ),
     )
     .toBe("poster");
@@ -5041,20 +5217,20 @@ test("Home motion preview loads muted and enables sound after a click", async ({
       json: path.endsWith("/external_ids")
         ? { imdb_id: "tt0111161" }
         : path.endsWith("/videos")
-        ? {
-            results: [
-              {
-                id: "trailer",
-                site: "YouTube",
-                type: "Trailer",
-                key: "preview123",
-                name: "Official trailer",
-              },
-            ],
-          }
-        : path.endsWith("/recommendations")
-          ? { results: [] }
-          : { production_companies: [] },
+          ? {
+              results: [
+                {
+                  id: "trailer",
+                  site: "YouTube",
+                  type: "Trailer",
+                  key: "preview123",
+                  name: "Official trailer",
+                },
+              ],
+            }
+          : path.endsWith("/recommendations")
+            ? { results: [] }
+            : { production_companies: [] },
     });
   });
   await page.route("https://api.themoviedb.org/3/find/tt0111161**", (route) =>
@@ -5103,7 +5279,10 @@ test("Home motion preview loads muted and enables sound after a click", async ({
 test("details resolve trailers through the TikTakTV in-app player", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "One browser verifies companion trailer resolution.");
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "One browser verifies companion trailer resolution.",
+  );
   const illustrated = { ...meta, id: "tmdb:278" };
   await page.route("https://v3-cinemeta.strem.io/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -5151,20 +5330,25 @@ test("details resolve trailers through the TikTakTV in-app player", async ({
     );
   });
   let resolvedVideo = "";
-  await page.route("https://playback.example/youtube/playback", async (route) => {
-    resolvedVideo = String(route.request().postDataJSON().videoId ?? "");
-    await route.fulfill({
-      json: {
-        playback: {
-          type: "progressive",
-          url: "/media/trailer-ticket/stream",
-          mimeType: "video/mp4",
+  await page.route(
+    "https://playback.example/youtube/playback",
+    async (route) => {
+      resolvedVideo = String(route.request().postDataJSON().videoId ?? "");
+      await route.fulfill({
+        json: {
+          playback: {
+            type: "progressive",
+            url: "/media/trailer-ticket/stream",
+            mimeType: "video/mp4",
+          },
         },
-      },
-    });
-  });
-  await page.route("https://playback.example/media/trailer-ticket/stream", (route) =>
-    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+      });
+    },
+  );
+  await page.route(
+    "https://playback.example/media/trailer-ticket/stream",
+    (route) =>
+      route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
   );
 
   await page.goto("/#home");
@@ -5185,7 +5369,10 @@ test("details resolve trailers through the TikTakTV in-app player", async ({
 test("Feature highlights preference can suppress the update prompt", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "One browser verifies this preference.");
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "One browser verifies this preference.",
+  );
   await page.goto("/#settings");
   await page.evaluate(() => localStorage.removeItem("tiktak:whats-new-seen"));
   await page.getByRole("button", { name: /^Appearance/ }).click();
@@ -5197,7 +5384,9 @@ test("Feature highlights preference can suppress the update prompt", async ({
   await expect(page.locator("dialog.whats-new-dialog")).toHaveCount(0);
 });
 
-test("tabbed metadata layout switches real detail sections", async ({ page }) => {
+test("tabbed metadata layout switches real detail sections", async ({
+  page,
+}) => {
   await page.addInitScript(() =>
     localStorage.setItem(
       "tiktak:nuvio-web-settings",
@@ -5271,12 +5460,14 @@ test("Continue Watching styles and upcoming episodes follow profile settings", a
   });
 
   await page.goto("/#home");
-  await expect(page.getByRole("heading", { name: "Pick up where you left off" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Pick up where you left off" }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Upcoming" })).toBeVisible();
   await expect(page.locator(".continue-poster")).toHaveCount(2);
-  await expect(page.locator(".continue-upcoming-row .continue-upcoming")).toContainText(
-    "Upcoming",
-  );
+  await expect(
+    page.locator(".continue-upcoming-row .continue-upcoming"),
+  ).toContainText("Upcoming");
   await expect
     .poll(() =>
       page.evaluate(() => ({
@@ -5289,7 +5480,9 @@ test("Continue Watching styles and upcoming episodes follow profile settings", a
     .toEqual({ radius: "22px", blur: "true" });
 });
 
-test("TikTakTV vertical Library filters and sorts saved media", async ({ page }) => {
+test("TikTakTV vertical Library filters and sorts saved media", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       "nuvio:library",
@@ -5321,9 +5514,7 @@ test("TikTakTV vertical Library filters and sorts saved media", async ({ page })
   });
   await page.goto("/#library");
   await expect(page.getByLabel("Library layout")).toHaveValue("vertical");
-  await expect(page.getByLabel("Library sort order")).toHaveValue(
-    "title-asc",
-  );
+  await expect(page.getByLabel("Library sort order")).toHaveValue("title-asc");
   await expect(page.locator(".media-grid .media-card strong")).toHaveText([
     "Alpha Series",
     "Zebra Movie",
@@ -5364,12 +5555,13 @@ test("TikTakTV integration hub maps native-only features and opens working servi
   const settingsNavigation = page.getByRole("navigation", {
     name: "Settings sections",
   });
-  await settingsNavigation.locator("button").filter({ hasText: "Integrations" }).click();
+  await settingsNavigation
+    .locator("button")
+    .filter({ hasText: "Integrations" })
+    .click();
   await expect(page.getByText("CloudStream repositories")).toBeVisible();
   await expect(page.getByText("Android mpv / iOS video output")).toBeVisible();
-  await page
-    .getByRole("button", { name: /Trakt Watchlist, ratings/ })
-    .click();
+  await page.getByRole("button", { name: /Trakt Watchlist, ratings/ }).click();
   await expect(
     page.getByRole("heading", { name: "Your own watchlist" }),
   ).toBeVisible();
@@ -6275,9 +6467,7 @@ test.describe("authenticated integrations", () => {
     await page.waitForTimeout(250);
     await page.goto("/#settings");
     await page.getByRole("button", { name: /^Streams/ }).click();
-    await page
-      .getByLabel("Automatic source selection")
-      .selectOption("manual");
+    await page.getByLabel("Automatic source selection").selectOption("manual");
     await page.getByRole("button", { name: "Save stream settings" }).click();
     await expect
       .poll(() =>

@@ -14,6 +14,9 @@ import {
   RotateCcw,
   RotateCw,
   Settings2,
+  Sun,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import type Hls from "hls.js";
@@ -307,6 +310,16 @@ function VideoPlayer({
       : 1,
   );
   const [holdSpeedActive, setHoldSpeedActive] = useState(false);
+  const [gestureFeedback, setGestureFeedback] = useState<{
+    kind: "seek-back" | "seek-forward" | "brightness" | "volume";
+    primary: string;
+    secondary?: string;
+  } | null>(null);
+  const [playerBrightness, setPlayerBrightness] = useState(() => {
+    if (!experienceSettings.rememberPlayerChoices) return 1;
+    const saved = Number(localStorage.getItem("tiktak:player-brightness") || 1);
+    return Number.isFinite(saved) ? Math.max(0.2, Math.min(saved, 1)) : 1;
+  });
   const [subtitleOffset, setSubtitleOffset] = useState(() =>
     savedSubtitleOffset(playback),
   );
@@ -324,10 +337,24 @@ function VideoPlayer({
   const holdSpeedTimerRef = useRef<number>(0);
   const holdSpeedPointerRef = useRef<number | null>(null);
   const holdSpeedRestoreRateRef = useRef<number | null>(null);
+  const gestureFeedbackTimerRef = useRef<number>(0);
+  const pendingTapTimerRef = useRef<number>(0);
+  const previousTapRef = useRef<{ time: number; x: number; y: number } | null>(
+    null,
+  );
   const playerTouchStartRef = useRef<{
     pointerId: number;
     x: number;
     y: number;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    baselineTime: number;
+    initialVolume: number;
+    initialBrightness: number;
+    mode: "seek" | "brightness" | "volume" | null;
+    previewTime: number;
   } | null>(null);
   const lastTouchToggleRef = useRef(0);
   const playingRef = useRef(false);
@@ -686,10 +713,9 @@ function VideoPlayer({
   useEffect(() => {
     return () => {
       window.clearTimeout(holdSpeedTimerRef.current);
-      if (
-        videoRef.current &&
-        holdSpeedRestoreRateRef.current != null
-      )
+      window.clearTimeout(gestureFeedbackTimerRef.current);
+      window.clearTimeout(pendingTapTimerRef.current);
+      if (videoRef.current && holdSpeedRestoreRateRef.current != null)
         videoRef.current.playbackRate = holdSpeedRestoreRateRef.current;
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
     };
@@ -1612,6 +1638,76 @@ function VideoPlayer({
       navigator.vibrate?.(20);
     }, 500);
   }
+  function showTimedGestureFeedback(
+    feedback: NonNullable<typeof gestureFeedback>,
+  ) {
+    window.clearTimeout(gestureFeedbackTimerRef.current);
+    setGestureFeedback(feedback);
+    gestureFeedbackTimerRef.current = window.setTimeout(
+      () => setGestureFeedback(null),
+      900,
+    );
+  }
+  function seekGestureFeedback(target: number, baseline: number) {
+    const delta = Math.round(target - baseline);
+    return {
+      kind: delta < 0 ? ("seek-back" as const) : ("seek-forward" as const),
+      primary: formatPlayerTime(target),
+      secondary: `${delta >= 0 ? "+" : "−"}${Math.abs(delta)}s`,
+    };
+  }
+  function handlePlayerDoubleTap(
+    clientX: number,
+    surfaceLeft: number,
+    width: number,
+  ) {
+    const position = (clientX - surfaceLeft) / Math.max(1, width);
+    if (position < 0.4) {
+      const target = Math.max(0, currentTime - 10);
+      seekTo(target);
+      showTimedGestureFeedback(seekGestureFeedback(target, currentTime));
+      return;
+    }
+    if (position > 0.6) {
+      const target = Math.min(
+        timelineEnd || currentTime + 10,
+        currentTime + 10,
+      );
+      seekTo(target);
+      showTimedGestureFeedback(seekGestureFeedback(target, currentTime));
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play();
+    else video.pause();
+    setTvControlsVisible(false);
+  }
+  function completePlayerTap(clientX: number, clientY: number) {
+    const now = Date.now();
+    const previous = previousTapRef.current;
+    if (
+      previous &&
+      now - previous.time <= 320 &&
+      Math.hypot(clientX - previous.x, clientY - previous.y) <= 48
+    ) {
+      window.clearTimeout(pendingTapTimerRef.current);
+      previousTapRef.current = null;
+      const rect = dialogRef.current?.getBoundingClientRect();
+      handlePlayerDoubleTap(
+        clientX,
+        rect?.left ?? 0,
+        rect?.width ?? innerWidth,
+      );
+      return;
+    }
+    previousTapRef.current = { time: now, x: clientX, y: clientY };
+    window.clearTimeout(pendingTapTimerRef.current);
+    pendingTapTimerRef.current = window.setTimeout(() => {
+      previousTapRef.current = null;
+      togglePlayerControls();
+    }, 280);
+  }
   function playerTapHitsControl(target: EventTarget | null) {
     return (
       target instanceof Element &&
@@ -1656,11 +1752,86 @@ function VideoPlayer({
       }}
       onPointerMove={(event) => {
         const start = playerTouchStartRef.current;
-        if (
-          start?.pointerId === event.pointerId &&
-          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12
-        )
-          stopHoldToSpeed();
+        if (start?.pointerId === event.pointerId) {
+          const dx = event.clientX - start.x;
+          const dy = event.clientY - start.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance > 12) stopHoldToSpeed();
+          if (start.mode == null) {
+            const horizontalDominant =
+              Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy);
+            const verticalActivation = Math.max(30, start.height * 0.06);
+            const verticalDominant =
+              Math.abs(dy) > verticalActivation &&
+              Math.abs(dy) > Math.abs(dx) * 1.2;
+            const verticalEdgeSafe =
+              start.y - start.top > start.height * 0.05 &&
+              start.y - start.top < start.height * 0.95;
+            if (horizontalDominant) start.mode = "seek";
+            else if (
+              verticalDominant &&
+              verticalEdgeSafe &&
+              start.x - start.left < start.width * 0.4
+            )
+              start.mode = "brightness";
+            else if (
+              verticalDominant &&
+              verticalEdgeSafe &&
+              start.x - start.left > start.width * 0.6
+            )
+              start.mode = "volume";
+          }
+          if (start.mode) {
+            event.preventDefault();
+            window.clearTimeout(gestureFeedbackTimerRef.current);
+            setTvControlsVisible(false);
+          }
+          if (start.mode === "seek") {
+            const sensitivity =
+              timelineEnd >= 3600 ? 120 : timelineEnd >= 1800 ? 90 : 60;
+            const target = Math.max(
+              0,
+              Math.min(
+                timelineEnd || Number.POSITIVE_INFINITY,
+                start.baselineTime +
+                  (dx / Math.max(1, start.width)) * sensitivity,
+              ),
+            );
+            start.previewTime = target;
+            setGestureFeedback(seekGestureFeedback(target, start.baselineTime));
+          } else if (start.mode === "brightness") {
+            const target = Math.max(
+              0.2,
+              Math.min(
+                1,
+                start.initialBrightness + (-dy / start.height) * 0.65,
+              ),
+            );
+            setPlayerBrightness(target);
+            if (experienceSettings.rememberPlayerChoices)
+              localStorage.setItem("tiktak:player-brightness", String(target));
+            setGestureFeedback({
+              kind: "brightness",
+              primary: `Brightness ${Math.round(target * 100)}%`,
+            });
+          } else if (start.mode === "volume") {
+            const target = Math.max(
+              0,
+              Math.min(1, start.initialVolume + (-dy / start.height) * 0.65),
+            );
+            if (videoRef.current) {
+              videoRef.current.muted = false;
+              videoRef.current.volume = target;
+            }
+            setGestureFeedback({
+              kind: "volume",
+              primary:
+                target <= 0.001
+                  ? "Muted"
+                  : `Volume ${Math.round(target * 100)}%`,
+            });
+          }
+        }
         if (
           (tvMode || event.pointerType === "mouse") &&
           !(event.target as Element).closest(".subtitle-cue-overlay")
@@ -1675,12 +1846,30 @@ function VideoPlayer({
           playback.item.type !== "live" &&
           (event.pointerType === "touch" || event.pointerType === "pen") &&
           !playerTapHitsControl(event.target)
-        )
+        ) {
+          const rect = event.currentTarget.getBoundingClientRect();
           playerTouchStartRef.current = {
             pointerId: event.pointerId,
             x: event.clientX,
             y: event.clientY,
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+            baselineTime: currentTime,
+            initialVolume: videoRef.current?.volume ?? 1,
+            initialBrightness: playerBrightness,
+            mode: null,
+            previewTime: currentTime,
           };
+          try {
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+          } catch {
+            // Synthetic tests and older iOS WebViews may not expose an
+            // active native pointer to capture. The dialog still receives
+            // bubbled pointer events from its video surface.
+          }
+        }
         if (
           !tvMode &&
           experienceSettings.touchGestures &&
@@ -1694,8 +1883,29 @@ function VideoPlayer({
       onPointerUp={(event) => {
         const start = playerTouchStartRef.current;
         playerTouchStartRef.current = null;
+        try {
+          if (event.currentTarget.hasPointerCapture?.(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        } catch {
+          // See the capture compatibility note in pointer down.
+        }
         if (stopHoldToSpeed()) {
           lastTouchToggleRef.current = Date.now();
+          return;
+        }
+        if (start?.pointerId === event.pointerId && start.mode) {
+          lastTouchToggleRef.current = Date.now();
+          if (start.mode === "seek") {
+            seekTo(start.previewTime);
+            showTimedGestureFeedback(
+              seekGestureFeedback(start.previewTime, start.baselineTime),
+            );
+          } else {
+            gestureFeedbackTimerRef.current = window.setTimeout(
+              () => setGestureFeedback(null),
+              900,
+            );
+          }
           return;
         }
         if (
@@ -1706,11 +1916,12 @@ function VideoPlayer({
         )
           return;
         lastTouchToggleRef.current = Date.now();
-        togglePlayerControls();
+        completePlayerTap(event.clientX, event.clientY);
       }}
       onPointerCancel={() => {
         stopHoldToSpeed();
         playerTouchStartRef.current = null;
+        setGestureFeedback(null);
       }}
       onKeyDownCapture={(event) => {
         if (!tvMode) return;
@@ -1796,6 +2007,7 @@ function VideoPlayer({
             experienceSettings.resizeMode === "fit" ? "contain" : "cover",
           transform:
             experienceSettings.resizeMode === "zoom" ? "scale(1.12)" : "none",
+          filter: `brightness(${playerBrightness})`,
         }}
       >
         {selectedExternalSubtitle && (
@@ -1832,6 +2044,31 @@ function VideoPlayer({
         <div className="player-gesture-feedback" role="status">
           <FastForward size={22} />
           <strong>{experienceSettings.holdToSpeedValue}× speed</strong>
+        </div>
+      )}
+      {!holdSpeedActive && gestureFeedback && (
+        <div
+          className={`player-gesture-feedback ${gestureFeedback.kind}`}
+          role="status"
+          data-testid="player-gesture-feedback"
+        >
+          {gestureFeedback.kind === "seek-back" ? (
+            <RotateCcw size={22} />
+          ) : gestureFeedback.kind === "seek-forward" ? (
+            <RotateCw size={22} />
+          ) : gestureFeedback.kind === "brightness" ? (
+            <Sun size={22} />
+          ) : videoRef.current?.volume === 0 ? (
+            <VolumeX size={22} />
+          ) : (
+            <Volume2 size={22} />
+          )}
+          <span>
+            <strong>{gestureFeedback.primary}</strong>
+            {gestureFeedback.secondary && (
+              <small>{gestureFeedback.secondary}</small>
+            )}
+          </span>
         </div>
       )}
       {experienceSettings.playerStatusOverlay && (
@@ -2075,9 +2312,7 @@ function VideoPlayer({
             {partyBusy ? "Starting room…" : "Watch Together"}
           </button>
         )}
-        {!tvMode && (
-          <span className="player-tools-section-label">Display</span>
-        )}
+        {!tvMode && <span className="player-tools-section-label">Display</span>}
         {!tvMode && (
           <button onClick={airplay}>
             <Airplay size={18} /> AirPlay
@@ -2808,11 +3043,11 @@ export default function Player({
                     </small>
                     {badgePlacement === "bottom" &&
                       !!choice.sourceBadges?.length && (
-                      <span className="player-source-badges">
-                        {choice.sourceBadges.map((badge) => (
-                          <i key={badge}>{badge}</i>
-                        ))}
-                      </span>
+                        <span className="player-source-badges">
+                          {choice.sourceBadges.map((badge) => (
+                            <i key={badge}>{badge}</i>
+                          ))}
+                        </span>
                       )}
                   </span>
                   {index === attempt ? <Check size={18} /> : <Play size={18} />}
