@@ -1054,6 +1054,28 @@ html:not(.tv-mode) .player-subtitle-overlay {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.player-gesture-feedback {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border: 1px solid #ffffff2b;
+  border-radius: 999px;
+  color: #fff;
+  background: #08070be6;
+  box-shadow: 0 14px 50px #000a;
+  backdrop-filter: blur(16px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.player-gesture-feedback strong {
+  font-size: 1rem;
+  white-space: nowrap;
+}
 .player-status-overlay span {
   color: #aaa2b1;
   font-size: 11px;

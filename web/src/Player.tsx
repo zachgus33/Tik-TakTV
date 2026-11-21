@@ -306,6 +306,7 @@ function VideoPlayer({
       ? Number(localStorage.getItem("tiktak:playback-rate") || 1)
       : 1,
   );
+  const [holdSpeedActive, setHoldSpeedActive] = useState(false);
   const [subtitleOffset, setSubtitleOffset] = useState(() =>
     savedSubtitleOffset(playback),
   );
@@ -320,6 +321,9 @@ function VideoPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tvControlsTimerRef = useRef<number>(0);
+  const holdSpeedTimerRef = useRef<number>(0);
+  const holdSpeedPointerRef = useRef<number | null>(null);
+  const holdSpeedRestoreRateRef = useRef<number | null>(null);
   const playerTouchStartRef = useRef<{
     pointerId: number;
     x: number;
@@ -681,6 +685,12 @@ function VideoPlayer({
   }, [playing, revealTvControls]);
   useEffect(() => {
     return () => {
+      window.clearTimeout(holdSpeedTimerRef.current);
+      if (
+        videoRef.current &&
+        holdSpeedRestoreRateRef.current != null
+      )
+        videoRef.current.playbackRate = holdSpeedRestoreRateRef.current;
       for (const s of subtitleRef.current) URL.revokeObjectURL(s.url);
     };
   }, []);
@@ -1575,6 +1585,33 @@ function VideoPlayer({
     }
     setTvControlsVisible((visible) => !visible);
   }
+  function stopHoldToSpeed() {
+    window.clearTimeout(holdSpeedTimerRef.current);
+    holdSpeedTimerRef.current = 0;
+    holdSpeedPointerRef.current = null;
+    const restore = holdSpeedRestoreRateRef.current;
+    const wasActive = restore != null;
+    if (restore != null && videoRef.current)
+      videoRef.current.playbackRate = restore;
+    holdSpeedRestoreRateRef.current = null;
+    setHoldSpeedActive(false);
+    return wasActive;
+  }
+  function scheduleHoldToSpeed(pointerId: number) {
+    stopHoldToSpeed();
+    holdSpeedPointerRef.current = pointerId;
+    holdSpeedTimerRef.current = window.setTimeout(() => {
+      if (holdSpeedPointerRef.current !== pointerId) return;
+      const video = videoRef.current;
+      if (!video) return;
+      const target = experienceSettings.holdToSpeedValue;
+      if (Math.abs(video.playbackRate - target) < 0.01) return;
+      holdSpeedRestoreRateRef.current = video.playbackRate;
+      video.playbackRate = target;
+      setHoldSpeedActive(true);
+      navigator.vibrate?.(20);
+    }, 500);
+  }
   function playerTapHitsControl(target: EventTarget | null) {
     return (
       target instanceof Element &&
@@ -1618,6 +1655,12 @@ function VideoPlayer({
         togglePlayerControls();
       }}
       onPointerMove={(event) => {
+        const start = playerTouchStartRef.current;
+        if (
+          start?.pointerId === event.pointerId &&
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12
+        )
+          stopHoldToSpeed();
         if (
           (tvMode || event.pointerType === "mouse") &&
           !(event.target as Element).closest(".subtitle-cue-overlay")
@@ -1638,10 +1681,23 @@ function VideoPlayer({
             x: event.clientX,
             y: event.clientY,
           };
+        if (
+          !tvMode &&
+          experienceSettings.touchGestures &&
+          experienceSettings.holdToSpeed &&
+          playback.item.type !== "live" &&
+          (event.pointerType === "touch" || event.pointerType === "pen") &&
+          !playerTapHitsControl(event.target)
+        )
+          scheduleHoldToSpeed(event.pointerId);
       }}
       onPointerUp={(event) => {
         const start = playerTouchStartRef.current;
         playerTouchStartRef.current = null;
+        if (stopHoldToSpeed()) {
+          lastTouchToggleRef.current = Date.now();
+          return;
+        }
         if (
           !start ||
           start.pointerId !== event.pointerId ||
@@ -1653,6 +1709,7 @@ function VideoPlayer({
         togglePlayerControls();
       }}
       onPointerCancel={() => {
+        stopHoldToSpeed();
         playerTouchStartRef.current = null;
       }}
       onKeyDownCapture={(event) => {
@@ -1770,6 +1827,12 @@ function VideoPlayer({
           <strong>{playback.item.certification}</strong>
           <span>Content rating</span>
         </button>
+      )}
+      {holdSpeedActive && (
+        <div className="player-gesture-feedback" role="status">
+          <FastForward size={22} />
+          <strong>{experienceSettings.holdToSpeedValue}× speed</strong>
+        </div>
       )}
       {experienceSettings.playerStatusOverlay && (
         <div className="player-status-overlay" role="status">

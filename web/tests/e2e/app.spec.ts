@@ -4048,6 +4048,75 @@ test("tapping the video surface hides and restores web player controls", async (
     await expect(player).toHaveClass(/controls-hidden/);
   }
 });
+test("holding the mobile video temporarily applies the configured speed", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "iphone",
+    "Hold-to-speed is a touch player gesture.",
+  );
+  await streamingAddon(page);
+  await page.addInitScript(() => {
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  await page.route("https://v3-cinemeta.strem.io/stream/**", (route) =>
+    route.fulfill({
+      json: {
+        streams: [
+          {
+            name: "1080p",
+            url: "https://cdn.example/hold-speed.mp4",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("https://cdn.example/hold-speed.mp4", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const player = page.locator("dialog.tv-web-player");
+  const video = player.locator("video");
+  await expect(player).toBeVisible();
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerId: 41,
+        pointerType: "touch",
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }),
+    );
+  });
+  await expect(player.getByText("2× speed")).toBeVisible();
+  await expect.poll(() => video.evaluate((element) => element.playbackRate)).toBe(2);
+  await video.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        pointerId: 41,
+        pointerType: "touch",
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }),
+    );
+  });
+  await expect(player.getByText("2× speed")).toBeHidden();
+  await expect.poll(() => video.evaluate((element) => element.playbackRate)).toBe(1);
+});
 test("TV playback opens as a full-screen remote-controlled surface", async ({
   page,
 }, testInfo) => {
