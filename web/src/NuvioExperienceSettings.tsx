@@ -202,6 +202,21 @@ export default function NuvioExperienceSettings({
             <option value="soft">Soft</option>
             <option value="raised">Raised</option>
           </SelectRow>
+          <RangeRow
+            title="Poster corner radius"
+            description="Round poster and landscape-card corners across TikTakTV."
+            value={value.posterCornerRadius}
+            min={0}
+            max={32}
+            suffix="px"
+            onChange={(next) => update("posterCornerRadius", next)}
+          />
+          <SwitchRow
+            title="Hide poster labels"
+            description="Use an artwork-only catalog layout without title and metadata labels."
+            checked={value.hidePosterLabels}
+            onChange={(next) => update("hidePosterLabels", next)}
+          />
           <SwitchRow
             title="Feature highlights"
             description="Show badges for newly added TikTakTV features."
@@ -232,6 +247,50 @@ export default function NuvioExperienceSettings({
             checked={value.continueWatchingRemainingTime}
             onChange={(next) => update("continueWatchingRemainingTime", next)}
           />
+          <SelectRow
+            title="Card style"
+            description="Choose a TV-style card, artwork-first poster, or info-dense wide layout."
+            value={value.continueWatchingStyle}
+            onChange={(next) =>
+              update(
+                "continueWatchingStyle",
+                next as NuvioWebSettings["continueWatchingStyle"],
+              )
+            }
+          >
+            <option value="card">Card</option>
+            <option value="poster">Poster</option>
+            <option value="wide">Wide</option>
+          </SelectRow>
+          <SelectRow
+            title="Sort order"
+            description="Keep recency order, move upcoming episodes last, or show them separately."
+            value={value.continueWatchingSort}
+            onChange={(next) =>
+              update(
+                "continueWatchingSort",
+                next as NuvioWebSettings["continueWatchingSort"],
+              )
+            }
+          >
+            <option value="default">Recently watched</option>
+            <option value="streaming">Released first</option>
+            <option value="split-upcoming">Separate upcoming row</option>
+          </SelectRow>
+          <SwitchRow
+            title="Show unaired next-up episodes"
+            description="Keep upcoming episodes visible when synced progress includes a future release."
+            checked={value.continueWatchingShowUnaired}
+            onChange={(next) => update("continueWatchingShowUnaired", next)}
+          />
+          {value.continueWatchingShowUnaired && (
+            <SwitchRow
+              title="Blur upcoming artwork"
+              description="Obscure artwork for episodes that have not aired yet."
+              checked={value.continueWatchingBlurUpcoming}
+              onChange={(next) => update("continueWatchingBlurUpcoming", next)}
+            />
+          )}
         </Group>
       </>
     );
@@ -544,6 +603,50 @@ export default function NuvioExperienceSettings({
             <option value="pt">Portuguese</option>
           </SelectRow>
           <SelectRow
+            title="Secondary audio"
+            description="Fallback audio language when the primary choice is unavailable."
+            value={value.secondaryPreferredAudioLanguage}
+            onChange={(next) => update("secondaryPreferredAudioLanguage", next)}
+          >
+            <option value="none">None</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+            <option value="ja">Japanese</option>
+          </SelectRow>
+          <SelectRow
+            title="Secondary subtitles"
+            description="Fallback subtitle language after the primary preference."
+            value={value.secondaryPreferredSubtitleLanguage}
+            onChange={(next) =>
+              update("secondaryPreferredSubtitleLanguage", next)
+            }
+          >
+            <option value="none">None</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+          </SelectRow>
+          <SelectRow
+            title="Add-on subtitle startup"
+            description="Start fastest, fetch preferred languages, or load every subtitle."
+            value={value.addonSubtitleStartupMode}
+            onChange={(next) =>
+              update(
+                "addonSubtitleStartupMode",
+                next as NuvioWebSettings["addonSubtitleStartupMode"],
+              )
+            }
+          >
+            <option value="fast">Fast startup</option>
+            <option value="preferred">Preferred languages only</option>
+            <option value="all">All subtitles</option>
+          </SelectRow>
+          <SelectRow
             title="Subtitle font"
             description="Choose the caption typeface used by the web renderer."
             value={value.subtitleFont}
@@ -595,12 +698,42 @@ export default function NuvioExperienceSettings({
           />
           <RangeRow
             title="Next episode threshold"
-            description="Percentage watched before the next episode can start."
-            value={value.nextEpisodeThresholdPercent}
-            min={70}
-            max={100}
-            onChange={(next) => update("nextEpisodeThresholdPercent", next)}
+            description={
+              value.nextEpisodeThresholdMode === "percentage"
+                ? "Percentage watched before the next episode can start."
+                : "Minutes remaining before the next episode can start."
+            }
+            value={
+              value.nextEpisodeThresholdMode === "percentage"
+                ? value.nextEpisodeThresholdPercent
+                : value.nextEpisodeMinutesBeforeEnd
+            }
+            min={value.nextEpisodeThresholdMode === "percentage" ? 70 : 0.5}
+            max={value.nextEpisodeThresholdMode === "percentage" ? 100 : 30}
+            step={value.nextEpisodeThresholdMode === "percentage" ? 1 : 0.5}
+            suffix={
+              value.nextEpisodeThresholdMode === "percentage" ? "%" : " min"
+            }
+            onChange={(next) =>
+              value.nextEpisodeThresholdMode === "percentage"
+                ? update("nextEpisodeThresholdPercent", next)
+                : update("nextEpisodeMinutesBeforeEnd", next)
+            }
           />
+          <SelectRow
+            title="Threshold mode"
+            description="Trigger by watched percentage or time remaining."
+            value={value.nextEpisodeThresholdMode}
+            onChange={(next) =>
+              update(
+                "nextEpisodeThresholdMode",
+                next as NuvioWebSettings["nextEpisodeThresholdMode"],
+              )
+            }
+          >
+            <option value="percentage">Percentage watched</option>
+            <option value="minutes">Minutes before end</option>
+          </SelectRow>
         </Group>
       </>
     );

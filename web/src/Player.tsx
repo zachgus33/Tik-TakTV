@@ -23,18 +23,22 @@ import { storeProgress } from "./storage";
 import { liveAudioCodec } from "./media-compatibility";
 import {
   cleanSubtitleText,
-  normalizeWebVtt,
   runtimeSeconds,
   parseWebVttCues,
   shiftWebVtt,
+  subtitleToWebVtt,
   type ParsedSubtitleCue,
 } from "./player-utils";
 import { readNextEpisodeAutoAdvance } from "./next-episode";
 import NextEpisodeSetting from "./NextEpisodeSetting";
 import { createTraktScrobbler } from "./trakt-scrobble";
 import { createSimklScrobbler } from "./simkl-scrobble";
-import { preferredAudioTrackIndex } from "./stream-selection";
+import {
+  preferredAudioTrackIndex,
+  streamPreferences,
+} from "./stream-selection";
 import { readNuvioWebSettings } from "./nuvio-web-settings";
+import { removeStreamLink } from "./enhanced-stream-cache";
 import { anilistProgressEnabled } from "./ExternalTrackingSettings";
 import { anilistMediaRef, recordAniListEpisode } from "./anilist-tracking";
 import {
@@ -78,6 +82,11 @@ export type Playback = {
   /** Privacy-safe stream/add-on details for the in-player chooser. */
   sourceLabel?: string;
   sourceDetail?: string;
+  sourceAddonName?: string;
+  sourceAddonId?: string;
+  bingeGroup?: string;
+  cacheKey?: string;
+  sourceBadges?: string[];
   mediaOffset?: number;
 };
 const autoplayBlockedNotice = "Tap the video’s play button to start.";
@@ -92,7 +101,9 @@ function mergeSubtitles(...groups: Subtitle[][]): Subtitle[] {
 
 function preferredSubtitleScore(subtitle: Subtitle): number {
   const stored = localStorage.getItem("tiktak:subtitle-language") ?? "";
-  const preferred = [stored, ...(navigator.languages ?? [])]
+  const secondary =
+    localStorage.getItem("tiktak:secondary-subtitle-language") ?? "";
+  const preferred = [stored, secondary, ...(navigator.languages ?? [])]
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
   const values = [subtitle.lang, subtitle.name, subtitle.id]
@@ -125,12 +136,6 @@ type SubtitleSelectionPreference = {
   language?: string;
   url?: string;
 };
-function srtToVtt(text: string) {
-  return `WEBVTT\n\n${text
-    .replace(/^\uFEFF/, "")
-    .replace(/^(\d+)\s*$/gm, "")
-    .replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`;
-}
 function formatPlayerTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
   const seconds = Math.floor(value % 60)
@@ -195,10 +200,14 @@ function VideoPlayer({
   const [nextError, setNextError] = useState("");
   const [nextBusy, setNextBusy] = useState(false);
   const nextBusyRef = useRef(false);
+  const nextAdvanceTriggeredRef = useRef(false);
   const nextEpisodeRef = useRef(nextEpisode);
   const onNextEpisodeRef = useRef(onNextEpisode);
   nextEpisodeRef.current = nextEpisode;
   onNextEpisodeRef.current = onNextEpisode;
+  useEffect(() => {
+    nextAdvanceTriggeredRef.current = false;
+  }, [playback.item.id, playback.episode?.id]);
   async function advanceNextEpisode() {
     if (
       !nextEpisodeRef.current ||
@@ -671,7 +680,10 @@ function VideoPlayer({
   useEffect(() => {
     const c = new AbortController();
     setSubtitleCandidates(playback.subtitles ?? []);
-    if (playback.subtitleRequest)
+    if (
+      playback.subtitleRequest &&
+      experienceSettings.addonSubtitleStartupMode !== "fast"
+    )
       void addonSubtitles(
         playback.subtitleRequest.addons,
         playback.item,
@@ -691,10 +703,17 @@ function VideoPlayer({
     playback.url,
     playback.subtitles,
     playback.subtitleRequest,
+    experienceSettings.addonSubtitleStartupMode,
   ]);
   useEffect(() => {
     const c = new AbortController();
-    const candidates = [...subtitleCandidates]
+    const startupCandidates =
+      experienceSettings.addonSubtitleStartupMode === "preferred"
+        ? subtitleCandidates.filter(
+            (candidate) => preferredSubtitleScore(candidate) > 0,
+          )
+        : subtitleCandidates;
+    const candidates = [...startupCandidates]
       .sort(
         (left, right) =>
           preferredSubtitleScore(right) - preferredSubtitleScore(left),
@@ -710,9 +729,7 @@ function VideoPlayer({
         });
         if (!response.ok) throw new Error();
         const raw = await response.text();
-        const text = normalizeWebVtt(
-          raw.trimStart().startsWith("WEBVTT") ? raw : srtToVtt(raw),
-        );
+        const text = subtitleToWebVtt(raw, candidate.url);
         return {
           url: URL.createObjectURL(
             new Blob([shiftWebVtt(text, subtitleOffsetRef.current)], {
@@ -741,7 +758,7 @@ function VideoPlayer({
       });
     });
     return () => c.abort();
-  }, [subtitleCandidates]);
+  }, [subtitleCandidates, experienceSettings.addonSubtitleStartupMode]);
   useEffect(() => {
     if (
       subtitlePreferenceRestoredRef.current ||
@@ -958,6 +975,28 @@ function VideoPlayer({
           ? video.duration
           : 0;
       setSeekEnd(mediaOffset + available);
+      const duration =
+        runtimeSeconds(playback.item.runtime) || mediaOffset + video.duration;
+      if (
+        !nextAdvanceTriggeredRef.current &&
+        experienceSettings.autoPlayNextEpisode &&
+        nextEpisodeRef.current &&
+        !playback.party &&
+        Number.isFinite(duration) &&
+        duration > 0
+      ) {
+        const position = absoluteTime();
+        const thresholdReached =
+          experienceSettings.nextEpisodeThresholdMode === "minutes"
+            ? duration - position <=
+              experienceSettings.nextEpisodeMinutesBeforeEnd * 60
+            : (position / duration) * 100 >=
+              experienceSettings.nextEpisodeThresholdPercent;
+        if (thresholdReached) {
+          nextAdvanceTriggeredRef.current = true;
+          void advanceNextEpisode();
+        }
+      }
       if (Date.now() - lastSave > 5000) {
         persist();
         lastSave = Date.now();
@@ -1290,7 +1329,15 @@ function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [playback, retry, traktProfileName]);
+  }, [
+    playback,
+    retry,
+    traktProfileName,
+    experienceSettings.autoPlayNextEpisode,
+    experienceSettings.nextEpisodeThresholdMode,
+    experienceSettings.nextEpisodeThresholdPercent,
+    experienceSettings.nextEpisodeMinutesBeforeEnd,
+  ]);
   useEffect(() => {
     if (!party) return;
     let disposed = false;
@@ -2105,7 +2152,7 @@ function VideoPlayer({
           Load subtitles
           <input
             type="file"
-            accept=".vtt,text/vtt"
+            accept=".vtt,.srt,.ass,.ssa,.ttml,.dfxp,.xml,text/vtt,application/x-subrip"
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
@@ -2118,7 +2165,7 @@ function VideoPlayer({
                 setNotice("Choose a WebVTT (.vtt) subtitle file.");
                 return;
               }
-              const text = normalizeWebVtt(rawText);
+              const text = subtitleToWebVtt(rawText, file.name);
               for (const s of subtitles) URL.revokeObjectURL(s.url);
               setSubtitles([
                 {
@@ -2255,6 +2302,7 @@ export default function Player({
   onNextEpisode?: () => Promise<void>;
 }) {
   const experienceSettings = readNuvioWebSettings();
+  const badgePlacement = streamPreferences().streamBadgePlacement;
   // Keep window state inside the player. Lifting this into App made every
   // minimize/restore rerender the complete guide or Sports tree, which can
   // contain thousands of provider channels and events.
@@ -2304,6 +2352,18 @@ export default function Player({
     alternatives.length,
   );
   const sourceChoices = [playback, ...alternatives];
+  const sourceGroups = sourceChoices.reduce<
+    { name: string; choices: { choice: Playback; index: number }[] }[]
+  >((groups, choice, index) => {
+    const name = choice.sourceAddonName?.trim() || "Other sources";
+    let group = groups.find((entry) => entry.name === name);
+    if (!group) {
+      group = { name, choices: [] };
+      groups.push(group);
+    }
+    group.choices.push({ choice, index });
+    return groups;
+  }, []);
   useEffect(() => {
     reportMediaActivity(playbackMetricId, {
       active: false,
@@ -2381,6 +2441,7 @@ export default function Player({
       },
       (e) => {
         if (!c.signal.aborted) {
+          if (selected.cacheKey) removeStreamLink(selected.cacheKey);
           if (attempt < automaticFallbackEnd) setAttempt((value) => value + 1);
           else setError(e.message);
         }
@@ -2400,6 +2461,7 @@ export default function Player({
     // shown behind it, but automatic fallback must not steal focus or replace
     // the list under a remote/touch selection.
     if (sourcePickerOpen) return false;
+    if (selected.cacheKey) removeStreamLink(selected.cacheKey);
     const service = getService();
     if (
       fallbackStarted.current ||
@@ -2542,28 +2604,54 @@ export default function Player({
           </button>
         </div>
         <div className="player-source-list">
-          {sourceChoices.map((choice, index) => (
-            <button
-              type="button"
-              key={`${choice.sourceLabel ?? "stream"}-${index}`}
-              className={index === attempt ? "active" : ""}
-              aria-pressed={index === attempt}
-              onClick={() => selectSource(index)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                event.stopPropagation();
-                selectSource(index);
-              }}
-            >
-              <span>
-                <strong>{choice.sourceLabel ?? `Stream ${index + 1}`}</strong>
-                <small>
-                  {choice.sourceDetail ?? "Stream details not reported"}
-                </small>
-              </span>
-              {index === attempt ? <Check size={18} /> : <Play size={18} />}
-            </button>
+          {sourceGroups.map((group) => (
+            <section className="player-source-group" key={group.name}>
+              <header>
+                <strong>{group.name}</strong>
+                <span>{group.choices.length}</span>
+              </header>
+              {group.choices.map(({ choice, index }) => (
+                <button
+                  type="button"
+                  key={`${choice.sourceLabel ?? "stream"}-${index}`}
+                  className={index === attempt ? "active" : ""}
+                  aria-pressed={index === attempt}
+                  onClick={() => selectSource(index)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectSource(index);
+                  }}
+                >
+                  <span>
+                    <strong>
+                      {choice.sourceLabel ?? `Stream ${index + 1}`}
+                    </strong>
+                    {badgePlacement === "top" &&
+                      !!choice.sourceBadges?.length && (
+                        <span className="player-source-badges">
+                          {choice.sourceBadges.map((badge) => (
+                            <i key={badge}>{badge}</i>
+                          ))}
+                        </span>
+                      )}
+                    <small>
+                      {choice.sourceDetail ?? "Stream details not reported"}
+                    </small>
+                    {badgePlacement === "bottom" &&
+                      !!choice.sourceBadges?.length && (
+                      <span className="player-source-badges">
+                        {choice.sourceBadges.map((badge) => (
+                          <i key={badge}>{badge}</i>
+                        ))}
+                      </span>
+                      )}
+                  </span>
+                  {index === attempt ? <Check size={18} /> : <Play size={18} />}
+                </button>
+              ))}
+            </section>
           ))}
         </div>
       </section>

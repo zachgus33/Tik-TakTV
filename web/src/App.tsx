@@ -18,6 +18,7 @@ import {
   type Setup,
 } from "./account";
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -173,6 +174,14 @@ import {
   streamPreferences,
   type StreamPreferences,
 } from "./stream-selection";
+import {
+  readBingeGroup,
+  readStreamLink,
+  saveBingeGroup,
+  saveStreamLink,
+  streamContentKey,
+} from "./enhanced-stream-cache";
+import { streamBadgeNames } from "./stream-badges";
 import type { FriendTemplate } from "./Settings";
 import { homeCatalogEntries } from "./catalog-settings";
 import {
@@ -238,9 +247,11 @@ type StreamSearchResult = Awaited<ReturnType<typeof addonStreams>>;
 
 function firstAutoplayResult(
   search: (
-    onSource: (streams: Stream[]) => void,
+    onSource: (streams: Stream[], addon?: Addon) => void,
   ) => Promise<StreamSearchResult>,
   hasDebrid: boolean,
+  installedOrder: string[],
+  preferredBingeGroup?: string,
 ): Promise<{
   streams: Stream[];
   result?: StreamSearchResult;
@@ -248,17 +259,31 @@ function firstAutoplayResult(
 }> {
   const accumulated: Stream[] = [];
   const seen = new Set<string>();
-  let conversionGrace: ReturnType<typeof setTimeout> | undefined;
+  const preferences = streamPreferences();
+  let timeoutElapsed = preferences.autoPlayTimeoutSeconds <= 0;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
   return new Promise((resolve, reject) => {
     let request!: Promise<StreamSearchResult>;
     const finish = (streams: Stream[], result?: StreamSearchResult) => {
       if (settled) return;
       settled = true;
-      if (conversionGrace) clearTimeout(conversionGrace);
+      if (timeout) clearTimeout(timeout);
       resolve({ streams, result, complete: request });
     };
-    const rankedAccumulated = () => autoplayStreams(accumulated, hasDebrid);
+    const rankedAccumulated = () =>
+      autoplayStreams(
+        accumulated,
+        hasDebrid,
+        installedOrder,
+        preferredBingeGroup,
+      );
+    if (!timeoutElapsed)
+      timeout = setTimeout(() => {
+        timeoutElapsed = true;
+        const selected = rankedAccumulated();
+        if (selected.length) finish(selected);
+      }, preferences.autoPlayTimeoutSeconds * 1000);
     request = search((streams) => {
       for (const stream of streams) {
         const key = `${stream.url ?? ""}|${stream.infoHash ?? ""}|${stream.fileIdx ?? ""}|${stream.title ?? ""}`;
@@ -266,25 +291,16 @@ function firstAutoplayResult(
         seen.add(key);
         accumulated.push(stream);
       }
-      const ranked = rankedAccumulated();
-      if (!ranked.length) return;
-      if (
-        ranked.some((stream) => compatibilityPlaybackMode(stream) === undefined)
-      ) {
-        finish(ranked);
-        return;
-      }
-      // Conversion-only results are often returned a fraction of a second
-      // before a directly playable MP4 from another add-on. Give that source
-      // a tiny head start, then fall back instead of waiting for every add-on.
-      conversionGrace ??= setTimeout(() => finish(rankedAccumulated()), 900);
+      if (!timeoutElapsed) return;
+      const selected = rankedAccumulated();
+      if (selected.length) finish(selected);
     });
     request
       .then((result) =>
         finish(autoplayStreams(result.streams, hasDebrid), result),
       )
       .catch((error) => {
-        if (conversionGrace) clearTimeout(conversionGrace);
+        if (timeout) clearTimeout(timeout);
         if (!settled) reject(error);
       });
   });
@@ -1134,16 +1150,21 @@ function Card({
   onOpen,
   progress,
   watched = false,
+  upcoming = false,
 }: {
   item: Item;
   onOpen: (item: Item) => void;
   progress?: Progress;
   watched?: boolean;
+  upcoming?: boolean;
 }) {
   const experienceSettings = readNuvioWebSettings();
+  const continueStyle = progress
+    ? experienceSettings.continueWatchingStyle
+    : "card";
   return (
     <button
-      className={`media-card ${progress ? "continue-card" : ""}`}
+      className={`media-card ${progress ? `continue-card continue-${continueStyle}` : ""}${upcoming ? " continue-upcoming" : ""}`}
       onClick={() => onOpen(item)}
       onPointerEnter={() => {
         if (item.background) {
@@ -1161,7 +1182,7 @@ function Card({
       }}
     >
       <div className="poster">
-        <Art item={item} wide={!!progress} />
+        <Art item={item} wide={!!progress && continueStyle !== "poster"} />
         <span className="play-hover">
           <Play fill="currentColor" />
         </span>
@@ -1189,7 +1210,9 @@ function Card({
       <strong>{item.name}</strong>
       <span className="card-meta">
         {progress
-          ? experienceSettings.continueWatchingRemainingTime
+          ? upcoming
+            ? `Upcoming${progress.episode?.released ? ` · ${new Date(progress.episode.released).toLocaleDateString()}` : ""}`
+            : experienceSettings.continueWatchingRemainingTime
             ? `${Math.max(1, Math.round((progress.duration - progress.seconds) / 60))} min left`
             : "Continue watching"
           : [
@@ -1205,6 +1228,36 @@ function Card({
       </span>
     </button>
   );
+}
+
+function organizeContinueWatching(
+  entries: Progress[],
+  settings: NuvioWebSettings,
+) {
+  const now = Date.now();
+  const upcoming = entries.filter((entry) => {
+    const released = entry.episode?.released;
+    if (!released) return false;
+    const timestamp = new Date(released).valueOf();
+    return Number.isFinite(timestamp) && timestamp > now;
+  });
+  const upcomingKeys = new Set(upcoming.map((entry) => itemKey(entry.item)));
+  const released = entries.filter(
+    (entry) => !upcomingKeys.has(itemKey(entry.item)),
+  );
+  const visibleUpcoming = settings.continueWatchingShowUnaired ? upcoming : [];
+  if (settings.continueWatchingSort === "split-upcoming")
+    return { primary: released, upcoming: visibleUpcoming };
+  if (settings.continueWatchingSort === "streaming")
+    return { primary: [...released, ...visibleUpcoming], upcoming: [] };
+  return {
+    primary: entries.filter(
+      (entry) =>
+        !upcomingKeys.has(itemKey(entry.item)) ||
+        settings.continueWatchingShowUnaired,
+    ),
+    upcoming: [],
+  };
 }
 function Empty({
   title,
@@ -1530,7 +1583,7 @@ function Detail({
   const [streamSources, setStreamSources] = useState<
     {
       name: string;
-      status: "responded" | "failed" | "paused";
+      status: "loading" | "responded" | "failed" | "paused";
       streams: number;
       reason?: string;
     }[]
@@ -1566,11 +1619,11 @@ function Detail({
     target: Item,
     id: string,
     signal?: AbortSignal,
-    onSource?: (streams: Stream[]) => void,
+    onSource?: (streams: Stream[], addon: Addon) => void,
   ) {
     if (onSource)
-      return addonStreams(addons, target, id, signal, (streams) =>
-        onSource(streams),
+      return addonStreams(addons, target, id, signal, (streams, addon) =>
+        onSource(streams, addon),
       );
     const key = `${target.type}:${id}`;
     const existing = streamRequests.current.get(key);
@@ -1654,6 +1707,8 @@ function Detail({
     const position =
       resume?.episode?.id === ep?.id ? resume?.seconds : undefined;
     if (directStream(stream)) {
+      saveStreamLink(streamContentKey(item, ep), stream);
+      saveBingeGroup(item.id, stream.behaviorHints?.bingeGroup);
       const playbackForStream = (candidate: Stream): Playback => {
         const quality = streamQuality(candidate);
         const audio = streamAudioCodec(candidate);
@@ -1663,6 +1718,11 @@ function Detail({
           url: candidate.url!,
           resume: position,
           sourceLabel: candidate.name ?? candidate.addonName ?? "Stream",
+          sourceAddonName: candidate.addonName,
+          sourceAddonId: candidate.addonId,
+          bingeGroup: candidate.behaviorHints?.bingeGroup,
+          cacheKey: streamContentKey(item, ep),
+          sourceBadges: streamBadgeNames(candidate, streamPreferences()),
           sourceDetail: [
             candidate.addonName && candidate.addonName !== candidate.name
               ? candidate.addonName
@@ -1700,7 +1760,10 @@ function Detail({
           .slice(0, 49)
           .map(playbackForStream),
         alternativesRequest: fallbackRequest?.then((loaded) =>
-          sourcePickerStreams(loaded)
+          sourcePickerStreams(
+            loaded,
+            addons.map((addon) => addon.manifest.name),
+          )
             .filter((candidate) => candidate.url !== stream.url)
             .slice(0, 250)
             .map(playbackForStream),
@@ -1931,8 +1994,29 @@ function Detail({
     setError("");
     setStreams([]);
     setStreamsLoaded(false);
-    setStreamSummary("");
-    setStreamSources([]);
+    setStreamSummary("Finding sources from your installed add-ons…");
+    setStreamSources(
+      addons
+        .filter((addon) => addon.enabled !== false)
+        .filter((addon) =>
+          addon.manifest.resources?.some((resource) =>
+            typeof resource === "string"
+              ? resource === "stream"
+              : resource.name === "stream" &&
+                (!resource.types?.length ||
+                  resource.types.includes(item.type)) &&
+                (!resource.idPrefixes?.length ||
+                  resource.idPrefixes.some((prefix) =>
+                    (ep?.id ?? item.id).startsWith(prefix),
+                  )),
+          ),
+        )
+        .map((addon) => ({
+          name: addon.manifest.name,
+          status: "loading" as const,
+          streams: 0,
+        })),
+    );
     setFiles(null);
     const position =
       resume && resume.episode?.id === ep?.id ? resume?.seconds : undefined;
@@ -2003,10 +2087,29 @@ function Detail({
       const hasDebrid = !!torboxKey || !!realDebridKey;
       let result: StreamSearchResult;
       if (auto && !downloadBest) {
+        const preferences = streamPreferences();
+        const cached = preferences.reuseLastLink
+          ? readStreamLink(
+              streamContentKey(item, ep),
+              preferences.reuseLastLinkHours,
+            )
+          : undefined;
+        if (cached) {
+          const continuedSearch = requestStreams(
+            item,
+            ep?.id ?? item.id,
+            c.signal,
+          ).then((loaded) => loaded.streams);
+          controller.current = null;
+          await chooseStream(cached, ep, c.signal, [], continuedSearch);
+          return;
+        }
         const selection = await firstAutoplayResult(
           (onSource) =>
             requestStreams(item, ep?.id ?? item.id, c.signal, onSource),
           hasDebrid,
+          addons.map((addon) => addon.manifest.name),
+          readBingeGroup(item.id),
         );
         if (c.signal.aborted) return;
         if (selection.streams.length) {
@@ -2046,7 +2149,32 @@ function Detail({
           throw new Error("No automatically playable stream was found.");
         result = selection.result;
       } else {
-        result = await requestStreams(item, ep?.id ?? item.id, c.signal);
+        result = await requestStreams(
+          item,
+          ep?.id ?? item.id,
+          c.signal,
+          (loaded, addon) => {
+            if (c.signal.aborted || downloadBest) return;
+            setStreams((current) =>
+              sourcePickerStreams(
+                [...current, ...loaded],
+                addons.map((addon) => addon.manifest.name),
+              ),
+            );
+            setStreamsLoaded(true);
+            setStreamSources((current) =>
+              current.map((source) =>
+                source.name === addon.manifest.name
+                  ? {
+                      ...source,
+                      status: "responded" as const,
+                      streams: loaded.length,
+                    }
+                  : source,
+              ),
+            );
+          },
+        );
       }
       if (c.signal.aborted) return;
       const incompatible = Math.max(
@@ -2060,10 +2188,20 @@ function Detail({
           `${incompatible ? `; ${incompatible} do not support this title ID/type` : ""}.`,
       );
       setStreamSources(result.sources);
-      const ranked = rankedStreams(result.streams, hasDebrid);
-      const autoplayRanked = autoplayStreams(result.streams, hasDebrid);
+      const downloadRanked = rankedStreams(result.streams, hasDebrid);
+      const manualSources = sourcePickerStreams(
+        result.streams,
+        addons.map((addon) => addon.manifest.name),
+      );
+      const autoplayRanked = autoplayStreams(
+        result.streams,
+        hasDebrid,
+        addons.map((addon) => addon.manifest.name),
+        readBingeGroup(item.id),
+      );
       if (downloadBest) {
-        if (ranked.length) await chooseDownload(ranked[0], ep, c.signal);
+        if (downloadRanked.length)
+          await chooseDownload(downloadRanked[0], ep, c.signal);
         else {
           setDownloadMode(false);
           if (downloadJobId.current)
@@ -2088,13 +2226,13 @@ function Detail({
             );
           } catch (error) {
             if (!c.signal.aborted) {
-              setStreams(result.streams);
+              setStreams(manualSources);
               setStreamsLoaded(true);
             }
             throw error;
           }
         } else {
-          setStreams(result.streams);
+          setStreams(manualSources);
           setStreamsLoaded(true);
         }
       }
@@ -2108,7 +2246,7 @@ function Detail({
             ? "Your streaming add-ons do not support this title ID. Try the title from an IMDb-based catalog or refresh your installed manifests in Settings."
             : "No streaming add-on is installed in this browser profile. Sign in to TikTakTV to sync your add-ons, or install a configured manifest in Settings. Localhost and your website have separate settings.",
         );
-      else if (result.failed && !ranked.length)
+      else if (result.failed && !manualSources.length)
         setError(
           `${result.failed} add-on${result.failed === 1 ? "" : "s"} could not be reached. Other results are shown below.`,
         );
@@ -2515,6 +2653,8 @@ function Detail({
                       <span>
                         {source.status === "responded"
                           ? `${source.streams} stream${source.streams === 1 ? "" : "s"}`
+                          : source.status === "loading"
+                            ? "Loading…"
                           : source.status === "paused"
                             ? "Temporarily paused"
                             : (source.reason ?? "Request failed")}
@@ -2776,40 +2916,59 @@ function Detail({
               const compatibility = streamCompatibility(s);
               const languages = streamAudioLanguages(s);
               return (
-                <button
-                  key={i}
-                  disabled={!playable || busy}
-                  onClick={() => void manualStream(s)}
-                >
-                  {downloadMode ? <Download size={20} /> : <Play size={20} />}
-                  <span>
-                    <strong>{s.name ?? "Stream"}</strong>
-                    <em
-                      className={`compatibility-badge ${compatibility.kind}`}
-                      title={compatibility.detail}
-                    >
-                      {compatibility.label}
-                    </em>
-                    <small>
-                      {streamQuality(s)
-                        ? `${streamQuality(s)}p`
-                        : "Quality not reported"}
-                      {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
-                      {s.infoHash ? " · TorBox" : ""}
-                      {languages.length
-                        ? ` · Audio: ${languages.join(", ")}`
-                        : ""}
-                    </small>
+                <Fragment key={`${s.addonId ?? s.addonName ?? "stream"}:${i}`}>
+                  {(i === 0 ||
+                    streams[i - 1]?.addonName !== s.addonName) && (
+                    <div className="stream-addon-heading">
+                      <strong>{s.addonName ?? "Other sources"}</strong>
+                      <span>
+                        {
+                          streams.filter(
+                            (candidate) =>
+                              candidate.addonName === s.addonName,
+                          ).length
+                        }
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    disabled={!playable || busy}
+                    onClick={() => void manualStream(s)}
+                  >
+                    {downloadMode ? (
+                      <Download size={20} />
+                    ) : (
+                      <Play size={20} />
+                    )}
                     <span>
-                      {s.title ??
-                        (playable
-                          ? "HTTPS video"
-                          : s.infoHash
-                            ? "Torrent source — requires a separate streaming server"
-                            : "Not directly playable in a browser")}
+                      <strong>{s.name ?? "Stream"}</strong>
+                      <em
+                        className={`compatibility-badge ${compatibility.kind}`}
+                        title={compatibility.detail}
+                      >
+                        {compatibility.label}
+                      </em>
+                      <small>
+                        {streamQuality(s)
+                          ? `${streamQuality(s)}p`
+                          : "Quality not reported"}
+                        {seeders(s) >= 0 ? ` · ${seeders(s)} seeders` : ""}
+                        {s.infoHash ? " · Debrid" : ""}
+                        {languages.length
+                          ? ` · Audio: ${languages.join(", ")}`
+                          : ""}
+                      </small>
+                      <span>
+                        {s.title ??
+                          (playable
+                            ? "HTTPS video"
+                            : s.infoHash
+                              ? "Torrent source — connect a debrid resolver"
+                              : "Not directly playable in a browser")}
+                      </span>
                     </span>
-                  </span>
-                </button>
+                  </button>
+                </Fragment>
               );
             })}
           </div>
@@ -2851,6 +3010,9 @@ export default function App() {
   const [autoplay, setAutoplay] = useStored("autoplay", true);
   const [sourcePreferences, setSourcePreferences] =
     useState<StreamPreferences>(streamPreferences);
+  useEffect(() => {
+    setAutoplay(sourcePreferences.autoPlayMode !== "manual");
+  }, [sourcePreferences.autoPlayMode, setAutoplay]);
   const [nuvioWebSettings, setNuvioWebSettings] =
     useState<NuvioWebSettings>(readNuvioWebSettings);
   const [skipProfileSelection, setSkipProfileSelection] = useStored(
@@ -2868,6 +3030,14 @@ export default function App() {
   );
   const [progress, setProgress] = useState<Progress[]>(() =>
     normalizeYouTubeProgress(read("progress", [])),
+  );
+  const continueWatching = useMemo(
+    () => organizeContinueWatching(progress, nuvioWebSettings),
+    [
+      progress,
+      nuvioWebSettings.continueWatchingShowUnaired,
+      nuvioWebSettings.continueWatchingSort,
+    ],
   );
   const [watched, setWatched] = useState<WatchedItem[]>(() =>
     read("watched", []),
@@ -2968,12 +3138,15 @@ export default function App() {
     setRealDebridKey(s.realDebridKey);
     save("realdebrid-key", s.realDebridKey);
     sessionStorage.removeItem("nuvio:realdebrid-key");
-    setAutoplay(s.autoplay);
     const restoredSourcePreferences = normalizeStreamPreferences(
-      s.streamPreferences ?? sourcePreferences,
+      s.streamPreferences ?? {
+        ...sourcePreferences,
+        autoPlayMode: s.autoplay ? sourcePreferences.autoPlayMode : "manual",
+      },
     );
     saveStreamPreferences(restoredSourcePreferences);
     setSourcePreferences(restoredSourcePreferences);
+    setAutoplay(restoredSourcePreferences.autoPlayMode !== "manual");
     const restoredNuvioWebSettings = normalizeNuvioWebSettings(
       s.nuvioWebSettings ?? nuvioWebSettings,
     );
@@ -3109,6 +3282,8 @@ export default function App() {
             onSource(streams),
           ),
         !!torboxKey || !!realDebridKey,
+        addons.map((addon) => addon.manifest.name),
+        readBingeGroup(item.id),
       );
       if (controller.signal.aborted) return;
       const ranked = selection.streams;
@@ -3122,6 +3297,11 @@ export default function App() {
         episode,
         url: stream.url!,
         sourceLabel: stream.name ?? stream.addonName ?? "Stream",
+        sourceAddonName: stream.addonName,
+        sourceAddonId: stream.addonId,
+        bingeGroup: stream.behaviorHints?.bingeGroup,
+        cacheKey: streamContentKey(item, episode),
+        sourceBadges: streamBadgeNames(stream, streamPreferences()),
         sourceDetail: stream.title,
         mode: getService() ? compatibilityPlaybackMode(stream) : undefined,
         requestHeaders: (
@@ -3137,7 +3317,10 @@ export default function App() {
         automaticFallbackCount: 2,
         alternatives: ranked.slice(1, 50).filter(directStream).map(toPlayback),
         alternativesRequest: selection.complete.then((result) =>
-          sourcePickerStreams(result.streams)
+          sourcePickerStreams(
+            result.streams,
+            addons.map((addon) => addon.manifest.name),
+          )
             .filter((stream) => stream.url !== candidate.url)
             .slice(0, 250)
             .map(toPlayback),
@@ -3237,12 +3420,23 @@ export default function App() {
     root.dataset.nuvioPosterSize = nuvioWebSettings.posterSize;
     root.dataset.nuvioCardDepth = nuvioWebSettings.cardDepth;
     root.dataset.nuvioPosterLayout = nuvioWebSettings.posterLayout;
+    root.dataset.nuvioHidePosterLabels = String(
+      nuvioWebSettings.hidePosterLabels,
+    );
+    root.dataset.nuvioContinueStyle = nuvioWebSettings.continueWatchingStyle;
+    root.dataset.nuvioBlurUpcoming = String(
+      nuvioWebSettings.continueWatchingBlurUpcoming,
+    );
     root.dataset.nuvioMetaBackground = nuvioWebSettings.metaBackgroundMode;
     root.dataset.nuvioEpisodeStyle = nuvioWebSettings.episodeCardStyle;
     root.dataset.nuvioLibraryLayout = nuvioWebSettings.libraryLayout;
     root.style.setProperty(
       "--nuvio-catalog-columns",
       String(nuvioWebSettings.homeCatalogColumns),
+    );
+    root.style.setProperty(
+      "--nuvio-poster-radius",
+      `${nuvioWebSettings.posterCornerRadius}px`,
     );
     root.style.setProperty(
       "--nuvio-subtitle-scale",
@@ -3262,6 +3456,13 @@ export default function App() {
         "tiktak:audio-language",
         nuvioWebSettings.preferredAudioLanguage,
       );
+    else localStorage.removeItem("tiktak:audio-language");
+    if (nuvioWebSettings.secondaryPreferredAudioLanguage !== "none")
+      localStorage.setItem(
+        "tiktak:secondary-audio-language",
+        nuvioWebSettings.secondaryPreferredAudioLanguage,
+      );
+    else localStorage.removeItem("tiktak:secondary-audio-language");
     if (
       nuvioWebSettings.preferredSubtitleLanguage !== "device" &&
       nuvioWebSettings.preferredSubtitleLanguage !== "none"
@@ -3270,6 +3471,13 @@ export default function App() {
         "tiktak:subtitle-language",
         nuvioWebSettings.preferredSubtitleLanguage,
       );
+    else localStorage.removeItem("tiktak:subtitle-language");
+    if (nuvioWebSettings.secondaryPreferredSubtitleLanguage !== "none")
+      localStorage.setItem(
+        "tiktak:secondary-subtitle-language",
+        nuvioWebSettings.secondaryPreferredSubtitleLanguage,
+      );
+    else localStorage.removeItem("tiktak:secondary-subtitle-language");
     writeNextEpisodeAutoAdvance(nuvioWebSettings.autoPlayNextEpisode);
   }, [nuvioWebSettings]);
   useEffect(() => {
@@ -4371,7 +4579,7 @@ export default function App() {
                       </div>
                     )}
                     {nuvioWebSettings.continueWatchingEnabled &&
-                      progress.length > 0 && (
+                      continueWatching.primary.length > 0 && (
                         <section className="media-row">
                           <div className="row-heading">
                             <h2>Pick up where you left off</h2>
@@ -4381,11 +4589,37 @@ export default function App() {
                             </button>
                           </div>
                           <div className="rail">
-                            {progress.slice(0, 12).map((p) => (
+                            {continueWatching.primary.slice(0, 12).map((p) => (
                               <Card
-                                key={itemKey(p.item)}
+                                key={`${itemKey(p.item)}:${p.episode?.id ?? "title"}`}
                                 item={p.item}
                                 progress={p}
+                                upcoming={Boolean(
+                                  p.episode?.released &&
+                                    new Date(p.episode.released).valueOf() >
+                                      Date.now(),
+                                )}
+                                watched={isWatched(watched, p.item)}
+                                onOpen={open}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    {nuvioWebSettings.continueWatchingEnabled &&
+                      continueWatching.upcoming.length > 0 && (
+                        <section className="media-row continue-upcoming-row">
+                          <div className="row-heading">
+                            <h2>Upcoming</h2>
+                            <span>Episodes you are waiting for</span>
+                          </div>
+                          <div className="rail">
+                            {continueWatching.upcoming.slice(0, 12).map((p) => (
+                              <Card
+                                key={`${itemKey(p.item)}:${p.episode?.id ?? "title"}:upcoming`}
+                                item={p.item}
+                                progress={p}
+                                upcoming
                                 watched={isWatched(watched, p.item)}
                                 onOpen={open}
                               />
@@ -5375,6 +5609,7 @@ export default function App() {
                         template.sourcePreferences,
                       );
                       setSourcePreferences(saved);
+                      setAutoplay(saved.autoPlayMode !== "manual");
                     }
                     if (template.nuvioWebSettings) {
                       const saved = saveNuvioWebSettings(

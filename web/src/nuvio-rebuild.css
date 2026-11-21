@@ -208,6 +208,71 @@ html:not(.tv-mode) .nuvio-web-shell .media-card {
   width: var(--nuvio-poster-width);
   flex-basis: var(--nuvio-poster-width);
 }
+html:not(.tv-mode) .nuvio-web-shell .media-card .poster {
+  border-radius: var(--nuvio-poster-radius, 16px);
+}
+html:not(.tv-mode)[data-nuvio-hide-poster-labels="true"]
+  .nuvio-web-shell
+  .media-card
+  > strong,
+html:not(.tv-mode)[data-nuvio-hide-poster-labels="true"]
+  .nuvio-web-shell
+  .media-card
+  > .card-meta {
+  display: none;
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-card {
+  width: 260px;
+  flex-basis: 260px;
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-card .poster {
+  aspect-ratio: 16 / 9;
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-poster {
+  width: var(--nuvio-poster-width);
+  flex-basis: var(--nuvio-poster-width);
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-poster .poster {
+  aspect-ratio: 2 / 3;
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-wide {
+  width: min(380px, 78vw);
+  flex-basis: min(380px, 78vw);
+}
+html:not(.tv-mode) .nuvio-web-shell .continue-card.continue-wide > strong {
+  margin-top: 11px;
+  font-size: 16px;
+}
+html:not(.tv-mode)[data-nuvio-blur-upcoming="true"]
+  .nuvio-web-shell
+  .continue-upcoming
+  .poster
+  img {
+  filter: blur(9px);
+  transform: scale(1.05);
+}
+.continue-upcoming-row .row-heading > span {
+  color: #8f8798;
+  font-size: 13px;
+}
+.stream-addon-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 4px 4px;
+  color: #f0eaf5;
+}
+.stream-addon-heading > span {
+  min-width: 28px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #9991a2;
+  background: #ffffff0a;
+  font-size: 11px;
+  text-align: center;
+}
 html:not(.tv-mode)[data-nuvio-card-depth="flat"] .media-card .poster {
   box-shadow: none;
 }
@@ -377,6 +442,101 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   color: #ded7e8;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+.source-addon-scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #ffffff12;
+  border-radius: 16px;
+  background: #0d0b11;
+}
+.source-addon-scope legend {
+  padding: 0 8px;
+  color: #f3edf8;
+  font-weight: 750;
+}
+.source-addon-scope > .hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.source-addon-scope .check {
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #ffffff0d;
+  border-radius: 12px;
+  background: #15121a;
+}
+.stream-settings-panel > .form-grid,
+.stream-behavior-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.stream-behavior-grid .check {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #ffffff0d;
+  border-radius: 12px;
+  background: #15121a;
+}
+.stream-settings-message {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b9f5cf;
+}
+.stream-badge-settings {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0;
+  padding: 18px;
+  border: 1px solid #ffffff10;
+  border-radius: 18px;
+  background: #0f0d13;
+}
+.stream-badge-settings h3,
+.stream-badge-settings p {
+  margin: 0;
+}
+.stream-badge-imports {
+  display: grid;
+  gap: 8px;
+}
+.stream-badge-imports article {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff0d;
+  border-radius: 12px;
+  background: #17141c;
+}
+.stream-badge-imports article > label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.stream-badge-imports label > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.stream-badge-imports small {
+  overflow: hidden;
+  color: #938b9b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .stream-settings-panel > .form-grid,
+  .stream-behavior-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .nuvio-integration-card {
   overflow: hidden;

@@ -25,6 +25,7 @@ import {
   Bell,
   MonitorPlay,
   Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   connectProvider,
@@ -69,6 +70,7 @@ import ExternalTrackingSettings from "./ExternalTrackingSettings";
 import NuvioExperienceSettings from "./NuvioExperienceSettings";
 import type { NuvioWebSettings } from "./nuvio-web-settings";
 import NuvioIntegrationsHub from "./NuvioIntegrationsHub";
+import StreamSettingsPanel from "./StreamSettingsPanel";
 
 export type FriendTemplate = {
   addons: Addon[];
@@ -128,6 +130,7 @@ type SettingsSection =
   | "details"
   | "library-display"
   | "player"
+  | "streams"
   | "notifications"
   | "integrations"
   | "playback"
@@ -203,6 +206,13 @@ const sections = [
     label: "Player",
     description: "Controls, tracks and subtitles",
     icon: MonitorPlay,
+    group: "General",
+  },
+  {
+    id: "streams",
+    label: "Streams",
+    description: "Selection, regex and source reuse",
+    icon: SlidersHorizontal,
     group: "General",
   },
   {
@@ -517,6 +527,17 @@ export default function Settings(props: Props) {
               onChange={props.onNuvioWebSettings}
             />
           )}
+          {section === "streams" && (
+            <StreamSettingsPanel
+              addons={props.addons}
+              value={sourcePreferences}
+              onSave={(preferences) => {
+                setSourcePreferences(preferences);
+                props.onSourcePreferences(preferences);
+                props.onAutoplay(preferences.autoPlayMode !== "manual");
+              }}
+            />
+          )}
           {section === "notifications" && (
             <NuvioExperienceSettings
               page="notifications"
@@ -811,75 +832,68 @@ export default function Settings(props: Props) {
                 a torrent can add its cached entry to your TorBox account. No
                 uncached download is started.
               </p>
-              <details className="source-preferences">
+              {false && <details className="source-preferences">
                 <summary>Advanced source controls</summary>
                 <div className="form-grid">
-                  <label>
-                    Maximum quality
-                    <select
-                      value={sourcePreferences.maxQuality}
-                      onChange={(event) =>
-                        setSourcePreferences((current) => ({
-                          ...current,
-                          maxQuality: Number(event.target.value),
-                        }))
-                      }
-                    >
-                      <option value="720">720p</option>
-                      <option value="1080">1080p</option>
-                      <option value="1440">1440p</option>
-                      <option value="2160">4K</option>
-                      <option value="4320">8K / no practical limit</option>
-                    </select>
-                  </label>
-                  <label>
-                    Maximum file size (GB, 0 for unlimited)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={sourcePreferences.maxSizeGb}
-                      onChange={(event) =>
-                        setSourcePreferences((current) => ({
-                          ...current,
-                          maxSizeGb: Number(event.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    Codec preference
-                    <select
-                      value={sourcePreferences.codec}
-                      onChange={(event) =>
-                        setSourcePreferences((current) => ({
-                          ...current,
-                          codec: event.target.value === "h264" ? "h264" : "any",
-                        }))
-                      }
-                    >
-                      <option value="any">Any compatible codec</option>
-                      <option value="h264">H.264 / AVC only</option>
-                    </select>
-                  </label>
                   <label>
                     Automatic source selection
                     <select
                       value={sourcePreferences.autoPlayMode}
+                      onChange={(event) => {
+                        const mode =
+                          event.target.value === "manual" ||
+                          event.target.value === "regex"
+                            ? event.target.value
+                            : "first";
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          autoPlayMode: mode,
+                        }));
+                        props.onAutoplay(mode !== "manual");
+                      }}
+                    >
+                      <option value="manual">Choose a stream manually</option>
+                      <option value="first">First matching stream</option>
+                      <option value="regex">Custom regex match</option>
+                    </select>
+                  </label>
+                  <label>
+                    Selection delay
+                    <select
+                      value={sourcePreferences.autoPlayTimeoutSeconds}
                       onChange={(event) =>
                         setSourcePreferences((current) => ({
                           ...current,
-                          autoPlayMode:
-                            event.target.value === "first" ||
-                            event.target.value === "regex"
-                              ? event.target.value
-                              : "smart",
+                          autoPlayTimeoutSeconds: Number(event.target.value),
                         }))
                       }
                     >
-                      <option value="smart">Smart compatibility ranking</option>
-                      <option value="first">First compatible stream</option>
-                      <option value="regex">Custom regex match</option>
+                      <option value="0">Instant</option>
+                      <option value="1">1 second</option>
+                      <option value="2">2 seconds</option>
+                      <option value="3">3 seconds</option>
+                      <option value="5">5 seconds</option>
+                      <option value="10">10 seconds</option>
+                      <option value="15">15 seconds</option>
+                      <option value="30">30 seconds</option>
+                    </select>
+                  </label>
+                  <label>
+                    Source scope
+                    <select
+                      value={sourcePreferences.autoPlaySource}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          autoPlaySource:
+                            event.target.value === "addons"
+                              ? "addons"
+                              : "all",
+                        }))
+                      }
+                    >
+                      <option value="all">All sources</option>
+                      <option value="addons">Installed add-ons</option>
                     </select>
                   </label>
                   {sourcePreferences.autoPlayMode === "regex" && (
@@ -897,23 +911,103 @@ export default function Settings(props: Props) {
                       />
                     </label>
                   )}
-                  <label>
-                    Excluded terms (comma separated)
+                  <label className="check">
                     <input
-                      value={sourcePreferences.excludedTerms.join(", ")}
-                      placeholder="CAM, telesync, dubbed"
+                      type="checkbox"
+                      checked={sourcePreferences.reuseLastLink}
                       onChange={(event) =>
                         setSourcePreferences((current) => ({
                           ...current,
-                          excludedTerms: event.target.value
-                            .split(",")
-                            .map((term) => term.trim())
-                            .filter(Boolean),
+                          reuseLastLink: event.target.checked,
                         }))
                       }
                     />
+                    Reuse the last working link
+                  </label>
+                  {sourcePreferences.reuseLastLink && (
+                    <label>
+                      Reuse link for
+                      <select
+                        value={sourcePreferences.reuseLastLinkHours}
+                        onChange={(event) =>
+                          setSourcePreferences((current) => ({
+                            ...current,
+                            reuseLastLinkHours: Number(event.target.value),
+                          }))
+                        }
+                      >
+                        <option value="1">1 hour</option>
+                        <option value="6">6 hours</option>
+                        <option value="12">12 hours</option>
+                        <option value="24">24 hours</option>
+                        <option value="72">3 days</option>
+                        <option value="168">7 days</option>
+                      </select>
+                    </label>
+                  )}
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={sourcePreferences.preferBingeGroup}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          preferBingeGroup: event.target.checked,
+                        }))
+                      }
+                    />
+                    Prefer the current series release group
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={sourcePreferences.reuseBingeGroup}
+                      onChange={(event) =>
+                        setSourcePreferences((current) => ({
+                          ...current,
+                          reuseBingeGroup: event.target.checked,
+                        }))
+                      }
+                    />
+                    Reuse that group for the next episode
                   </label>
                 </div>
+                <fieldset className="source-addon-scope">
+                  <legend>Automatic selection add-ons</legend>
+                  <p className="hint">
+                    Leave every add-on unchecked to use all installed add-ons.
+                  </p>
+                  {props.addons
+                    .filter((addon) => addon.enabled !== false)
+                    .filter((addon) =>
+                      addon.manifest.resources?.some((resource) =>
+                        typeof resource === "string"
+                          ? resource === "stream"
+                          : resource.name === "stream",
+                      ),
+                    )
+                    .map((addon) => (
+                      <label className="check" key={addon.base}>
+                        <input
+                          type="checkbox"
+                          checked={sourcePreferences.autoPlaySelectedAddons.includes(
+                            addon.base,
+                          )}
+                          onChange={(event) =>
+                            setSourcePreferences((current) => ({
+                              ...current,
+                              autoPlaySelectedAddons: event.target.checked
+                                ? [...current.autoPlaySelectedAddons, addon.base]
+                                : current.autoPlaySelectedAddons.filter(
+                                    (id) => id !== addon.base,
+                                  ),
+                            }))
+                          }
+                        />
+                        {addon.manifest.name}
+                      </label>
+                    ))}
+                </fieldset>
                 {sourcePreferences.autoPlayMode === "regex" && (
                   <div
                     className="source-regex-presets"
@@ -964,6 +1058,9 @@ export default function Settings(props: Props) {
                       ...sourcePreferences,
                       updatedAt: Date.now(),
                     });
+                    props.onAutoplay(
+                      sourcePreferences.autoPlayMode !== "manual",
+                    );
                     setSuccess(
                       "Source preferences saved. TikTakTV will sync them to this profile on your other devices.",
                     );
@@ -972,12 +1069,12 @@ export default function Settings(props: Props) {
                   Save source controls
                 </button>
                 <p className="hint">
-                  Regex matching searches the
-                  add-on name, stream name, description, filename, and URL.
-                  These rules affect automatic selection only; every playable
-                  add-on result remains visible in Choose stream.
+                  This follows TikTakTV mobile selection: add-ons run in their
+                  installed order, direct debrid results are grouped first,
+                  and regex only controls eligibility. Manual source lists keep
+                  every playable result.
                 </p>
-              </details>
+              </details>}
               {props.realDebridKey && (
                 <div className="connection">
                   <strong>Real-Debrid connected</strong>
@@ -1047,19 +1144,6 @@ export default function Settings(props: Props) {
                 TikTak TV only requests cached torrent files and secure download
                 links. Your key belongs to your TikTakTV setup and is never shared
                 with unrelated site visitors.
-              </p>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={props.autoplay}
-                  onChange={(e) => props.onAutoplay(e.target.checked)}
-                />
-                Automatic playback
-              </label>
-              <p className="hint">
-                Starts playback in the background using your source-selection
-                mode above. Smart mode prefers compatible 720p+ streams with
-                subtitles and availability; regex mode uses your own pattern.
               </p>
             </section>
           </div>

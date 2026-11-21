@@ -24,6 +24,7 @@ import {
   codecCompatibility,
   compatibilityPlaybackMode,
   directStream,
+  defaultStreamPreferences,
   debridStream,
   quality,
   rankedStreams,
@@ -57,6 +58,13 @@ import {
 import { persistableSetup } from "../src/account-isolation";
 import { clearAccountStorage } from "../src/storage";
 import { beginProfileSync, profileSyncKey } from "../src/profile-sync";
+import {
+  hasLikelyExpiringPlaybackCredentials,
+  readStreamLink,
+  saveStreamLink,
+  streamContentKey,
+} from "../src/enhanced-stream-cache";
+import { streamBadgeNames } from "../src/stream-badges";
 
 describe("custom collection catalog resolution", () => {
   it("treats a saved 'none' genre as an unfiltered catalog", () => {
@@ -420,7 +428,7 @@ describe("per-profile source controls", () => {
       updatedAt: 456,
     });
   });
-  it("prefers English sources and embedded tracks over higher-seeded foreign audio", () => {
+  it("keeps provider order for regex autoplay while still selecting preferred embedded audio", () => {
     vi.stubGlobal("localStorage", {
       getItem: (key: string) =>
         key === "tiktak:stream-preferences"
@@ -444,13 +452,125 @@ describe("per-profile source controls", () => {
     expect(streamAudioLanguageScore(english)).toBeGreaterThan(
       streamAudioLanguageScore(portuguese),
     );
-    expect(autoplayStreams([portuguese, english], false)[0]).toBe(english);
+    expect(autoplayStreams([portuguese, english], false)[0]).toBe(portuguese);
     expect(
       preferredAudioTrackIndex([
         { label: "Português", language: "por" },
         { label: "English AAC", language: "eng" },
       ]),
     ).toBe(1);
+  });
+  it("uses mobile manual mode, add-on scope, and direct-debrid group ordering", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    const publicStream = {
+      addonId: "https://public.example",
+      addonName: "Public",
+      name: "Public 1080p",
+      url: "https://cdn.example/public.mp4",
+    };
+    const debridStream = {
+      addonId: "https://debrid.example",
+      addonName: "Debridio",
+      name: "[RD+] Debridio 1080p",
+      url: "https://cdn.example/debrid.mp4",
+    };
+
+    storage.set(
+      "tiktak:stream-preferences",
+      JSON.stringify({ autoPlayMode: "manual" }),
+    );
+    expect(autoplayStreams([publicStream, debridStream], true)).toEqual([]);
+
+    storage.set(
+      "tiktak:stream-preferences",
+      JSON.stringify({
+        autoPlayMode: "first",
+        autoPlaySelectedAddons: [publicStream.addonId],
+      }),
+    );
+    expect(autoplayStreams([debridStream, publicStream], true)).toEqual([
+      publicStream,
+    ]);
+
+    storage.set(
+      "tiktak:stream-preferences",
+      JSON.stringify({ autoPlayMode: "first" }),
+    );
+    expect(
+      autoplayStreams(
+        [publicStream, debridStream],
+        true,
+        ["Public", "Debridio"],
+      ),
+    ).toEqual([debridStream, publicStream]);
+  });
+});
+
+describe("mobile-style stream link reuse", () => {
+  it("reuses stable links and rejects expiring credential URLs", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    const item = {
+      id: "tt-cache",
+      name: "Cached movie",
+      type: "movie" as const,
+      source: "addon" as const,
+    };
+    const key = streamContentKey(item);
+    const stable = {
+      addonName: "Debridio",
+      name: "Cached 1080p",
+      url: "https://cdn.example/movie.mp4",
+    };
+    saveStreamLink(key, stable);
+    expect(readStreamLink(key, 24)).toEqual(stable);
+    expect(
+      hasLikelyExpiringPlaybackCredentials(
+        "https://cdn.example/movie.mp4?expires=123&signature=secret",
+      ),
+    ).toBe(true);
+    saveStreamLink(key, {
+      ...stable,
+      url: "https://cdn.example/movie.mp4?token=temporary",
+    });
+    expect(readStreamLink(key, 24)).toBeUndefined();
+  });
+});
+
+describe("mobile-style stream badges", () => {
+  it("matches active imported rules and built-in size/add-on badges", () => {
+    const preferences = {
+      ...defaultStreamPreferences,
+      streamBadgeImports: [
+        {
+          sourceUrl: "https://badges.example/rules.json",
+          isActive: true,
+          filters: [
+            { name: "4K", pattern: "(?i)(2160p|4k)" },
+            { name: "HDR", pattern: "(?i)hdr", isEnabled: false },
+          ],
+        },
+      ],
+    };
+    expect(
+      streamBadgeNames(
+        {
+          addonName: "Debridio",
+          name: "4K cached",
+          title: "Movie.2160p.WEB-DL 18.5 GB",
+          url: "https://cdn.example/movie.mkv",
+        },
+        preferences,
+      ),
+    ).toEqual(["4K", "18.5 GB", "Debridio"]);
   });
 });
 describe("add-on controls", () => {
@@ -1045,7 +1165,7 @@ describe("720p+ preference and safe episode matching", () => {
     ]);
     expect(seeders({ title: "Seeders: 1,200" })).toBe(1200);
   });
-  it("autoplay prioritizes 720p+ subtitle sources and then maximum seeders", () => {
+  it("autoplay preserves provider order instead of applying hidden quality ranking", () => {
     const noSubs = {
       name: "2160p",
       seeders: 20_000,
@@ -1076,10 +1196,10 @@ describe("720p+ preference and safe episode matching", () => {
         false,
       ).map((stream) => stream.url),
     ).toEqual([
-      "https://cdn.example/subbed.mp4",
-      "https://cdn.example/source-subs.mp4",
-      "https://cdn.example/source-subs-low.mp4",
       "https://cdn.example/4k.mp4",
+      "https://cdn.example/subbed.mp4",
+      "https://cdn.example/source-subs-low.mp4",
+      "https://cdn.example/source-subs.mp4",
     ]);
   });
   it("uses Nuvio-style regex matching without hiding other manual sources", () => {
@@ -1127,8 +1247,8 @@ describe("720p+ preference and safe episode matching", () => {
     // The manual chooser is deliberately complete and does not inherit those
     // autoplay limits. Debridio's 1440p source remains visible.
     expect(sourcePickerStreams([torrentio, debridio])).toEqual([
-      debridio,
       torrentio,
+      debridio,
     ]);
   });
   it("selects a matching Debridio 1440p source when the regex allows it", () => {
@@ -1265,7 +1385,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(needsCompatibilityTranscode(mp4)).toBe(false);
     expect(rankedStreams([mkv, mp4], true)[0]).toBe(mkv);
   });
-  it("keeps resolved Torrentio containers and codecs out of direct playback", () => {
+  it("keeps mobile provider order and lets the compatibility layer handle codecs", () => {
     const h264 = {
       name: "[TB+] Torrentio 720p",
       title: "Show.720p.x264 seeders: 170",
@@ -1288,9 +1408,9 @@ describe("720p+ preference and safe episode matching", () => {
     expect(compatibilityPlaybackMode(hevc)).toBe("transcode");
     expect(compatibilityPlaybackMode(webReady)).toBeUndefined();
     expect(rankedStreams([hevc, h264], true)[0]).toBe(hevc);
-    expect(autoplayStreams([hevc, h264, webReady], true)[0]).toBe(webReady);
+    expect(autoplayStreams([hevc, h264, webReady], true)[0]).toBe(hevc);
   });
-  it("prefers browser-safe audio and converts Shield-risky audio formats", () => {
+  it("preserves provider order while flagging risky audio for conversion", () => {
     const dts = {
       name: "4K DTS-HD",
       title: "Movie.2160p.x264.DTS-HD.MA",
@@ -1310,7 +1430,7 @@ describe("720p+ preference and safe episode matching", () => {
     expect(audioCompatibility(aac)).toBeGreaterThan(audioCompatibility(dts));
     expect(compatibilityPlaybackMode(dts)).toBe("transcode");
     expect(compatibilityPlaybackMode(trueHd)).toBe("transcode");
-    expect(autoplayStreams([dts, aac], false)[0]).toBe(aac);
+    expect(autoplayStreams([dts, aac], false)[0]).toBe(dts);
   });
   it("prefers cached Torrentio playback over download aggregators", () => {
     const torrentio = {
@@ -1325,7 +1445,7 @@ describe("720p+ preference and safe episode matching", () => {
     };
     expect(autoplayStreams([download, torrentio], true)[0]).toBe(torrentio);
   });
-  it("prefers direct playback and keeps conversion as a fallback", () => {
+  it("keeps the first mobile-selected source and removes unavailable flagged sources", () => {
     const mkv = { name: "1080p", url: "https://cdn.example/movie.mkv" };
     const webReady = { name: "720p", url: "https://cdn.example/movie.mp4" };
     const flagged = {
@@ -1334,8 +1454,8 @@ describe("720p+ preference and safe episode matching", () => {
       behaviorHints: { notWebReady: true },
     };
     expect(autoplayStreams([mkv, flagged, webReady], false)).toEqual([
-      webReady,
       mkv,
+      webReady,
     ]);
     expect(autoplayStreams([mkv], false)).toEqual([mkv]);
   });

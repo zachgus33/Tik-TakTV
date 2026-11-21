@@ -540,6 +540,7 @@ export async function addonStreams(
         const streams = (data.streams ?? []).map((s) => ({
           ...s,
           addonName: addon.manifest.name,
+          addonId: addon.base,
           name: s.name ?? addon.manifest.name,
         }));
         onSource?.(streams, addon);

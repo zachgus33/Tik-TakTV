@@ -5,6 +5,7 @@ import {
   runtimeSeconds,
   parseWebVttCues,
   shiftWebVtt,
+  subtitleToWebVtt,
 } from "../src/player-utils";
 import { streamAudioLanguages } from "../src/stream-selection";
 
@@ -63,6 +64,30 @@ describe("player timing helpers", () => {
         "<00:01:02.300><c.green>Transcribed: &quot;Centered&nbsp;text&quot;</c>",
       ),
     ).toBe('"Centered text"');
+  });
+
+  it("normalizes SRT, ASS and TTML through the same mobile-style cue pipeline", () => {
+    const srt = subtitleToWebVtt(
+      "1\n00:00:01,000 --> 00:00:02,500\nSRT line",
+      "captions.srt",
+    );
+    const ass = subtitleToWebVtt(
+      "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:03.00,0:00:05.00,Default,,0,0,0,,{\\i1}ASS line{\\i0}",
+      "captions.ass",
+    );
+    const ttml = subtitleToWebVtt(
+      '<tt><body><p begin="6s" end="8.5s">TTML<br/>line</p></body></tt>',
+      "captions.ttml",
+    );
+    expect(parseWebVttCues(srt)).toEqual([
+      { startTime: 1, endTime: 2.5, text: "SRT line" },
+    ]);
+    expect(parseWebVttCues(ass)).toEqual([
+      { startTime: 3, endTime: 5, text: "ASS line" },
+    ]);
+    expect(parseWebVttCues(ttml)).toEqual([
+      { startTime: 6, endTime: 8.5, text: "TTML\nline" },
+    ]);
   });
 });
 

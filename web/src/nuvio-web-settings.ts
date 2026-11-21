@@ -12,6 +12,8 @@ export type NuvioWebSettings = {
   motionPreviewSound: boolean;
   posterSize: "small" | "medium" | "large";
   posterLayout: "portrait" | "landscape";
+  posterCornerRadius: number;
+  hidePosterLabels: boolean;
   homeCatalogColumns: number;
   showCatalogType: boolean;
   hideUnreleasedContent: boolean;
@@ -20,6 +22,10 @@ export type NuvioWebSettings = {
   continueWatchingEnabled: boolean;
   continueWatchingProgress: boolean;
   continueWatchingRemainingTime: boolean;
+  continueWatchingStyle: "card" | "poster" | "wide";
+  continueWatchingSort: "default" | "streaming" | "split-upcoming";
+  continueWatchingShowUnaired: boolean;
+  continueWatchingBlurUpcoming: boolean;
   libraryLayout: "horizontal" | "vertical";
   librarySort:
     | "added-desc"
@@ -40,13 +46,18 @@ export type NuvioWebSettings = {
   showLoadingOverlay: boolean;
   rememberPlayerChoices: boolean;
   preferredAudioLanguage: string;
+  secondaryPreferredAudioLanguage: string;
   preferredSubtitleLanguage: string;
+  secondaryPreferredSubtitleLanguage: string;
+  addonSubtitleStartupMode: "fast" | "preferred" | "all";
   subtitleFont: "system" | "rounded" | "serif" | "mono";
   subtitleSize: number;
   subtitleBackground: number;
   subtitlePosition: number;
   autoPlayNextEpisode: boolean;
+  nextEpisodeThresholdMode: "percentage" | "minutes";
   nextEpisodeThresholdPercent: number;
+  nextEpisodeMinutesBeforeEnd: number;
   showParentalGuide: boolean;
   playerStatusOverlay: boolean;
   liveTvEnabled: boolean;
@@ -72,6 +83,8 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   motionPreviewSound: false,
   posterSize: "medium",
   posterLayout: "portrait",
+  posterCornerRadius: 16,
+  hidePosterLabels: false,
   homeCatalogColumns: 3,
   showCatalogType: true,
   hideUnreleasedContent: false,
@@ -80,6 +93,10 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   continueWatchingEnabled: true,
   continueWatchingProgress: true,
   continueWatchingRemainingTime: true,
+  continueWatchingStyle: "card",
+  continueWatchingSort: "default",
+  continueWatchingShowUnaired: false,
+  continueWatchingBlurUpcoming: true,
   libraryLayout: "horizontal",
   librarySort: "added-desc",
   metaBackgroundMode: "normal",
@@ -106,13 +123,18 @@ export const defaultNuvioWebSettings: NuvioWebSettings = {
   showLoadingOverlay: true,
   rememberPlayerChoices: true,
   preferredAudioLanguage: "device",
+  secondaryPreferredAudioLanguage: "none",
   preferredSubtitleLanguage: "none",
+  secondaryPreferredSubtitleLanguage: "none",
+  addonSubtitleStartupMode: "all",
   subtitleFont: "system",
   subtitleSize: 100,
   subtitleBackground: 65,
   subtitlePosition: 8,
   autoPlayNextEpisode: false,
+  nextEpisodeThresholdMode: "percentage",
   nextEpisodeThresholdPercent: 97,
+  nextEpisodeMinutesBeforeEnd: 2,
   showParentalGuide: true,
   playerStatusOverlay: false,
   liveTvEnabled: true,
@@ -173,6 +195,11 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       ["portrait", "landscape"] as const,
       "portrait",
     ),
+    posterCornerRadius: Math.min(
+      32,
+      Math.max(0, Number(saved.posterCornerRadius ?? 16)),
+    ),
+    hidePosterLabels: boolean("hidePosterLabels"),
     homeCatalogColumns: Math.min(
       6,
       Math.max(2, Number(saved.homeCatalogColumns) || 3),
@@ -188,6 +215,18 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
     continueWatchingEnabled: boolean("continueWatchingEnabled"),
     continueWatchingProgress: boolean("continueWatchingProgress"),
     continueWatchingRemainingTime: boolean("continueWatchingRemainingTime"),
+    continueWatchingStyle: oneOf(
+      saved.continueWatchingStyle,
+      ["card", "poster", "wide"] as const,
+      "card",
+    ),
+    continueWatchingSort: oneOf(
+      saved.continueWatchingSort,
+      ["default", "streaming", "split-upcoming"] as const,
+      "default",
+    ),
+    continueWatchingShowUnaired: boolean("continueWatchingShowUnaired"),
+    continueWatchingBlurUpcoming: boolean("continueWatchingBlurUpcoming"),
     libraryLayout: oneOf(
       saved.libraryLayout,
       ["horizontal", "vertical"] as const,
@@ -237,8 +276,19 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
     showLoadingOverlay: boolean("showLoadingOverlay"),
     rememberPlayerChoices: boolean("rememberPlayerChoices"),
     preferredAudioLanguage: String(saved.preferredAudioLanguage || "device"),
+    secondaryPreferredAudioLanguage: String(
+      saved.secondaryPreferredAudioLanguage || "none",
+    ),
     preferredSubtitleLanguage: String(
       saved.preferredSubtitleLanguage || "none",
+    ),
+    secondaryPreferredSubtitleLanguage: String(
+      saved.secondaryPreferredSubtitleLanguage || "none",
+    ),
+    addonSubtitleStartupMode: oneOf(
+      saved.addonSubtitleStartupMode,
+      ["fast", "preferred", "all"] as const,
+      "all",
     ),
     subtitleFont: oneOf(
       saved.subtitleFont,
@@ -258,9 +308,18 @@ export function normalizeNuvioWebSettings(value: unknown): NuvioWebSettings {
       Math.max(2, Number(saved.subtitlePosition) || 8),
     ),
     autoPlayNextEpisode: boolean("autoPlayNextEpisode"),
+    nextEpisodeThresholdMode: oneOf(
+      saved.nextEpisodeThresholdMode,
+      ["percentage", "minutes"] as const,
+      "percentage",
+    ),
     nextEpisodeThresholdPercent: Math.min(
       100,
       Math.max(70, Number(saved.nextEpisodeThresholdPercent) || 97),
+    ),
+    nextEpisodeMinutesBeforeEnd: Math.min(
+      30,
+      Math.max(0.5, Number(saved.nextEpisodeMinutesBeforeEnd) || 2),
     ),
     showParentalGuide: boolean("showParentalGuide"),
     playerStatusOverlay: boolean("playerStatusOverlay"),

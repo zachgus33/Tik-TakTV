@@ -118,13 +118,42 @@ export function audioCompatibility(stream: Stream): number {
   if (codec) return -2;
   return 0;
 }
+export type StreamBadgeFilter = {
+  id?: string;
+  groupId?: string;
+  name: string;
+  pattern: string;
+  imageURL?: string;
+  isEnabled?: boolean;
+  tagColor?: string;
+  textColor?: string;
+  borderColor?: string;
+};
+export type StreamBadgeImport = {
+  sourceUrl: string;
+  filters: StreamBadgeFilter[];
+  groups?: { id?: string; name?: string; color?: string }[];
+  isActive: boolean;
+};
 export type StreamPreferences = {
+  /** Legacy download filters retained for existing profiles. */
   maxQuality: number;
   maxSizeGb: number;
   excludedTerms: string[];
   codec: "any" | "h264";
-  autoPlayMode: "smart" | "first" | "regex";
+  autoPlayMode: "manual" | "first" | "regex";
+  autoPlaySource: "all" | "addons";
+  autoPlaySelectedAddons: string[];
   autoPlayRegex: string;
+  autoPlayTimeoutSeconds: number;
+  reuseLastLink: boolean;
+  reuseLastLinkHours: number;
+  preferBingeGroup: boolean;
+  reuseBingeGroup: boolean;
+  streamBadgeImports: StreamBadgeImport[];
+  showFileSizeBadges: boolean;
+  showAddonNameBadge: boolean;
+  streamBadgePlacement: "top" | "bottom";
   updatedAt: number;
 };
 export const defaultStreamPreferences: StreamPreferences = {
@@ -132,8 +161,19 @@ export const defaultStreamPreferences: StreamPreferences = {
   maxSizeGb: 0,
   excludedTerms: [],
   codec: "any",
-  autoPlayMode: "smart",
+  autoPlayMode: "first",
+  autoPlaySource: "all",
+  autoPlaySelectedAddons: [],
   autoPlayRegex: "",
+  autoPlayTimeoutSeconds: 3,
+  reuseLastLink: false,
+  reuseLastLinkHours: 24,
+  preferBingeGroup: true,
+  reuseBingeGroup: true,
+  streamBadgeImports: [],
+  showFileSizeBadges: true,
+  showAddonNameBadge: true,
+  streamBadgePlacement: "bottom",
   updatedAt: 0,
 };
 export function normalizeStreamPreferences(value: unknown): StreamPreferences {
@@ -149,11 +189,66 @@ export function normalizeStreamPreferences(value: unknown): StreamPreferences {
       : [],
     codec: saved.codec === "h264" ? "h264" : "any",
     autoPlayMode:
-      saved.autoPlayMode === "first" || saved.autoPlayMode === "regex"
+      saved.autoPlayMode === "manual" ||
+      saved.autoPlayMode === "first" ||
+      saved.autoPlayMode === "regex"
         ? saved.autoPlayMode
-        : "smart",
+        : "first",
+    autoPlaySource: saved.autoPlaySource === "addons" ? "addons" : "all",
+    autoPlaySelectedAddons: Array.isArray(saved.autoPlaySelectedAddons)
+      ? [...new Set(saved.autoPlaySelectedAddons.map(String).filter(Boolean))]
+      : [],
     autoPlayRegex:
       typeof saved.autoPlayRegex === "string" ? saved.autoPlayRegex : "",
+    autoPlayTimeoutSeconds:
+      Number(saved.autoPlayTimeoutSeconds) === Number.POSITIVE_INFINITY
+        ? Number.MAX_SAFE_INTEGER
+        : Math.min(
+            30,
+            Math.max(0, Number(saved.autoPlayTimeoutSeconds ?? 3) || 0),
+          ),
+    reuseLastLink: saved.reuseLastLink === true,
+    reuseLastLinkHours: Math.min(
+      720,
+      Math.max(1, Number(saved.reuseLastLinkHours ?? 24) || 24),
+    ),
+    preferBingeGroup: saved.preferBingeGroup !== false,
+    reuseBingeGroup: saved.reuseBingeGroup !== false,
+    streamBadgeImports: Array.isArray(saved.streamBadgeImports)
+      ? saved.streamBadgeImports
+          .filter(
+            (entry): entry is StreamBadgeImport =>
+              !!entry &&
+              typeof entry === "object" &&
+              typeof entry.sourceUrl === "string" &&
+              Array.isArray(entry.filters),
+          )
+          .slice(0, 3)
+          .map((entry, index) => ({
+            sourceUrl: entry.sourceUrl.trim(),
+            filters: entry.filters
+              .filter(
+                (filter) =>
+                  filter &&
+                  typeof filter.name === "string" &&
+                  typeof filter.pattern === "string",
+              )
+              .map((filter) => ({ ...filter })),
+            groups: Array.isArray(entry.groups)
+              ? entry.groups.map((group) => ({ ...group }))
+              : [],
+            isActive:
+              entry.isActive === true ||
+              !saved.streamBadgeImports?.some(
+                (candidate) => candidate.isActive === true,
+              ) && index === 0,
+          }))
+          .filter((entry) => entry.sourceUrl && entry.filters.length)
+      : [],
+    showFileSizeBadges: saved.showFileSizeBadges !== false,
+    showAddonNameBadge: saved.showAddonNameBadge !== false,
+    streamBadgePlacement:
+      saved.streamBadgePlacement === "top" ? "top" : "bottom",
     updatedAt: Math.max(0, Number(saved.updatedAt) || 0),
   };
 }
@@ -205,10 +300,23 @@ export function preferredAudioLanguage(): string {
     }
   return "en";
 }
+export function preferredAudioLanguages(): string[] {
+  const primary = preferredAudioLanguage();
+  const secondary =
+    typeof localStorage === "undefined"
+      ? ""
+      : audioLanguageKey(
+          localStorage.getItem("tiktak:secondary-audio-language") ?? "",
+        );
+  return [...new Set([primary, secondary].filter(Boolean))];
+}
 export function audioLanguageScore(values: string[]): number {
-  const preferred = preferredAudioLanguage();
+  const preferred = preferredAudioLanguages();
   const keys = values.map(audioLanguageKey).filter(Boolean);
-  if (keys.some((key) => key === preferred)) return 3;
+  const preferredIndex = preferred.findIndex((language) =>
+    keys.some((key) => key === language),
+  );
+  if (preferredIndex >= 0) return Math.max(2, 3 - preferredIndex);
   if (keys.some((key) => key === "multiple" || key === "multi")) return 1;
   return keys.length ? -1 : 0;
 }
@@ -350,16 +458,53 @@ export function mobileAutoPlayScore(stream: Stream): number {
 
 export function autoplayStreams(
   streams: Stream[],
-  hasTorbox: boolean,
+  _hasTorbox: boolean,
+  installedOrder: string[] = [],
+  preferredBingeGroup?: string,
 ): Stream[] {
   const preferences = streamPreferences();
-  const candidates =
-    preferences.autoPlayMode === "smart"
-      ? rankedStreams(streams, hasTorbox)
-      : streams;
-  const eligible = candidates.filter((stream) => {
+  if (preferences.autoPlayMode === "manual") return [];
+  const addonRank = new Map(
+    installedOrder.map((name, index) => [name.toLocaleLowerCase(), index]),
+  );
+  let ordered = streams
+    .map((stream, index) => ({ stream, index }))
+    .sort(
+      (left, right) =>
+        Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
+        (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
+          Number.MAX_SAFE_INTEGER) -
+          (addonRank.get(right.stream.addonName?.toLocaleLowerCase() ?? "") ??
+            Number.MAX_SAFE_INTEGER) ||
+        left.index - right.index,
+    )
+    .map(({ stream }) => stream);
+  if (
+    preferences.preferBingeGroup &&
+    preferences.reuseBingeGroup &&
+    preferredBingeGroup
+  ) {
+    const preferred = ordered.filter(
+      (stream) => stream.behaviorHints?.bingeGroup === preferredBingeGroup,
+    );
+    if (preferred.length)
+      ordered = [
+        ...preferred,
+        ...ordered.filter((stream) => !preferred.includes(stream)),
+      ];
+  }
+  const eligible = ordered.filter((stream) => {
     if (!directStream(stream)) return false;
-    if (stream.behaviorHints?.notWebReady === true) return false;
+    if (
+      preferences.autoPlaySelectedAddons.length > 0 &&
+      !preferences.autoPlaySelectedAddons.some(
+        (selected) =>
+          selected === stream.addonId ||
+          selected.toLocaleLowerCase() ===
+            stream.addonName?.toLocaleLowerCase(),
+      )
+    )
+      return false;
     const descriptor = streamDescriptor(stream);
     // Uncached add-on results can still look like HTTPS media URLs. These
     // labels mean selecting the URL starts a debrid download instead.
@@ -387,52 +532,23 @@ export function autoplayStreams(
       : eligible;
   const matched =
     preferences.autoPlayMode === "first"
-      ? streams.filter((stream) => filtered.includes(stream))
+      ? ordered.filter((stream) => filtered.includes(stream))
       : filtered;
-  const browserReady = matched.filter(
-    (stream) => !compatibilityPlaybackMode(stream),
-  );
-  const conversionFallbacks = matched.filter((stream) =>
-    compatibilityPlaybackMode(stream),
-  );
-  const mobile = mobilePlaybackDevice();
-  const byPlaybackPriority = (left: Stream, right: Stream) =>
-    streamAudioLanguageScore(right) - streamAudioLanguageScore(left) ||
-    streamSubtitlePriority(right) - streamSubtitlePriority(left) ||
-    seeders(right) - seeders(left) ||
-    audioCompatibility(right) - audioCompatibility(left) ||
-    (mobile
-      ? mobileAutoPlayScore(right) - mobileAutoPlayScore(left)
-      : streamQuality(right) - streamQuality(left)) ||
-    codecCompatibility(right) - codecCompatibility(left);
-  // Direct browser playback remains the first requirement. Within that safe
-  // group, prefer 720p+ sources that already advertise subtitles, then the
-  // healthiest swarm. This mirrors the TV behavior without exposing source
-  // selection as a step the viewer has to manage.
-  if (preferences.autoPlayMode === "first")
-    return [...browserReady, ...conversionFallbacks];
-  if (preferences.autoPlayMode === "regex")
-    return [
-      ...browserReady.sort(
-        (left, right) =>
-          streamAudioLanguageScore(right) - streamAudioLanguageScore(left),
-      ),
-      ...conversionFallbacks.sort(
-        (left, right) =>
-          streamAudioLanguageScore(right) - streamAudioLanguageScore(left),
-      ),
-    ];
-  return [
-    ...browserReady.sort(byPlaybackPriority),
-    ...conversionFallbacks.sort(byPlaybackPriority),
-  ];
+  // Mobile Enhanced deliberately preserves provider/add-on order here. Regex
+  // controls eligibility, not a second hidden quality sort.
+  return matched;
 }
 
 /** Every direct result remains available for manual choice. Autoplay limits
  * and regexes only affect automatic selection, never the source picker. */
-export function sourcePickerStreams(streams: Stream[]): Stream[] {
-  const preferences = streamPreferences();
+export function sourcePickerStreams(
+  streams: Stream[],
+  installedOrder: string[] = [],
+): Stream[] {
   const seen = new Set<string>();
+  const addonRank = new Map(
+    installedOrder.map((name, index) => [name.toLocaleLowerCase(), index]),
+  );
   return streams
     .filter(directStream)
     .filter((stream) => {
@@ -448,14 +564,15 @@ export function sourcePickerStreams(streams: Stream[]): Stream[] {
       seen.add(key);
       return true;
     })
+    .map((stream, index) => ({ stream, index }))
     .sort(
       (left, right) =>
-        (preferences.autoPlayMode === "regex" &&
-        validStreamRegex(preferences.autoPlayRegex)
-          ? Number(streamMatchesRegex(right, preferences.autoPlayRegex)) -
-            Number(streamMatchesRegex(left, preferences.autoPlayRegex))
-          : 0) ||
-        streamQuality(right) - streamQuality(left) ||
-        seeders(right) - seeders(left),
-    );
+        Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
+        (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
+          Number.MAX_SAFE_INTEGER) -
+          (addonRank.get(right.stream.addonName?.toLocaleLowerCase() ?? "") ??
+            Number.MAX_SAFE_INTEGER) ||
+        left.index - right.index,
+    )
+    .map(({ stream }) => stream);
 }

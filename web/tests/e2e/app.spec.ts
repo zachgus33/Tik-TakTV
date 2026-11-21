@@ -1662,7 +1662,7 @@ test("Friends resume history shows watched icons on earlier episodes", async ({
     }),
   ).toBeVisible();
 });
-test("Friends resume prefers English when a regex matches multiple audio languages", async ({
+test("Friends resume preserves provider order when a regex matches multiple streams", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -1773,7 +1773,7 @@ test("Friends resume prefers English when a regex matches multiple audio languag
   await page.getByRole("button", { name: /Resume S1 E3/ }).click();
   await expect(page.locator("video")).toHaveAttribute(
     "src",
-    "https://cdn.example/friends-english.mp4",
+    "https://cdn.example/friends-portuguese.mp4",
   );
 });
 test("catalog manager creates, renames, reorders and hides Home rows", async ({
@@ -2094,7 +2094,7 @@ test("TV viewers can keep a live mini player open while browsing the guide", asy
     .evaluate((button: HTMLButtonElement) => button.click());
   await page
     .getByRole("dialog", { name: "Choose a stream" })
-    .locator(".player-source-list > button")
+    .locator(".player-source-group > button")
     .nth(1)
     .click();
   await expect.poll(() => preparations).toBeGreaterThan(0);
@@ -2189,7 +2189,7 @@ test("desktop and mobile browsers minimize live playback instead of closing it",
     .evaluate((button: HTMLButtonElement) => button.click());
   await page
     .getByRole("dialog", { name: "Choose a stream" })
-    .locator(".player-source-list > button")
+    .locator(".player-source-group > button")
     .nth(1)
     .click();
   await expect.poll(() => preparations).toBeGreaterThan(0);
@@ -2752,7 +2752,7 @@ async function streamingAddon(page: Page) {
     );
   });
 }
-test("smart autoplay matches source quality and compatibility to the device", async ({
+test("mobile-style autoplay preserves the source provider order", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -2870,10 +2870,17 @@ test("smart autoplay matches source quality and compatibility to the device", as
             .__testMediaSources?.[0],
       ),
     )
-    .toBe("https://cdn.example/best.mp4");
+    .toBe("https://cdn.example/4k.mp4");
 });
 test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
   await page.addInitScript(() => {
+    localStorage.setItem(
+      "tiktak:stream-preferences",
+      JSON.stringify({
+        autoPlayMode: "first",
+        autoPlayTimeoutSeconds: 0,
+      }),
+    );
     localStorage.setItem(
       "nuvio:addons",
       JSON.stringify([
@@ -2967,6 +2974,10 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
   await expect(chooser).toContainText(
     "2 sources loaded from completed add-ons",
   );
+  await expect(chooser.locator(".player-source-group")).toHaveCount(2);
+  await expect(
+    chooser.locator(".player-source-group > header strong"),
+  ).toHaveText(["Fast source", "Debridio"]);
   await expect(chooser).toContainText("Debridio cached 1440p AAC");
 });
 test("episode resume briefly races an incompatible first result and starts the direct MP4", async ({
@@ -3319,9 +3330,9 @@ test("the player exposes every compatible stream while automatic fallback stays 
   await expect(chooser).toContainText(
     "The selected source stays locked unless you choose another one here",
   );
-  await expect(chooser.locator(".player-source-list > button")).toHaveCount(7);
+  await expect(chooser.locator(".player-source-group > button")).toHaveCount(7);
   await chooser
-    .locator(".player-source-list > button")
+    .locator(".player-source-group > button")
     .filter({ hasText: "Option 7" })
     .click();
   await expect(page.locator("video")).toHaveAttribute(
@@ -3372,7 +3383,7 @@ test("TV remote users can open the in-player stream chooser and switch sources",
   await page.keyboard.press("Enter");
   const last = page
     .getByRole("dialog", { name: "Choose a stream" })
-    .locator(".player-source-list > button")
+    .locator(".player-source-group > button")
     .filter({ hasText: "TV option 6" });
   await last.evaluate((element) => {
     const target = element as HTMLElement;
@@ -4631,12 +4642,13 @@ test("queues the best ranked movie download without blocking the app", async ({
 test("source regex survives a complete settings reload", async ({ page }) => {
   const regex = "Debridio (2160p|4k|1440p|1080p|720p)";
   await page.goto("/#settings");
-  await page.getByRole("button", { name: /^Playback/ }).click();
-  await page.getByText("Advanced source controls", { exact: true }).click();
+  await page.getByRole("button", { name: /^Streams/ }).click();
   await page.getByLabel("Automatic source selection").selectOption("regex");
+  await page.getByLabel("Selection delay").selectOption("0");
   await page.getByLabel("Custom stream regex").fill(regex);
-  await page.getByRole("button", { name: "Save source controls" }).click();
-  await expect(page.getByText(/TikTakTV will sync them/)).toBeVisible();
+  await page.getByLabel("Reuse the last working link").check();
+  await page.getByRole("button", { name: "Save stream settings" }).click();
+  await expect(page.getByText(/saved to this TikTakTV profile/)).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -4646,16 +4658,19 @@ test("source regex survives a complete settings reload", async ({ page }) => {
     .toMatchObject({
       autoPlayMode: "regex",
       autoPlayRegex: regex,
+      autoPlayTimeoutSeconds: 0,
+      reuseLastLink: true,
       updatedAt: expect.any(Number),
     });
 
   await page.reload();
-  await page.getByRole("button", { name: /^Playback/ }).click();
-  await page.getByText("Advanced source controls", { exact: true }).click();
+  await page.getByRole("button", { name: /^Streams/ }).click();
   await expect(page.getByLabel("Automatic source selection")).toHaveValue(
     "regex",
   );
   await expect(page.getByLabel("Custom stream regex")).toHaveValue(regex);
+  await expect(page.getByLabel("Selection delay")).toHaveValue("0");
+  await expect(page.getByLabel("Reuse the last working link")).toBeChecked();
 });
 
 test("TikTakTV appearance settings immediately reshape the shell and survive reload", async ({
@@ -4694,6 +4709,79 @@ test("TikTakTV appearance settings immediately reshape the shell and survive rel
   await page.getByRole("button", { name: /^Appearance/ }).click();
   await expect(page.getByLabel("Navigation style")).toHaveValue("rail");
   await expect(page.getByLabel("Poster size")).toHaveValue("large");
+});
+
+test("Continue Watching styles and upcoming episodes follow profile settings", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const base = {
+      type: "series",
+      source: "addon",
+      provider: "https://v3-cinemeta.strem.io",
+    };
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item: { ...base, id: "tt-released", name: "Released Show" },
+          seconds: 600,
+          duration: 1800,
+          at: Date.now(),
+          episode: {
+            id: "tt-released:1:2",
+            name: "Released episode",
+            season: 1,
+            episode: 2,
+            released: "2025-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          item: { ...base, id: "tt-upcoming", name: "Upcoming Show" },
+          seconds: 0,
+          duration: 1800,
+          at: Date.now() - 1,
+          episode: {
+            id: "tt-upcoming:1:3",
+            name: "Upcoming episode",
+            season: 1,
+            episode: 3,
+            released: "2099-01-01T00:00:00.000Z",
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({
+        continueWatchingEnabled: true,
+        continueWatchingStyle: "poster",
+        continueWatchingSort: "split-upcoming",
+        continueWatchingShowUnaired: true,
+        continueWatchingBlurUpcoming: true,
+        posterCornerRadius: 22,
+        updatedAt: Date.now(),
+      }),
+    );
+  });
+
+  await page.goto("/#home");
+  await expect(page.getByRole("heading", { name: "Pick up where you left off" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Upcoming" })).toBeVisible();
+  await expect(page.locator(".continue-poster")).toHaveCount(2);
+  await expect(page.locator(".continue-upcoming-row .continue-upcoming")).toContainText(
+    "Upcoming",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        radius: getComputedStyle(document.documentElement).getPropertyValue(
+          "--nuvio-poster-radius",
+        ),
+        blur: document.documentElement.dataset.nuvioBlurUpcoming,
+      })),
+    )
+    .toEqual({ radius: "22px", blur: "true" });
 });
 
 test("TikTakTV vertical Library filters and sorts saved media", async ({ page }) => {

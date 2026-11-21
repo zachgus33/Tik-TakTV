@@ -3831,7 +3831,27 @@ body:has(dialog[open]:not(.mini-live-player)) {
   overflow-y: auto;
   padding: 12px;
 }
-.player-source-list > button {
+.player-source-group {
+  display: grid;
+  gap: 8px;
+}
+.player-source-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 2px;
+  color: var(--text);
+}
+.player-source-group > header > span {
+  min-width: 26px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: #ffffff0b;
+  font-size: 11px;
+  text-align: center;
+}
+.player-source-group > button {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3841,11 +3861,11 @@ body:has(dialog[open]:not(.mini-live-player)) {
   text-align: left;
   background: #201d26;
 }
-.player-source-list > button.active {
+.player-source-group > button.active {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, #201d26);
 }
-.player-source-list > button span {
+.player-source-group > button span {
   display: grid;
   min-width: 0;
   gap: 4px;
@@ -3859,6 +3879,22 @@ body:has(dialog[open]:not(.mini-live-player)) {
 .player-source-list small {
   color: var(--muted);
   font-weight: 500;
+}
+.player-source-badges {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 5px !important;
+  margin-top: 4px;
+}
+.player-source-badges i {
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, #ffffff10);
+  border-radius: 999px;
+  color: #d9c5f5;
+  background: color-mix(in srgb, var(--accent) 10%, #121016);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.2;
 }
 @media (max-width: 600px) {
   .player-source-picker {

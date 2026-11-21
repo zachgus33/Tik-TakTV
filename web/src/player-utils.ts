@@ -122,7 +122,7 @@ export function parseWebVttCues(text: string): ParsedSubtitleCue[] {
     );
     if (!match) continue;
     const body = cleanSubtitleText(
-      lines.slice(timingIndex + 1).join(" ").replace(/<[^>]+>/g, ""),
+      lines.slice(timingIndex + 1).join("\n").replace(/<[^>]+>/g, ""),
     );
     if (!body) continue;
     cues.push({
@@ -132,6 +132,151 @@ export function parseWebVttCues(text: string): ParsedSubtitleCue[] {
     });
   }
   return cues;
+}
+
+function cuesToWebVtt(cues: ParsedSubtitleCue[]) {
+  return normalizeWebVtt(
+    `WEBVTT\n\n${cues
+      .filter((cue) => cue.endTime > cue.startTime && cue.text.trim())
+      .sort((left, right) => left.startTime - right.startTime)
+      .map(
+        (cue) =>
+          `${formatTimestamp(cue.startTime, true)} --> ${formatTimestamp(cue.endTime, true)}\n${cleanSubtitleText(cue.text)}`,
+      )
+      .join("\n\n")}`,
+  );
+}
+
+function assCues(text: string): ParsedSubtitleCue[] {
+  let inEvents = false;
+  let fields = [
+    "Layer",
+    "Start",
+    "End",
+    "Style",
+    "Name",
+    "MarginL",
+    "MarginR",
+    "MarginV",
+    "Effect",
+    "Text",
+  ];
+  const cues: ParsedSubtitleCue[] = [];
+  for (const raw of text.replaceAll("\r", "").split("\n")) {
+    const line = raw.trim();
+    if (/^\[events]$/i.test(line)) {
+      inEvents = true;
+      continue;
+    }
+    if (/^\[.*]$/.test(line)) {
+      inEvents = false;
+      continue;
+    }
+    if (!inEvents) continue;
+    if (/^format:/i.test(line)) {
+      fields = line
+        .slice(line.indexOf(":") + 1)
+        .split(",")
+        .map((field) => field.trim());
+      continue;
+    }
+    if (!/^dialogue:/i.test(line)) continue;
+    const parts = line
+      .slice(line.indexOf(":") + 1)
+      .split(/,(?=(?:[^{}]*\{[^{}]*})*[^{}]*$)/);
+    const startIndex = fields.findIndex((field) => /^start$/i.test(field));
+    const endIndex = fields.findIndex((field) => /^end$/i.test(field));
+    const textIndex = fields.findIndex((field) => /^text$/i.test(field));
+    const start = timestampSeconds(parts[startIndex >= 0 ? startIndex : 1]);
+    const end = timestampSeconds(parts[endIndex >= 0 ? endIndex : 2]);
+    const body = cleanSubtitleText(
+      parts
+        .slice(textIndex >= 0 ? textIndex : 9)
+        .join(",")
+        .replace(/\{[^}]*}/g, "")
+        .replaceAll("\\N", "\n")
+        .replaceAll("\\n", "\n")
+        .replaceAll("\\h", " "),
+    );
+    if (end > start && body)
+      cues.push({ startTime: start, endTime: end, text: body });
+  }
+  return cues;
+}
+
+function ttmlSeconds(value: string) {
+  const trimmed = value.trim();
+  const unit = /^([\d.]+)(ms|h|m|s)$/i.exec(trimmed);
+  if (unit) {
+    const multiplier =
+      unit[2].toLowerCase() === "h"
+        ? 3600
+        : unit[2].toLowerCase() === "m"
+          ? 60
+          : unit[2].toLowerCase() === "ms"
+            ? 0.001
+            : 1;
+    return Number(unit[1]) * multiplier;
+  }
+  const frameTime = /^(\d+):(\d+):(\d+):(\d+)$/.exec(trimmed);
+  if (frameTime)
+    return (
+      Number(frameTime[1]) * 3600 +
+      Number(frameTime[2]) * 60 +
+      Number(frameTime[3]) +
+      Number(frameTime[4]) / 30
+    );
+  return timestampSeconds(trimmed.replace(",", "."));
+}
+
+function ttmlCues(text: string): ParsedSubtitleCue[] {
+  return [...text.matchAll(/<p\b([^>]*)>([\s\S]*?)<\/p>/gi)].flatMap(
+    (match) => {
+      const attrs = match[1];
+      const attribute = (name: string) =>
+        new RegExp(`\\b${name}\\s*=\\s*["']([^"']+)["']`, "i").exec(
+          attrs,
+        )?.[1];
+      const begin = attribute("begin") ?? attribute("start");
+      if (!begin) return [];
+      const startTime = ttmlSeconds(begin);
+      const endTime = attribute("end")
+        ? ttmlSeconds(attribute("end")!)
+        : startTime + 3;
+      const body = cleanSubtitleText(
+        match[2].replace(/<br\s*\/?\s*>/gi, "\n"),
+      );
+      return endTime > startTime && body
+        ? [{ startTime, endTime, text: body }]
+        : [];
+    },
+  );
+}
+
+/** Browser adaptation of the mobile cue parser: VTT, SRT, ASS/SSA and
+ * TTML/DFXP are normalized into one WebVTT renderer. */
+export function subtitleToWebVtt(text: string, sourceUrl = "") {
+  const cleaned = text.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n");
+  const path = sourceUrl.split(/[?#]/)[0].toLocaleLowerCase();
+  const sample = cleaned.slice(0, 4096).toLocaleLowerCase();
+  if (
+    path.endsWith(".ass") ||
+    path.endsWith(".ssa") ||
+    (sample.includes("[events]") && sample.includes("dialogue:"))
+  )
+    return cuesToWebVtt(assCues(cleaned));
+  if (
+    /\.(?:ttml|dfxp|xml)$/.test(path) ||
+    /<tt[\s>]/i.test(cleaned.slice(0, 512))
+  )
+    return cuesToWebVtt(ttmlCues(cleaned));
+  if (path.endsWith(".vtt") || /^\s*WEBVTT/i.test(cleaned))
+    return normalizeWebVtt(cleaned);
+  return normalizeWebVtt(
+    `WEBVTT\n\n${cleaned
+      .replace(/^(\d+)\s*$/gm, "")
+      .replace(/(\d{2}:\d{2}:\d{2}),([0-9]{3})/g, "$1.$2")}`,
+  );
 }
 
 export function runtimeSeconds(runtime?: string) {

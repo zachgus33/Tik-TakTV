@@ -15,11 +15,17 @@ describe("Nuvio web experience settings", () => {
         heroMode: "cinematic",
         subtitleSize: 999,
         touchGestures: false,
+        posterCornerRadius: 99,
+        continueWatchingStyle: "wide",
+        continueWatchingSort: "split-upcoming",
       }),
     ).toMatchObject({
       heroMode: "cinematic",
       subtitleSize: 180,
       touchGestures: false,
+      posterCornerRadius: 32,
+      continueWatchingStyle: "wide",
+      continueWatchingSort: "split-upcoming",
       liveTvEnabled: true,
       posterSize: defaultNuvioWebSettings.posterSize,
     });
@@ -37,6 +43,10 @@ describe("Nuvio web experience settings", () => {
       navigationStyle: "rail",
       heroMode: "info-rich",
       preferredAudioLanguage: "en",
+      posterCornerRadius: 24,
+      hidePosterLabels: true,
+      continueWatchingStyle: "poster",
+      continueWatchingSort: "streaming",
       updatedAt: 42,
     });
     expect(readNuvioWebSettings()).toEqual(saved);
@@ -44,6 +54,10 @@ describe("Nuvio web experience settings", () => {
       navigationStyle: "rail",
       heroMode: "info-rich",
       preferredAudioLanguage: "en",
+      posterCornerRadius: 24,
+      hidePosterLabels: true,
+      continueWatchingStyle: "poster",
+      continueWatchingSort: "streaming",
       updatedAt: 42,
     });
   });

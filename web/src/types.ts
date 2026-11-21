@@ -31,6 +31,8 @@ export type Episode = {
 export type Stream = {
   /** Privacy-safe display name of the add-on that returned this stream. */
   addonName?: string;
+  /** Stable installed add-on identity used by mobile-style source rules. */
+  addonId?: string;
   name?: string;
   title?: string;
   url?: string;
@@ -41,6 +43,7 @@ export type Stream = {
   externalUrl?: string;
   subtitles?: Subtitle[];
   behaviorHints?: {
+    bingeGroup?: string;
     notWebReady?: boolean;
     proxyHeaders?: unknown;
     filename?: string;

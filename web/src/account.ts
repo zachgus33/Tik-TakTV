@@ -467,6 +467,17 @@ export async function loadSetup(
       defaultStreamPreferences.autoPlayMode ||
     localStreamPreferences.autoPlayRegex !==
       defaultStreamPreferences.autoPlayRegex ||
+    localStreamPreferences.autoPlayTimeoutSeconds !==
+      defaultStreamPreferences.autoPlayTimeoutSeconds ||
+    localStreamPreferences.autoPlaySelectedAddons.length > 0 ||
+    localStreamPreferences.reuseLastLink !==
+      defaultStreamPreferences.reuseLastLink ||
+    localStreamPreferences.reuseLastLinkHours !==
+      defaultStreamPreferences.reuseLastLinkHours ||
+    localStreamPreferences.preferBingeGroup !==
+      defaultStreamPreferences.preferBingeGroup ||
+    localStreamPreferences.reuseBingeGroup !==
+      defaultStreamPreferences.reuseBingeGroup ||
     localStreamPreferences.maxQuality !== defaultStreamPreferences.maxQuality ||
     localStreamPreferences.maxSizeGb !== defaultStreamPreferences.maxSizeGb ||
     localStreamPreferences.codec !== defaultStreamPreferences.codec ||
