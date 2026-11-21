@@ -26,6 +26,12 @@ import {
   youtubeVideoIdFromItem,
   youtubeVideoIdFromProgressRow,
 } from "./youtube-progress";
+import {
+  defaultStreamPreferences,
+  normalizeStreamPreferences,
+  streamPreferences,
+  type StreamPreferences,
+} from "./stream-selection";
 
 export const account = createClient(NUVIO_URL, NUVIO_ANON_KEY, {
   auth: {
@@ -67,6 +73,7 @@ export type Setup = {
   realDebridKey: string;
   autoplay: boolean;
   homeCatalogs?: HomeCatalogSetting[];
+  streamPreferences?: StreamPreferences;
 };
 export type TraktCredential = {
   access_token: string;
@@ -207,9 +214,7 @@ function webSetupFromBlob(blob: Record<string, unknown>) {
     : {};
 }
 
-async function saveTraktCredentialFallback(
-  credential: TraktCredential | null,
-) {
+async function saveTraktCredentialFallback(credential: TraktCredential | null) {
   const profileId = activeProfileId();
   const blob = await settings(profileId);
   const web = { ...webSetupFromBlob(blob) };
@@ -449,6 +454,42 @@ export async function loadSetup(
   if (addonRows.error)
     throw new Error("Nuvio could not load your installed add-ons.");
   const web = (blob[field] ?? {}) as Partial<Setup>;
+  const localStreamPreferences = streamPreferences();
+  const customizedLocalStreamPreferences =
+    localStreamPreferences.autoPlayMode !==
+      defaultStreamPreferences.autoPlayMode ||
+    localStreamPreferences.autoPlayRegex !==
+      defaultStreamPreferences.autoPlayRegex ||
+    localStreamPreferences.maxQuality !== defaultStreamPreferences.maxQuality ||
+    localStreamPreferences.maxSizeGb !== defaultStreamPreferences.maxSizeGb ||
+    localStreamPreferences.codec !== defaultStreamPreferences.codec ||
+    localStreamPreferences.excludedTerms.length > 0;
+  const migratedLocalStreamPreferences =
+    customizedLocalStreamPreferences && localStreamPreferences.updatedAt <= 0
+      ? { ...localStreamPreferences, updatedAt: Date.now() }
+      : localStreamPreferences;
+  const resolvedStreamPreferences = normalizeStreamPreferences(
+    web.streamPreferences ?? migratedLocalStreamPreferences,
+  );
+  // Migrate source controls saved by the previous browser-only release into
+  // the selected Nuvio profile so the same regex reaches iPhone/iPad.
+  if (
+    !web.streamPreferences &&
+    (migratedLocalStreamPreferences.updatedAt > 0 ||
+      customizedLocalStreamPreferences)
+  )
+    await rpc("sync_push_profile_settings_blob", {
+      p_profile_id: id,
+      p_platform: platform,
+      p_settings_json: {
+        ...blob,
+        [field]: {
+          ...web,
+          streamPreferences: migratedLocalStreamPreferences,
+        },
+      },
+      p_origin_client_id: origin,
+    });
   const accountWeb = (accountBlob?.[field] ?? {}) as StoredWebSetup;
   const ownWeb = web as StoredWebSetup;
   // Xtream credentials belong to the signed-in Nuvio account. Profile 1 is
@@ -648,9 +689,8 @@ export async function loadSetup(
         credentials === null && !web.trakt
           ? undefined
           : (parseTraktCredential(
-              credentials?.find(
-                (row) => row.provider.toLowerCase() === "trakt",
-              )?.credential_json,
+              credentials?.find((row) => row.provider.toLowerCase() === "trakt")
+                ?.credential_json,
             ) ??
             parseTraktCredential(
               web.trakt as Record<string, unknown> | undefined,
@@ -663,6 +703,7 @@ export async function loadSetup(
           ? realDebridKey
           : (web.realDebridKey ?? ""),
       autoplay: web.autoplay ?? true,
+      streamPreferences: resolvedStreamPreferences,
       homeCatalogs: Array.isArray(
         (homeBlob as { items?: unknown[] } | null)?.items,
       )

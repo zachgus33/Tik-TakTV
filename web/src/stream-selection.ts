@@ -125,38 +125,111 @@ export type StreamPreferences = {
   codec: "any" | "h264";
   autoPlayMode: "smart" | "first" | "regex";
   autoPlayRegex: string;
+  updatedAt: number;
 };
-const defaultStreamPreferences: StreamPreferences = {
+export const defaultStreamPreferences: StreamPreferences = {
   maxQuality: 4320,
   maxSizeGb: 0,
   excludedTerms: [],
   codec: "any",
   autoPlayMode: "smart",
   autoPlayRegex: "",
+  updatedAt: 0,
 };
+export function normalizeStreamPreferences(value: unknown): StreamPreferences {
+  const saved =
+    value && typeof value === "object"
+      ? (value as Partial<StreamPreferences>)
+      : {};
+  return {
+    maxQuality: Number(saved.maxQuality) || 4320,
+    maxSizeGb: Math.max(0, Number(saved.maxSizeGb) || 0),
+    excludedTerms: Array.isArray(saved.excludedTerms)
+      ? saved.excludedTerms.map(String).filter(Boolean)
+      : [],
+    codec: saved.codec === "h264" ? "h264" : "any",
+    autoPlayMode:
+      saved.autoPlayMode === "first" || saved.autoPlayMode === "regex"
+        ? saved.autoPlayMode
+        : "smart",
+    autoPlayRegex:
+      typeof saved.autoPlayRegex === "string" ? saved.autoPlayRegex : "",
+    updatedAt: Math.max(0, Number(saved.updatedAt) || 0),
+  };
+}
 export function streamPreferences(): StreamPreferences {
   if (typeof localStorage === "undefined") return defaultStreamPreferences;
   try {
-    const saved = JSON.parse(
-      localStorage.getItem("tiktak:stream-preferences") || "{}",
-    ) as Partial<StreamPreferences>;
-    return {
-      maxQuality: Number(saved.maxQuality) || 4320,
-      maxSizeGb: Math.max(0, Number(saved.maxSizeGb) || 0),
-      excludedTerms: Array.isArray(saved.excludedTerms)
-        ? saved.excludedTerms.map(String).filter(Boolean)
-        : [],
-      codec: saved.codec === "h264" ? "h264" : "any",
-      autoPlayMode:
-        saved.autoPlayMode === "first" || saved.autoPlayMode === "regex"
-          ? saved.autoPlayMode
-          : "smart",
-      autoPlayRegex:
-        typeof saved.autoPlayRegex === "string" ? saved.autoPlayRegex : "",
-    };
+    return normalizeStreamPreferences(
+      JSON.parse(localStorage.getItem("tiktak:stream-preferences") || "{}"),
+    );
   } catch {
     return defaultStreamPreferences;
   }
+}
+export function saveStreamPreferences(preferences: StreamPreferences) {
+  const normalized = normalizeStreamPreferences(preferences);
+  localStorage.setItem("tiktak:stream-preferences", JSON.stringify(normalized));
+  return normalized;
+}
+
+const audioLanguageAliases: [string, RegExp][] = [
+  ["en", /(?:^|[^a-z])(?:en|eng|english)(?:[^a-z]|$)/i],
+  ["es", /(?:^|[^a-z])(?:es|spa|spanish|español)(?:[^a-z]|$)/i],
+  ["fr", /(?:^|[^a-z])(?:fr|fre|fra|french|français)(?:[^a-z]|$)/i],
+  ["de", /(?:^|[^a-z])(?:de|ger|deu|german|deutsch)(?:[^a-z]|$)/i],
+  ["it", /(?:^|[^a-z])(?:it|ita|italian|italiano)(?:[^a-z]|$)/i],
+  ["pt", /(?:^|[^a-z])(?:pt|por|portuguese|português)(?:[^a-z]|$)/i],
+  ["ja", /(?:^|[^a-z])(?:ja|jpn|jap|japanese)(?:[^a-z]|$)/i],
+  ["ko", /(?:^|[^a-z])(?:ko|kor|korean)(?:[^a-z]|$)/i],
+  ["zh", /(?:^|[^a-z])(?:zh|chi|zho|chinese|mandarin)(?:[^a-z]|$)/i],
+  ["hi", /(?:^|[^a-z])(?:hi|hin|hindi)(?:[^a-z]|$)/i],
+  ["ar", /(?:^|[^a-z])(?:ar|ara|arabic)(?:[^a-z]|$)/i],
+  ["ru", /(?:^|[^a-z])(?:ru|rus|russian)(?:[^a-z]|$)/i],
+];
+export function audioLanguageKey(value: string): string {
+  const cleaned = value.trim().toLowerCase();
+  for (const [key, matcher] of audioLanguageAliases)
+    if (matcher.test(cleaned)) return key;
+  return cleaned.match(/^[a-z]{2,3}(?=[-_\s]|$)/)?.[0] ?? cleaned;
+}
+export function preferredAudioLanguage(): string {
+  if (typeof localStorage !== "undefined") {
+    const stored = localStorage.getItem("tiktak:audio-language")?.trim();
+    if (stored) return audioLanguageKey(stored);
+  }
+  if (typeof navigator !== "undefined")
+    for (const language of navigator.languages ?? [navigator.language]) {
+      const key = audioLanguageKey(language ?? "");
+      if (key) return key;
+    }
+  return "en";
+}
+export function audioLanguageScore(values: string[]): number {
+  const preferred = preferredAudioLanguage();
+  const keys = values.map(audioLanguageKey).filter(Boolean);
+  if (keys.some((key) => key === preferred)) return 3;
+  if (keys.some((key) => key === "multiple" || key === "multi")) return 1;
+  return keys.length ? -1 : 0;
+}
+export function streamAudioLanguageScore(stream: Stream): number {
+  return audioLanguageScore(streamAudioLanguages(stream));
+}
+export function preferredAudioTrackIndex(
+  tracks: { label?: string; language?: string }[],
+): number | undefined {
+  let bestIndex: number | undefined;
+  let bestScore = 0;
+  tracks.forEach((track, index) => {
+    const score = audioLanguageScore(
+      [track.label, track.language].filter(Boolean) as string[],
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
 }
 export function validStreamRegex(pattern: string): boolean {
   const value = pattern.trim();
@@ -257,21 +330,7 @@ export function mobilePlaybackDevice(): boolean {
 export function mobileAutoPlayScore(stream: Stream): number {
   const reportedQuality = streamQuality(stream);
   const directReady = compatibilityPlaybackMode(stream) === undefined;
-  const preferredAudio =
-    typeof localStorage === "undefined"
-      ? ""
-      : (localStorage.getItem("tiktak:audio-language") ?? "").toLowerCase();
-  const languages = streamAudioLanguages(stream).map((value) =>
-    value.toLowerCase(),
-  );
-  const languageBonus =
-    preferredAudio &&
-    languages.some(
-      (language) =>
-        language.includes(preferredAudio) || preferredAudio.includes(language),
-    )
-      ? 18
-      : 0;
+  const languageBonus = streamAudioLanguageScore(stream) * 18;
   const qualityScore = !reportedQuality
     ? 8
     : reportedQuality <= 1080
@@ -338,6 +397,7 @@ export function autoplayStreams(
   );
   const mobile = mobilePlaybackDevice();
   const byPlaybackPriority = (left: Stream, right: Stream) =>
+    streamAudioLanguageScore(right) - streamAudioLanguageScore(left) ||
     streamSubtitlePriority(right) - streamSubtitlePriority(left) ||
     seeders(right) - seeders(left) ||
     audioCompatibility(right) - audioCompatibility(left) ||
@@ -349,11 +409,19 @@ export function autoplayStreams(
   // group, prefer 720p+ sources that already advertise subtitles, then the
   // healthiest swarm. This mirrors the TV behavior without exposing source
   // selection as a step the viewer has to manage.
-  if (
-    preferences.autoPlayMode === "first" ||
-    preferences.autoPlayMode === "regex"
-  )
+  if (preferences.autoPlayMode === "first")
     return [...browserReady, ...conversionFallbacks];
+  if (preferences.autoPlayMode === "regex")
+    return [
+      ...browserReady.sort(
+        (left, right) =>
+          streamAudioLanguageScore(right) - streamAudioLanguageScore(left),
+      ),
+      ...conversionFallbacks.sort(
+        (left, right) =>
+          streamAudioLanguageScore(right) - streamAudioLanguageScore(left),
+      ),
+    ];
   return [
     ...browserReady.sort(byPlaybackPriority),
     ...conversionFallbacks.sort(byPlaybackPriority),

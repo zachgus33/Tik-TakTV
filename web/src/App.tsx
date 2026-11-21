@@ -167,6 +167,11 @@ import {
   streamAudioLanguages,
   streamAudioCodec,
   seeders,
+  defaultStreamPreferences,
+  normalizeStreamPreferences,
+  saveStreamPreferences,
+  streamPreferences,
+  type StreamPreferences,
 } from "./stream-selection";
 import type { FriendTemplate } from "./Settings";
 import { homeCatalogEntries } from "./catalog-settings";
@@ -2726,6 +2731,8 @@ export default function App() {
     [],
   );
   const [autoplay, setAutoplay] = useStored("autoplay", true);
+  const [sourcePreferences, setSourcePreferences] =
+    useState<StreamPreferences>(streamPreferences);
   const [skipProfileSelection, setSkipProfileSelection] = useStored(
     "skip-profile-selection",
     false,
@@ -2842,6 +2849,11 @@ export default function App() {
     save("realdebrid-key", s.realDebridKey);
     sessionStorage.removeItem("nuvio:realdebrid-key");
     setAutoplay(s.autoplay);
+    const restoredSourcePreferences = normalizeStreamPreferences(
+      s.streamPreferences ?? sourcePreferences,
+    );
+    saveStreamPreferences(restoredSourcePreferences);
+    setSourcePreferences(restoredSourcePreferences);
     setHomeCatalogs(s.homeCatalogs ?? []);
   }
   const [playlist, setPlaylist] = useState<Item[]>([]);
@@ -4974,6 +4986,7 @@ export default function App() {
                     torboxKey,
                     realDebridKey,
                     autoplay,
+                    streamPreferences: sourcePreferences,
                     homeCatalogs,
                   }}
                   onLoad={loadAccountSetup}
@@ -4996,6 +5009,7 @@ export default function App() {
                     setRealDebridKey("");
                     setTmdbKey(DEFAULT_TMDB_KEY);
                     setAutoplay(true);
+                    setSourcePreferences(defaultStreamPreferences);
                     setPlaylist([]);
                     setPlayback(null);
                     setDetail(null);
@@ -5049,6 +5063,11 @@ export default function App() {
                   onRealDebridKey={setRealDebridKey}
                   autoplay={autoplay}
                   onAutoplay={setAutoplay}
+                  sourcePreferences={sourcePreferences}
+                  onSourcePreferences={(preferences) => {
+                    const saved = saveStreamPreferences(preferences);
+                    setSourcePreferences(saved);
+                  }}
                   playbackConnected={!!getService()}
                   tmdbKey={tmdbKey}
                   onTmdbKey={setTmdbKey}

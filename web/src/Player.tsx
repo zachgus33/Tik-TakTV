@@ -33,6 +33,7 @@ import { readNextEpisodeAutoAdvance } from "./next-episode";
 import NextEpisodeSetting from "./NextEpisodeSetting";
 import { createTraktScrobbler } from "./trakt-scrobble";
 import { createSimklScrobbler } from "./simkl-scrobble";
+import { preferredAudioTrackIndex } from "./stream-selection";
 import { anilistProgressEnabled } from "./ExternalTrackingSettings";
 import { anilistMediaRef, recordAniListEpisode } from "./anilist-tracking";
 import {
@@ -986,12 +987,16 @@ function VideoPlayer({
                 `Audio ${value + 1}`,
             }),
           );
-          const preferred = localStorage.getItem("tiktak:audio-language");
-          const selected = tracks.find((track) => track.label === preferred);
-          if (selected)
+          const selectedIndex = preferredAudioTrackIndex(
+            Array.from({ length: nativeTracks.length }, (_, index) => ({
+              label: nativeTracks[index].label,
+              language: nativeTracks[index].language,
+            })),
+          );
+          if (selectedIndex != null)
             for (let index = 0; index < nativeTracks.length; index += 1)
               (nativeTracks[index] as { enabled?: boolean }).enabled =
-                index === selected.value;
+                index === selectedIndex;
           return tracks;
         });
       refreshEmbeddedSubtitles();
@@ -1189,11 +1194,13 @@ function VideoPlayer({
                 label: track.lang || track.name || `Audio ${value + 1}`,
               }));
               setAudioTracks(tracks);
-              const preferred = localStorage.getItem("tiktak:audio-language");
-              const selected = tracks.find(
-                (track) => track.label === preferred,
+              const selectedIndex = preferredAudioTrackIndex(
+                hls.audioTracks.map((track) => ({
+                  label: track.name,
+                  language: track.lang,
+                })),
               );
-              if (selected) hls.audioTrack = selected.value;
+              if (selectedIndex != null) hls.audioTrack = selectedIndex;
             }
             void play();
           });

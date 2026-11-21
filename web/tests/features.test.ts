@@ -30,7 +30,10 @@ import {
   needsCompatibilityTranscode,
   seeders,
   sourcePickerStreams,
+  preferredAudioTrackIndex,
+  saveStreamPreferences,
   streamAudioCodec,
+  streamAudioLanguageScore,
   streamMatchesRegex,
   streamSubtitlePriority,
   validStreamRegex,
@@ -233,6 +236,32 @@ describe("account isolation", () => {
     expect(persistableSetup(setup).playbackService).toBeNull();
   });
 
+  it("keeps source controls in the profile setup for cross-device sync", () => {
+    const streamPreferences = {
+      maxQuality: 4320,
+      maxSizeGb: 0,
+      excludedTerms: [],
+      codec: "any" as const,
+      autoPlayMode: "regex" as const,
+      autoPlayRegex: "Debridio (2160p|4k|1440p|1080p|720p)",
+      updatedAt: 123,
+    };
+    const setup = {
+      addons: [],
+      collections: [],
+      library: [],
+      progress: [],
+      provider: null,
+      torboxKey: "",
+      realDebridKey: "",
+      autoplay: true,
+      streamPreferences,
+    };
+    expect(persistableSetup(setup).streamPreferences).toEqual(
+      streamPreferences,
+    );
+  });
+
   it("clears credentials and account-owned caches from both storage scopes", () => {
     const makeStorage = () => {
       const values = new Map<string, string>();
@@ -367,6 +396,61 @@ describe("per-profile source controls", () => {
       "https://cdn.example/good.mp4",
     ]);
     vi.unstubAllGlobals();
+  });
+  it("persists the complete regex payload including its sync revision", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    saveStreamPreferences({
+      maxQuality: 4320,
+      maxSizeGb: 0,
+      codec: "any",
+      excludedTerms: [],
+      autoPlayMode: "regex",
+      autoPlayRegex: "Debridio (2160p|4k|1440p|1080p|720p)",
+      updatedAt: 456,
+    });
+    expect(
+      JSON.parse(storage.get("tiktak:stream-preferences") ?? "{}"),
+    ).toMatchObject({
+      autoPlayMode: "regex",
+      autoPlayRegex: "Debridio (2160p|4k|1440p|1080p|720p)",
+      updatedAt: 456,
+    });
+  });
+  it("prefers English sources and embedded tracks over higher-seeded foreign audio", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) =>
+        key === "tiktak:stream-preferences"
+          ? JSON.stringify({
+              autoPlayMode: "regex",
+              autoPlayRegex: "720p",
+            })
+          : null,
+    });
+    vi.stubGlobal("navigator", { languages: ["en-US"], language: "en-US" });
+    const portuguese = {
+      name: "720p Portuguese",
+      seeders: 5000,
+      url: "https://cdn.example/portuguese.mp4",
+    };
+    const english = {
+      name: "720p English",
+      seeders: 10,
+      url: "https://cdn.example/english.mp4",
+    };
+    expect(streamAudioLanguageScore(english)).toBeGreaterThan(
+      streamAudioLanguageScore(portuguese),
+    );
+    expect(autoplayStreams([portuguese, english], false)[0]).toBe(english);
+    expect(
+      preferredAudioTrackIndex([
+        { label: "Português", language: "por" },
+        { label: "English AAC", language: "eng" },
+      ]),
+    ).toBe(1);
   });
 });
 describe("add-on controls", () => {

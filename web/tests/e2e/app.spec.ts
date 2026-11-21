@@ -1663,6 +1663,120 @@ test("Friends resume history shows watched icons on earlier episodes", async ({
     }),
   ).toBeVisible();
 });
+test("Friends resume prefers English when a regex matches multiple audio languages", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const item = {
+      id: "tt0108778",
+      name: "Friends",
+      type: "series",
+      source: "addon",
+      provider: "https://v3-cinemeta.strem.io",
+    };
+    localStorage.setItem(
+      "nuvio:addons",
+      JSON.stringify([
+        {
+          base: "https://v3-cinemeta.strem.io",
+          manifest: {
+            id: "debridio-test",
+            name: "Debridio",
+            types: ["series"],
+            resources: ["catalog", "meta", "stream"],
+            catalogs: [{ id: "top", type: "series" }],
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "nuvio:progress",
+      JSON.stringify([
+        {
+          item,
+          seconds: 300,
+          duration: 1800,
+          at: Date.now(),
+          episode: {
+            id: "tt0108778:1:3",
+            name: "The One with the Thumb",
+            season: 1,
+            episode: 3,
+          },
+        },
+      ]),
+    );
+    localStorage.setItem(
+      "tiktak:stream-preferences",
+      JSON.stringify({
+        autoPlayMode: "regex",
+        autoPlayRegex: "Debridio (2160p|4k|1440p|1080p|720p)",
+        updatedAt: Date.now(),
+      }),
+    );
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) {
+      if (type === "error") return;
+      return add.call(this, type, listener, options);
+    };
+  });
+  const friends = {
+    id: "tt0108778",
+    name: "Friends",
+    type: "series",
+    description: "Six friends living in Manhattan.",
+    videos: [
+      {
+        id: "tt0108778:1:3",
+        title: "The One with the Thumb",
+        season: 1,
+        episode: 3,
+      },
+    ],
+  };
+  await page.unroute("https://v3-cinemeta.strem.io/**");
+  await page.route("https://v3-cinemeta.strem.io/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.includes("/stream/"))
+      return route.fulfill({
+        json: {
+          streams: [
+            {
+              name: "720p Portuguese",
+              seeders: 5000,
+              url: "https://cdn.example/friends-portuguese.mp4",
+            },
+            {
+              name: "720p English",
+              seeders: 10,
+              url: "https://cdn.example/friends-english.mp4",
+            },
+          ],
+        },
+      });
+    return route.fulfill({
+      json: path.includes("/meta/") ? { meta: friends } : { metas: [friends] },
+    });
+  });
+  await page.route("https://cdn.example/**", (route) =>
+    route.fulfill({ status: 200, contentType: "video/mp4", body: "" }),
+  );
+
+  await page.goto("/#home");
+  await page
+    .locator(".media-card strong", { hasText: "Friends" })
+    .first()
+    .click();
+  await page.getByRole("button", { name: /Resume S1 E3/ }).click();
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    "https://cdn.example/friends-english.mp4",
+  );
+});
 test("catalog manager creates, renames, reorders and hides Home rows", async ({
   page,
 }) => {
@@ -4515,6 +4629,36 @@ test("queues the best ranked movie download without blocking the app", async ({
   expect(page.url()).not.toContain("about:blank");
   expect(mediaRequests).toBe(0);
 });
+test("source regex survives a complete settings reload", async ({ page }) => {
+  const regex = "Debridio (2160p|4k|1440p|1080p|720p)";
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /^Playback/ }).click();
+  await page.getByText("Advanced source controls", { exact: true }).click();
+  await page.getByLabel("Automatic source selection").selectOption("regex");
+  await page.getByLabel("Custom stream regex").fill(regex);
+  await page.getByRole("button", { name: "Save source controls" }).click();
+  await expect(page.getByText(/Nuvio will sync them/)).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("tiktak:stream-preferences") ?? "{}"),
+      ),
+    )
+    .toMatchObject({
+      autoPlayMode: "regex",
+      autoPlayRegex: regex,
+      updatedAt: expect.any(Number),
+    });
+
+  await page.reload();
+  await page.getByRole("button", { name: /^Playback/ }).click();
+  await page.getByText("Advanced source controls", { exact: true }).click();
+  await expect(page.getByLabel("Automatic source selection")).toHaveValue(
+    "regex",
+  );
+  await expect(page.getByLabel("Custom stream regex")).toHaveValue(regex);
+});
+
 test("friend code installs the shared add-ons, catalogs and TorBox grant", async ({
   page,
 }) => {

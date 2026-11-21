@@ -50,7 +50,7 @@ import CollectionManager from "./CollectionManager";
 import HealthPanel from "./HealthPanel";
 import DownloadCenter from "./DownloadCenter";
 import PrivacyStatus from "./PrivacyStatus";
-import { streamPreferences, validStreamRegex } from "./stream-selection";
+import { validStreamRegex, type StreamPreferences } from "./stream-selection";
 import {
   clearRequestedWhatsNewSection,
   requestedWhatsNewSection,
@@ -93,6 +93,8 @@ type Props = {
   onRealDebridKey: (key: string) => void;
   autoplay: boolean;
   onAutoplay: (value: boolean) => void;
+  sourcePreferences: StreamPreferences;
+  onSourcePreferences: (value: StreamPreferences) => void;
   playbackConnected: boolean;
   tmdbKey: string;
   onTmdbKey: (key: string) => void;
@@ -219,7 +221,9 @@ export default function Settings(props: Props) {
   const [success, setSuccess] = useState("");
   const [remember, setRemember] = useState(false);
   const [epgDraft, setEpgDraft] = useState(props.epgUrl);
-  const [sourcePreferences, setSourcePreferences] = useState(streamPreferences);
+  const [sourcePreferences, setSourcePreferences] = useState(
+    props.sourcePreferences,
+  );
   const [friendStatus, setFriendStatus] = useState<{
     available: boolean;
     owner: boolean;
@@ -231,6 +235,10 @@ export default function Settings(props: Props) {
     [],
   );
   useEffect(() => setEpgDraft(props.epgUrl), [props.epgUrl]);
+  useEffect(
+    () => setSourcePreferences(props.sourcePreferences),
+    [props.sourcePreferences],
+  );
   useEffect(() => {
     if (!props.playbackConnected) {
       setFriendStatus(null);
@@ -784,12 +792,12 @@ export default function Settings(props: Props) {
                       return;
                     }
                     setError("");
-                    localStorage.setItem(
-                      "tiktak:stream-preferences",
-                      JSON.stringify(sourcePreferences),
-                    );
+                    props.onSourcePreferences({
+                      ...sourcePreferences,
+                      updatedAt: Date.now(),
+                    });
                     setSuccess(
-                      "Source preferences saved for this browser profile.",
+                      "Source preferences saved. Nuvio will sync them to this profile on your other devices.",
                     );
                   }}
                 >

@@ -1,13 +1,23 @@
 import { ExternalLink, Megaphone, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export const latestRelease = "2026.11.20.8";
+export const latestRelease = "2026.11.20.9";
 const seenKey = "tiktak:whats-new-seen";
 const openKey = "tiktak:open-whats-new";
 
 export const releases = [
   {
     version: latestRelease,
+    date: "November 20, 2026",
+    title: "Synced source rules and English resume audio",
+    changes: [
+      "Advanced source controls, custom regex mode, and the complete regex now save inside the selected Nuvio profile and load on the website, iPhone, and iPad PWA.",
+      "Customized source controls saved by the previous browser-only release are migrated automatically, so an existing Debridio regex does not need to be entered again.",
+      "Resume and autoplay now prioritize the preferred or device audio language before seeders, and built-in HLS/native audio tracks match English labels and language codes instead of requiring an exact label.",
+    ],
+  },
+  {
+    version: "2026.11.20.8",
     date: "November 20, 2026",
     title: "Custom stream rules and replaceable friend codes",
     changes: [
