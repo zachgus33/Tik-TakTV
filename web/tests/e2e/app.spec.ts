@@ -3404,7 +3404,7 @@ test("autoplay shows a top loading state without opening the manual stream list"
   );
 });
 
-test("playback preparation errors use a full-screen retryable mobile surface", async ({
+test("playback capacity is cleaned up and retried without an error screen", async ({
   page,
 }) => {
   await streamingAddon(page);
@@ -3456,19 +3456,11 @@ test("playback preparation errors use a full-screen retryable mobile surface", a
   await page.goto("/");
   await page.getByRole("button", { name: "Explore title" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  const opening = page.locator("dialog.mobile-opening-player");
-  await expect(opening).toContainText("Could not start playback");
-  await expect(opening).toContainText(
-    "Two video transcodes are already active",
-  );
-  const bounds = await opening.boundingBox();
-  const viewport = page.viewportSize();
-  expect(Math.round(bounds?.x ?? -1)).toBe(0);
-  expect(Math.round(bounds?.y ?? -1)).toBe(0);
-  expect(Math.round(bounds?.width ?? 0)).toBe(viewport?.width);
-  expect(Math.round(bounds?.height ?? 0)).toBe(viewport?.height);
-  await opening.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator("dialog.tv-web-player video")).toBeVisible();
+  await expect(
+    page.getByText("Two video transcodes are already active"),
+  ).toHaveCount(0);
+  await expect(page.getByText("Could not start playback")).toHaveCount(0);
   expect(attempts).toBe(2);
 });
 

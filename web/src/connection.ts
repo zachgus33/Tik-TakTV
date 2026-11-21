@@ -292,12 +292,9 @@ export async function prepareMedia(
   };
   let response = await serviceRequest("/prepare", payload, signal, config);
   if (playbackId && [429, 503].includes(response.status) && !signal?.aborted) {
-    await serviceRequest(
-      "/playback/cancel",
-      { playbackId },
-      signal,
-      config,
-    ).catch(() => undefined);
+    void serviceRequest("/playback/cancel", { playbackId }, undefined, config, {
+      keepalive: true,
+    }).catch(() => undefined);
     response = await serviceRequest("/prepare", payload, signal, config);
   }
   if (response.status === 429 && live && !signal?.aborted) {
