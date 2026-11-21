@@ -154,6 +154,7 @@ export type StreamPreferences = {
   showFileSizeBadges: boolean;
   showAddonNameBadge: boolean;
   streamBadgePlacement: "top" | "bottom";
+  pinnedSources: { id: string; name: string }[];
   updatedAt: number;
 };
 export const defaultStreamPreferences: StreamPreferences = {
@@ -174,6 +175,7 @@ export const defaultStreamPreferences: StreamPreferences = {
   showFileSizeBadges: true,
   showAddonNameBadge: true,
   streamBadgePlacement: "bottom",
+  pinnedSources: [],
   updatedAt: 0,
 };
 export function normalizeStreamPreferences(value: unknown): StreamPreferences {
@@ -249,6 +251,26 @@ export function normalizeStreamPreferences(value: unknown): StreamPreferences {
     showAddonNameBadge: saved.showAddonNameBadge !== false,
     streamBadgePlacement:
       saved.streamBadgePlacement === "top" ? "top" : "bottom",
+    pinnedSources: Array.isArray(saved.pinnedSources)
+      ? saved.pinnedSources
+          .filter(
+            (source) =>
+              source &&
+              typeof source.id === "string" &&
+              typeof source.name === "string",
+          )
+          .map((source) => ({
+            id: source.id.trim(),
+            name: source.name.trim(),
+          }))
+          .filter(
+            (source, index, all) =>
+              source.id &&
+              source.name &&
+              all.findIndex((candidate) => candidate.id === source.id) ===
+                index,
+          )
+      : [],
     updatedAt: Math.max(0, Number(saved.updatedAt) || 0),
   };
 }
@@ -265,6 +287,8 @@ export function streamPreferences(): StreamPreferences {
 export function saveStreamPreferences(preferences: StreamPreferences) {
   const normalized = normalizeStreamPreferences(preferences);
   localStorage.setItem("tiktak:stream-preferences", JSON.stringify(normalized));
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new Event("tiktak:stream-preferences-changed"));
   return normalized;
 }
 
@@ -545,9 +569,13 @@ export function sourcePickerStreams(
   streams: Stream[],
   installedOrder: string[] = [],
 ): Stream[] {
+  const preferences = streamPreferences();
   const seen = new Set<string>();
   const addonRank = new Map(
     installedOrder.map((name, index) => [name.toLocaleLowerCase(), index]),
+  );
+  const pinnedRank = new Map(
+    preferences.pinnedSources.map((source, index) => [source.id, index]),
   );
   return streams
     .filter(directStream)
@@ -567,6 +595,10 @@ export function sourcePickerStreams(
     .map((stream, index) => ({ stream, index }))
     .sort(
       (left, right) =>
+        (pinnedRank.get(left.stream.addonId ?? "") ??
+          Number.MAX_SAFE_INTEGER) -
+          (pinnedRank.get(right.stream.addonId ?? "") ??
+            Number.MAX_SAFE_INTEGER) ||
         Number(debridStream(right.stream)) - Number(debridStream(left.stream)) ||
         (addonRank.get(left.stream.addonName?.toLocaleLowerCase() ?? "") ??
           Number.MAX_SAFE_INTEGER) -

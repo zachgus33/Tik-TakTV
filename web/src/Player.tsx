@@ -8,6 +8,7 @@ import {
   Link,
   Maximize,
   Pause,
+  Pin,
   PictureInPicture2,
   Play,
   RotateCcw,
@@ -35,6 +36,7 @@ import { createTraktScrobbler } from "./trakt-scrobble";
 import { createSimklScrobbler } from "./simkl-scrobble";
 import {
   preferredAudioTrackIndex,
+  saveStreamPreferences,
   streamPreferences,
 } from "./stream-selection";
 import { readNuvioWebSettings } from "./nuvio-web-settings";
@@ -2312,6 +2314,9 @@ export default function Player({
   const [attempt, setAttempt] = useState(0);
   const [prepareRetry, setPrepareRetry] = useState(0);
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [pinnedSources, setPinnedSources] = useState(
+    () => streamPreferences().pinnedSources,
+  );
   const playbackMetricId = useRef(
     crypto.randomUUID().replaceAll("-", ""),
   ).current;
@@ -2364,6 +2369,33 @@ export default function Player({
     group.choices.push({ choice, index });
     return groups;
   }, []);
+  if (experienceSettings.streamSourcePinning && pinnedSources.length) {
+    const rank = new Map(
+      pinnedSources.map((source, index) => [source.id, index]),
+    );
+    sourceGroups.sort(
+      (left, right) =>
+        (rank.get(left.choices[0]?.choice.sourceAddonId ?? "") ??
+          Number.MAX_SAFE_INTEGER) -
+        (rank.get(right.choices[0]?.choice.sourceAddonId ?? "") ??
+          Number.MAX_SAFE_INTEGER),
+    );
+  }
+  const togglePinnedSource = (group: (typeof sourceGroups)[number]) => {
+    const id = group.choices[0]?.choice.sourceAddonId;
+    if (!id) return;
+    const current = streamPreferences();
+    const isPinned = current.pinnedSources.some((source) => source.id === id);
+    const pinnedSources = isPinned
+      ? current.pinnedSources.filter((source) => source.id !== id)
+      : [...current.pinnedSources, { id, name: group.name }];
+    const saved = saveStreamPreferences({
+      ...current,
+      pinnedSources,
+      updatedAt: Date.now(),
+    });
+    setPinnedSources(saved.pinnedSources);
+  };
   useEffect(() => {
     reportMediaActivity(playbackMetricId, {
       active: false,
@@ -2608,7 +2640,36 @@ export default function Player({
             <section className="player-source-group" key={group.name}>
               <header>
                 <strong>{group.name}</strong>
-                <span>{group.choices.length}</span>
+                <div>
+                  <span>{group.choices.length}</span>
+                  {experienceSettings.streamSourcePinning &&
+                    group.choices[0]?.choice.sourceAddonId && (
+                      <button
+                        type="button"
+                        className={
+                          pinnedSources.some(
+                            (source) =>
+                              source.id ===
+                              group.choices[0]?.choice.sourceAddonId,
+                          )
+                            ? "active"
+                            : undefined
+                        }
+                        aria-label={`${
+                          pinnedSources.some(
+                            (source) =>
+                              source.id ===
+                              group.choices[0]?.choice.sourceAddonId,
+                          )
+                            ? "Unpin"
+                            : "Pin"
+                        } ${group.name}`}
+                        onClick={() => togglePinnedSource(group)}
+                      >
+                        <Pin size={14} />
+                      </button>
+                    )}
+                </div>
               </header>
               {group.choices.map(({ choice, index }) => (
                 <button

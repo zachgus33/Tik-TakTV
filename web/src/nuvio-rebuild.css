@@ -544,6 +544,36 @@ html:not(.tv-mode) .settings-nav-group > button.active {
   border-radius: 18px;
   background: #0f0d13;
 }
+.pinned-stream-sources {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0;
+}
+.pinned-stream-sources h3,
+.pinned-stream-sources p {
+  margin: 0;
+}
+.pinned-stream-sources article {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff0d;
+  border-radius: 12px;
+  background: #17141c;
+}
+.pinned-stream-sources article > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+.pinned-stream-sources small {
+  overflow: hidden;
+  color: #938b9b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .stream-badge-settings h3,
 .stream-badge-settings p {
   margin: 0;
@@ -718,6 +748,49 @@ html:not(.tv-mode) .settings-nav-group > button.active {
 .detail-recommendations {
   margin-top: 30px;
 }
+.detail-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  margin: 22px 0 8px;
+  padding: 8px;
+  border: 1px solid #ffffff10;
+  border-radius: 14px;
+  background: #0d0b11e8;
+  backdrop-filter: blur(16px);
+}
+.detail-tabs button {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+}
+.detail-tabs button.active {
+  color: white;
+  background: color-mix(in srgb, var(--accent) 24%, #17131d);
+}
+.meta-tab-layout .cast-section,
+.meta-tab-layout .episode-section,
+.meta-tab-layout .no-episodes,
+.meta-tab-layout .detail-info-section,
+.meta-tab-layout .detail-trailer-section,
+.meta-tab-layout .detail-recommendations {
+  display: none;
+}
+.meta-tab-layout:not(.meta-tab-overview) > .description,
+.meta-tab-layout:not(.meta-tab-overview) > .chips {
+  display: none;
+}
+.meta-tab-layout.meta-tab-overview .cast-section,
+.meta-tab-layout.meta-tab-overview .detail-info-section,
+.meta-tab-layout.meta-tab-episodes .episode-section,
+.meta-tab-layout.meta-tab-episodes .no-episodes,
+.meta-tab-layout.meta-tab-more .detail-trailer-section,
+.meta-tab-layout.meta-tab-more .detail-recommendations {
+  display: block;
+}
 .detail-info-section h2,
 .detail-trailer-section h2,
 .detail-recommendations h2 {
@@ -794,6 +867,14 @@ html:not(.tv-mode)[data-nuvio-episode-style="horizontal"] .episode-row {
   filter: blur(4px);
   opacity: 0.55;
 }
+.episode-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #f3cb67;
+  font-size: 12px;
+  white-space: nowrap;
+}
 html:not(.tv-mode)[data-nuvio-library-layout="horizontal"]
   .library-toolbar
   ~ .media-grid {
@@ -840,7 +921,7 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
   }
   html:not(.tv-mode) .nuvio-web-shell .main-shell {
     margin-left: 0;
-    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
   html:not(.tv-mode) .nuvio-web-shell #main-content {
     padding-top: 0;
@@ -864,19 +945,22 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
   }
   html:not(.tv-mode) .nuvio-web-shell .bottom-nav {
     position: fixed;
-    right: auto;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    left: 12px;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 90;
     display: flex;
-    min-height: 68px;
-    width: calc(100vw - 24px);
-    padding: 7px;
+    min-height: calc(64px + env(safe-area-inset-bottom));
+    width: 100%;
+    padding: 6px max(5px, env(safe-area-inset-right))
+      calc(6px + env(safe-area-inset-bottom))
+      max(5px, env(safe-area-inset-left));
     overflow-x: auto;
-    border: 1px solid #ffffff17;
-    border-radius: 23px;
-    background: #110f17e8;
-    box-shadow: 0 20px 70px #000c;
+    border: 0;
+    border-top: 1px solid #ffffff17;
+    border-radius: 0;
+    background: #0c0a10f2;
+    box-shadow: 0 -12px 40px #0009;
     backdrop-filter: blur(26px) saturate(135%);
   }
   html:not(.tv-mode) .nuvio-web-shell .bottom-nav a {
@@ -886,18 +970,21 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
     border-radius: 17px;
   }
   html:not(.tv-mode) .nuvio-web-shell .bottom-nav a.active {
-    background: color-mix(in srgb, var(--accent) 22%, #1c1722);
+    color: white;
+    background: transparent;
   }
   html:not(.tv-mode) .settings-shell {
     display: block;
   }
   html:not(.tv-mode) .settings-nav {
     position: static;
+    display: block;
     max-height: none;
     margin-bottom: 22px;
+    overflow: visible;
   }
   html:not(.tv-mode) .settings-nav-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
   html:not(.tv-mode) .settings-nav-group > span {
     grid-column: 1 / -1;
@@ -920,6 +1007,18 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
   .nuvio-native-mappings {
     grid-template-columns: 1fr;
   }
+  html:not(.tv-mode) .settings-shell:not(.mobile-panel-open) .settings-panels {
+    display: none;
+  }
+  html:not(.tv-mode) .settings-shell.mobile-panel-open .settings-nav {
+    display: none;
+  }
+  .settings-mobile-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-bottom: 12px;
+  }
 }
 @media (max-width: 480px) {
   html:not(.tv-mode) .settings-nav-group {
@@ -930,5 +1029,11 @@ html:not(.tv-mode)[data-nuvio-subtitle-font="mono"] .player-subtitle-overlay {
   }
   html:not(.tv-mode) .nuvio-web-shell .bottom-nav a span {
     font-size: 10px;
+  }
+}
+
+@media (min-width: 801px) {
+  .settings-mobile-back {
+    display: none;
   }
 }

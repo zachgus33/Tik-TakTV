@@ -508,6 +508,22 @@ describe("per-profile source controls", () => {
         ["Public", "Debridio"],
       ),
     ).toEqual([debridStream, publicStream]);
+
+    storage.set(
+      "tiktak:stream-preferences",
+      JSON.stringify({
+        autoPlayMode: "first",
+        pinnedSources: [
+          { id: publicStream.addonId, name: publicStream.addonName },
+        ],
+      }),
+    );
+    expect(
+      sourcePickerStreams([debridStream, publicStream], [
+        "Debridio",
+        "Public",
+      ]),
+    ).toEqual([publicStream, debridStream]);
   });
 });
 

@@ -84,6 +84,7 @@ export type FriendTemplate = {
 
 type Props = {
   profileName: string;
+  trackingProfileName: string;
   provider: Provider | null;
   onProvider: (p: Provider | null) => void;
   epgUrl: string;
@@ -315,6 +316,7 @@ export default function Settings(props: Props) {
               : "enhanced",
   );
   const [busy, setBusy] = useState("");
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [settingsQuery, setSettingsQuery] = useState("");
@@ -436,7 +438,9 @@ export default function Settings(props: Props) {
           {success}
         </div>
       )}
-      <div className="settings-shell">
+      <div
+        className={`settings-shell${mobilePanelOpen ? " mobile-panel-open" : ""}`}
+      >
         <nav className="settings-nav" aria-label="Settings sections">
           <label className="settings-search">
             <Search size={17} />
@@ -466,7 +470,10 @@ export default function Settings(props: Props) {
                       key={item.id}
                       className={section === item.id ? "active" : ""}
                       aria-current={section === item.id ? "page" : undefined}
-                      onClick={() => setSection(item.id)}
+                      onClick={() => {
+                        setSection(item.id);
+                        setMobilePanelOpen(true);
+                      }}
                     >
                       <item.icon size={19} />
                       <span>
@@ -481,6 +488,13 @@ export default function Settings(props: Props) {
           )}
         </nav>
         <div className="settings-panels">
+          <button
+            type="button"
+            className="settings-mobile-back"
+            onClick={() => setMobilePanelOpen(false)}
+          >
+            Back to settings
+          </button>
           <header className="settings-panel-heading">
             <span>{sections.find((item) => item.id === section)?.label}</span>
             <h2>{sections.find((item) => item.id === section)?.description}</h2>
@@ -1157,18 +1171,18 @@ export default function Settings(props: Props) {
           )}
           {section === "downloads" && <DownloadCenter />}
           {section === "trakt" && (
-            <TraktSettings profileName={props.profileName} />
+            <TraktSettings profileName={props.trackingProfileName} />
           )}
           {section === "simkl" && (
             <ExternalTrackingSettings
               provider="simkl"
-              profileName={props.profileName}
+              profileName={props.trackingProfileName}
             />
           )}
           {section === "anilist" && (
             <ExternalTrackingSettings
               provider="anilist"
-              profileName={props.profileName}
+              profileName={props.trackingProfileName}
             />
           )}
           {section === "privacy" && (

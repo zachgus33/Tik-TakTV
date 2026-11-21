@@ -3842,7 +3842,12 @@ body:has(dialog[open]:not(.mini-live-player)) {
   padding: 6px 4px 2px;
   color: var(--text);
 }
-.player-source-group > header > span {
+.player-source-group > header > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.player-source-group > header > div > span {
   min-width: 26px;
   padding: 3px 7px;
   border-radius: 999px;
@@ -3850,6 +3855,19 @@ body:has(dialog[open]:not(.mini-live-player)) {
   background: #ffffff0b;
   font-size: 11px;
   text-align: center;
+}
+.player-source-group > header button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: #ffffff08;
+}
+.player-source-group > header button.active {
+  color: white;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, #17131d);
 }
 .player-source-group > button {
   display: flex;

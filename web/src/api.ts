@@ -455,6 +455,12 @@ export async function addonDetail(
         season: Number(v.season ?? 1),
         episode: Number(v.episode ?? 1),
         released: v.released,
+        rating:
+          v.imdbRating != null
+            ? String(v.imdbRating)
+            : v.rating != null
+              ? String(v.rating)
+              : undefined,
       }))
       .sort((a, b) => a.season - b.season || a.episode - b.episode);
   const seasons = [...new Set(episodes.map((episode) => episode.season))]

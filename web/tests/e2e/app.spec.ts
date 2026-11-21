@@ -2882,6 +2882,10 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
       }),
     );
     localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ streamSourcePinning: true, updatedAt: Date.now() }),
+    );
+    localStorage.setItem(
       "nuvio:addons",
       JSON.stringify([
         {
@@ -2979,6 +2983,19 @@ test("autoplay starts without waiting for slow add-ons", async ({ page }) => {
     chooser.locator(".player-source-group > header strong"),
   ).toHaveText(["Fast source", "Debridio"]);
   await expect(chooser).toContainText("Debridio cached 1440p AAC");
+  await chooser.getByRole("button", { name: "Pin Debridio" }).click();
+  await expect(
+    chooser.locator(".player-source-group > header strong"),
+  ).toHaveText(["Debridio", "Fast source"]);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(
+          localStorage.getItem("tiktak:stream-preferences") ?? "{}",
+        ).pinnedSources?.map((source: { name: string }) => source.name),
+      ),
+    )
+    .toEqual(["Debridio"]);
 });
 test("episode resume briefly races an incompatible first result and starts the direct MP4", async ({
   page,
@@ -4728,6 +4745,49 @@ test("Download Center groups and cancels background preparation", async ({
   await expect(page.getByText("Friends S01E01.mp4")).toHaveCount(0);
 });
 
+test("mobile Settings uses a readable drill-in menu and flush bottom navigation", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#settings");
+  const navigation = page.getByRole("navigation", {
+    name: "Settings sections",
+  });
+  await expect(navigation).toBeVisible();
+  await expect(page.locator(".settings-panels")).toBeHidden();
+  const navLayout = await navigation.evaluate((element) => ({
+    width: element.getBoundingClientRect().width,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: innerWidth,
+    buttonsFit: [...element.querySelectorAll("button")].every(
+      (button) =>
+        button.getBoundingClientRect().left >= 0 &&
+        button.getBoundingClientRect().right <= innerWidth + 1,
+    ),
+  }));
+  expect(navLayout.documentWidth).toBeLessThanOrEqual(navLayout.viewportWidth);
+  expect(navLayout.width).toBeLessThanOrEqual(navLayout.viewportWidth);
+  expect(navLayout.buttonsFit).toBe(true);
+  await navigation.getByRole("button", { name: /^Streams/ }).click();
+  await expect(navigation).toBeHidden();
+  await expect(page.locator(".settings-panels")).toBeVisible();
+  await page.getByRole("button", { name: "Back to settings" }).click();
+  await expect(navigation).toBeVisible();
+  await expect(page.locator(".settings-owner-strip")).not.toContainText(
+    /profile:[a-f0-9-]+:\d+/i,
+  );
+  const bottom = await page.locator(".bottom-nav").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: Math.round(rect.left),
+      right: Math.round(innerWidth - rect.right),
+      bottom: Math.round(innerHeight - rect.bottom),
+      radius: getComputedStyle(element).borderRadius,
+    };
+  });
+  expect(bottom).toEqual({ left: 0, right: 0, bottom: 0, radius: "0px" });
+});
+
 test("TikTakTV appearance settings immediately reshape the shell and survive reload", async ({
   page,
 }) => {
@@ -4764,6 +4824,25 @@ test("TikTakTV appearance settings immediately reshape the shell and survive rel
   await page.getByRole("button", { name: /^Appearance/ }).click();
   await expect(page.getByLabel("Navigation style")).toHaveValue("rail");
   await expect(page.getByLabel("Poster size")).toHaveValue("large");
+});
+
+test("tabbed metadata layout switches real detail sections", async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "tiktak:nuvio-web-settings",
+      JSON.stringify({ metaTabLayout: true, updatedAt: Date.now() }),
+    ),
+  );
+  await page.goto("/#home");
+  await page.getByRole("button", { name: "Explore title" }).click();
+  const details = page.locator(".detail-dialog");
+  const tabs = details.getByRole("tablist", { name: "Title detail sections" });
+  await expect(tabs.getByRole("tab")).toHaveText(["Overview", "More"]);
+  await expect(details.locator(".description")).toBeVisible();
+  await tabs.getByRole("tab", { name: "More" }).click();
+  await expect(details.locator(".description")).toBeHidden();
+  await tabs.getByRole("tab", { name: "Overview" }).click();
+  await expect(details.locator(".description")).toBeVisible();
 });
 
 test("Continue Watching styles and upcoming episodes follow profile settings", async ({

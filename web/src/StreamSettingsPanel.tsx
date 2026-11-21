@@ -209,6 +209,37 @@ export default function StreamSettingsPanel({
           <p className="hint">Install a streaming add-on to choose it here.</p>
         )}
       </fieldset>
+      {draft.pinnedSources.length > 0 && (
+        <section className="pinned-stream-sources">
+          <div>
+            <h3>Pinned sources</h3>
+            <p className="hint">
+              These add-on groups appear first in manual source lists.
+            </p>
+          </div>
+          {draft.pinnedSources.map((source) => (
+            <article key={source.id}>
+              <span>
+                <strong>{source.name}</strong>
+                <small>{source.id}</small>
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  update(
+                    "pinnedSources",
+                    draft.pinnedSources.filter(
+                      (candidate) => candidate.id !== source.id,
+                    ),
+                  )
+                }
+              >
+                Unpin
+              </button>
+            </article>
+          ))}
+        </section>
+      )}
       <section className="stream-badge-settings">
         <div>
           <h3>Stream badges</h3>

@@ -1455,6 +1455,9 @@ function Detail({
   const ref = useRef<HTMLDialogElement>(null);
   const nuvioWebSettings = readNuvioWebSettings();
   const [item, setItem] = useState(initial);
+  const [metaTab, setMetaTab] = useState<"overview" | "episodes" | "more">(
+    "overview",
+  );
   const [traktConnected, setTraktConnected] = useState(false);
   const [traktRating, setTraktRatingValue] = useState<number | null>(null);
   const [traktRatingBusy, setTraktRatingBusy] = useState(false);
@@ -2306,7 +2309,12 @@ function Detail({
   }
   const seasons = [...new Set(episodes.map((e) => e.season))];
   return (
-    <dialog ref={ref} className="detail-dialog" onCancel={onClose}>
+    <dialog
+      ref={ref}
+      className="detail-dialog"
+      aria-label={`${item.name} details`}
+      onCancel={onClose}
+    >
       {preparing && (
         <div
           className="detail-preparing"
@@ -2356,7 +2364,9 @@ function Detail({
       <div className="detail-art">
         <Art item={item} wide />
       </div>
-      <div className="detail-content">
+      <div
+        className={`detail-content${nuvioWebSettings.metaTabLayout ? ` meta-tab-layout meta-tab-${metaTab}` : ""}`}
+      >
         <span className="eyebrow">
           {item.source === "xtream"
             ? "YOUR IPTV COLLECTION"
@@ -2574,6 +2584,43 @@ function Detail({
             </button>
           )}
         </div>
+        {nuvioWebSettings.metaTabLayout && (
+          <nav
+            className="detail-tabs"
+            aria-label="Title detail sections"
+            role="tablist"
+          >
+            <button
+              type="button"
+              role="tab"
+              className={metaTab === "overview" ? "active" : undefined}
+              aria-selected={metaTab === "overview"}
+              onClick={() => setMetaTab("overview")}
+            >
+              Overview
+            </button>
+            {item.type === "series" && (
+              <button
+                type="button"
+                role="tab"
+                className={metaTab === "episodes" ? "active" : undefined}
+                aria-selected={metaTab === "episodes"}
+                onClick={() => setMetaTab("episodes")}
+              >
+                Episodes
+              </button>
+            )}
+            <button
+              type="button"
+              role="tab"
+              className={metaTab === "more" ? "active" : undefined}
+              aria-selected={metaTab === "more"}
+              onClick={() => setMetaTab("more")}
+            >
+              More
+            </button>
+          </nav>
+        )}
         {nuvioWebSettings.metaSections.cast !== false &&
           (credits.length > 0 || (item.cast?.length ?? 0) > 0) && (
           <section className="cast-section" aria-label="Cast">
@@ -2821,6 +2868,11 @@ function Detail({
                       >
                         <span className="episode-number">{ep.episode}</span>
                         <span>{ep.name}</span>
+                        {nuvioWebSettings.showEpisodeRatings && ep.rating && (
+                          <span className="episode-rating">
+                            <Star size={13} fill="currentColor" /> {ep.rating}
+                          </span>
+                        )}
                         <span className="episode-row-status">
                           {episodeWatched && (
                             <span className="episode-watched-badge">
@@ -2852,7 +2904,9 @@ function Detail({
           </div>
         )}
         {!busy && item.type === "series" && !episodes.length && (
-          <p className="muted">No episodes were returned by this source.</p>
+          <p className="muted no-episodes">
+            No episodes were returned by this source.
+          </p>
         )}
         {nuvioWebSettings.metaSections.production !== false &&
           extras.studios.length > 0 && (
@@ -3019,6 +3073,15 @@ export default function App() {
   useEffect(() => {
     setAutoplay(sourcePreferences.autoPlayMode !== "manual");
   }, [sourcePreferences.autoPlayMode, setAutoplay]);
+  useEffect(() => {
+    const changed = () => setSourcePreferences(streamPreferences());
+    window.addEventListener("tiktak:stream-preferences-changed", changed);
+    return () =>
+      window.removeEventListener(
+        "tiktak:stream-preferences-changed",
+        changed,
+      );
+  }, []);
   const [nuvioWebSettings, setNuvioWebSettings] =
     useState<NuvioWebSettings>(readNuvioWebSettings);
   const [skipProfileSelection, setSkipProfileSelection] = useStored(
@@ -5593,7 +5656,8 @@ export default function App() {
             {page === "settings" && (
               <Suspense fallback={<Loading />}>
                 <Settings
-                  profileName={traktProfileIdentity(
+                  profileName={activeProfileView?.name ?? ""}
+                  trackingProfileName={traktProfileIdentity(
                     activeProfileView?.name ?? "",
                   )}
                   provider={provider}
