@@ -48,6 +48,7 @@ import {
   streamCompatibility,
   updateDownloadJob,
   downloadJobs,
+  removeDownloadJob,
 } from "../src/reliability";
 import { decryptSetup, encryptSetup } from "../src/encrypted-backup";
 import {
@@ -1660,6 +1661,8 @@ describe("stream manifest compatibility", () => {
     expect(downloadJobs()).toEqual([
       expect.objectContaining({ id: "job-1", status: "started" }),
     ]);
+    removeDownloadJob("job-1");
+    expect(downloadJobs()).toEqual([]);
     localStorage.setItem("tiktak:active-profile-owner", "account-a:2");
     expect(downloadJobs()).toEqual([]);
     updateDownloadJob({

@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, Download, Trash2, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  Clock3,
+  Download,
+  LoaderCircle,
+  Trash2,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import {
   clearDownloadJobs,
   downloadJobs,
+  removeDownloadJob,
   type DownloadJob,
   updateDownloadJob,
 } from "./reliability";
 import {
   completedDownloadUrl,
+  cancelDownloadPreparation,
   DownloadStatusError,
   downloadPreparationStatus,
 } from "./connection";
@@ -32,6 +42,8 @@ function readyDetail(bytes?: number) {
 
 export default function DownloadCenter() {
   const [jobs, setJobs] = useState<DownloadJob[]>(downloadJobs);
+  const [action, setAction] = useState("");
+  const cancelledIds = useRef(new Set<string>());
   useEffect(() => {
     const refresh = () => setJobs(downloadJobs());
     let active = true;
@@ -43,7 +55,7 @@ export default function DownloadCenter() {
         preparing.map(async (job) => {
           try {
             const status = await downloadPreparationStatus(job.statusPath!);
-            if (!active) return;
+            if (!active || cancelledIds.current.has(job.id)) return;
             updateDownloadJob({
               ...job,
               status:
@@ -69,7 +81,7 @@ export default function DownloadCenter() {
                   : job.url,
             });
           } catch (error) {
-            if (!active) return;
+            if (!active || cancelledIds.current.has(job.id)) return;
             if (error instanceof DownloadStatusError && error.permanent) {
               updateDownloadJob({
                 ...job,
@@ -104,6 +116,48 @@ export default function DownloadCenter() {
   const appleTouchBrowser =
     /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const groups = [
+    {
+      id: "active",
+      title: "Active",
+      jobs: jobs.filter((job) => job.status === "preparing"),
+    },
+    {
+      id: "ready",
+      title: "Ready to download",
+      jobs: jobs.filter((job) => job.status === "ready"),
+    },
+    {
+      id: "history",
+      title: "History",
+      jobs: jobs.filter(
+        (job) => job.status === "started" || job.status === "failed",
+      ),
+    },
+  ].filter((group) => group.jobs.length > 0);
+  const remove = async (job: DownloadJob) => {
+    if (action) return;
+    setAction(job.id);
+    cancelledIds.current.add(job.id);
+    try {
+      if (job.statusPath && job.status !== "started")
+        await cancelDownloadPreparation(job.statusPath).catch((error) => {
+          if (!/not found|no longer available/i.test(String(error))) throw error;
+        });
+      removeDownloadJob(job.id);
+    } catch (error) {
+      cancelledIds.current.delete(job.id);
+      updateDownloadJob({
+        ...job,
+        detail:
+          error instanceof Error
+            ? `Could not cancel: ${error.message}`
+            : "Could not cancel this download.",
+      });
+    } finally {
+      setAction("");
+    }
+  };
   return (
     <section className="settings-card download-center">
       <div className="card-heading">
@@ -124,36 +178,72 @@ export default function DownloadCenter() {
           Downloads you start from a movie or episode will appear here.
         </p>
       ) : (
-        <div className="download-jobs">
-          {jobs.map((job) => (
-            <article key={job.id}>
-              {job.status === "failed" ? <TriangleAlert /> : <CheckCircle2 />}
-              <div>
-                <strong>{job.name}</strong>
-                <p>{job.detail}</p>
-                <small>{new Date(job.at).toLocaleString()}</small>
+        <div className="download-groups">
+          {groups.map((group) => (
+            <section key={group.id}>
+              <header>
+                <h3>{group.title}</h3>
+                <span>{group.jobs.length}</span>
+              </header>
+              <div className="download-jobs">
+                {group.jobs.map((job) => (
+                  <article key={job.id}>
+                    {job.status === "failed" ? (
+                      <TriangleAlert />
+                    ) : job.status === "preparing" ? (
+                      <LoaderCircle className="spin" />
+                    ) : job.status === "started" ? (
+                      <Clock3 />
+                    ) : (
+                      <CheckCircle2 />
+                    )}
+                    <div>
+                      <strong>{job.name}</strong>
+                      <p>{job.detail}</p>
+                      <small>{new Date(job.at).toLocaleString()}</small>
+                      {job.status === "preparing" && (
+                        <progress
+                          aria-label={`Preparing ${job.name}`}
+                        />
+                      )}
+                    </div>
+                    <span className={`badge ${job.status}`}>{job.status}</span>
+                    <div className="download-job-actions">
+                      {job.url && (
+                        <a
+                          className="download-job-action"
+                          href={job.url}
+                          download={appleTouchBrowser ? undefined : job.name}
+                          rel="noopener"
+                          onClick={() => {
+                            updateDownloadJob({
+                              ...job,
+                              status: "started",
+                              detail: "Download requested from the browser.",
+                              at: Date.now(),
+                            });
+                          }}
+                        >
+                          <Download size={16} />
+                          {appleTouchBrowser
+                            ? "Open MP4 / Save to Files"
+                            : "Download MP4"}
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        disabled={action === job.id}
+                        aria-label={`${job.status === "preparing" ? "Cancel" : "Remove"} ${job.name}`}
+                        onClick={() => void remove(job)}
+                      >
+                        <X size={16} />
+                        {job.status === "preparing" ? "Cancel" : "Remove"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
-              <span className={`badge ${job.status}`}>{job.status}</span>
-              {job.url && (
-                <a
-                  className="download-job-action"
-                  href={job.url}
-                  download={appleTouchBrowser ? undefined : job.name}
-                  rel="noopener"
-                  onClick={() => {
-                    updateDownloadJob({
-                      ...job,
-                      status: "started",
-                      detail: "Download requested from the browser.",
-                      at: Date.now(),
-                    });
-                  }}
-                >
-                  <Download size={16} />
-                  {appleTouchBrowser ? "Open MP4 / Save to Files" : "Download MP4"}
-                </a>
-              )}
-            </article>
+            </section>
           ))}
         </div>
       )}

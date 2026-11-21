@@ -459,6 +459,29 @@ export async function downloadPreparationStatus(
   return { ...status, statusPath };
 }
 
+export async function cancelDownloadPreparation(statusPath: string) {
+  if (!validDownloadPath(statusPath, "status.json"))
+    throw new Error("Invalid download status path.");
+  const config = getService();
+  if (!config) throw new Error("Connect the TikTak TV playback service first.");
+  const response = await serviceRequest(
+    "/download/cancel",
+    { statusPath },
+    undefined,
+    config,
+  );
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => ({}))) as {
+      error?: unknown;
+    };
+    throw new Error(
+      typeof detail.error === "string"
+        ? detail.error
+        : `Download cancellation returned HTTP ${response.status}.`,
+    );
+  }
+}
+
 export class DownloadStatusError extends Error {
   constructor(
     message: string,

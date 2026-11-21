@@ -3827,6 +3827,18 @@ export function createService({
           path: `/media/${id}/download.mp4`,
         });
       }
+      if (route.pathname === "/download/cancel") {
+        const id = /^\/media\/([A-Za-z0-9_-]{32})\/status\.json$/.exec(
+          String(body.statusPath ?? ""),
+        )?.[1];
+        const job = id ? jobs.get(id) : undefined;
+        if (!id || !job || job.kind !== "download")
+          return send(404, { error: "Download preparation was not found." });
+        if (job.owner !== userId)
+          return send(403, { error: "This download belongs to another account." });
+        await removeMediaJob(id, job);
+        return send(200, { cancelled: true });
+      }
       if (route.pathname === "/prepare") {
         await resolveTarget(body.url);
         const headers = sourceHeaders(body.headers);

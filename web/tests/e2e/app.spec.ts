@@ -4673,6 +4673,61 @@ test("source regex survives a complete settings reload", async ({ page }) => {
   await expect(page.getByLabel("Reuse the last working link")).toBeChecked();
 });
 
+test("Download Center groups and cancels background preparation", async ({
+  page,
+}) => {
+  const statusPath = `/media/${"c".repeat(32)}/status.json`;
+  await page.addInitScript(
+    ({ statusPath }) => {
+      localStorage.setItem(
+        "nuvio:playback-service",
+        JSON.stringify({
+          url: "https://playback.example",
+          token: "private-test-key",
+        }),
+      );
+      localStorage.setItem(
+        "nuvio:downloads:local",
+        JSON.stringify([
+          {
+            id: "download-active",
+            name: "Friends S01E01.mp4",
+            status: "preparing",
+            detail: "Copying source in the background.",
+            at: Date.now(),
+            statusPath,
+          },
+        ]),
+      );
+    },
+    { statusPath },
+  );
+  let cancelled = "";
+  await page.route("https://playback.example/download/cancel", async (route) => {
+    cancelled = String(route.request().postDataJSON().statusPath);
+    await route.fulfill({ json: { cancelled: true } });
+  });
+  await page.route(`https://playback.example${statusPath}`, (route) =>
+    route.fulfill({
+      json: {
+        status: "preparing",
+        stage: "copy",
+        bytes: 1024,
+        progressSeconds: 4,
+      },
+    }),
+  );
+
+  await page.goto("/#settings");
+  await page.getByRole("button", { name: /^Downloads/ }).click();
+  await expect(page.getByRole("heading", { name: "Active" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Cancel Friends S01E01.mp4" })
+    .click();
+  await expect.poll(() => cancelled).toBe(statusPath);
+  await expect(page.getByText("Friends S01E01.mp4")).toHaveCount(0);
+});
+
 test("TikTakTV appearance settings immediately reshape the shell and survive reload", async ({
   page,
 }) => {

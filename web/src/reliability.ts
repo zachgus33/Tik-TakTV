@@ -296,3 +296,10 @@ export function clearDownloadJobs() {
   localStorage.removeItem(downloadsKey());
   window.dispatchEvent(new Event("downloads-changed"));
 }
+export function removeDownloadJob(id: string) {
+  localStorage.setItem(
+    downloadsKey(),
+    JSON.stringify(downloadJobs().filter((job) => job.id !== id)),
+  );
+  window.dispatchEvent(new Event("downloads-changed"));
+}

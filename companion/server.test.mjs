@@ -862,6 +862,53 @@ test("does not report a successful download before the converter emits bytes", a
   }
 });
 
+test("cancels a background download and removes its temporary media job", async () => {
+  const token = "c".repeat(40);
+  let killed = false;
+  const spawnMedia = () => {
+    const child = new EventEmitter();
+    child.stderr = new PassThrough();
+    child.kill = () => {
+      killed = true;
+    };
+    return child;
+  };
+  const server = createService({
+    token,
+    origins: ["https://site.example"],
+    spawnMedia,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  try {
+    const prepared = await fetch(base + "/download", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        url: "https://example.com/video.mp4",
+        filename: "video.mp4",
+      }),
+    });
+    assert.equal(prepared.status, 202);
+    const created = await prepared.json();
+    const cancelled = await fetch(base + "/download/cancel", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ statusPath: created.statusPath }),
+    });
+    assert.equal(cancelled.status, 200);
+    assert.equal(killed, true);
+    assert.equal((await fetch(base + created.statusPath)).status, 410);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("spools a complete MP4 before serving a sized range-capable download", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tiktak-download-test-"));
   const token = "s".repeat(40);
